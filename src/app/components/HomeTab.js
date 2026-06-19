@@ -146,7 +146,7 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
                     <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.4 0.02 72)" }}>{m.label}</span>
                     {m.delta != null && (
                       <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: m.good ? "oklch(0.5 0.13 162)" : "oklch(0.56 0.13 55)" }}>
-                        {m.delta > 0 ? "+" : ""}{m.delta}
+                        {m.delta > 0 ? "+" : ""}{Math.round(m.delta)}
                       </span>
                     )}
                     {m.sub && <span style={{ font: "600 10px var(--font-nunito), sans-serif", color: T.textTert }}>{m.sub}</span>}

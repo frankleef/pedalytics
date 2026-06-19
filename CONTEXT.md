@@ -239,14 +239,9 @@ APP_PASSWORD=...             # Login wachtwoord
 - [ ] `sessieverdeling.js` verwijderen — wordt niet meer gebruikt
 
 ### Functionaliteit
-- [ ] Zones dynamisch laden van intervals.icu (nu hardcoded in designTokens)
 - [ ] Power curve met echte best efforts (niet geschat uit gemiddeld wattage)
-- [ ] Cardiac decoupling — hartslag-drift analyseren voor aerobe fitness
-- [ ] Filter-pills op Home (Vandaag/Deze week/Herstel/Belasting) — UI staat er, geen gedrag
-- [ ] Slaapdata meesturen in sessie-generatie prompt (wordt opgehaald maar niet gebruikt)
 
 ### Infrastructuur
 - [ ] Strava OAuth voor productie (callback domain configureren)
-- [ ] Wahoo workout push testen (intervals.icu events endpoint)
 - [ ] Push notificaties (VAPID keys, service worker)
 - [ ] PWA manifest updaten voor nieuw design (kleuren, naam)
