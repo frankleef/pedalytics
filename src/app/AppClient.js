@@ -745,9 +745,6 @@ Alleen JSON.`;
 
     setBeschikbaar(nieuwBeschikbaar);
     setUrenPerDag(nieuwUren);
-    const bijgewerkt = { ...seizoensplan, beschikbaarheid: nieuwBeschikbaar, urenPerDag: nieuwUren };
-    setSeizoensplan(bijgewerkt);
-    fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bijgewerkt) });
     setBeschikbaarheidSchermOpen(false);
 
     const nu = new Date();
@@ -766,6 +763,8 @@ Alleen JSON.`;
       else if (isAan && (oudeUren[dag] || 1.5) !== (nieuwUren[dag] || 1.5)) urenGewijzigd.push(dag);
     }
 
+    let lokaalSessies = [...(weekSessies?.sessies || [])];
+    const teVerwijderenEventIds = [];
     const gewijzigdeDatums = [];
 
     for (const dag of verwijderd) {
@@ -773,11 +772,48 @@ Alleen JSON.`;
         const d = new Date(nu); d.setDate(nu.getDate() + i);
         if (DAGNAMEN[d.getDay()] === dag && d.toISOString().split("T")[0] >= vandaagISO) {
           const datum = d.toISOString().split("T")[0];
-          const sessie = (weekSessies?.sessies || []).find(s => s.datum === datum && !s.voltooid);
-          if (sessie) await verwijderSessie(datum);
+          const sessie = lokaalSessies.find(s => s.datum === datum && !s.voltooid);
+          if (sessie) {
+            if (sessie.intervalsEventId) teVerwijderenEventIds.push(sessie.intervalsEventId);
+            lokaalSessies = lokaalSessies.filter(s => s.datum !== datum);
+          }
           gewijzigdeDatums.push(datum);
         }
       }
+    }
+
+    const tussenWeekSessies = { ...weekSessies, sessies: lokaalSessies };
+    setWeekSessies(tussenWeekSessies);
+
+    teVerwijderenEventIds.forEach(id => {
+      fetch(`/api/intervals/events/${id}`, { method: "DELETE" }).catch(() => {});
+    });
+
+    const ftp = PROFIEL.ftp;
+    const ctl = wellenessHuidig?.ctl || seizoensplan?.huidige_ctl || 45;
+    const atl = wellenessHuidig?.atl || 0;
+    const tsb = Math.round(ctl - atl);
+    const dagenSindsStart = seizoensplan?.startdatum ? Math.max(0, (Date.now() - new Date(seizoensplan.startdatum).getTime()) / 86400000) : 0;
+    const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7) || 1);
+    const kaderWeek = seizoensplan?.kader?.find(w => w.week === weekNr) || seizoensplan?.kader?.[0] || { fase: "basis", tss_doel: 250, focus: "Z2 volume" };
+
+    const zwaarTypes = ["sweetspot", "interval", "drempel", "vo2max"];
+    const recenteHrv = (dagelijkseData || []).filter(d => d.hrv).slice(-5);
+    let hrvInfo = "onbekend";
+    if (recenteHrv.length > 0) {
+      const laatsteHrv = recenteHrv[recenteHrv.length - 1].hrv;
+      const eerste = recenteHrv.length >= 3 ? recenteHrv.slice(0, 2).reduce((s, d) => s + d.hrv, 0) / 2 : laatsteHrv;
+      const laatste = recenteHrv.length >= 3 ? recenteHrv.slice(-2).reduce((s, d) => s + d.hrv, 0) / 2 : laatsteHrv;
+      const trend = laatste < eerste - 3 ? "dalend" : laatste > eerste + 3 ? "stijgend" : "stabiel";
+      hrvInfo = `${laatsteHrv}ms (basislijn ${profiel.hrv_basislijn || 58}) | trend: ${trend}`;
+    }
+
+    const zevenDagen = new Date(Date.now() - 7 * 86400000);
+    const rittenMetRpe = (voortgang?.ritten || []).filter(r => r.rpe && r.datum_iso && new Date(r.datum_iso) >= zevenDagen);
+    let rpeInfo = "geen data";
+    if (rittenMetRpe.length >= 2) {
+      const gem = +(rittenMetRpe.reduce((s, r) => s + r.rpe, 0) / rittenMetRpe.length).toFixed(1);
+      rpeInfo = `gem ${gem}/10 (${gem > 7 ? "te zwaar — verlaag intensiteit" : gem < 4 ? "te licht — verhoog intensiteit" : "passend"})`;
     }
 
     for (const dag of [...toegevoegd, ...urenGewijzigd]) {
@@ -786,16 +822,78 @@ Alleen JSON.`;
         if (DAGNAMEN[d.getDay()] === dag && d.toISOString().split("T")[0] >= vandaagISO) {
           const datum = d.toISOString().split("T")[0];
           const uren = nieuwUren[dag] || 1.5;
-          await genereerSessieDag(datum, dag, uren);
           gewijzigdeDatums.push(datum);
+
+          const weekTssNu = lokaalSessies.reduce((s, sess) => s + (sess.tss || 0), 0);
+          const bestaande = lokaalSessies
+            .filter(s => s.datum !== datum && !s.voltooid)
+            .map(s => `  ${s.datum} (${s.dag}): ${s.type}${zwaarTypes.includes(s.type) ? " [ZWAAR]" : ""}, ${s.tss || "?"} TSS, ${s.duur_min || "?"}min`)
+            .join("\n") || "Geen";
+
+          const prompt = `Maak één trainingssessie voor ${datum} (${dag}), ${uren} uur beschikbaar.
+
+PROFIEL: FTP ${ftp}W | LT ${PROFIEL.lt_hr} bpm | Max HR ${PROFIEL.max_hr} bpm | ${PROFIEL.gewicht} kg | Eerste seizoen
+CTL: ${Math.round(ctl)} | ATL: ${Math.round(atl)} | TSB: ${tsb}
+HRV: ${hrvInfo}
+RPE afgelopen week: ${rpeInfo}
+Fase: ${kaderWeek.fase} — ${kaderWeek.focus} (TSS-doel ${kaderWeek.tss_doel}/week, reeds gepland: ${weekTssNu} TSS)
+
+OVERIGE SESSIES DEZE WEEK (niet wijzigen, houd spreiding — [ZWAAR] = intensiteitsdag):
+${bestaande}
+
+REGELS:
+- Duur past binnen ${uren} uur. Kies type op basis van fase, TSB, HRV en spreiding t.o.v. bestaande sessies
+- Min 1 rustdag tussen harde sessies (sweetspot/interval). Als TSB < -20 of HRV dalend: alleen Z2 of herstel
+- Houd week-TSS onder ${kaderWeek.tss_doel} totaal (er is al ${weekTssNu} gepland)
+- 80/20 polarisatie: max 2 intensiteitsdagen per week
+- GEEN warmup/cooldown segmenten, hoofdinspanning vult hele duur
+- Gebruik vermogenMin/vermogenMax in %FTP per segment
+- Geef een concrete, data-gedreven reden
+
+SESSIETYPES: duur_lang | duur_variabel | sweetspot | interval | herstel
+
+Geef JSON (alleen het sessie-object, geen array):
+{ "datum": "${datum}", "dag": "${dag}", "type": "...", "titel": "...", "tss": ..., "duur_min": ..., "vermogen": "...", "reden": "...", "segmenten": [...] }
+Alleen JSON.`;
+
+          try {
+            const resp = await fetch("/api/claude", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ prompt, system: "Je bent een professionele fietscoach. Genereer één gepersonaliseerde sessie met gedetailleerde workout-segmenten. Nederlands, alleen JSON.", max_tokens: 1500 }),
+            });
+            const cData = await resp.json();
+            if (!cData.success) throw new Error(cData.error);
+            const sessie = JSON.parse(cData.text.replace(/```json|```/g, "").trim());
+
+            try {
+              const syncResp = await fetch("/api/intervals/events", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sessies: [sessie], ftp }),
+              });
+              const syncData = await syncResp.json();
+              if (syncData.success && syncData.data?.[0]) sessie.intervalsEventId = syncData.data[0].id;
+            } catch {}
+
+            lokaalSessies = [...lokaalSessies.filter(s => s.datum !== datum), sessie];
+          } catch (e) {
+            console.error("Sessie genereren mislukt:", datum, e);
+          }
         }
       }
     }
 
+    const eindWeekSessies = { ...weekSessies, sessies: lokaalSessies };
+    setWeekSessies(eindWeekSessies);
+    const eindPlan = { ...seizoensplan, beschikbaarheid: nieuwBeschikbaar, urenPerDag: nieuwUren, weekSessies: eindWeekSessies };
+    setSeizoensplan(eindPlan);
+    fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(eindPlan) });
+
     if (gewijzigdeDatums.length > 0) {
       checkImpact(gewijzigdeDatums).catch(e => console.error("Impact check:", e));
     }
-  }, [beschikbaar, urenPerDag, seizoensplan, weekSessies, verwijderSessie, genereerSessieDag, checkImpact]);
+  }, [beschikbaar, urenPerDag, seizoensplan, weekSessies, wellenessHuidig, dagelijkseData, voortgang, checkImpact]);
 
   const handleRpeSaved = useCallback((ritId, rpeWaarde) => {
     if (!voortgang?.ritten) return;
