@@ -49,6 +49,10 @@ export default function Page() {
         if (d.data.beschikbaarheid) setBeschikbaar(d.data.beschikbaarheid);
         if (d.data.urenPerDag) setUrenPerDag(d.data.urenPerDag);
         if (d.data.weekSessies) setWeekSessies(d.data.weekSessies);
+        if (d.data.planStatus === "genereren") {
+          setPlanStap("genereren");
+          setPlanVoortgang(d.data.kader ? 4 : 0);
+        }
       } else setTab(1);
     }).catch(() => setTab(1));
     laadDagelijkseData();
@@ -61,6 +65,12 @@ export default function Page() {
       if (dagen.length > 0) genereerWeekSessies(dagen);
     }
   }, [seizoensplan?.kader]);
+
+  useEffect(() => {
+    if (planStap === "genereren" && seizoensplan?.doel && !seizoensplan?.kader) {
+      genereerSeizoensplan(seizoensplan);
+    }
+  }, [planStap, seizoensplan?.kader]);
 
   useEffect(() => {
     if (planStap === "genereren" && planVoortgang >= 4 && weekSessies) {
@@ -241,6 +251,8 @@ export default function Page() {
   const genereerSeizoensplan = useCallback(async (doelConfig) => {
     setPlanStap("genereren");
     setPlanVoortgang(0);
+    const planMetStatus = { ...doelConfig, planStatus: "genereren" };
+    fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(planMetStatus) });
     try {
       const kader = bouwKader(doelConfig);
       setPlanVoortgang(1);
@@ -286,7 +298,7 @@ Alleen JSON.`;
       if (!data.success) throw new Error(data.error);
       setPlanVoortgang(3);
       const plan = JSON.parse(data.text.replace(/```json|```/g, "").trim());
-      const volledigPlan = { ...doelConfig, kader, ...plan };
+      const volledigPlan = { ...doelConfig, kader, ...plan, planStatus: undefined };
       setSeizoensplan(volledigPlan);
       fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(volledigPlan) });
       setPlanVoortgang(4);

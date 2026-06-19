@@ -87,9 +87,9 @@ export const SLATE = {
 };
 
 export function getStatus(score) {
-  if (score >= 80) return 'good';
-  if (score >= 60) return 'caution';
-  if (score >= 40) return 'careful';
+  if (score >= 75) return 'good';
+  if (score >= 50) return 'caution';
+  if (score >= 30) return 'careful';
   return 'rest';
 }
 

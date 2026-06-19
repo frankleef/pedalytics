@@ -1,93 +1,117 @@
 "use client";
 
-// Gecombineerde herstelstatus op basis van HRV, rusthartslag, TSB en slaap
+// Samengestelde heuristiek, geen wetenschappelijk gestandaardiseerde formule.
+// TSB, HRV-afwijking en RHR-afwijking zijn elk individueel gevalideerde signalen
+// (Coggan/Allen, Plews et al.), maar de combinatie tot één 0-100 score met onderstaande
+// gewichten is een eigen keuze — vergelijkbaar met Whoop/Garmin/Oura readiness scores.
+
+const GEWICHT_TSB = 0.50;
+const GEWICHT_HRV = 0.35;
+const GEWICHT_RHR = 0.15;
+
+const TSB_MIN = -30;
+const TSB_MAX = 15;
+const HRV_AFWIJKING_MIN = -20; // percentage onder basislijn
+const RHR_AFWIJKING_MAX = 10;  // bpm boven basislijn
+
+function clamp01(val) { return Math.max(0, Math.min(1, val)); }
+
+function tsbSubscore(tsb) {
+  return clamp01((tsb - TSB_MIN) / (TSB_MAX - TSB_MIN));
+}
+
+function hrvSubscore(hrv, basislijn) {
+  const afwijkingPct = ((hrv - basislijn) / basislijn) * 100;
+  return clamp01((afwijkingPct - HRV_AFWIJKING_MIN) / (0 - HRV_AFWIJKING_MIN));
+}
+
+function rhrSubscore(rhr, basislijn) {
+  const afwijking = rhr - basislijn;
+  return clamp01(1 - afwijking / RHR_AFWIJKING_MAX);
+}
+
 export function berekenHerstelScore({ hrv, hrvBasislijn, rusthartslag, rusthartslagBasislijn, tsb, slaapScore }) {
-  let score = 0;
-  let signalen = [];
+  const subscores = [];
+  const signalen = [];
+  let gewichtTotaal = 0;
+  let gewogenSom = 0;
 
-  // HRV (40% gewicht)
+  if (tsb != null) {
+    const sub = tsbSubscore(tsb);
+    subscores.push({ label: "TSB", sub, gewicht: GEWICHT_TSB });
+    gewogenSom += sub * GEWICHT_TSB;
+    gewichtTotaal += GEWICHT_TSB;
+
+    const tsbLabel = tsb > 5 ? "Vorm: uitgerust" : tsb >= -10 ? "Vorm: in balans" : tsb >= -20 ? "Vorm: vermoeid" : "Vorm: overbelast";
+    const tsbK = tsb > 5 ? "#4ade80" : tsb >= -10 ? "#60a5fa" : tsb >= -20 ? "#fbbf24" : "#ef4444";
+    signalen.push({ label: tsbLabel, k: tsbK });
+  }
+
   if (hrv && hrvBasislijn) {
-    const hrvPct = (hrv / hrvBasislijn) * 100;
-    if (hrvPct >= 97) { score += 40; signalen.push({ label: "HRV uitstekend", k: "#4ade80" }); }
-    else if (hrvPct >= 90) { score += 30; signalen.push({ label: "HRV goed", k: "#60a5fa" }); }
-    else if (hrvPct >= 80) { score += 15; signalen.push({ label: "HRV matig", k: "#fbbf24" }); }
-    else { score += 0; signalen.push({ label: "HRV laag ⚠️", k: "#ef4444" }); }
+    const sub = hrvSubscore(hrv, hrvBasislijn);
+    subscores.push({ label: "HRV", sub, gewicht: GEWICHT_HRV });
+    gewogenSom += sub * GEWICHT_HRV;
+    gewichtTotaal += GEWICHT_HRV;
+
+    const pct = ((hrv - hrvBasislijn) / hrvBasislijn) * 100;
+    const hrvLabel = pct >= -3 ? "HRV rond basislijn" : pct >= -10 ? "HRV licht verlaagd" : "HRV sterk verlaagd";
+    const hrvK = pct >= -3 ? "#4ade80" : pct >= -10 ? "#fbbf24" : "#ef4444";
+    signalen.push({ label: hrvLabel, k: hrvK });
   }
 
-  // Rusthartslag (30% gewicht)
   if (rusthartslag && rusthartslagBasislijn) {
-    const hrDiff = rusthartslag - rusthartslagBasislijn;
-    if (hrDiff <= 1) { score += 30; signalen.push({ label: "HR rust normaal", k: "#4ade80" }); }
-    else if (hrDiff <= 3) { score += 20; signalen.push({ label: "HR rust licht verhoogd", k: "#fbbf24" }); }
-    else if (hrDiff <= 6) { score += 8; signalen.push({ label: "HR rust verhoogd ⚠️", k: "#f97316" }); }
-    else { score += 0; signalen.push({ label: "HR rust sterk verhoogd 🚨", k: "#ef4444" }); }
+    const sub = rhrSubscore(rusthartslag, rusthartslagBasislijn);
+    subscores.push({ label: "RHR", sub, gewicht: GEWICHT_RHR });
+    gewogenSom += sub * GEWICHT_RHR;
+    gewichtTotaal += GEWICHT_RHR;
+
+    const diff = rusthartslag - rusthartslagBasislijn;
+    const rhrLabel = diff <= 2 ? "Rusthartslag normaal" : diff <= 5 ? "Rusthartslag licht verhoogd" : "Rusthartslag verhoogd";
+    const rhrK = diff <= 2 ? "#4ade80" : diff <= 5 ? "#fbbf24" : "#ef4444";
+    signalen.push({ label: rhrLabel, k: rhrK });
   }
 
-  // TSB (20% gewicht)
-  if (tsb !== undefined && tsb !== null) {
-    if (tsb > 5) { score += 20; signalen.push({ label: "Vorm: uitgerust", k: "#4ade80" }); }
-    else if (tsb >= -10) { score += 15; signalen.push({ label: "Vorm: in balans", k: "#60a5fa" }); }
-    else if (tsb >= -20) { score += 8; signalen.push({ label: "Vorm: vermoeid", k: "#fbbf24" }); }
-    else { score += 0; signalen.push({ label: "Vorm: overbelast 🚨", k: "#ef4444" }); }
-  }
+  const score = gewichtTotaal > 0
+    ? Math.round((gewogenSom / gewichtTotaal) * 100)
+    : 50;
 
-  // Slaap (10% gewicht)
-  if (slaapScore) {
-    if (slaapScore >= 85) { score += 10; signalen.push({ label: "Slaap uitstekend", k: "#4ade80" }); }
-    else if (slaapScore >= 70) { score += 7; signalen.push({ label: "Slaap goed", k: "#60a5fa" }); }
-    else if (slaapScore >= 55) { score += 3; signalen.push({ label: "Slaap matig", k: "#fbbf24" }); }
-    else { score += 0; signalen.push({ label: "Slaap slecht ⚠️", k: "#ef4444" }); }
-  }
-
-  // Normaliseer naar max beschikbare signalen
-  const aantalSignalen = [hrv, rusthartslag, tsb, slaapScore].filter(Boolean).length;
-  const maxScore = aantalSignalen * 25; // ruwe normalisatie
-  const normScore = aantalSignalen > 0 ? Math.round((score / (aantalSignalen === 4 ? 100 : maxScore)) * 100) : null;
-
-  // Status bepalen
   let status;
-  const s = normScore ?? score;
-  if (s >= 80) status = { label: "Uitstekend herstel", icon: "🟢", k: "#4ade80", advies: "Klaar voor zware training of intervalrit" };
-  else if (s >= 60) status = { label: "Goed herstel", icon: "🟡", k: "#60a5fa", advies: "Duurrit op Z2 of lichte intervaltraining" };
-  else if (s >= 40) status = { label: "Matig herstel", icon: "🟠", k: "#fbbf24", advies: "Rustige Z2-rit of herstelrit — geen intervallen" };
+  if (score >= 75) status = { label: "Uitstekend herstel", icon: "🟢", k: "#4ade80", advies: "Klaar voor zware training of intervalrit" };
+  else if (score >= 50) status = { label: "Goed herstel", icon: "🟡", k: "#60a5fa", advies: "Duurrit op Z2 of lichte intervaltraining" };
+  else if (score >= 30) status = { label: "Matig herstel", icon: "🟠", k: "#fbbf24", advies: "Rustige Z2-rit of herstelrit — geen intervallen" };
   else status = { label: "Slecht herstel", icon: "🔴", k: "#ef4444", advies: "Rust vandaag — training maakt het erger" };
 
-  return { score: s, status, signalen };
+  return { score, status, signalen, subscores };
 }
 
 export default function HerstelStatusPanel({ dagelijkseData, tsb, slaapScore, hrvBasislijn = 58, hrBasislijn = 49 }) {
   if (!dagelijkseData || dagelijkseData.length === 0) return null;
 
   const vandaag = dagelijkseData[dagelijkseData.length - 1];
-  const HRV_BASISLIJN = hrvBasislijn;
-  const HR_BASISLIJN = hrBasislijn;
 
   const { score, status, signalen } = berekenHerstelScore({
     hrv: vandaag.hrv,
-    hrvBasislijn: HRV_BASISLIJN,
+    hrvBasislijn,
     rusthartslag: vandaag.rusthartslag,
-    rusthartslagBasislijn: HR_BASISLIJN,
+    rusthartslagBasislijn: hrBasislijn,
     tsb,
     slaapScore,
   });
 
-  // Trend van afgelopen 7 dagen
   const trend = dagelijkseData.slice(-7).map(d => {
     const { score: s } = berekenHerstelScore({
-      hrv: d.hrv, hrvBasislijn: HRV_BASISLIJN,
-      rusthartslag: d.rusthartslag, rusthartslagBasislijn: HR_BASISLIJN,
+      hrv: d.hrv, hrvBasislijn,
+      rusthartslag: d.rusthartslag, rusthartslagBasislijn: hrBasislijn,
       tsb: d.tsb, slaapScore: d.slaapScore,
     });
     return { datum: d.datum, score: s };
   });
 
   const W = 280, H = 40;
-  const maxS = 100, minS = 0;
   const trendLijn = trend.filter(t => t.score > 0);
 
   return (
     <div style={{ background: "#0e1521", border: `1px solid ${status.k}40`, borderRadius: 14, padding: 16, marginBottom: 12 }}>
-      {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
         <div>
           <div style={{ fontSize: 11, letterSpacing: 2, color: "#64748b", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>
@@ -104,7 +128,6 @@ export default function HerstelStatusPanel({ dagelijkseData, tsb, slaapScore, hr
         </div>
       </div>
 
-      {/* Signalen */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
         {signalen.map((s, i) => (
           <span key={i} style={{ fontSize: 11, color: s.k, background: s.k + "15",
@@ -114,14 +137,13 @@ export default function HerstelStatusPanel({ dagelijkseData, tsb, slaapScore, hr
         ))}
       </div>
 
-      {/* Huidige waarden */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
         {[
-          { l: "HRV", v: vandaag.hrv ? `${vandaag.hrv} ms` : "—", basis: `basislijn ${HRV_BASISLIJN} ms`, k: "#a78bfa",
-            delta: vandaag.hrv ? vandaag.hrv - HRV_BASISLIJN : null },
+          { l: "HRV", v: vandaag.hrv ? `${vandaag.hrv} ms` : "—", basis: `basislijn ${hrvBasislijn} ms`, k: "#a78bfa",
+            delta: vandaag.hrv ? vandaag.hrv - hrvBasislijn : null },
           { l: "Rusthartslag", v: vandaag.rusthartslag ? `${vandaag.rusthartslag} bpm` : "—",
-            basis: `basislijn ${HR_BASISLIJN} bpm`, k: "#4ade80",
-            delta: vandaag.rusthartslag ? vandaag.rusthartslag - HR_BASISLIJN : null, invertDelta: true },
+            basis: `basislijn ${hrBasislijn} bpm`, k: "#4ade80",
+            delta: vandaag.rusthartslag ? vandaag.rusthartslag - hrBasislijn : null, invertDelta: true },
         ].map((s, i) => (
           <div key={i} style={{ background: "#07111d", borderRadius: 10, padding: "10px 12px" }}>
             <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>{s.l}</div>
@@ -137,7 +159,6 @@ export default function HerstelStatusPanel({ dagelijkseData, tsb, slaapScore, hr
         ))}
       </div>
 
-      {/* 7-daagse trend */}
       {trendLijn.length > 1 && (
         <div>
           <div style={{ fontSize: 10, color: "#64748b", marginBottom: 6 }}>Hersteltrend — 7 dagen</div>
@@ -147,13 +168,13 @@ export default function HerstelStatusPanel({ dagelijkseData, tsb, slaapScore, hr
             <polyline fill="none" stroke={status.k} strokeWidth="2"
               points={trendLijn.map((t, i) => {
                 const x = (i / (trendLijn.length - 1)) * W;
-                const y = H - ((t.score - minS) / (maxS - minS)) * H;
+                const y = H - (t.score / 100) * H;
                 return `${x},${y}`;
               }).join(" ")} />
             {trendLijn.map((t, i) => {
               const x = (i / (trendLijn.length - 1)) * W;
-              const y = H - ((t.score - minS) / (maxS - minS)) * H;
-              const dagK = t.score >= 80 ? "#4ade80" : t.score >= 60 ? "#60a5fa" : t.score >= 40 ? "#fbbf24" : "#ef4444";
+              const y = H - (t.score / 100) * H;
+              const dagK = t.score >= 75 ? "#4ade80" : t.score >= 50 ? "#60a5fa" : t.score >= 30 ? "#fbbf24" : "#ef4444";
               return <circle key={i} cx={x} cy={y} r="3" fill={dagK} />;
             })}
           </svg>
