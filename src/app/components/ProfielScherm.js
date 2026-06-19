@@ -1,27 +1,42 @@
 "use client";
 import { T } from "../designTokens";
 
-const ZONE_KLEUREN = ["oklch(0.82 0.05 245)", "oklch(0.70 0.12 240)", "oklch(0.72 0.13 165)", "oklch(0.74 0.13 70)", "oklch(0.62 0.14 30)"];
-const ZONE_NAMEN = ["Herstel", "Duur", "Tempo", "Drempel", "VO2max"];
+const ZONE_KLEUREN = [
+  "oklch(0.82 0.05 245)", "oklch(0.70 0.12 240)", "oklch(0.72 0.13 165)",
+  "oklch(0.74 0.13 70)", "oklch(0.62 0.14 30)", "oklch(0.55 0.15 350)", "oklch(0.50 0.12 310)",
+];
 
-function bouwPowerZones(ftp) {
-  const grenzen = [0.55, 0.75, 0.90, 1.05].map(p => Math.round(ftp * p));
-  const pct = ["< 55%", "56–75%", "76–90%", "91–105%", "106%+"];
-  const ranges = [
-    `< ${grenzen[0]} W`, `${grenzen[0]}–${grenzen[1]} W`, `${grenzen[1] + 1}–${grenzen[2]} W`,
-    `${grenzen[2] + 1}–${grenzen[3]} W`, `${grenzen[3] + 1}+ W`,
-  ];
-  return ZONE_NAMEN.map((naam, i) => ({ z: `Z${i + 1}`, naam, pct: pct[i], range: ranges[i], color: ZONE_KLEUREN[i] }));
+const NL_POWER_NAMEN = { "Active Recovery": "Herstel", "Endurance": "Duur", "Tempo": "Tempo", "Threshold": "Drempel", "VO2 Max": "VO2max", "Anaerobic": "Anaeroob", "Neuromuscular": "Neuromusculair" };
+const NL_HR_NAMEN = { "Recovery": "Herstel", "Aerobic": "Aeroob", "Tempo": "Tempo", "SubThreshold": "Subdrempel", "SuperThreshold": "Superdrempel", "Aerobic Capacity": "Aerobe cap.", "Anaerobic": "Anaeroob" };
+
+function bouwPowerZones(ftp, zones, namen) {
+  if (!zones || zones.length === 0) return [];
+  return zones.map((grens, i) => {
+    const vorige = i === 0 ? 0 : zones[i - 1];
+    const minW = Math.round(ftp * vorige / 100);
+    const maxW = grens >= 999 ? null : Math.round(ftp * grens / 100);
+    const naam = namen?.[i] ? (NL_POWER_NAMEN[namen[i]] || namen[i]) : `Zone ${i + 1}`;
+    return {
+      z: `Z${i + 1}`, naam,
+      pct: maxW ? `${vorige}–${grens}%` : `${vorige}%+`,
+      range: maxW ? `${minW}–${maxW} W` : `${minW}+ W`,
+      color: ZONE_KLEUREN[i] || ZONE_KLEUREN[ZONE_KLEUREN.length - 1],
+    };
+  });
 }
 
-function bouwHrZones(maxHr) {
-  const grenzen = [0.68, 0.78, 0.85, 0.91].map(p => Math.round(maxHr * p));
-  const pct = ["< 68%", "68–78%", "78–85%", "85–91%", "91%+"];
-  const ranges = [
-    `< ${grenzen[0]} bpm`, `${grenzen[0]}–${grenzen[1]} bpm`, `${grenzen[1] + 1}–${grenzen[2]} bpm`,
-    `${grenzen[2] + 1}–${grenzen[3]} bpm`, `${grenzen[3] + 1}–${maxHr} bpm`,
-  ];
-  return ZONE_NAMEN.map((naam, i) => ({ z: `Z${i + 1}`, naam, pct: pct[i], range: ranges[i], color: ZONE_KLEUREN[i] }));
+function bouwHrZones(hrZones, namen) {
+  if (!hrZones || hrZones.length === 0) return [];
+  return hrZones.map((grens, i) => {
+    const vorige = i === 0 ? 0 : hrZones[i - 1];
+    const naam = namen?.[i] ? (NL_HR_NAMEN[namen[i]] || namen[i]) : `Zone ${i + 1}`;
+    return {
+      z: `Z${i + 1}`, naam,
+      pct: vorige > 0 ? `${vorige}–${grens} bpm` : `< ${grens} bpm`,
+      range: `${vorige || "0"}–${grens} bpm`,
+      color: ZONE_KLEUREN[i] || ZONE_KLEUREN[ZONE_KLEUREN.length - 1],
+    };
+  });
 }
 
 export default function ProfielScherm({ profiel, stravaAuth, onTerug, onUitloggen }) {
@@ -30,11 +45,11 @@ export default function ProfielScherm({ profiel, stravaAuth, onTerug, onUitlogge
   const wkg = (ftp / gewicht).toFixed(1);
   const maxHr = profiel?.max_hr || 200;
   const lthr = profiel?.lt_hr || 184;
-  const restHr = profiel?.hr_basislijn || 49;
+  const restHr = profiel?.resting_hr ? Math.round(profiel.resting_hr) : (profiel?.hr_basislijn ? Math.round(profiel.hr_basislijn) : 49);
   const hrv = profiel?.hrv_basislijn || 58;
 
-  const powerZones = bouwPowerZones(ftp);
-  const hrZones = bouwHrZones(maxHr);
+  const powerZones = bouwPowerZones(ftp, profiel?.power_zones, profiel?.power_zone_names);
+  const hrZones = bouwHrZones(profiel?.hr_zones, profiel?.hr_zone_names);
 
   const diensten = [
     { naam: "intervals.icu", initiaal: "i", bg: "oklch(0.345 0.035 245)", kleur: "oklch(0.82 0.05 200)", verbonden: true, sub: "Trainingsdata & planning" },
@@ -125,7 +140,7 @@ export default function ProfielScherm({ profiel, stravaAuth, onTerug, onUitlogge
             <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert }}>VERMOGENSZONES</span>
             <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>FTP {ftp}W</span>
           </div>
-          {powerZones.map((z, i) => <ZoneRij key={i} zone={z} isLaatste={i === 4} />)}
+          {powerZones.map((z, i) => <ZoneRij key={i} zone={z} isLaatste={i === powerZones.length - 1} />)}
         </div>
 
         {/* Hartslagzones */}
@@ -134,7 +149,7 @@ export default function ProfielScherm({ profiel, stravaAuth, onTerug, onUitlogge
             <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert }}>HARTSLAGZONES</span>
             <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>Max {maxHr} bpm</span>
           </div>
-          {hrZones.map((z, i) => <ZoneRij key={i} zone={z} isLaatste={i === 4} />)}
+          {hrZones.map((z, i) => <ZoneRij key={i} zone={z} isLaatste={i === hrZones.length - 1} />)}
         </div>
 
         {/* Gekoppelde diensten */}

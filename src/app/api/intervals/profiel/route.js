@@ -26,11 +26,13 @@ export async function GET() {
       lt_hr: sportSettings.lthr || null,
       max_hr: sportSettings.max_hr || null,
       gewicht: athlete.icu_weight || null,
-      hr_zones: sportSettings.hr_zones || null,
       power_zones: sportSettings.power_zones || null,
+      power_zone_names: sportSettings.power_zone_names || null,
+      hr_zones: sportSettings.hr_zones || null,
+      hr_zone_names: sportSettings.hr_zone_names || null,
       resting_hr: athlete.icu_resting_hr || null,
       hrv_basislijn: hrvWaarden.length > 0 ? Math.round(hrvWaarden.reduce((s, v) => s + v, 0) / hrvWaarden.length) : null,
-      hr_basislijn: hrWaarden.length > 0 ? Math.round(hrWaarden.reduce((s, v) => s + v, 0) / hrWaarden.length * 10) / 10 : null,
+      hr_basislijn: hrWaarden.length > 0 ? Math.round(hrWaarden.reduce((s, v) => s + v, 0) / hrWaarden.length) : null,
     };
 
     return NextResponse.json({ success: true, data: profiel });
