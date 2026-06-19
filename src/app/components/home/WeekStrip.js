@@ -40,7 +40,7 @@ export default function WeekStrip({ beschikbaar, weekSessies, weekSessiesLaden, 
       </div>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
         {DAGEN.map((dag, i) => {
-          const isTrain = !!sessieLookup[dag] || !!beschikbaar?.[dag];
+          const isTrain = !!beschikbaar?.[dag];
           const isVandaag = i === vandaagIdx;
 
           return (

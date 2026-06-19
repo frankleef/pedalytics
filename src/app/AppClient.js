@@ -822,13 +822,16 @@ Alleen JSON.`;
       rpeInfo = `gem ${gem}/10 (${gem > 7 ? "te zwaar — verlaag intensiteit" : gem < 4 ? "te licht — verhoog intensiteit" : "passend"})`;
     }
 
-    for (const dag of [...toegevoegd, ...urenGewijzigd]) {
+    console.log("[Beschikbaarheid] Diff:", { verwijderd, toegevoegd, urenGewijzigd });
+    const toeTeVoegen = [...toegevoegd, ...urenGewijzigd];
+    for (const dag of toeTeVoegen) {
       for (let i = 0; i <= 10; i++) {
         const d = new Date(nu); d.setDate(nu.getDate() + i);
         if (DAGNAMEN[d.getDay()] === dag && d.toISOString().split("T")[0] >= vandaagISO) {
           const datum = d.toISOString().split("T")[0];
           const uren = nieuwUren[dag] || 1.5;
           gewijzigdeDatums.push(datum);
+          console.log("[Beschikbaarheid] Genereer sessie voor:", datum, dag, uren, "uur");
 
           const weekTssNu = lokaalSessies.reduce((s, sess) => s + (sess.tss || 0), 0);
           const bestaande = lokaalSessies
@@ -863,17 +866,20 @@ Geef JSON (alleen het sessie-object, geen array):
 Alleen JSON.`;
 
           try {
+            console.log("[Beschikbaarheid] Claude call start voor", datum);
             const resp = await fetch("/api/claude", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ prompt, system: "Je bent een professionele fietscoach. Genereer één gepersonaliseerde sessie met gedetailleerde workout-segmenten. Nederlands, alleen JSON.", max_tokens: 1500 }),
             });
             const cData = await resp.json();
+            console.log("[Beschikbaarheid] Claude response:", cData.success, cData.error || "ok", cData.text?.substring(0, 100));
             if (!cData.success) throw new Error(cData.error);
             const parsed = JSON.parse(cData.text.replace(/```json|```/g, "").trim());
             const sessie = parsed.sessie || parsed.sessies?.[0] || parsed;
             if (!sessie.datum) sessie.datum = datum;
             if (!sessie.dag) sessie.dag = dag;
+            console.log("[Beschikbaarheid] Sessie geparsed:", sessie.datum, sessie.type, sessie.titel);
 
             try {
               const syncResp = await fetch("/api/intervals/events", {
@@ -887,8 +893,10 @@ Alleen JSON.`;
 
             lokaalSessies = [...lokaalSessies.filter(s => s.datum !== datum), sessie];
             setWeekSessies({ ...weekSessies, sessies: lokaalSessies });
+            console.log("[Beschikbaarheid] Sessie toegevoegd, totaal sessies:", lokaalSessies.length);
           } catch (e) {
-            console.error("Sessie genereren mislukt:", datum, e);
+            console.error("[Beschikbaarheid] Sessie genereren MISLUKT:", datum, e.message || e);
+            setFout(`Sessie voor ${dag} ${datum} mislukt: ${e.message}`);
           }
         }
       }
