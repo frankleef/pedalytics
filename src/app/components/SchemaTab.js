@@ -5,6 +5,7 @@ import { berekenHerstelScore } from "./HerstelStatus";
 import WorkoutViz, { WerkelijkViz } from "./WorkoutViz";
 import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 import InfoTooltip from "./InfoTooltip";
+import SharedHeader from "./SharedHeader";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
 const DAG_KORT = ["ZO","MA","DI","WO","DO","VR","ZA"];
@@ -151,7 +152,7 @@ function bepaalMode(offset, sessie, rit, ftp, planStartISO) {
 export default function SchemaTab({
   seizoensplan, weekSessies, weekSessiesLaden, beschikbaar, voortgang,
   profiel, wellenessHuidig, vandaagInvoer, onEditBeschikbaarheid, initialDagOffset,
-  onRpeSaved,
+  onRpeSaved, onOpenProfiel,
 }) {
   const [selectedIdx, setSelectedIdx] = useState(10 + (initialDagOffset || 0));
   const [rpeWaarde, setRpeWaarde] = useState(6);
@@ -354,6 +355,10 @@ export default function SchemaTab({
   return (
     <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: T.font, paddingBottom: T.navH + 20 }}>
       <div style={{ maxWidth: 540, margin: "0 auto", padding: "16px 0 28px" }}>
+
+        <div style={{ padding: `0 ${T.pad}px` }}>
+          <SharedHeader onAvatarClick={onOpenProfiel} />
+        </div>
 
         {/* Day strip */}
         <div ref={stripRef} style={{ display: "flex", gap: 8, overflowX: "auto", margin: "0 0 18px", padding: "2px calc(50% - 26px) 6px", scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>

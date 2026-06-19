@@ -1034,6 +1034,7 @@ Alleen JSON.`;
               vandaagInvoer={vandaagInvoer}
               initialDagOffset={schemaDagOffset}
               onRpeSaved={handleRpeSaved}
+              onOpenProfiel={() => setProfielOpen(true)}
             />
           )}
 
@@ -1044,6 +1045,7 @@ Alleen JSON.`;
               wellenessHuidig={wellenessHuidig}
               voortgang={voortgang}
               seizoensplan={seizoensplan}
+              onOpenProfiel={() => setProfielOpen(true)}
             />
           )}
 

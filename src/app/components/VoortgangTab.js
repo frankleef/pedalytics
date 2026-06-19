@@ -3,8 +3,9 @@ import { useState } from "react";
 import { T, STATUS, getStatus } from "../designTokens";
 import { berekenHerstelScore } from "./HerstelStatus";
 import InfoTooltip from "./InfoTooltip";
+import SharedHeader from "./SharedHeader";
 
-export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voortgang, seizoensplan }) {
+export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voortgang, seizoensplan, onOpenProfiel }) {
   const [periode, setPeriode] = useState(8);
 
   const ftp = profiel?.ftp || 265;
@@ -89,7 +90,8 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
     <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: T.font, paddingBottom: T.navH + 20 }}>
       <div style={{ maxWidth: 540, margin: "0 auto", padding: `16px ${T.pad}px 28px` }}>
 
-        {/* Header */}
+        <SharedHeader onAvatarClick={onOpenProfiel} />
+
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div>
             <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.6, color: T.textTert, textTransform: "uppercase" }}>Jouw ontwikkeling</span>

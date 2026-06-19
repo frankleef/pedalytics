@@ -49,7 +49,7 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
 
         {/* Status headline */}
         <h1 style={{ margin: "0 0 20px", font: "800 27px/1.22 var(--font-nunito), sans-serif", letterSpacing: -0.4, textWrap: "pretty", color: st.color }}>
-          {st.headline(naam)}
+          {st.headline("Frank")}
         </h1>
 
         {/* Filter pills */}
