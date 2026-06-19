@@ -639,7 +639,6 @@ Genereer nu sessies voor MIJN situatie. Alleen JSON.`;
             setSeizoensplan(doelConfig);
             setBeschikbaar(doelConfig.beschikbaarheid || {});
             setUrenPerDag(doelConfig.urenPerDag || {});
-            fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(doelConfig) });
             genereerSeizoensplan(doelConfig);
           }}
         />
