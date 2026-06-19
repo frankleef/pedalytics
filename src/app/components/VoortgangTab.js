@@ -181,7 +181,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
               </div>
             </div>
 
-            {/* Power curve SVG */}
+            {/* Power curve SVG — logaritmische x-as */}
             {(() => {
               const TIJDEN = [
                 { sec: 5, label: "5s" }, { sec: 30, label: "30s" }, { sec: 60, label: "1m" },
@@ -216,14 +216,20 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
               const allW = [...huidig.map(p => p.watt), ...vorig.map(p => p.watt)];
               const mnW = Math.min(...allW) * 0.85;
               const mxW = Math.max(...allW) * 1.05;
-              const xS = (i, arr) => (i / (arr.length - 1)) * pcW;
+              const logMin = Math.log(TIJDEN[0].sec);
+              const logMax = Math.log(TIJDEN[TIJDEN.length - 1].sec);
+              const xLog = (sec) => ((Math.log(sec) - logMin) / (logMax - logMin)) * pcW;
               const yS = (v) => pcH - 20 - ((v - mnW) / (mxW - mnW)) * (pcH - 30);
 
-              const hPath = huidig.map((p, i) => `${i === 0 ? "M" : "L"}${xS(i, huidig)},${yS(p.watt)}`).join(" ");
-              const hArea = hPath + `L${xS(huidig.length - 1, huidig)},${pcH - 20}L${xS(0, huidig)},${pcH - 20}Z`;
-              const vPath = vorig.length >= 2 ? vorig.map((p, i) => `${i === 0 ? "M" : "L"}${xS(i, vorig)},${yS(p.watt)}`).join(" ") : null;
+              const hPath = huidig.map((p, i) => `${i === 0 ? "M" : "L"}${xLog(p.sec).toFixed(1)},${yS(p.watt).toFixed(1)}`).join(" ");
+              const hArea = hPath + `L${xLog(huidig[huidig.length - 1].sec).toFixed(1)},${pcH - 20}L${xLog(huidig[0].sec).toFixed(1)},${pcH - 20}Z`;
+              const vPath = vorig.length >= 2 ? vorig.map((p, i) => `${i === 0 ? "M" : "L"}${xLog(p.sec).toFixed(1)},${yS(p.watt).toFixed(1)}`).join(" ") : null;
 
-              const topPunten = [huidig[0], huidig.find(p => p.sec === 60), huidig.find(p => p.sec === 300)].filter(Boolean);
+              const highlights = [
+                { sec: 5, titel: "Sprint" },
+                { sec: 60, titel: "Kort" },
+                { sec: 300, titel: "Duur" },
+              ].map(h => huidig.find(p => p.sec === h.sec) ? { ...huidig.find(p => p.sec === h.sec), titel: h.titel } : null).filter(Boolean);
 
               return (
                 <>
@@ -241,17 +247,17 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
                     {vPath && <path d={vPath} fill="none" stroke="oklch(0.58 0.02 75)" strokeWidth="2" strokeDasharray="4 4" />}
                     <path d={hArea} fill="url(#pcFill)" />
                     <path d={hPath} fill="none" stroke="url(#pcGrad)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-                    {huidig.map((p, i) => (
-                      <text key={i} x={xS(i, huidig)} y={pcH - 4} textAnchor="middle" style={{ font: "600 9px var(--font-nunito), sans-serif", fill: T.textTert }}>
-                        {p.label}
+                    {TIJDEN.map((t, i) => (
+                      <text key={i} x={xLog(t.sec)} y={pcH - 4} textAnchor="middle" style={{ font: "600 9px var(--font-nunito), sans-serif", fill: T.textTert }}>
+                        {t.label}
                       </text>
                     ))}
                   </svg>
                   <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                    {topPunten.map((p, i) => (
+                    {highlights.map((p, i) => (
                       <div key={i} style={{ flex: 1, background: T.subtleFill, borderRadius: 14, padding: "10px 12px", textAlign: "center" }}>
                         <div style={{ font: "600 22px var(--font-fredoka), sans-serif", color: T.text }}>{p.watt}<span style={{ font: "600 12px var(--font-fredoka), sans-serif", color: T.textSec }}>w</span></div>
-                        <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textSec }}>{p.label} piek</div>
+                        <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textSec }}>{p.titel} · {p.label}</div>
                       </div>
                     ))}
                   </div>
