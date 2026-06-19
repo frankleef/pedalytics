@@ -8,6 +8,7 @@ import BeschikbaarheidScherm from "./components/BeschikbaarheidScherm";
 import SchemaTab from "./components/SchemaTab";
 import PlanGenereren from "./components/PlanGenereren";
 import SeizoensplanOverzicht from "./components/SeizoensplanOverzicht";
+import ProfielScherm from "./components/ProfielScherm";
 
 const PROFIEL_DEFAULT = { ftp: 265, lt_hr: 184, max_hr: 200, gewicht: 90, hrv_basislijn: 58, hr_basislijn: 49, doel: "31+ km/u gemiddeld solo in Z2" };
 
@@ -34,6 +35,7 @@ export default function Page() {
   const [stravaAuth, setStravaAuth] = useState(null);
   const [fout, setFout] = useState(null);
   const [succesMelding, setSuccesMelding] = useState(null);
+  const [profielOpen, setProfielOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -941,6 +943,15 @@ Alleen JSON.`;
         />
       )}
 
+      {profielOpen && (
+        <ProfielScherm
+          profiel={profiel}
+          stravaAuth={stravaAuth}
+          onTerug={() => setProfielOpen(false)}
+          onUitloggen={() => { fetch("/api/logout-all", { method: "POST" }).then(() => window.location.href = "/login"); }}
+        />
+      )}
+
       {/* Full-screen flows: geen wrapper, geen bottom-nav */}
       {planStap === "genereren" && (
         <PlanGenereren />
@@ -1006,6 +1017,7 @@ Alleen JSON.`;
                 setTab(1);
               }}
               onEditBeschikbaarheid={() => setBeschikbaarheidSchermOpen(true)}
+              onOpenProfiel={() => setProfielOpen(true)}
             />
           )}
 
