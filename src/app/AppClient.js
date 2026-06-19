@@ -619,6 +619,24 @@ Genereer nu sessies voor MIJN situatie. Alleen JSON.`;
       .map(s => `  ${s.datum} (${s.dag}): ${s.type}${zwaarTypes.includes(s.type) ? " [ZWAAR]" : ""}, ${s.tss || "?"} TSS, ${s.duur_min || "?"}min`)
       .join("\n") || "Geen";
 
+    const aantalZwaar = bestaandeSessies.filter(s => zwaarTypes.includes(s.type)).length;
+    const aantalZ2 = bestaandeSessies.filter(s => s.type === "duur_lang" || s.type === "duur_variabel" || s.type === "herstel").length;
+    const totaalSessies = bestaandeSessies.length;
+    const tssRuimte = kaderWeek.tss_doel - weekTssNu;
+
+    let weekrol;
+    if (aantalZwaar >= 2) {
+      weekrol = `Deze week heeft al ${aantalZwaar} intensiteitsdagen. Dit slot moet een Z2-duurrit of herstelrit worden (80/20 polarisatie).`;
+    } else if (aantalZwaar === 1 && aantalZ2 >= 2) {
+      weekrol = `Er is al 1 intensiteitsdag en ${aantalZ2} Z2-dag(en). Dit slot kan een tweede intensiteitsdag worden als TSB en HRV het toelaten, of een Z2/variabele duurrit als extra volume.`;
+    } else if (aantalZwaar === 0 && totaalSessies >= 1) {
+      weekrol = `Er zijn nog geen intensiteitsdagen deze week. Dit slot zou bij voorkeur de eerste intensiteitsdag moeten zijn (sweetspot of interval), passend bij de fase "${kaderWeek.fase}".`;
+    } else if (totaalSessies === 0) {
+      weekrol = `Dit is de eerste sessie van de week. Kies op basis van de fase "${kaderWeek.fase}" en de beschikbare ${uren} uur.`;
+    } else {
+      weekrol = `Er ${aantalZwaar === 1 ? "is 1 intensiteitsdag" : "zijn geen intensiteitsdagen"} en ${aantalZ2} Z2-dag(en). Vul het weekpatroon aan op basis van wat ontbreekt.`;
+    }
+
     const recenteHrv = (dagelijkseData || []).filter(d => d.hrv).slice(-5);
     let hrvInfo = "onbekend";
     if (recenteHrv.length > 0) {
@@ -643,19 +661,22 @@ PROFIEL: FTP ${ftp}W | LT ${PROFIEL.lt_hr} bpm | Max HR ${PROFIEL.max_hr} bpm | 
 CTL: ${Math.round(ctl)} | ATL: ${Math.round(atl)} | TSB: ${tsb}
 HRV: ${hrvInfo}
 RPE afgelopen week: ${rpeInfo}
-Fase: ${kaderWeek.fase} — ${kaderWeek.focus} (TSS-doel ${kaderWeek.tss_doel}/week, reeds gepland: ${weekTssNu} TSS)
+Fase: ${kaderWeek.fase} — ${kaderWeek.focus} (TSS-doel ${kaderWeek.tss_doel}/week, reeds gepland: ${weekTssNu} TSS, ruimte: ${tssRuimte} TSS)
 
 OVERIGE SESSIES DEZE WEEK (niet wijzigen, houd spreiding — [ZWAAR] = intensiteitsdag):
 ${bestaande}
 
+ROL VAN DEZE DAG IN HET WEEKPATROON:
+${weekrol}
+
 REGELS:
-- Duur past binnen ${uren} uur. Kies type op basis van fase, TSB, HRV en spreiding t.o.v. bestaande sessies
+- Duur past binnen ${uren} uur
+- Volg de weekrol hierboven — die bepaalt welk type sessie hier past
 - Min 1 rustdag tussen harde sessies (sweetspot/interval). Als TSB < -20 of HRV dalend: alleen Z2 of herstel
-- Houd week-TSS onder ${kaderWeek.tss_doel} totaal (er is al ${weekTssNu} gepland)
-- 80/20 polarisatie: max 2 intensiteitsdagen per week
+- Houd week-TSS onder ${kaderWeek.tss_doel} totaal
 - GEEN warmup/cooldown segmenten, hoofdinspanning vult hele duur
 - Gebruik vermogenMin/vermogenMax in %FTP per segment
-- Geef een concrete, data-gedreven reden
+- Geef een concrete, data-gedreven reden die verwijst naar de weekrol
 
 SESSIETYPES: duur_lang | duur_variabel | sweetspot | interval | herstel
 
@@ -835,11 +856,29 @@ Alleen JSON.`;
           gewijzigdeDatums.push(datum);
           console.log("[Beschikbaarheid] Genereer sessie voor:", datum, dag, uren, "uur");
 
-          const weekTssNu = lokaalSessies.reduce((s, sess) => s + (sess.tss || 0), 0);
-          const bestaande = lokaalSessies
-            .filter(s => s.datum !== datum && !s.voltooid)
+          const overigeSessies = lokaalSessies.filter(s => s.datum !== datum && !s.voltooid);
+          const weekTssNu = overigeSessies.reduce((s, sess) => s + (sess.tss || 0), 0);
+          const bestaande = overigeSessies
             .map(s => `  ${s.datum} (${s.dag}): ${s.type}${zwaarTypes.includes(s.type) ? " [ZWAAR]" : ""}, ${s.tss || "?"} TSS, ${s.duur_min || "?"}min`)
             .join("\n") || "Geen";
+
+          const aantalZwaar = overigeSessies.filter(s => zwaarTypes.includes(s.type)).length;
+          const aantalZ2 = overigeSessies.filter(s => s.type === "duur_lang" || s.type === "duur_variabel" || s.type === "herstel").length;
+          const totaalSessies = overigeSessies.length;
+          const tssRuimte = kaderWeek.tss_doel - weekTssNu;
+
+          let weekrol;
+          if (aantalZwaar >= 2) {
+            weekrol = `Deze week heeft al ${aantalZwaar} intensiteitsdagen. Dit slot moet een Z2-duurrit of herstelrit worden (80/20 polarisatie).`;
+          } else if (aantalZwaar === 1 && aantalZ2 >= 2) {
+            weekrol = `Er is al 1 intensiteitsdag en ${aantalZ2} Z2-dag(en). Dit slot kan een tweede intensiteitsdag worden (sweetspot/interval) als TSB en HRV het toelaten, of een Z2/variabele duurrit als extra volume.`;
+          } else if (aantalZwaar === 0 && totaalSessies >= 1) {
+            weekrol = `Er zijn nog geen intensiteitsdagen deze week. Dit slot zou bij voorkeur de eerste intensiteitsdag moeten zijn (sweetspot of interval), passend bij de fase "${kaderWeek.fase}".`;
+          } else if (totaalSessies === 0) {
+            weekrol = `Dit is de eerste sessie van de week. Kies op basis van de fase "${kaderWeek.fase}" en de beschikbare ${uren} uur.`;
+          } else {
+            weekrol = `Er ${aantalZwaar === 1 ? "is 1 intensiteitsdag" : "zijn geen intensiteitsdagen"} en ${aantalZ2} Z2-dag(en). Vul het weekpatroon aan op basis van wat ontbreekt.`;
+          }
 
           const prompt = `Maak één trainingssessie voor ${datum} (${dag}), ${uren} uur beschikbaar.
 
@@ -847,19 +886,22 @@ PROFIEL: FTP ${ftp}W | LT ${PROFIEL.lt_hr} bpm | Max HR ${PROFIEL.max_hr} bpm | 
 CTL: ${Math.round(ctl)} | ATL: ${Math.round(atl)} | TSB: ${tsb}
 HRV: ${hrvInfo}
 RPE afgelopen week: ${rpeInfo}
-Fase: ${kaderWeek.fase} — ${kaderWeek.focus} (TSS-doel ${kaderWeek.tss_doel}/week, reeds gepland: ${weekTssNu} TSS)
+Fase: ${kaderWeek.fase} — ${kaderWeek.focus} (TSS-doel ${kaderWeek.tss_doel}/week, reeds gepland: ${weekTssNu} TSS, ruimte: ${tssRuimte} TSS)
 
 OVERIGE SESSIES DEZE WEEK (niet wijzigen, houd spreiding — [ZWAAR] = intensiteitsdag):
 ${bestaande}
 
+ROL VAN DEZE DAG IN HET WEEKPATROON:
+${weekrol}
+
 REGELS:
-- Duur past binnen ${uren} uur. Kies type op basis van fase, TSB, HRV en spreiding t.o.v. bestaande sessies
+- Duur past binnen ${uren} uur
+- Volg de weekrol hierboven — die bepaalt welk type sessie hier past
 - Min 1 rustdag tussen harde sessies (sweetspot/interval). Als TSB < -20 of HRV dalend: alleen Z2 of herstel
-- Houd week-TSS onder ${kaderWeek.tss_doel} totaal (er is al ${weekTssNu} gepland)
-- 80/20 polarisatie: max 2 intensiteitsdagen per week
+- Houd week-TSS onder ${kaderWeek.tss_doel} totaal
 - GEEN warmup/cooldown segmenten, hoofdinspanning vult hele duur
 - Gebruik vermogenMin/vermogenMax in %FTP per segment
-- Geef een concrete, data-gedreven reden
+- Geef een concrete, data-gedreven reden die verwijst naar de weekrol
 
 SESSIETYPES: duur_lang | duur_variabel | sweetspot | interval | herstel
 
