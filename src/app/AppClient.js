@@ -312,10 +312,10 @@ Alleen JSON.`;
 
   const DAGNAMEN = ["Zondag","Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag"];
 
-  const genereerWeekSessies = useCallback(async (beschikbareDagen) => {
+  const genereerWeekSessies = useCallback(async (beschikbareDagen, { stil = false } = {}) => {
     if (!seizoensplan?.kader) return;
-    setWeekSessiesLaden(true);
-    setFout(null);
+    if (!stil) setWeekSessiesLaden(true);
+    if (!stil) setFout(null);
     try {
       const ctl = wellenessHuidig?.ctl || seizoensplan.huidige_ctl || 45;
       const atl = wellenessHuidig?.atl || 0;
@@ -579,10 +579,223 @@ Genereer nu sessies voor MIJN situatie. Alleen JSON.`;
       setSeizoensplan(bijgewerkt);
       fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bijgewerkt) });
     } catch (e) {
-      setFout("Sessies genereren mislukt: " + e.message);
+      if (!stil) setFout("Sessies genereren mislukt: " + e.message);
+      else console.error("Stille sessie-regeneratie mislukt:", e);
     }
-    setWeekSessiesLaden(false);
+    if (!stil) setWeekSessiesLaden(false);
   }, [seizoensplan, wellenessHuidig]);
+
+  const verwijderSessie = useCallback(async (datum) => {
+    const sessies = weekSessies?.sessies || [];
+    const sessie = sessies.find(s => s.datum === datum);
+    const nieuweSessies = sessies.filter(s => s.datum !== datum);
+    const nieuweWeekSessies = { ...weekSessies, sessies: nieuweSessies };
+    setWeekSessies(nieuweWeekSessies);
+    const bijgewerkt = { ...seizoensplan, weekSessies: nieuweWeekSessies };
+    setSeizoensplan(bijgewerkt);
+    fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bijgewerkt) });
+    if (sessie?.intervalsEventId) {
+      fetch(`/api/intervals/events/${sessie.intervalsEventId}`, { method: "DELETE" }).catch(() => {});
+    }
+  }, [weekSessies, seizoensplan]);
+
+  const genereerSessieDag = useCallback(async (datum, dagNaam, uren) => {
+    if (!seizoensplan?.kader) return null;
+    const ftp = PROFIEL.ftp;
+    const ctl = wellenessHuidig?.ctl || seizoensplan.huidige_ctl || 45;
+    const atl = wellenessHuidig?.atl || 0;
+    const tsb = Math.round(ctl - atl);
+
+    const dagenSindsStart = Math.max(0, (Date.now() - new Date(seizoensplan.startdatum).getTime()) / 86400000);
+    const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7) || 1);
+    const kaderWeek = seizoensplan.kader?.find(w => w.week === weekNr) || seizoensplan.kader?.[0] || { fase: "basis", tss_doel: 250, focus: "Z2 volume" };
+
+    const zwaarTypes = ["sweetspot", "interval", "drempel", "vo2max"];
+    const bestaandeSessies = (weekSessies?.sessies || []).filter(s => s.datum !== datum && !s.voltooid);
+    const weekTssNu = bestaandeSessies.reduce((s, sess) => s + (sess.tss || 0), 0);
+    const bestaande = bestaandeSessies
+      .map(s => `  ${s.datum} (${s.dag}): ${s.type}${zwaarTypes.includes(s.type) ? " [ZWAAR]" : ""}, ${s.tss || "?"} TSS, ${s.duur_min || "?"}min`)
+      .join("\n") || "Geen";
+
+    const recenteHrv = (dagelijkseData || []).filter(d => d.hrv).slice(-5);
+    let hrvInfo = "onbekend";
+    if (recenteHrv.length > 0) {
+      const laatsteHrv = recenteHrv[recenteHrv.length - 1].hrv;
+      const eerste = recenteHrv.length >= 3 ? recenteHrv.slice(0, 2).reduce((s, d) => s + d.hrv, 0) / 2 : laatsteHrv;
+      const laatste = recenteHrv.length >= 3 ? recenteHrv.slice(-2).reduce((s, d) => s + d.hrv, 0) / 2 : laatsteHrv;
+      const trend = laatste < eerste - 3 ? "dalend" : laatste > eerste + 3 ? "stijgend" : "stabiel";
+      hrvInfo = `${laatsteHrv}ms (basislijn ${profiel.hrv_basislijn || 58}) | trend: ${trend}`;
+    }
+
+    const zevenDagen = new Date(Date.now() - 7 * 86400000);
+    const rittenMetRpe = (voortgang?.ritten || []).filter(r => r.rpe && r.datum_iso && new Date(r.datum_iso) >= zevenDagen);
+    let rpeInfo = "geen data";
+    if (rittenMetRpe.length >= 2) {
+      const gem = +(rittenMetRpe.reduce((s, r) => s + r.rpe, 0) / rittenMetRpe.length).toFixed(1);
+      rpeInfo = `gem ${gem}/10 (${gem > 7 ? "te zwaar — verlaag intensiteit" : gem < 4 ? "te licht — verhoog intensiteit" : "passend"})`;
+    }
+
+    const prompt = `Maak één trainingssessie voor ${datum} (${dagNaam}), ${uren} uur beschikbaar.
+
+PROFIEL: FTP ${ftp}W | LT ${PROFIEL.lt_hr} bpm | Max HR ${PROFIEL.max_hr} bpm | ${PROFIEL.gewicht} kg | Eerste seizoen
+CTL: ${Math.round(ctl)} | ATL: ${Math.round(atl)} | TSB: ${tsb}
+HRV: ${hrvInfo}
+RPE afgelopen week: ${rpeInfo}
+Fase: ${kaderWeek.fase} — ${kaderWeek.focus} (TSS-doel ${kaderWeek.tss_doel}/week, reeds gepland: ${weekTssNu} TSS)
+
+OVERIGE SESSIES DEZE WEEK (niet wijzigen, houd spreiding — [ZWAAR] = intensiteitsdag):
+${bestaande}
+
+REGELS:
+- Duur past binnen ${uren} uur. Kies type op basis van fase, TSB, HRV en spreiding t.o.v. bestaande sessies
+- Min 1 rustdag tussen harde sessies (sweetspot/interval). Als TSB < -20 of HRV dalend: alleen Z2 of herstel
+- Houd week-TSS onder ${kaderWeek.tss_doel} totaal (er is al ${weekTssNu} gepland)
+- 80/20 polarisatie: max 2 intensiteitsdagen per week
+- GEEN warmup/cooldown segmenten, hoofdinspanning vult hele duur
+- Gebruik vermogenMin/vermogenMax in %FTP per segment
+- Geef een concrete, data-gedreven reden
+
+SESSIETYPES: duur_lang | duur_variabel | sweetspot | interval | herstel
+
+Geef JSON (alleen het sessie-object, geen array):
+{ "datum": "${datum}", "dag": "${dagNaam}", "type": "...", "titel": "...", "tss": ..., "duur_min": ..., "vermogen": "...", "reden": "...", "segmenten": [...] }
+Alleen JSON.`;
+
+    try {
+      const resp = await fetch("/api/claude", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, system: "Je bent een professionele fietscoach. Genereer één gepersonaliseerde sessie met gedetailleerde workout-segmenten. Nederlands, alleen JSON.", max_tokens: 1500 }),
+      });
+      const data = await resp.json();
+      if (!data.success) throw new Error(data.error);
+      const sessie = JSON.parse(data.text.replace(/```json|```/g, "").trim());
+
+      try {
+        const syncResp = await fetch("/api/intervals/events", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessies: [sessie], ftp }),
+        });
+        const syncData = await syncResp.json();
+        if (syncData.success && syncData.data?.[0]) {
+          sessie.intervalsEventId = syncData.data[0].id;
+        }
+      } catch {}
+
+      const alleSessies = [...(weekSessies?.sessies || []).filter(s => s.datum !== datum), sessie];
+      const nieuweWeekSessies = { ...weekSessies, sessies: alleSessies };
+      setWeekSessies(nieuweWeekSessies);
+      const bijgewerkt = { ...seizoensplan, weekSessies: nieuweWeekSessies };
+      setSeizoensplan(bijgewerkt);
+      fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bijgewerkt) });
+      return sessie;
+    } catch (e) {
+      console.error("Sessie genereren mislukt:", datum, e);
+      return null;
+    }
+  }, [seizoensplan, weekSessies, wellenessHuidig, dagelijkseData, voortgang]);
+
+  const checkImpact = useCallback(async (gewijzigdeDatums) => {
+    const sessies = weekSessies?.sessies || [];
+    if (sessies.length < 2) return;
+
+    const dagenSindsStart = Math.max(0, (Date.now() - new Date(seizoensplan.startdatum).getTime()) / 86400000);
+    const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7) || 1);
+    const kaderWeek = seizoensplan.kader?.find(w => w.week === weekNr) || seizoensplan.kader?.[0];
+    const tssTarget = kaderWeek?.tss_doel || 300;
+
+    const zwareSessies = sessies.filter(s => ["sweetspot", "interval", "drempel", "vo2max"].includes(s.type));
+    const conflicten = new Set();
+
+    for (const s of zwareSessies) {
+      if (!s.datum) continue;
+      const d = new Date(s.datum);
+      for (const andere of zwareSessies) {
+        if (andere === s || !andere.datum) continue;
+        const verschilUren = Math.abs(d - new Date(andere.datum)) / 3600000;
+        if (verschilUren > 0 && verschilUren < 48) {
+          const later = s.datum > andere.datum ? s.datum : andere.datum;
+          if (gewijzigdeDatums.includes(later)) conflicten.add(later);
+        }
+      }
+    }
+
+    const weekTss = sessies.reduce((s, sess) => s + (sess.tss || 0), 0);
+    if (weekTss > tssTarget * 1.15) {
+      const laatstGepland = sessies.filter(s => !s.voltooid && gewijzigdeDatums.includes(s.datum)).sort((a, b) => (b.tss || 0) - (a.tss || 0))[0];
+      if (laatstGepland) conflicten.add(laatstGepland.datum);
+    }
+
+    for (const datum of conflicten) {
+      const sessie = sessies.find(s => s.datum === datum);
+      if (sessie && !sessie.voltooid) {
+        const dagNaam = DAGNAMEN[new Date(datum).getDay()];
+        const uren = urenPerDag[dagNaam] || 1.5;
+        await genereerSessieDag(datum, dagNaam, uren);
+      }
+    }
+  }, [weekSessies, seizoensplan, urenPerDag, genereerSessieDag]);
+
+  const handleBeschikbaarheidOpslaan = useCallback(async (data) => {
+    const oudeBeschikbaar = beschikbaar;
+    const oudeUren = urenPerDag;
+    const nieuwBeschikbaar = data.beschikbaar;
+    const nieuwUren = data.uren;
+
+    setBeschikbaar(nieuwBeschikbaar);
+    setUrenPerDag(nieuwUren);
+    const bijgewerkt = { ...seizoensplan, beschikbaarheid: nieuwBeschikbaar, urenPerDag: nieuwUren };
+    setSeizoensplan(bijgewerkt);
+    fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bijgewerkt) });
+    setBeschikbaarheidSchermOpen(false);
+
+    const nu = new Date();
+    const vandaagISO = nu.toISOString().split("T")[0];
+    const alleDagen = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag", "Zondag"];
+
+    const verwijderd = [];
+    const toegevoegd = [];
+    const urenGewijzigd = [];
+
+    for (const dag of alleDagen) {
+      const wasAan = !!oudeBeschikbaar[dag];
+      const isAan = !!nieuwBeschikbaar[dag];
+      if (wasAan && !isAan) verwijderd.push(dag);
+      else if (!wasAan && isAan) toegevoegd.push(dag);
+      else if (isAan && (oudeUren[dag] || 1.5) !== (nieuwUren[dag] || 1.5)) urenGewijzigd.push(dag);
+    }
+
+    const gewijzigdeDatums = [];
+
+    for (const dag of verwijderd) {
+      for (let i = 0; i <= 10; i++) {
+        const d = new Date(nu); d.setDate(nu.getDate() + i);
+        if (DAGNAMEN[d.getDay()] === dag && d.toISOString().split("T")[0] >= vandaagISO) {
+          const datum = d.toISOString().split("T")[0];
+          const sessie = (weekSessies?.sessies || []).find(s => s.datum === datum && !s.voltooid);
+          if (sessie) await verwijderSessie(datum);
+          gewijzigdeDatums.push(datum);
+        }
+      }
+    }
+
+    for (const dag of [...toegevoegd, ...urenGewijzigd]) {
+      for (let i = 0; i <= 10; i++) {
+        const d = new Date(nu); d.setDate(nu.getDate() + i);
+        if (DAGNAMEN[d.getDay()] === dag && d.toISOString().split("T")[0] >= vandaagISO) {
+          const datum = d.toISOString().split("T")[0];
+          const uren = nieuwUren[dag] || 1.5;
+          await genereerSessieDag(datum, dag, uren);
+          gewijzigdeDatums.push(datum);
+        }
+      }
+    }
+
+    if (gewijzigdeDatums.length > 0) {
+      checkImpact(gewijzigdeDatums).catch(e => console.error("Impact check:", e));
+    }
+  }, [beschikbaar, urenPerDag, seizoensplan, weekSessies, verwijderSessie, genereerSessieDag, checkImpact]);
 
   const handleRpeSaved = useCallback((ritId, rpeWaarde) => {
     if (!voortgang?.ritten) return;
@@ -595,7 +808,7 @@ Genereer nu sessies voor MIJN situatie. Alleen JSON.`;
       const gemRpe = recenteMetRpe.reduce((s, r) => s + r.rpe, 0) / recenteMetRpe.length;
       if (gemRpe >= 8 || gemRpe <= 3) {
         const beschikbareDagen = Object.entries(beschikbaar).filter(([, v]) => v).map(([k]) => k);
-        if (beschikbareDagen.length > 0) genereerWeekSessies(beschikbareDagen);
+        if (beschikbareDagen.length > 0) genereerWeekSessies(beschikbareDagen, { stil: true });
       }
     }
   }, [voortgang, beschikbaar, genereerWeekSessies]);
@@ -608,17 +821,7 @@ Genereer nu sessies voor MIJN situatie. Alleen JSON.`;
           beschikbaar={beschikbaar}
           urenPerDag={urenPerDag}
           onTerug={() => setBeschikbaarheidSchermOpen(false)}
-          onOpslaan={(data) => {
-            setBeschikbaar(data.beschikbaar);
-            setUrenPerDag(data.uren);
-            setWeekSessies(null);
-            const bijgewerkt = { ...seizoensplan, beschikbaarheid: data.beschikbaar, urenPerDag: data.uren };
-            setSeizoensplan(bijgewerkt);
-            fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bijgewerkt) });
-            setBeschikbaarheidSchermOpen(false);
-            const beschikbareDagen = Object.entries(data.beschikbaar).filter(([, v]) => v).map(([k]) => k);
-            if (beschikbareDagen.length > 0) genereerWeekSessies(beschikbareDagen);
-          }}
+          onOpslaan={handleBeschikbaarheidOpslaan}
         />
       )}
 

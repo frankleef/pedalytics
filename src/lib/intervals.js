@@ -80,4 +80,17 @@ export async function intervalsActivityPut(id, body) {
   return resp.json();
 }
 
+export async function intervalsDelete(pad) {
+  const url = `${BASE_URL}/athlete/${ATHLETE_ID}${pad}`;
+  const resp = await fetch(url, {
+    method: "DELETE",
+    headers: { Authorization: intervalsAuth() },
+  });
+  if (!resp.ok) {
+    const tekst = await resp.text();
+    throw new Error(`Intervals API fout ${resp.status}: ${tekst}`);
+  }
+  return resp.status === 204 ? null : resp.json();
+}
+
 export { ATHLETE_ID };
