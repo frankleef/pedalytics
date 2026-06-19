@@ -688,7 +688,7 @@ Alleen JSON.`;
       const resp = await fetch("/api/claude", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, system: "Je bent een professionele fietscoach. Genereer één gepersonaliseerde sessie met gedetailleerde workout-segmenten. Nederlands, alleen JSON.", max_tokens: 1500 }),
+        body: JSON.stringify({ prompt, system: "Je bent een professionele fietscoach. Genereer één gepersonaliseerde sessie met gedetailleerde workout-segmenten. Nederlands, alleen JSON.", max_tokens: 3000 }),
       });
       const data = await resp.json();
       if (!data.success) throw new Error(data.error);
@@ -914,7 +914,7 @@ Alleen JSON.`;
             const resp = await fetch("/api/claude", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ prompt, system: "Je bent een professionele fietscoach. Genereer één gepersonaliseerde sessie met gedetailleerde workout-segmenten. Nederlands, alleen JSON.", max_tokens: 1500 }),
+              body: JSON.stringify({ prompt, system: "Je bent een professionele fietscoach. Genereer één gepersonaliseerde sessie met gedetailleerde workout-segmenten. Nederlands, alleen JSON.", max_tokens: 3000 }),
             });
             const cData = await resp.json();
             console.log("[Beschikbaarheid] Claude response:", cData.success, cData.error || "ok", cData.text?.substring(0, 100));
