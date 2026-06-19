@@ -444,8 +444,18 @@ REGELS:
 - Als RPE per trainingstype "te licht" is: verhoog het doelvermogen voor dat type met 5%
 - 80/20 polarisatie | Max ~150 TSS per sessie
 - Geef bij elke sessie een concrete, data-gedreven reden
-- VERPLICHT: geef bij elke sessie "segmenten" — een array van workout-blokken
-- SEGMENTEN-FORMAAT: gebruik vermogenMin en vermogenMax (in %FTP) voor een doelrange. Warmup/cooldown gebruiken alleen vermogen_pct (enkel getal, geen range)
+
+SESSIETYPES:
+- duur_lang: vlakke Z2 duurrit (68-76% FTP constant)
+- duur_variabel: afwisselende Z2/Z3 blokken (Z2 = 68-76% FTP, Z3 = 76-85% FTP, NOOIT hoger). Kies dit type als TSB > -5 en de vorige duurrit ook vlak Z2 was — zorgt voor afwisseling zonder extra belasting. Telt als Z2-volume voor de 80/20-verdeling
+- sweetspot: 88-93% FTP blokken met herstel ertussen
+- interval: 95-120% FTP blokken met herstel ertussen
+- herstel: laag vermogen (50-60% FTP)
+
+SEGMENTEN-FORMAAT:
+- GEEN warmup of cooldown segmenten genereren — de hoofdinspanning vult de hele sessieduur
+- Gebruik vermogenMin en vermogenMax (in %FTP) voor een doelrange per segment
+- Bij intervallen: afwisselende werk/herstel-blokken
 
 Geef JSON:
 {
@@ -463,13 +473,32 @@ Geef JSON:
       "beschrijving": "90 minuten Z2, focus op cadans 85-95",
       "reden": "Aerobe basis na rustdag gisteren",
       "segmenten": [
-        { "type": "warmup", "duur_min": 10, "vermogen_pct": 55, "label": "Warming-up" },
-        { "type": "z2", "duur_min": 70, "vermogenMin": 68, "vermogenMax": 76, "label": "Z2 duur" },
-        { "type": "cooldown", "duur_min": 10, "vermogen_pct": 50, "label": "Cooling-down" }
+        { "type": "z2", "duur_min": 90, "vermogenMin": 68, "vermogenMax": 76, "label": "Z2 duur" }
+      ]
+    },
+    {
+      "datum": "2026-06-26",
+      "dag": "Donderdag",
+      "type": "duur_variabel",
+      "titel": "Variabele duurrit",
+      "tss": 80,
+      "duur_min": 75,
+      "vermogen": "180-225W",
+      "hartslag": "<165 bpm",
+      "beschrijving": "Afwisselend Z2 en Z3 blokken voor variatie",
+      "reden": "TSB -3, vorige duurrit was vlak Z2, afwisseling",
+      "segmenten": [
+        { "type": "z2", "duur_min": 10, "vermogenMin": 68, "vermogenMax": 76, "label": "Z2 duur" },
+        { "type": "tempo", "duur_min": 5, "vermogenMin": 76, "vermogenMax": 85, "label": "Z3 tempo" },
+        { "type": "z2", "duur_min": 10, "vermogenMin": 68, "vermogenMax": 76, "label": "Z2 duur" },
+        { "type": "tempo", "duur_min": 5, "vermogenMin": 76, "vermogenMax": 85, "label": "Z3 tempo" },
+        { "type": "z2", "duur_min": 10, "vermogenMin": 68, "vermogenMax": 76, "label": "Z2 duur" },
+        { "type": "tempo", "duur_min": 5, "vermogenMin": 76, "vermogenMax": 85, "label": "Z3 tempo" },
+        { "type": "z2", "duur_min": 20, "vermogenMin": 68, "vermogenMax": 76, "label": "Z2 duur" }
       ]
     }
   ],
-  "tss_totaal": 180,
+  "tss_totaal": 165,
   "opmerking": "optioneel"
 }
 Genereer nu sessies voor MIJN situatie. Alleen JSON.`;
@@ -592,7 +621,6 @@ Genereer nu sessies voor MIJN situatie. Alleen JSON.`;
                   setBeschikbaar(doelConfig.beschikbaarheid || {});
                   setUrenPerDag(doelConfig.urenPerDag || {});
                   fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(doelConfig) });
-                  setTab(0);
                   genereerSeizoensplan(doelConfig);
                 }}
               />
@@ -606,7 +634,7 @@ Genereer nu sessies voor MIJN situatie. Alleen JSON.`;
               </div>
             )}
 
-            {seizoensplan && (
+            {seizoensplan && !planGenereert && (
               <SchemaTab
                 key={schemaDagOffset}
                 seizoensplan={seizoensplan}

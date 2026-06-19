@@ -132,7 +132,7 @@ function bouwBlockGroups(segmenten, ftp) {
   });
 }
 
-const SESSIE_LABELS = { duur_lang: "Duurrit", duur_middel: "Duurrit", sweetspot: "Sweet spot", interval: "Interval", herstel: "Herstelrit", drempel: "Drempel", vo2max: "VO2max", tempo: "Tempo" };
+const SESSIE_LABELS = { duur_lang: "Duurrit", duur_variabel: "Variabele duurrit", duur_middel: "Duurrit", sweetspot: "Sweet spot", interval: "Interval", herstel: "Herstelrit", drempel: "Drempel", vo2max: "VO2max", tempo: "Tempo" };
 
 function bepaalMode(offset, sessie, rit, ftp, planStartISO) {
   const isVerleden = offset < 0;

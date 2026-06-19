@@ -38,6 +38,7 @@ export function ritMatchesSessie(ritClassificatie, sessieType) {
   const s = sessieType;
   if (t === s) return true;
   if (s === "duur_lang" && (t === "duur_lang" || t === "herstel" || t === "tempo")) return true;
+  if (s === "duur_variabel" && (t === "duur_lang" || t === "tempo")) return true;
   if (s === "sweetspot" && (t === "sweetspot" || t === "tempo" || t === "drempel")) return true;
   if (s === "interval" && (t === "vo2max" || t === "drempel" || t === "sweetspot" || t === "anaeroob")) return true;
   if (s === "duur_middel" && (t === "duur_lang" || t === "tempo")) return true;
