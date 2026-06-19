@@ -2,7 +2,7 @@
 import { T, STATUS, getStatus } from "../../designTokens";
 import { berekenHerstelScore } from "../HerstelStatus";
 
-export default function BalanceRing({ vandaagInvoer, tsb, slaapScore, wellenessHuidig, hrvBasislijn, hrBasislijn }) {
+export default function BalanceRing({ vandaagInvoer, tsb, slaapScore, wellenessHuidig, hrvBasislijn, hrBasislijn, label }) {
   const { score, signalen } = berekenHerstelScore({
     hrv: vandaagInvoer?.hrv,
     hrvBasislijn: hrvBasislijn || 58,
@@ -26,7 +26,7 @@ export default function BalanceRing({ vandaagInvoer, tsb, slaapScore, wellenessH
     <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "24px 22px 22px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-        <span style={{ font: "800 12px var(--font-nunito), 'Nunito', sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>Trainingsbalans</span>
+        <span style={{ font: "800 12px var(--font-nunito), 'Nunito', sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>{label || "Trainingsbalans"}</span>
         <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: T.pillRadius, background: T.subtleFill }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: st.dot }} />
           <span style={{ font: "700 12px var(--font-nunito), 'Nunito', sans-serif", color: "oklch(0.4 0.02 72)" }}>{st.label}</span>
