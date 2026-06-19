@@ -4,6 +4,7 @@ import { T, SLATE, STATUS, getStatus, zoneKleur } from "../designTokens";
 import { berekenHerstelScore } from "./HerstelStatus";
 import WorkoutViz, { WerkelijkViz } from "./WorkoutViz";
 import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
+import InfoTooltip from "./InfoTooltip";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
 const DAG_KORT = ["ZO","MA","DI","WO","DO","VR","ZA"];
@@ -296,12 +297,15 @@ export default function SchemaTab({
       <div style={{ display: "flex", gap: 10, marginBottom: 18 }}>
         {[
           { label: "Duur", value: ritDuurStr || "—", plan: toonPlan && duurStr ? `plan ${duurStr}` : null },
-          { label: "TSS", value: gematchteRit.tss || "—", plan: toonPlan && sessie?.tss ? `plan ${sessie.tss}` : null },
-          { label: "Gem. vermogen", value: gematchteRit.wattage ? `${gematchteRit.wattage}` : "—", unit: "w", plan: toonPlan && gemVermogen ? `plan ${gemVermogen}w` : null },
+          { label: "TSS", value: gematchteRit.tss || "—", plan: toonPlan && sessie?.tss ? `plan ${sessie.tss}` : null, infoKey: "tss" },
+          { label: "Gem. vermogen", value: gematchteRit.wattage ? `${gematchteRit.wattage}` : "—", unit: "w", plan: toonPlan && gemVermogen ? `plan ${gemVermogen}w` : null, infoKey: "vermogen" },
         ].map((m, i) => (
           <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3, padding: "14px 13px", borderRadius: 18, background: T.cardBg, border: `1px solid ${T.cardBorder}`, boxShadow: "0 2px 10px rgba(60,45,20,0.04)" }}>
             <span style={{ font: "600 23px var(--font-fredoka), sans-serif", lineHeight: 1, color: T.text }}>{m.value}{m.unit && <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: T.textSec }}>{m.unit}</span>}</span>
-            <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>{m.label}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>{m.label}</span>
+              {m.infoKey && <InfoTooltip metricKey={m.infoKey} />}
+            </div>
             {m.plan && <span style={{ font: "700 10.5px var(--font-nunito), sans-serif", color: T.textTert }}>{m.plan}</span>}
           </div>
         ))}
@@ -394,12 +398,15 @@ export default function SchemaTab({
             <div style={{ display: "flex", gap: 10, marginBottom: 18 }}>
               {[
                 { label: "Duur", value: duurStr || "—" },
-                { label: "TSS", value: sessie.tss || "—" },
-                { label: "Gem. vermogen", value: gemVermogen ? `${gemVermogen}` : "—", unit: "w" },
+                { label: "TSS", value: sessie.tss || "—", infoKey: "tss" },
+                { label: "Gem. vermogen", value: gemVermogen ? `${gemVermogen}` : "—", unit: "w", infoKey: "vermogen" },
               ].map((m, i) => (
                 <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2, padding: "15px 14px", borderRadius: 18, background: T.cardBg, border: `1px solid ${T.cardBorder}`, boxShadow: "0 2px 10px rgba(60,45,20,0.04)" }}>
                   <span style={{ font: "600 27px var(--font-fredoka), sans-serif", lineHeight: 1, color: T.text }}>{m.value}{m.unit && <span style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.textSec }}>{m.unit}</span>}</span>
-                  <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: T.textSec }}>{m.label}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: T.textSec }}>{m.label}</span>
+                    {m.infoKey && <InfoTooltip metricKey={m.infoKey} />}
+                  </div>
                 </div>
               ))}
             </div>
@@ -408,7 +415,10 @@ export default function SchemaTab({
               <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 18px 18px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16, padding: "0 2px" }}>
                   <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>Vermogensprofiel</span>
-                  <span style={{ font: "700 11.5px var(--font-nunito), sans-serif", color: T.textSec }}>FTP {ftp}W</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <span style={{ font: "700 11.5px var(--font-nunito), sans-serif", color: T.textSec }}>FTP {ftp}W</span>
+                    <InfoTooltip metricKey="ftp" />
+                  </div>
                 </div>
                 <WorkoutViz segmenten={sessie.segmenten} hoogte={170} ftp={ftp} />
                 {tijdMarkers.length > 0 && (

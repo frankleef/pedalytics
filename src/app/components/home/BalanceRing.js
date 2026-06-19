@@ -1,6 +1,7 @@
 "use client";
 import { T, STATUS, getStatus } from "../../designTokens";
 import { berekenHerstelScore } from "../HerstelStatus";
+import InfoTooltip from "../InfoTooltip";
 
 export default function BalanceRing({ vandaagInvoer, tsb, slaapScore, wellenessHuidig, hrvBasislijn, hrBasislijn, label }) {
   const { score, signalen } = berekenHerstelScore({
@@ -26,7 +27,10 @@ export default function BalanceRing({ vandaagInvoer, tsb, slaapScore, wellenessH
     <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "24px 22px 22px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-        <span style={{ font: "800 12px var(--font-nunito), 'Nunito', sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>{label || "Trainingsbalans"}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ font: "800 12px var(--font-nunito), 'Nunito', sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>{label || "Trainingsbalans"}</span>
+          <InfoTooltip metricKey="balansscore" />
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: T.pillRadius, background: T.subtleFill }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: st.dot }} />
           <span style={{ font: "700 12px var(--font-nunito), 'Nunito', sans-serif", color: "oklch(0.4 0.02 72)" }}>{st.label}</span>
@@ -58,13 +62,16 @@ export default function BalanceRing({ vandaagInvoer, tsb, slaapScore, wellenessH
       {/* CTL / ATL / TSB triplet */}
       <div style={{ display: "flex", alignItems: "stretch", gap: 10 }}>
         {[
-          { label: "Fitheid", sub: "CTL", value: ctl ?? "—", color: T.text },
-          { label: "Vermoeidheid", sub: "ATL", value: atl ?? "—", color: T.text },
-          { label: "Vorm", sub: "TSB", value: tsbVal != null ? (tsbVal > 0 ? `+${tsbVal}` : tsbVal) : "—", color: st.dot },
+          { label: "Fitheid", sub: "CTL", value: ctl ?? "—", color: T.text, key: "ctl" },
+          { label: "Vermoeidheid", sub: "ATL", value: atl ?? "—", color: T.text, key: "atl" },
+          { label: "Vorm", sub: "TSB", value: tsbVal != null ? (tsbVal > 0 ? `+${tsbVal}` : tsbVal) : "—", color: st.dot, key: "vorm" },
         ].map((m, i) => (
           <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "12px 4px", borderRadius: T.tileRadius, background: T.subtleFill }}>
             <span style={{ font: "600 30px var(--font-fredoka), 'Fredoka', sans-serif", lineHeight: 1, color: m.color }}>{m.value}</span>
-            <span style={{ font: "700 12px var(--font-nunito), 'Nunito', sans-serif", color: "oklch(0.4 0.02 72)" }}>{m.label}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ font: "700 12px var(--font-nunito), 'Nunito', sans-serif", color: "oklch(0.4 0.02 72)" }}>{m.label}</span>
+              <InfoTooltip metricKey={m.key} />
+            </div>
             <span style={{ font: "700 10px var(--font-nunito), 'Nunito', sans-serif", letterSpacing: 0.5, color: T.textTert }}>{m.sub}</span>
           </div>
         ))}

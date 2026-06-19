@@ -3,6 +3,7 @@ import { useState } from "react";
 import { T, STATUS, getStatus } from "../designTokens";
 import { berekenHerstelScore } from "./HerstelStatus";
 import { berekenDagAdvies } from "./DagAdvies";
+import InfoTooltip from "./InfoTooltip";
 import BalanceRing from "./home/BalanceRing";
 import WeekStrip from "./home/WeekStrip";
 import SessionCard from "./home/SessionCard";
@@ -168,13 +169,16 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
               <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>Trainingsbelasting</span>
               <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
                 {[
-                  { label: "Fitheid", sub: "CTL", value: ctl ?? "—", desc: "Langetermijn belasting", color: T.text },
-                  { label: "Vermoeidheid", sub: "ATL", value: atl ?? "—", desc: "Kortetermijn belasting", color: T.text },
-                  { label: "Vorm", sub: "TSB", value: tsbVal != null ? (tsbVal > 0 ? `+${tsbVal}` : tsbVal) : "—", desc: tsbVal != null ? (tsbVal > 5 ? "Uitgerust" : tsbVal >= -10 ? "In balans" : tsbVal >= -20 ? "Vermoeid" : "Overbelast") : "", color: stObj?.dot || T.text },
+                  { label: "Fitheid", sub: "CTL", value: ctl ?? "—", desc: "Langetermijn belasting", color: T.text, key: "ctl" },
+                  { label: "Vermoeidheid", sub: "ATL", value: atl ?? "—", desc: "Kortetermijn belasting", color: T.text, key: "atl" },
+                  { label: "Vorm", sub: "TSB", value: tsbVal != null ? (tsbVal > 0 ? `+${tsbVal}` : tsbVal) : "—", desc: tsbVal != null ? (tsbVal > 5 ? "Uitgerust" : tsbVal >= -10 ? "In balans" : tsbVal >= -20 ? "Vermoeid" : "Overbelast") : "", color: stObj?.dot || T.text, key: "vorm" },
                 ].map((m, i) => (
                   <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3, padding: "14px 10px", borderRadius: T.tileRadius, background: T.subtleFill, alignItems: "center" }}>
                     <span style={{ font: "600 28px var(--font-fredoka), sans-serif", lineHeight: 1, color: m.color }}>{m.value}</span>
-                    <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.4 0.02 72)" }}>{m.label}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.4 0.02 72)" }}>{m.label}</span>
+                      <InfoTooltip metricKey={m.key} />
+                    </div>
                     <span style={{ font: "700 10px var(--font-nunito), sans-serif", letterSpacing: 0.5, color: T.textTert }}>{m.sub}</span>
                     {m.desc && <span style={{ font: "600 10px var(--font-nunito), sans-serif", color: T.textTert }}>{m.desc}</span>}
                   </div>

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { T, STATUS, getStatus } from "../designTokens";
 import { berekenHerstelScore } from "./HerstelStatus";
+import InfoTooltip from "./InfoTooltip";
 
 export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voortgang, seizoensplan }) {
   const [periode, setPeriode] = useState(8);
@@ -125,17 +126,20 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
           {buildCtlChart()}
 
           <div style={{ display: "flex", gap: 16, marginTop: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <div style={{ width: 18, height: 5, borderRadius: 3, background: T.gradient }} />
-              <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>CTL fitheid</span>
+              <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>CTL</span>
+              <InfoTooltip metricKey="ctl" />
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <div style={{ width: 18, height: 2, background: "oklch(0.58 0.02 75)" }} />
-              <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>ATL vermoeidheid</span>
+              <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>ATL</span>
+              <InfoTooltip metricKey="atl" />
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <div style={{ width: 12, height: 12, borderRadius: 3, background: "oklch(0.79 0.14 168)", opacity: 0.3 }} />
-              <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>TSB vorm</span>
+              <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>Vorm</span>
+              <InfoTooltip metricKey="vorm" />
             </div>
           </div>
         </div>
@@ -143,7 +147,10 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
         {/* FTP card */}
         <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 22px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>Huidige FTP</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>Huidige FTP</span>
+              <InfoTooltip metricKey="ftp" />
+            </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 4 }}>
               <span style={{ font: "600 56px var(--font-fredoka), sans-serif", lineHeight: 1, color: T.text }}>{ftp}</span>
               <span style={{ font: "600 20px var(--font-fredoka), sans-serif", color: T.textSec }}>W</span>
