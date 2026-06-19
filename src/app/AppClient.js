@@ -669,7 +669,10 @@ Alleen JSON.`;
       });
       const data = await resp.json();
       if (!data.success) throw new Error(data.error);
-      const sessie = JSON.parse(data.text.replace(/```json|```/g, "").trim());
+      const parsed = JSON.parse(data.text.replace(/```json|```/g, "").trim());
+      const sessie = parsed.sessie || parsed.sessies?.[0] || parsed;
+      if (!sessie.datum) sessie.datum = datum;
+      if (!sessie.dag) sessie.dag = dagNaam;
 
       try {
         const syncResp = await fetch("/api/intervals/events", {
@@ -867,7 +870,10 @@ Alleen JSON.`;
             });
             const cData = await resp.json();
             if (!cData.success) throw new Error(cData.error);
-            const sessie = JSON.parse(cData.text.replace(/```json|```/g, "").trim());
+            const parsed = JSON.parse(cData.text.replace(/```json|```/g, "").trim());
+            const sessie = parsed.sessie || parsed.sessies?.[0] || parsed;
+            if (!sessie.datum) sessie.datum = datum;
+            if (!sessie.dag) sessie.dag = dag;
 
             try {
               const syncResp = await fetch("/api/intervals/events", {
@@ -880,6 +886,7 @@ Alleen JSON.`;
             } catch {}
 
             lokaalSessies = [...lokaalSessies.filter(s => s.datum !== datum), sessie];
+            setWeekSessies({ ...weekSessies, sessies: lokaalSessies });
           } catch (e) {
             console.error("Sessie genereren mislukt:", datum, e);
           }
