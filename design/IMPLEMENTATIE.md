@@ -212,8 +212,8 @@ opent dit scherm op de huidige dag. Bron: bijgewerkte `Pedalytics_Workout_dc.htm
 | `isTraining`/`isRest` | Bepaal per offset of er een geplande sessie is in het seizoensplan voor die datum, of dat het een rustdag is (zie sectie 5: `beschikbaar`/`urenPerDag` per weekdag) of een dag buiten het plan-bereik — **alle drie behandel je als de rust-staat** (zie hieronder, eerder vastgesteld dat "geen sessie" en "rustdag" dezelfde weergave krijgen). **Geldt alleen voor toekomstige/huidige dagen** — voor verleden-dagen gebruik je voortaan `mode` (zie subsectie hieronder), niet `isTraining`/`isRest` |
 | **TSS-weekkaart** (onder de dag-strip) | Compacte variant van de TSS-voortgangskaart: `huidig` = som TSS van voltooide ritten deze kalenderweek uit `/api/intervals/activities`, `doel` = `tss_doel` van de huidige week uit het seizoensplan. **Blijft staan ongeacht welke dag bekeken wordt** (ook in de rust-staat) — dit is altijd de huidige kalenderweek, niet de bekeken dag |
 | **"Aanpassen"-pil — VERVALLEN** | **Herziening: de pil komt helemaal te vervallen op dit scherm.** Eerdere versies van dit document zeiden eerst "verbergen op verleden-dagen", daarna "altijd zichtbaar, definitief" — beide kloppen niet meer: 'm past visueel niet goed op deze pagina. Verwijder de pil volledig uit `WorkoutViz.js`/het Workout-detail-scherm, op alle dagen. Beschikbaarheid aanpassen blijft bereikbaar via de bestaande ingangen op Home (zie sectie 5) — geen vervangende ingang nodig op dit scherm |
-| **Rust-staat** | Vervangt kerngetallen + intervalgrafiek + segmenten + onderbouwing wanneer `isRest` (alleen toekomst/huidig). Statusbalk, dag-strip, TSS-weekkaart en bottom-nav blijven staan (géén Aanpassen-pil meer, zie hierboven); sticky "Start workout"-knop verdwijnt. Dekt zowel bewuste rustdagen als dagen zonder geplande sessie (buiten plan-bereik) — géén apart "leeg"-component nodig, zoals eerder besproken |
-| Sticky "Start workout"-CTA | Alleen zichtbaar bij `isTraining` (toekomst/huidig) |
+| **Rust-staat** | Vervangt kerngetallen + intervalgrafiek + segmenten + onderbouwing wanneer `isRest` (alleen toekomst/huidig). Statusbalk, dag-strip, TSS-weekkaart en bottom-nav blijven staan (géén Aanpassen-pil, géén sticky CTA — zie hieronder, allebei vervallen). Dekt zowel bewuste rustdagen als dagen zonder geplande sessie (buiten plan-bereik) — géén apart "leeg"-component nodig, zoals eerder besproken |
+| ~~Sticky "Start workout"-CTA~~ — **VERVALLEN** | De knop deed niets en wordt niet meer nodig: zie sectie 8 (Wahoo-synchronisatie). Sessies pushen automatisch naar intervals.icu/Wahoo zodra ze gegenereerd worden, er is geen handmatige "start"-actie meer nodig op dit scherm. Verwijder de knop volledig uit `WorkoutViz.js`, op alle dagen (niet alleen de rust-staat) |
 
 **Mode-stip-kleuren op de dag-strip-tile (definitief, uit README):** groen `oklch(0.6 0.13 165)`
 = matched · amber `oklch(0.72 0.13 70)` = deviated · blauw `oklch(0.55 0.07 215)` = unplanned ·
@@ -228,7 +228,9 @@ Bron: laatste `Pedalytics_Workout_dc.html` + `README.md` (punt 6 onder "2. Worko
 compacte lijst-rijen onder de intervalgrafiek-kaart). De intervalgrafiek-kaart zelf (de
 bar-chart met FTP-lijn, tijd-as, zone-legenda) **blijft volledig ongewijzigd**, evenals alle
 andere onderdelen van sectie 2 (dag-strip, TSS-weekkaart, titelblok, kerngetallen-tiles, slate
-"WAAROM VANDAAG"-kaart, sticky CTA, alle verleden-dag-staten hieronder). Raak geen andere
+"WAAROM VANDAAG"-kaart, sticky CTA *(noot: de sticky CTA zelf is inmiddels apart vervallen
+verklaard, zie sectie 8 — dat is een latere, ongerelateerde wijziging, niet onderdeel van
+deze segment-overzicht-toevoeging)*, alle verleden-dag-staten hieronder). Raak geen andere
 bestanden/componenten aan dan wat hieronder staat.
 
 **Wat te bouwen:**
@@ -246,10 +248,18 @@ bestanden/componenten aan dan wat hieronder staat.
   VO2max → Herstel, 3×) wordt ingesprongen weergegeven met een dunne haak-bracket (spine +
   boven/onder-cap) en een ronde witte badge ("3×") verticaal gecentreerd op de bracket. Losse
   blokken (Warming-up, Cooldown) blijven volle breedte zonder bracket
-- Datastructuur: gebruik het `planSets`-patroon uit het DC-bestand (`{reps, blocks:
-  [blockDef(...)]}` → `blockGroups`) als basis, aangepast aan hoe `segmenten` nu al is
-  opgeslagen in het seizoensplan — dit is een **weergave-laag** bovenop bestaande data, geen
-  nieuwe databron
+- **Datastructuur — correctie t.o.v. eerdere versie:** `planSets` (`{reps, blocks:
+  [blockDef(...)]}`) is **niet langer een afgeleide weergave-laag, maar de bron van waarheid,
+  al vastgelegd bij sessiegeneratie.** Eerder stond hier "aangepast aan hoe `segmenten` nu al
+  is opgeslagen" — dat klopt niet meer: in plaats van repeats achteraf te *detecteren* uit een
+  platte `segmenten`-lijst (heuristisch, foutgevoelig — zie de toelichting bij sectie 8), moet
+  `/api/claude` bij generatie **zelf al expliciet aangeven welke blokken een set vormen**
+  (`reps`-groepering direct in de output, niet later afgeleid). Dit voorkomt dat lichte
+  variatie tussen "bijna identieke" sets de groepering laat mislukken, en geeft zowel deze
+  JOIN-blokken-weergave als de Wahoo-export (sectie 8) dezelfde, betrouwbare bron — geen
+  heuristiek op twee plekken nodig. Pas de `/api/claude`-promptstructuur hierop aan: laat
+  Claude een geneste structuur teruggeven (sets met `reps` + onderliggende blokken, plus losse
+  niet-herhaalde blokken ernaast), in plaats van één platte segmentenlijst
 
 **Toepassingsbereik:** dit geldt voor de geplande sessie-weergave (vandaag/toekomst). Voor de
 verleden-dag-staten (`matched`/`deviated`/`unplanned`/`buiten_planperiode`, zie hieronder)
@@ -470,9 +480,80 @@ interval-sessies, geen nieuwe structuur nodig. Het JOIN-stijl segment-overzicht 
 toont deze blokken dan vanzelf als losse, niet-bracket-omsloten blokken (geen "herhaalde set",
 want elk blok is anders) — geen aparte code-aanpassing nodig daar.
 
+## 8. Wahoo-synchronisatie → vervangt de "Start Workout"-knop, raakt sessiegeneratie + `/api/intervals/events`
+
+**Doel:** geplande sessies automatisch beschikbaar maken op de Wahoo ELEMNT Bolt, zonder
+handmatige actie. Dit vervangt de "Start Workout"-CTA volledig (zie correctie hierboven in
+sectie 2) — er hoeft niets meer "gestart" te worden vanuit de app zelf.
+
+**Hoe het werkt (geen nieuwe Wahoo-integratie nodig, intervals.icu doet het zware werk):**
+intervals.icu kan zelf de komende 7 dagen van geplande events automatisch uploaden naar Wahoo
+Cloud, die vervolgens naar de Bolt synchroniseert zodra die verbinding heeft (wifi/Wahoo-app).
+Dit vereist twee dingen:
+
+**A. Eenmalige koppeling (bij Frank, geen code):** in intervals.icu-instellingen de
+Wahoo-sectie koppelen (OAuth) en "upload workouts" aanvinken. Dit hoeft niet gebouwd te
+worden, maar is wel een randvoorwaarde — vermeld dit als check/instructie aan de gebruiker als
+de functie voor het eerst gebruikt wordt (bv. een melding als er nog geen Wahoo-koppeling
+gevonden wordt).
+
+**B. Sessies moeten als intervals.icu-event bestaan, niet alleen in het eigen seizoensplan-JSON.**
+Op dit moment slaat Pedalytics gegenereerde sessies alleen op via `/api/plan` (eigen JSON,
+geen database-aanwezigheid in intervals.icu zelf). Alleen events die in intervals.icu als
+geplande activiteit staan, worden door intervals.icu naar Wahoo gepusht. Dus:
+- Bij sessiegeneratie (`/api/claude`): naast het opslaan in het seizoensplan, **ook wegschrijven
+  als event naar intervals.icu** via de bestaande `/api/intervals/events`-route (`POST`)
+- **Correctie t.o.v. eerdere versie van dit document — verkeerde API-laag aangenomen.** Eerder
+  stond hier: "vertaal naar het structured-workout-formaat dat intervals.icu/Wahoo verwacht
+  (intervallen met `targets`, `low`/`high`)" — dat beschrijft Wahoo's eigen `plan.json`-formaat,
+  maar **de `/api/intervals/events`-route van intervals.icu werkt niet met die rauwe JSON.**
+  intervals.icu gebruikt een **platte-tekst workout-syntax** in het `description`-veld van het
+  event, en zet die intern zelf om naar Wahoo's `plan.json` (incl. de `low`/`high`-targets) op
+  het moment dat het naar Wahoo Cloud pusht. Wij hoeven dus geen Wahoo-JSON te bouwen, alleen
+  de juiste tekst-syntax.
+- **Vertaal de `segmenten`/`planSets`-structuur naar intervals.icu's tekst-syntax:**
+  - Vermogen-ranges: schrijf `vermogenMin`-`vermogenMax` als `a-b` met eenheid, bv.
+    `8m 220-235w` (niet als los JSON-object, niet als percentage als watt al beschikbaar is)
+  - Herhalingen: gebruik een `Nx`-headerregel boven de geneste blokken uit de `reps`-groepering
+    (sectie 2-correctie), bv.:
+    ```
+    Main Set 3x
+    - 4m 220-235w
+    - 1m 270-290w
+    ```
+    Dit is **dezelfde bron-van-waarheid als voor de JOIN-blokken-weergave** — geen aparte
+    repeat-detectie nodig, de `Nx`-regel volgt direct uit het `reps`-aantal dat al bij
+    generatie wordt vastgelegd. Dit lost het tweede twijfelpunt (heuristische repeat-detectie)
+    automatisch mee op, want er hoeft op deze laag niets meer gedetecteerd te worden, alleen
+    een al-bekend getal in tekst gezet te worden
+  - Losse blokken (geen onderdeel van een set): gewone regels zonder `Nx`-header
+  - Min/max blijft dus overeind als aanpak (eerste twijfelpunt klopte) — alleen de **vorm**
+    waarin het verzonden wordt verandert: tekst-syntax naar intervals.icu, niet JSON naar Wahoo
+  - **Bekend Bolt-issue om rekening mee te houden bij testen:** er zijn meldingen dat het
+    "Target Power"-veld op sommige Bolt v3-firmwareversies "N/A" toont, ook bij correct
+    verzonden ranges — als het targetgetal niet verschijnt tijdens testen, eerst checken of
+    dit een bekend firmware-issue is voordat je de eigen data-vertaling als foutbron aanwijst
+- **De eerder genoemde "elk niet-repeat-interval moet een `targets`-array hebben"-valkuil
+  (422-fout) gold voor de rauwe Wahoo-API, niet voor de intervals.icu-tekst-syntax** — laat
+  dit punt vervallen als afzonderlijke zorg; zolang elke tekst-stap een geldig intensiteit-deel
+  heeft (percentage, watt, of zone), regelt intervals.icu de Wahoo-vertaling zelf correct
+- Bij het wijzigen van een sessie (regeneratie via de 10-dagen-logica, RPE-trigger, etc.): het
+  bijbehorende intervals.icu-event moet meeveranderen (update, niet een dubbel event aanmaken)
+
+**Wat er met de lege plek van de "Start Workout"-knop gebeurt:** niets hoeft die plek op te
+vullen — de sticky CTA-ruimte onderaan het scherm vervalt volledig. Optioneel, niet vereist:
+een kleine, niet-sticky statusregel ("Gesynchroniseerd naar Wahoo ✓") ergens in de
+kerngetallen-sectie, als bevestiging dat de push gelukt is — bepaal zelf of dat meerwaarde
+heeft of dat het scherm rustiger is zonder.
+
+
+
 ## Niet aanraken / expliciet behouden
 
 - Veldnaam `icu_rpe` (niet `perceived_exertion`)
-- Geen database — seizoensplan blijft JSON via `/api/plan`
+- Seizoensplan blijft JSON via `/api/plan` *(noot: er is inmiddels wél een Upstash KV-store
+  bijgekomen, gebruikt voor de applicatieniveau-wachtwoordbeveiliging/sessieopslag — dat is
+  via een losse opdracht buiten dit document geregeld, niet hier gedocumenteerd. Gebruik die
+  KV-store niet door elkaar met het seizoensplan-JSON, het zijn aparte databronnen)*
 - Beschikbaarheid-persistentie is **prioriteit 1**: lost twee bekende TODO-bugs in één keer op
   (beschikbaarheid + weekSessies verdwijnen bij reload)

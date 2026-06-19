@@ -6,6 +6,8 @@ import VoortgangTab from "./components/VoortgangTab";
 import BottomNav from "./components/BottomNav";
 import BeschikbaarheidScherm from "./components/BeschikbaarheidScherm";
 import SchemaTab from "./components/SchemaTab";
+import PlanGenereren from "./components/PlanGenereren";
+import SeizoensplanOverzicht from "./components/SeizoensplanOverzicht";
 
 const PROFIEL_DEFAULT = { ftp: 265, lt_hr: 184, max_hr: 200, gewicht: 90, hrv_basislijn: 58, hr_basislijn: 49, doel: "31+ km/u gemiddeld solo in Z2" };
 
@@ -23,7 +25,8 @@ export default function Page() {
   const [dagelijkseData, setDagelijkseData] = useState([]);
   const [vandaagInvoer, setVandaagInvoer] = useState(null);
   const [seizoensplan, setSeizoensplan] = useState(null);
-  const [planGenereert, setPlanGenereert] = useState(false);
+  const [planStap, setPlanStap] = useState(null);
+  const [planVoortgang, setPlanVoortgang] = useState(0);
   const [weekSessies, setWeekSessies] = useState(null);
   const [weekSessiesLaden, setWeekSessiesLaden] = useState(false);
   const [beschikbaarheidSchermOpen, setBeschikbaarheidSchermOpen] = useState(false);
@@ -58,6 +61,12 @@ export default function Page() {
       if (dagen.length > 0) genereerWeekSessies(dagen);
     }
   }, [seizoensplan?.kader]);
+
+  useEffect(() => {
+    if (planStap === "genereren" && planVoortgang >= 4 && weekSessies) {
+      setPlanStap("overzicht");
+    }
+  }, [planStap, planVoortgang, weekSessies]);
 
   const laadDagelijkseData = useCallback(async () => {
     try {
@@ -230,9 +239,11 @@ export default function Page() {
   };
 
   const genereerSeizoensplan = useCallback(async (doelConfig) => {
-    setPlanGenereert(true);
+    setPlanStap("genereren");
+    setPlanVoortgang(0);
     try {
       const kader = bouwKader(doelConfig);
+      setPlanVoortgang(1);
       const week1 = kader[0];
       const week2 = kader[1];
 
@@ -265,6 +276,7 @@ Geef JSON:
 }
 Alleen JSON.`;
 
+      setPlanVoortgang(2);
       const resp = await fetch("/api/claude", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -272,16 +284,16 @@ Alleen JSON.`;
       });
       const data = await resp.json();
       if (!data.success) throw new Error(data.error);
+      setPlanVoortgang(3);
       const plan = JSON.parse(data.text.replace(/```json|```/g, "").trim());
       const volledigPlan = { ...doelConfig, kader, ...plan };
       setSeizoensplan(volledigPlan);
       fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(volledigPlan) });
-      setSuccesMelding("Seizoensplan gegenereerd!");
-      setTimeout(() => setSuccesMelding(null), 3000);
+      setPlanVoortgang(4);
     } catch (e) {
       setFout("Plan genereren mislukt: " + e.message);
+      setPlanStap(null);
     }
-    setPlanGenereert(false);
   }, []);
 
   const wellenessHuidig = wellness?.length > 0 ? wellness[wellness.length - 1] : null;
@@ -518,8 +530,37 @@ Genereer nu sessies voor MIJN situatie. Alleen JSON.`;
         fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bijgewerktPlan) });
       }
 
+      // Sync naar intervals.icu: event IDs overnemen van oude sessies voor updates
+      const nieuweSessies = result.sessies || [];
+      const oudeEventIds = {};
+      bestaandeSessies.forEach(s => {
+        if (s.intervalsEventId && s.datum) oudeEventIds[s.datum] = s.intervalsEventId;
+      });
+      nieuweSessies.forEach(s => {
+        if (oudeEventIds[s.datum]) s.intervalsEventId = oudeEventIds[s.datum];
+      });
+
+      if (nieuweSessies.length > 0) {
+        try {
+          const syncResp = await fetch("/api/intervals/events", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessies: nieuweSessies, ftp: PROFIEL.ftp }),
+          });
+          const syncData = await syncResp.json();
+          if (syncData.success && syncData.data) {
+            syncData.data.forEach(evt => {
+              const sessie = nieuweSessies.find(s => s.datum === evt.datum);
+              if (sessie) sessie.intervalsEventId = evt.id;
+            });
+          }
+        } catch (e) {
+          console.error("Intervals.icu sync:", e);
+        }
+      }
+
       // Merge: bewaar voltooide sessies, voeg nieuwe toekomstige toe
-      const alleSessies = [...bewaardeSessies, ...(result.sessies || [])];
+      const alleSessies = [...bewaardeSessies, ...nieuweSessies];
       const nieuweWeekSessies = { ...result, sessies: alleSessies, fase: kaderWeek.fase };
       setWeekSessies(nieuweWeekSessies);
       const bijgewerkt = { ...seizoensplan, beschikbaarheid: Object.fromEntries(beschikbareDagen.map(d => [d, true])), urenPerDag, weekSessies: nieuweWeekSessies };
@@ -569,102 +610,108 @@ Genereer nu sessies voor MIJN situatie. Alleen JSON.`;
         />
       )}
 
-      <div style={{ maxWidth: 540, margin: "0 auto", padding: "20px 14px" }}>
+      {/* Full-screen flows: geen wrapper, geen bottom-nav */}
+      {planStap === "genereren" && (
+        <PlanGenereren />
+      )}
 
-        {fout && (
-          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 14, padding: 16, marginBottom: 12 }}>
-            <div style={{ color: "#dc2626", fontSize: 13 }}>{fout}</div>
-            <button onClick={() => setFout(null)} style={{ marginTop: 6, fontSize: 11, color: "#94a3b8", background: "none", border: "none", cursor: "pointer" }}>Sluiten ×</button>
-          </div>
-        )}
-        {succesMelding && (
-          <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 14, padding: 16, marginBottom: 12 }}>
-            <div style={{ color: "#16a34a", fontSize: 13, fontWeight: 600 }}>{succesMelding}</div>
-          </div>
-        )}
+      {planStap === "overzicht" && (
+        <SeizoensplanOverzicht plan={seizoensplan} onDoorGaan={() => setPlanStap(null)} />
+      )}
 
-        {tab === 0 && (
-          <HomeTab
-            profiel={profiel}
-            wellenessHuidig={wellenessHuidig}
-            vandaagInvoer={vandaagInvoer}
-            dagelijkseData={dagelijkseData}
-            voortgang={voortgang}
-            seizoensplan={seizoensplan}
-            weekSessies={weekSessies}
-            weekSessiesLaden={weekSessiesLaden}
-            beschikbaar={beschikbaar}
-            onOpenWorkout={(sessie) => {
-              if (sessie.datum) {
-                const nu = new Date(); nu.setHours(0,0,0,0);
-                const sessieDatum = new Date(sessie.datum); sessieDatum.setHours(0,0,0,0);
-                setSchemaDagOffset(Math.round((sessieDatum - nu) / 86400000));
-              } else {
-                const dagVolgorde = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
-                const vandaagIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
-                setSchemaDagOffset(dagVolgorde.indexOf(sessie.dag) - vandaagIdx);
-              }
-              setTab(1);
-            }}
-            onEditBeschikbaarheid={() => setBeschikbaarheidSchermOpen(true)}
-          />
-        )}
+      {/* Normale app met wrapper + bottom-nav */}
+      {!planStap && (
+        <>
+          <div style={{ maxWidth: 540, margin: "0 auto", padding: "20px 14px" }}>
 
-        {tab === 1 && (
-          <div>
-            {!seizoensplan && !planGenereert && (
-              <SeizoenWizard
-                profiel={PROFIEL}
-                wellness={wellenessHuidig}
-                onVoltooid={(doelConfig) => {
-                  setSeizoensplan(doelConfig);
-                  setBeschikbaar(doelConfig.beschikbaarheid || {});
-                  setUrenPerDag(doelConfig.urenPerDag || {});
-                  fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(doelConfig) });
-                  genereerSeizoensplan(doelConfig);
-                }}
-              />
+            {fout && (
+              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 14, padding: 16, marginBottom: 12 }}>
+                <div style={{ color: "#dc2626", fontSize: 13 }}>{fout}</div>
+                <button onClick={() => setFout(null)} style={{ marginTop: 6, fontSize: 11, color: "#94a3b8", background: "none", border: "none", cursor: "pointer" }}>Sluiten ×</button>
+              </div>
             )}
-
-            {planGenereert && (
-              <div style={{ background: "white", border: "1px solid #e5e7eb", borderRadius: 28, padding: 40, textAlign: "center" }}>
-                <div style={{ fontSize: 28, marginBottom: 8 }}>⏳</div>
-                <div style={{ color: "#64748b", fontSize: 14, fontWeight: 600 }}>Seizoensplan wordt gegenereerd...</div>
-                <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 6 }}>Dit kan even duren</div>
+            {succesMelding && (
+              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 14, padding: 16, marginBottom: 12 }}>
+                <div style={{ color: "#16a34a", fontSize: 13, fontWeight: 600 }}>{succesMelding}</div>
               </div>
             )}
 
-            {seizoensplan && !planGenereert && (
-              <SchemaTab
-                key={schemaDagOffset}
+            {tab === 0 && (
+              <HomeTab
+                profiel={profiel}
+                wellenessHuidig={wellenessHuidig}
+                vandaagInvoer={vandaagInvoer}
+                dagelijkseData={dagelijkseData}
+                voortgang={voortgang}
                 seizoensplan={seizoensplan}
                 weekSessies={weekSessies}
                 weekSessiesLaden={weekSessiesLaden}
                 beschikbaar={beschikbaar}
-                voortgang={voortgang}
-                profiel={profiel}
-                wellenessHuidig={wellenessHuidig}
-                vandaagInvoer={vandaagInvoer}
-                initialDagOffset={schemaDagOffset}
-                onRpeSaved={handleRpeSaved}
+                onOpenWorkout={(sessie) => {
+                  if (sessie.datum) {
+                    const nu = new Date(); nu.setHours(0,0,0,0);
+                    const sessieDatum = new Date(sessie.datum); sessieDatum.setHours(0,0,0,0);
+                    setSchemaDagOffset(Math.round((sessieDatum - nu) / 86400000));
+                  } else {
+                    const dagVolgorde = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
+                    const vandaagIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
+                    setSchemaDagOffset(dagVolgorde.indexOf(sessie.dag) - vandaagIdx);
+                  }
+                  setTab(1);
+                }}
+                onEditBeschikbaarheid={() => setBeschikbaarheidSchermOpen(true)}
               />
             )}
+
+            {tab === 1 && (
+              <div>
+                {!seizoensplan && (
+                  <SeizoenWizard
+                    profiel={PROFIEL}
+                    wellness={wellenessHuidig}
+                    onVoltooid={(doelConfig) => {
+                      setSeizoensplan(doelConfig);
+                      setBeschikbaar(doelConfig.beschikbaarheid || {});
+                      setUrenPerDag(doelConfig.urenPerDag || {});
+                      fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(doelConfig) });
+                      genereerSeizoensplan(doelConfig);
+                    }}
+                  />
+                )}
+
+                {seizoensplan && (
+                  <SchemaTab
+                    key={schemaDagOffset}
+                    seizoensplan={seizoensplan}
+                    weekSessies={weekSessies}
+                    weekSessiesLaden={weekSessiesLaden}
+                    beschikbaar={beschikbaar}
+                    voortgang={voortgang}
+                    profiel={profiel}
+                    wellenessHuidig={wellenessHuidig}
+                    vandaagInvoer={vandaagInvoer}
+                    initialDagOffset={schemaDagOffset}
+                    onRpeSaved={handleRpeSaved}
+                  />
+                )}
+              </div>
+            )}
+
+            {tab === 2 && (
+              <VoortgangTab
+                profiel={profiel}
+                wellness={wellness}
+                wellenessHuidig={wellenessHuidig}
+                voortgang={voortgang}
+                seizoensplan={seizoensplan}
+              />
+            )}
+
           </div>
-        )}
 
-        {tab === 2 && (
-          <VoortgangTab
-            profiel={profiel}
-            wellness={wellness}
-            wellenessHuidig={wellenessHuidig}
-            voortgang={voortgang}
-            seizoensplan={seizoensplan}
-          />
-        )}
-
-      </div>
-
-      <BottomNav activeTab={tab} onTabChange={(i) => { setTab(i); if (i === 1) setSchemaDagOffset(0); if (i === 2 && !voortgang) laadVoortgang(); }} />
+          {seizoensplan && <BottomNav activeTab={tab} onTabChange={(i) => { setTab(i); if (i === 1) setSchemaDagOffset(0); if (i === 2 && !voortgang) laadVoortgang(); }} />}
+        </>
+      )}
     </div>
   );
 }

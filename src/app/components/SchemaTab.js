@@ -158,6 +158,7 @@ export default function SchemaTab({
   const [rpeOpgeslagen, setRpeOpgeslagen] = useState({});
   const [streamsCache, setStreamsCache] = useState({});
   const [streamsLaden, setStreamsLaden] = useState(null);
+  const [wahooTipWeg, setWahooTipWeg] = useState(() => typeof window !== "undefined" && localStorage.getItem("wahooTipGezien") === "1");
   const stripRef = useRef(null);
 
   const nu = new Date();
@@ -346,10 +347,8 @@ export default function SchemaTab({
     );
   }
 
-  const showCta = mode === "planned";
-
   return (
-    <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: T.font, paddingBottom: T.navH + (showCta ? 80 : 20) }}>
+    <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: T.font, paddingBottom: T.navH + 20 }}>
       <div style={{ maxWidth: 540, margin: "0 auto", padding: "16px 0 28px" }}>
 
         {/* Day strip */}
@@ -495,6 +494,20 @@ export default function SchemaTab({
                   </div>
                 </div>
                 <p style={{ margin: "14px 0 0", font: "600 12.5px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.7 0.03 210)" }}>Voelt het zwaar? Pas de laatste set aan of verkort de sessie — luister naar je lichaam.</p>
+              </div>
+            )}
+
+            {sessie.intervalsEventId && !wahooTipWeg && (
+              <div style={{ background: "oklch(0.955 0.03 220)", border: "1px solid oklch(0.85 0.06 220)", borderRadius: 18, padding: "14px 16px", marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <span style={{ fontSize: 16, lineHeight: 1.3, flexShrink: 0 }}>&#x2139;&#xFE0F;</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ font: "700 13px var(--font-nunito), sans-serif", color: "oklch(0.35 0.06 220)", marginBottom: 4 }}>Wahoo-koppeling nodig</div>
+                  <div style={{ font: "600 12px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.45 0.04 220)" }}>
+                    Deze sessie staat in intervals.icu. Om hem op je Wahoo te krijgen: koppel Wahoo in intervals.icu-instellingen en vink "upload workouts" aan.
+                  </div>
+                </div>
+                <button onClick={() => { setWahooTipWeg(true); localStorage.setItem("wahooTipGezien", "1"); }}
+                  style={{ background: "none", border: "none", cursor: "pointer", font: "600 11px var(--font-nunito), sans-serif", color: "oklch(0.55 0.04 220)", padding: "2px 6px", flexShrink: 0 }}>Begrepen</button>
               </div>
             )}
           </div>
@@ -663,16 +676,6 @@ export default function SchemaTab({
         </div>
       </div>
 
-      {showCta && (
-        <div style={{ position: "fixed", bottom: T.navH, left: 0, right: 0, padding: `12px ${T.pad}px 10px`, background: `linear-gradient(180deg, rgba(252,250,245,0), ${T.bg} 38%)`, zIndex: 10 }}>
-          <div style={{ maxWidth: 540, margin: "0 auto" }}>
-            <button style={{ width: "100%", border: "none", cursor: "pointer", padding: 16, borderRadius: T.pillRadius, background: T.slate, color: "oklch(0.97 0.01 84)", font: "800 15.5px var(--font-nunito), sans-serif", letterSpacing: 0.2, display: "flex", alignItems: "center", justifyContent: "center", gap: 9 }}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M7 5l12 7-12 7V5z" fill="oklch(0.97 0.01 84)"/></svg>
-              Start workout
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

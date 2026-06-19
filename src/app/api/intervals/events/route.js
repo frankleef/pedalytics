@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { intervalsGet, intervalsPost } from "@/lib/intervals";
+import { intervalsGet, intervalsPost, intervalsPut } from "@/lib/intervals";
+import { segmentenNaarTekst } from "@/lib/workoutText";
 
 export async function GET(request) {
   try {
@@ -14,35 +15,42 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const { workouts } = await request.json();
-    const FTP = 265;
-    const aangemaakteWorkouts = [];
-    for (const workout of workouts) {
-      const stappen = [];
-      stappen.push({ type: "SteadyState", duration: 1200, power: { value: 0.55, units: "FTP" }, text: "Warming-up" });
-      if (workout.type === "duur_lang") {
-        stappen.push({ type: "SteadyState", duration: 6000, power: { value: 0.72, units: "FTP" }, text: `Z2 duur — ${Math.round(FTP * 0.72)}W` });
-      } else if (workout.type === "duur_middel") {
-        stappen.push({ type: "SteadyState", duration: 4200, power: { value: 0.72, units: "FTP" }, text: `Z2 duur — ${Math.round(FTP * 0.72)}W` });
-      } else if (workout.type === "interval") {
-        for (let i = 0; i < 4; i++) {
-          stappen.push({ type: "SteadyState", duration: 300, power: { value: 0.95, units: "FTP" }, text: `Interval ${i+1}/4` });
-          if (i < 3) stappen.push({ type: "SteadyState", duration: 300, power: { value: 0.55, units: "FTP" }, text: "Herstel" });
-        }
-      }
-      stappen.push({ type: "SteadyState", duration: 600, power: { value: 0.50, units: "FTP" }, text: "Cooling-down" });
-      const result = await intervalsPost("/events", {
-        category: "WORKOUT",
-        start_date_local: workout.datum,
-        name: workout.naam,
-        type: "Ride",
-        moving_time: (workout.duurMin || 90) * 60,
-        description: workout.beschrijving,
-        workout_doc: { steps: stappen },
-      });
-      aangemaakteWorkouts.push(result);
+    const { sessies, ftp } = await request.json();
+    if (!sessies || sessies.length === 0) {
+      return NextResponse.json({ success: false, error: "Geen sessies opgegeven" }, { status: 400 });
     }
-    return NextResponse.json({ success: true, data: aangemaakteWorkouts, message: `${aangemaakteWorkouts.length} workouts gepland` });
+
+    const resultaten = [];
+    for (const sessie of sessies) {
+      const workoutTekst = segmentenNaarTekst(sessie.segmenten, ftp);
+      const datum = sessie.datum?.includes("T") ? sessie.datum : `${sessie.datum}T08:00:00`;
+      const eventBody = {
+        category: "WORKOUT",
+        start_date_local: datum,
+        name: sessie.titel || sessie.type,
+        type: "Ride",
+        moving_time: (sessie.duur_min || 90) * 60,
+        description: workoutTekst,
+      };
+
+      let result;
+      if (sessie.intervalsEventId) {
+        try {
+          result = await intervalsPut(`/events/${sessie.intervalsEventId}`, eventBody);
+        } catch {
+          result = await intervalsPost("/events", eventBody);
+        }
+      } else {
+        result = await intervalsPost("/events", eventBody);
+      }
+      resultaten.push({ id: result.id, datum: sessie.datum });
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: resultaten,
+      message: `${resultaten.length} sessies gesynchroniseerd naar intervals.icu`,
+    });
   } catch (e) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

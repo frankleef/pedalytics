@@ -1,13 +1,17 @@
-# Handoff: Pedalytics — 6 mobiele schermen
+# Handoff: Pedalytics — 8 mobiele schermen
 
 ## Overview
-Pedalytics is een persoonlijke AI-fietscoach app. Dit pakket bevat zes mobiele schermen (390×844, iPhone-formaat):
+Pedalytics is een persoonlijke AI-fietscoach app. Dit pakket bevat acht mobiele schermen (390×844, iPhone-formaat):
 1. **Home / Dashboard** — samenvatting van herstel- en trainingsbalans, weekbeschikbaarheid, sessie van vandaag.
 2. **Workout-detail** — vermogensprofiel van één sessie met intervalgrafiek en onderbouwing; horizontaal scrollbare dag-strip, vaste TSS-weekkaart, rust-staat, en vier verleden-dag-staten (gematcht / afgeweken / gemist / ongeplande rit).
 3. **Voortgang** — CTL/ATL/TSB-trendgrafiek over 8 weken, huidige FTP, en power curve.
 4. **Wizard stap 2 — Beschikbaarheid** — stap in de seizoensdoel-setup: trainingsdagen + uren per dag instellen.
 5. **Beschikbaarheid aanpassen** — standalone bewerkscherm met dezelfde dag-toggles, bereikbaar vanuit Home.
 6. **Schema** — de actieve Schema-tab: weekoverzicht met TSS-voortgang en 7 dagkaarten (sessies + rustdagen).
+7. **Plan genereren** — kort tussen-/wachtscherm ná de wizard, terwijl het seizoensplan wordt opgesteld: gecentreerde pulserende gradient-ring, wisselende geruststellende tekst, voortgangsbalk. Geen knoppen, geen bottom-nav.
+8. **Seizoensplan-overzicht** — verschijnt ná het wachtscherm: het gegenereerde 12-weken-plan met een verticale fase-tijdlijn (Basis → Sweetspot → Drempel → Consolidatie → Test), elk met weekbereik + TSS-doel, en een CTA naar de huidige week. Geen bottom-nav (tussenscherm in de onboarding-flow).
+
+**Onboarding-flow:** Wizard (beschikbaarheid) → **Plan genereren** (wachtscherm, loopt automatisch door) → **Seizoensplan-overzicht** → "Ga door naar week 1" → Schema-detail.
 
 De toon is geruststellend en mensgericht; de coach "praat" in mensentaal, niet in ruwe data.
 
@@ -249,6 +253,24 @@ Elke dag is een tapbare witte kaart (radius 20px, kaartrand). **Tikken op de kaa
 
 **State:** elke dag = `{ key, full, on: boolean, hours: number }`. Afgeleid: aantal actieve dagen en som van uren (live in de footer). In de echte app: persisteer dit als de beschikbaarheids-instelling van de atleet; het schema-algoritme gebruikt het om sessies over de week te verdelen.
 
+### 7. Plan genereren (wachtscherm)
+Kort tussenscherm tussen het afronden van de wizard en het seizoen-overzicht, terwijl het plan wordt berekend. **Gecentreerde, rustige lay-out, geen knoppen, geen bottom-nav** — de gebruiker hoeft niets te doen.
+- **Status-bar** identiek aan de andere schermen.
+- **Pulserende gradient-ring** (132px): een vaste track-ring, daaroverheen een **roterende conic-gradient-arc** (blauw→mint, `pdl-spin` 1,5s lineair), een zacht **pulserende halo** erachter (`pdl-pulse` 2,4s) en in het midden een ademend gradient-vierkant (radius 20px) met het berg-glyph. Alle animaties zijn CSS-`@keyframes` in de `<helmet>`.
+- **Eyebrow** "JE SEIZOENSPLAN WORDT OPGESTELD".
+- **Wisselende geruststellende tekst** (Nunito 700/19,5px), fade-in per regel. De vier regels staan in `this.messages` en rouleren elke 2,2s; toon = mensgericht (bv. "Even geduld, Frank — we stellen je seizoensplan samen op basis van je doelen en beschikbaarheid.").
+- **Voortgangsbalk** (188px, gradient-vulling) loopt mee met de regel-index, plus drie pulserende werk-puntjes.
+- **Gedrag:** puur visueel; loopt in de mockup na ~9,6s automatisch door naar het seizoen-overzicht (`componentDidMount` timeout). In productie: vervang de timer door de echte "plan klaar"-callback van de backend; toon dit scherm zolang de generatie loopt.
+
+### 8. Seizoensplan-overzicht
+Verschijnt ná het wachtscherm — het gegenereerde 12-weken-plan. **Geen bottom-nav** (tussenscherm in de onboarding-flow).
+- **Header** — eyebrow-rij met succes-vinkje in de merk-gradient + "SEIZOENSPLAN · 12 WEKEN", H1 in mensgerichte toon ("Je seizoensplan staat klaar, Frank") en een korte sub-zin.
+- **Doelkaart** (slate, radius 24px) — vat het seizoensdoel samen: huidige FTP → doel-FTP (250W → 275W) met "+25W in 12 weken".
+- **Fase-tijdlijn** — verticale tijdlijn met vijf fases. Elke fase = een genummerde node op een verbindings-rail links + een kaart rechts. Kaart toont: fasenaam, weeknummer-bereik (rechts), één regel focus-omschrijving, en onderaan (na scheidingslijn) een zone-swatch + zone-label links en het **TSS/wk-doel** rechts (Fredoka-cijfer in de zone-kleur). De **huidige fase** (Basis) is gemarkeerd: gevulde node, getinte kaart-achtergrond + rand, en een "NU"-badge.
+  - Fases: Basis (Week 1–3, Z1–Z2, 300 TSS) · Sweetspot (Week 4–6, Z3, 380) · Drempel (Week 7–9, Z4, 430) · Consolidatie (Week 10–11, Z4–Z5, 350) · Test (Week 12, taper/FTP-test, 240).
+- **Sticky CTA** (boven, met fade-gradient): full-width slate-pil **"Ga door naar week 1"** → navigeert naar het Schema-detailscherm.
+- *Implementatie:* de fases staan in de `raw`-array → `phases` in `renderVals()`; `Z` mapt zone → kleur, en de huidige-fase-styling wordt afgeleid van `current` (index 0).
+
 ---
 
 ## Intervalgrafiek-spec (Zwift/TrainerRoad-stijl) — belangrijkste component
@@ -316,6 +338,8 @@ Beide grafieken zijn inline-SVG, opgebouwd in `renderVals()` (functie `linePath(
 - `Pedalytics Wizard Beschikbaarheid.dc.html` — Wizard stap 2 (referentie, interactief).
 - `Pedalytics Beschikbaarheid Aanpassen.dc.html` — Standalone bewerkscherm (referentie, interactief).
 - `Pedalytics Schema.dc.html` — Schema-weekoverzicht (referentie). De week-/TSS-/zone-data + navigatie staan in het `class Component`-blok onderaan.
+- `Pedalytics Plan Genereren.dc.html` — Wachtscherm tijdens plan-generatie (referentie). De roulerende teksten + auto-doorloop-timer staan in het `class Component`-blok; ring/halo-animaties zijn `@keyframes` in de `<helmet>`.
+- `Pedalytics Seizoensplan.dc.html` — Seizoensplan-overzicht (referentie). De fase-array + zone-kleur-/huidige-fase-logica staan in het `class Component`-blok onderaan.
 - `screenshots/` — PNG per scherm.
 
 > Alle bestanden zijn zelfstandig in een browser te openen om de live-look en interacties te bekijken. De grafiek-, status- en toggle-logica (kleurfuncties, profiel-data, SVG-paden, state) staat in het `class Component`-blok onderaan elk bestand — dat is de beste plek om de exacte berekeningen over te nemen.
