@@ -184,7 +184,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
             {/* Power curve SVG — logaritmische x-as */}
             {(() => {
               const TIJDEN = [
-                { sec: 5, label: "5s" }, { sec: 30, label: "30s" }, { sec: 60, label: "1m" },
+                { sec: 5, label: "5s" }, { sec: 15, label: "15s" }, { sec: 30, label: "30s" }, { sec: 60, label: "1m" },
                 { sec: 180, label: "3m" }, { sec: 300, label: "5m" }, { sec: 600, label: "10m" },
                 { sec: 1200, label: "20m" }, { sec: 3600, label: "60m" },
               ];
@@ -196,67 +196,84 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
                 const bests = {};
                 TIJDEN.forEach(t => { bests[t.sec] = 0; });
                 ritten.forEach(r => {
-                  if (r.wattage && r.duur_min) {
-                    const duurSec = r.duur_min * 60;
-                    const dichtste = TIJDEN.reduce((prev, curr) => Math.abs(curr.sec - duurSec) < Math.abs(prev.sec - duurSec) ? curr : prev);
-                    if (r.wattage > (bests[dichtste.sec] || 0)) bests[dichtste.sec] = r.wattage;
+                  if (!r.wattage || !r.duur_min) return;
+                  const duurSec = r.duur_min * 60;
+                  TIJDEN.forEach(t => {
+                    if (duurSec >= t.sec && r.wattage > (bests[t.sec] || 0)) {
+                      bests[t.sec] = r.wattage;
+                    }
+                  });
+                  if (r.max_watt) {
+                    [5, 15, 30].forEach(sec => {
+                      if (r.max_watt > (bests[sec] || 0)) bests[sec] = r.max_watt;
+                    });
                   }
                 });
-                return TIJDEN.map(t => ({ ...t, watt: bests[t.sec] || 0 })).filter(p => p.watt > 0);
+                return TIJDEN.map(t => ({ ...t, watt: bests[t.sec] || 0 }));
               };
 
               const huidigeRitten = soloRitten.filter(r => new Date(r.datum_iso) >= grens);
               const vorigeRitten = soloRitten.filter(r => { const d = new Date(r.datum_iso); return d >= vorigeGrens && d < grens; });
               const huidig = bouwCurve(huidigeRitten);
               const vorig = bouwCurve(vorigeRitten);
+              const huidigMetData = huidig.filter(p => p.watt > 0);
 
-              if (huidig.length < 2) return <div style={{ padding: 20, textAlign: "center", color: T.textTert, font: "600 13px var(--font-nunito), sans-serif" }}>Onvoldoende data</div>;
+              if (huidigMetData.length < 2) return <div style={{ padding: 20, textAlign: "center", color: T.textTert, font: "600 13px var(--font-nunito), sans-serif" }}>Onvoldoende data</div>;
 
-              const pcH = 130, pcW = 346;
-              const allW = [...huidig.map(p => p.watt), ...vorig.map(p => p.watt)];
+              const pcH = 140, pcW = 346, labelH = 18, chartH = pcH - labelH;
+              const allW = [...huidigMetData.map(p => p.watt), ...vorig.filter(p => p.watt > 0).map(p => p.watt)];
               const mnW = Math.min(...allW) * 0.85;
               const mxW = Math.max(...allW) * 1.05;
               const logMin = Math.log(TIJDEN[0].sec);
               const logMax = Math.log(TIJDEN[TIJDEN.length - 1].sec);
               const xLog = (sec) => ((Math.log(sec) - logMin) / (logMax - logMin)) * pcW;
-              const yS = (v) => pcH - 20 - ((v - mnW) / (mxW - mnW)) * (pcH - 30);
+              const yS = (v) => chartH - ((v - mnW) / (mxW - mnW)) * (chartH - 10);
 
-              const hPath = huidig.map((p, i) => `${i === 0 ? "M" : "L"}${xLog(p.sec).toFixed(1)},${yS(p.watt).toFixed(1)}`).join(" ");
-              const hArea = hPath + `L${xLog(huidig[huidig.length - 1].sec).toFixed(1)},${pcH - 20}L${xLog(huidig[0].sec).toFixed(1)},${pcH - 20}Z`;
-              const vPath = vorig.length >= 2 ? vorig.map((p, i) => `${i === 0 ? "M" : "L"}${xLog(p.sec).toFixed(1)},${yS(p.watt).toFixed(1)}`).join(" ") : null;
+              const hPath = huidigMetData.map((p, i) => `${i === 0 ? "M" : "L"}${xLog(p.sec).toFixed(1)},${yS(p.watt).toFixed(1)}`).join(" ");
+              const hArea = hPath + `L${xLog(huidigMetData[huidigMetData.length - 1].sec).toFixed(1)},${chartH}L${xLog(huidigMetData[0].sec).toFixed(1)},${chartH}Z`;
+              const vorigMetData = vorig.filter(p => p.watt > 0);
+              const vPath = vorigMetData.length >= 2 ? vorigMetData.map((p, i) => `${i === 0 ? "M" : "L"}${xLog(p.sec).toFixed(1)},${yS(p.watt).toFixed(1)}`).join(" ") : null;
 
               const highlights = [
-                { sec: 5, titel: "Sprint" },
-                { sec: 60, titel: "Kort" },
-                { sec: 300, titel: "Duur" },
-              ].map(h => huidig.find(p => p.sec === h.sec) ? { ...huidig.find(p => p.sec === h.sec), titel: h.titel } : null).filter(Boolean);
+                { sec: 5, titel: "Sprint", fallback: 15 },
+                { sec: 60, titel: "Kort", fallback: 180 },
+                { sec: 300, titel: "Duur", fallback: 600 },
+              ].map(h => {
+                const punt = huidig.find(p => p.sec === h.sec && p.watt > 0) || huidig.find(p => p.sec === h.fallback && p.watt > 0);
+                return punt ? { ...punt, titel: h.titel } : { titel: h.titel, label: h.sec <= 60 ? `${h.sec}s` : `${h.sec / 60}m`, watt: 0 };
+              });
 
               return (
                 <>
-                  <svg width="100%" viewBox={`0 0 ${pcW} ${pcH}`} style={{ display: "block", marginTop: 10 }}>
+                  <svg width="100%" viewBox={`0 0 ${pcW} ${pcH}`} style={{ display: "block", marginTop: 10, overflow: "visible" }}>
                     <defs>
                       <linearGradient id="pcGrad" x1="0" y1="0" x2="1" y2="0">
                         <stop offset="0%" stopColor="oklch(0.64 0.14 248)" />
                         <stop offset="100%" stopColor="oklch(0.79 0.14 168)" />
                       </linearGradient>
                       <linearGradient id="pcFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="oklch(0.79 0.14 168)" stopOpacity="0.22" />
-                        <stop offset="100%" stopColor="oklch(0.64 0.14 248)" stopOpacity="0.02" />
+                        <stop offset="0%" stopColor="oklch(0.79 0.14 168)" stopOpacity="0.15" />
+                        <stop offset="100%" stopColor="oklch(0.64 0.14 248)" stopOpacity="0.01" />
                       </linearGradient>
                     </defs>
                     {vPath && <path d={vPath} fill="none" stroke="oklch(0.58 0.02 75)" strokeWidth="2" strokeDasharray="4 4" />}
                     <path d={hArea} fill="url(#pcFill)" />
                     <path d={hPath} fill="none" stroke="url(#pcGrad)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-                    {TIJDEN.map((t, i) => (
-                      <text key={i} x={xLog(t.sec)} y={pcH - 4} textAnchor="middle" style={{ font: "600 9px var(--font-nunito), sans-serif", fill: T.textTert }}>
-                        {t.label}
-                      </text>
-                    ))}
+                    {TIJDEN.map((t, i) => {
+                      const heeftData = huidig.find(p => p.sec === t.sec)?.watt > 0;
+                      return (
+                        <text key={i} x={xLog(t.sec)} y={pcH - 2} textAnchor="middle" fill={heeftData ? T.textSec : T.textTert} style={{ font: `600 ${heeftData ? 9 : 8}px var(--font-nunito), sans-serif` }}>
+                          {t.label}
+                        </text>
+                      );
+                    })}
                   </svg>
                   <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                     {highlights.map((p, i) => (
                       <div key={i} style={{ flex: 1, background: T.subtleFill, borderRadius: 14, padding: "10px 12px", textAlign: "center" }}>
-                        <div style={{ font: "600 22px var(--font-fredoka), sans-serif", color: T.text }}>{p.watt}<span style={{ font: "600 12px var(--font-fredoka), sans-serif", color: T.textSec }}>w</span></div>
+                        <div style={{ font: "600 22px var(--font-fredoka), sans-serif", color: p.watt > 0 ? T.text : T.textTert }}>
+                          {p.watt > 0 ? <>{p.watt}<span style={{ font: "600 12px var(--font-fredoka), sans-serif", color: T.textSec }}>w</span></> : "—"}
+                        </div>
                         <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textSec }}>{p.titel} · {p.label}</div>
                       </div>
                     ))}
