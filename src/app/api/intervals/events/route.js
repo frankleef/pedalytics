@@ -1,21 +1,11 @@
 import { NextResponse } from "next/server";
-
-const BASE_URL = "https://intervals.icu/api/v1";
-const ATHLETE_ID = process.env.INTERVALS_ATHLETE_ID || "i594622";
-const API_KEY = process.env.INTERVALS_API_KEY;
-
-function auth() {
-  return "Basic " + Buffer.from(`API_KEY:${API_KEY}`).toString("base64");
-}
+import { intervalsGet, intervalsPost } from "@/lib/intervals";
 
 export async function GET(request) {
   try {
     const vandaag = new Date().toISOString().split("T")[0];
     const over14 = new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0];
-    const url = `${BASE_URL}/athlete/${ATHLETE_ID}/events.json?oldest=${vandaag}&newest=${over14}`;
-    const resp = await fetch(url, { headers: { Authorization: auth() } });
-    if (!resp.ok) throw new Error(`Intervals API ${resp.status}`);
-    const data = await resp.json();
+    const data = await intervalsGet("/events.json", { oldest: vandaag, newest: over14 });
     return NextResponse.json({ success: true, data });
   } catch (e) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
@@ -41,14 +31,16 @@ export async function POST(request) {
         }
       }
       stappen.push({ type: "SteadyState", duration: 600, power: { value: 0.50, units: "FTP" }, text: "Cooling-down" });
-      const url = `${BASE_URL}/athlete/${ATHLETE_ID}/events`;
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: { Authorization: auth(), "Content-Type": "application/json" },
-        body: JSON.stringify({ category: "WORKOUT", start_date_local: workout.datum, name: workout.naam, type: "Ride", moving_time: (workout.duurMin || 90) * 60, description: workout.beschrijving, workout_doc: { steps: stappen } }),
+      const result = await intervalsPost("/events", {
+        category: "WORKOUT",
+        start_date_local: workout.datum,
+        name: workout.naam,
+        type: "Ride",
+        moving_time: (workout.duurMin || 90) * 60,
+        description: workout.beschrijving,
+        workout_doc: { steps: stappen },
       });
-      if (!resp.ok) throw new Error(`Intervals API ${resp.status}`);
-      aangemaakteWorkouts.push(await resp.json());
+      aangemaakteWorkouts.push(result);
     }
     return NextResponse.json({ success: true, data: aangemaakteWorkouts, message: `${aangemaakteWorkouts.length} workouts gepland` });
   } catch (e) {

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 // ─── TSS berekening per rit ───────────────────────────────────────────────────
 export function berekenTSS(duurSeconden, gemWattage, ftp) {
@@ -69,74 +70,29 @@ export function tsbStatus(tsb) {
 function LoadGrafiek({ data }) {
   if (!data || data.length < 2) return null;
 
-  const W = 320, H = 120;
-  const pad = { t: 10, b: 22, l: 28, r: 14 };
-  const w = W - pad.l - pad.r;
-  const h = H - pad.t - pad.b;
+  const stap = Math.max(1, Math.floor(data.length / 6));
+  const chartData = data.map((d, i) => ({
+    ...d,
+    label: i % stap === 0 ? `${new Date(d.datum).getDate()}/${new Date(d.datum).getMonth() + 1}` : "",
+  }));
 
-  const ctlV = data.map(d => d.ctl);
-  const atlV = data.map(d => d.atl);
-  const tsbV = data.map(d => d.tsb);
-  const alles = [...ctlV, ...atlV, ...tsbV];
-  const mn = Math.min(...alles) - 3;
-  const mx = Math.max(...alles) + 3;
-
-  const xS = i => pad.l + (i / (data.length - 1)) * w;
-  const yS = v => pad.t + h - ((v - mn) / (mx - mn)) * h;
-
-  const lijn = (vals, k) => (
-    <polyline fill="none" stroke={k} strokeWidth="2"
-      points={vals.map((v, i) => `${xS(i)},${yS(v)}`).join(" ")} />
-  );
-
-  const nulY = yS(0);
-  const stap = Math.max(1, Math.floor(data.length / 5));
+  const tooltipStyle = { background: "#0e1521", border: "1px solid #1e293b", borderRadius: 8, fontSize: 11 };
 
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: "visible" }}>
-      {/* Nullijn */}
-      <line x1={pad.l} y1={nulY} x2={W - pad.r} y2={nulY}
-        stroke="#374151" strokeWidth="1" strokeDasharray="4,3" />
-      <text x={pad.l - 4} y={nulY + 3} fontSize="7" fill="#374151" textAnchor="end">0</text>
-
-      {/* Positief/negatief zones */}
-      <rect x={pad.l} y={pad.t} width={w} height={nulY - pad.t}
-        fill="#4ade8008" />
-      <rect x={pad.l} y={nulY} width={w} height={h - (nulY - pad.t)}
-        fill="#ef444408" />
-
-      {lijn(ctlV, "#60a5fa")}
-      {lijn(atlV, "#f97316")}
-      {lijn(tsbV, "#4ade80")}
-
-      {/* Eindwaardes */}
-      {[
-        { v: ctlV, k: "#60a5fa" },
-        { v: atlV, k: "#f97316" },
-        { v: tsbV, k: "#4ade80" },
-      ].map((s, i) => {
-        const lv = s.v[s.v.length - 1];
-        const lx = xS(s.v.length - 1);
-        const ly = yS(lv);
-        return (
-          <g key={i}>
-            <circle cx={lx} cy={ly} r="3" fill={s.k} />
-            <text x={lx + 5} y={ly + 3} fontSize="9" fill={s.k} fontWeight="700">{lv}</text>
-          </g>
-        );
-      })}
-
-      {/* X-as labels */}
-      {data.filter((_, i) => i % stap === 0).map((d, i) => {
-        const idx = i * stap;
-        const dag = new Date(d.datum);
-        return (
-          <text key={i} x={xS(idx)} y={H - 2} fontSize="8" fill="#475569" textAnchor="middle">
-            {dag.getDate()}/{dag.getMonth() + 1}
-          </text>
-        );
-      })}
-    </svg>
+    <ResponsiveContainer width="100%" height={140}>
+      <LineChart data={chartData} margin={{ top: 5, right: 10, bottom: 5, left: 0 }}>
+        <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#475569", fontSize: 9 }} interval={0} />
+        <YAxis hide />
+        <ReferenceLine y={0} stroke="#374151" strokeDasharray="4 3" />
+        <Tooltip contentStyle={tooltipStyle} labelFormatter={() => ""} formatter={(v, name) => {
+          const labels = { ctl: "CTL", atl: "ATL", tsb: "TSB" };
+          return [v, labels[name] || name];
+        }} />
+        <Line type="monotone" dataKey="ctl" stroke="#60a5fa" strokeWidth={2} dot={false} />
+        <Line type="monotone" dataKey="atl" stroke="#f97316" strokeWidth={2} dot={false} />
+        <Line type="monotone" dataKey="tsb" stroke="#4ade80" strokeWidth={2} dot={false} />
+      </LineChart>
+    </ResponsiveContainer>
   );
 }
 
@@ -260,22 +216,21 @@ export default function TrainingLoadPanel({ ritten, ftp = 265 }) {
       {/* TSS staafjes afgelopen week */}
       <div style={{ marginTop: 14 }}>
         <div style={{ fontSize: 10, color: "#64748b", marginBottom: 6 }}>TSS per dag — afgelopen 7 dagen</div>
-        <div style={{ display: "flex", gap: 4, alignItems: "flex-end", height: 40 }}>
-          {afgelopenWeek.map((d, i) => {
-            const hoogte = Math.max(3, (d.tss / maxTss) * 38);
+        <ResponsiveContainer width="100%" height={70}>
+          <BarChart data={afgelopenWeek.map(d => {
             const dag = new Date(d.datum);
-            const namen = ["Zo","Ma","Di","Wo","Do","Vr","Za"];
-            return (
-              <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                {d.tss > 0 && <div style={{ fontSize: 8, color: "#94a3b8" }}>{d.tss}</div>}
-                <div style={{ width: "100%", height: hoogte,
-                  background: d.tss > 80 ? "#f97316" : d.tss > 0 ? "#3b82f6" : "#1e293b",
-                  borderRadius: "2px 2px 0 0" }} />
-                <div style={{ fontSize: 8, color: "#475569" }}>{namen[dag.getDay()]}</div>
-              </div>
-            );
-          })}
-        </div>
+            return { dag: ["Zo","Ma","Di","Wo","Do","Vr","Za"][dag.getDay()], tss: d.tss };
+          })} barCategoryGap="20%">
+            <XAxis dataKey="dag" axisLine={false} tickLine={false} tick={{ fill: "#475569", fontSize: 9 }} />
+            <YAxis hide />
+            <Tooltip contentStyle={{ background: "#0e1521", border: "1px solid #1e293b", borderRadius: 8, fontSize: 11 }} formatter={(v) => [v, "TSS"]} />
+            <Bar dataKey="tss" radius={[3, 3, 0, 0]}>
+              {afgelopenWeek.map((d, i) => (
+                <Cell key={i} fill={d.tss > 80 ? "#f97316" : d.tss > 0 ? "#3b82f6" : "#1e293b"} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );

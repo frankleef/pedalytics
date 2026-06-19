@@ -1,3 +1,6 @@
 node_modules/
 .env.local
 .next/
+.strava-token.json
+.seizoensplan.json
+design/

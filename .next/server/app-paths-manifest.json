@@ -1,7 +1,16 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
+  "/api/claude/route": "app/api/claude/route.js",
+  "/api/intervals/activities/[id]/streams/route": "app/api/intervals/activities/[id]/streams/route.js",
+  "/api/intervals/events/route": "app/api/intervals/events/route.js",
+  "/api/intervals/profiel/route": "app/api/intervals/profiel/route.js",
+  "/api/plan/route": "app/api/plan/route.js",
+  "/api/strava/activities/route": "app/api/strava/activities/route.js",
+  "/api/intervals/wellness/route": "app/api/intervals/wellness/route.js",
+  "/api/strava/callback/route": "app/api/strava/callback/route.js",
   "/api/test/route": "app/api/test/route.js",
-  "/api/intervals/activities/route": "app/api/intervals/activities/route.js",
   "/page": "app/page.js",
-  "/api/intervals/wellness/route": "app/api/intervals/wellness/route.js"
+  "/api/strava/auth/route": "app/api/strava/auth/route.js",
+  "/api/intervals/workouts/[id]/route": "app/api/intervals/workouts/[id]/route.js",
+  "/api/intervals/activities/route": "app/api/intervals/activities/route.js"
 }

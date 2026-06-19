@@ -55,12 +55,12 @@ export function berekenHerstelScore({ hrv, hrvBasislijn, rusthartslag, rustharts
   return { score: s, status, signalen };
 }
 
-export default function HerstelStatusPanel({ dagelijkseData, tsb, slaapScore }) {
+export default function HerstelStatusPanel({ dagelijkseData, tsb, slaapScore, hrvBasislijn = 58, hrBasislijn = 49 }) {
   if (!dagelijkseData || dagelijkseData.length === 0) return null;
 
   const vandaag = dagelijkseData[dagelijkseData.length - 1];
-  const HRV_BASISLIJN = 58; // Frank's basislijn
-  const HR_BASISLIJN = 49;  // Frank's rusthartslag basislijn
+  const HRV_BASISLIJN = hrvBasislijn;
+  const HR_BASISLIJN = hrBasislijn;
 
   const { score, status, signalen } = berekenHerstelScore({
     hrv: vandaag.hrv,

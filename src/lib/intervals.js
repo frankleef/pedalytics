@@ -55,4 +55,29 @@ export async function intervalsPut(pad, body) {
   return resp.json();
 }
 
+export async function intervalsActivityGet(id) {
+  const resp = await fetch(`${BASE_URL}/activity/${id}`, {
+    headers: { Authorization: intervalsAuth() },
+    next: { revalidate: 0 },
+  });
+  if (!resp.ok) {
+    const tekst = await resp.text();
+    throw new Error(`Intervals API fout ${resp.status}: ${tekst}`);
+  }
+  return resp.json();
+}
+
+export async function intervalsActivityPut(id, body) {
+  const resp = await fetch(`${BASE_URL}/activity/${id}`, {
+    method: "PUT",
+    headers: { Authorization: intervalsAuth(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) {
+    const tekst = await resp.text();
+    throw new Error(`Intervals API fout ${resp.status}: ${tekst}`);
+  }
+  return resp.json();
+}
+
 export { ATHLETE_ID };

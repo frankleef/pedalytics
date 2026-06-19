@@ -9,8 +9,9 @@ html, body {
   height: 100%;
   background: #07111d;
   color: #e2e8f0;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-nunito), 'Nunito', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   overscroll-behavior: none;
 }
 
@@ -18,21 +19,12 @@ input, textarea, select, button {
   font-family: inherit;
 }
 
-/* Geen tekst selectie op buttons */
 button {
   -webkit-user-select: none;
   user-select: none;
 }
 
-/* Scrollbar styling */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-::-webkit-scrollbar-track {
-  background: #0e1521;
-}
-::-webkit-scrollbar-thumb {
-  background: #1e293b;
-  border-radius: 2px;
+  width: 0;
+  height: 0;
 }

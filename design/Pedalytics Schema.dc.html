@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;background:oklch(0.91 0.012 82);font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;}
+  ::-webkit-scrollbar{width:0;height:0;}
+</style>
+</helmet>
+
+<div style="width:390px;height:844px;margin:0 auto;background:oklch(0.962 0.012 84);position:relative;overflow:hidden;display:flex;flex-direction:column;font-family:'Nunito',sans-serif;color:oklch(0.27 0.02 70);box-shadow:0 24px 60px rgba(40,30,15,0.16);">
+
+  <!-- status bar -->
+  <div style="height:46px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 26px 0 28px;">
+    <span style="font:800 15px 'Nunito';letter-spacing:0.2px;">9:41</span>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div style="width:5px;height:5px;border-radius:50%;background:oklch(0.27 0.02 70);"></div>
+      <div style="width:5px;height:5px;border-radius:50%;background:oklch(0.27 0.02 70);"></div>
+      <div style="width:5px;height:5px;border-radius:50%;background:oklch(0.74 0.015 75);"></div>
+      <div style="width:22px;height:11px;border:1.5px solid oklch(0.27 0.02 70);border-radius:3px;display:flex;align-items:center;padding:1.5px;margin-left:3px;"><div style="width:100%;height:100%;background:oklch(0.27 0.02 70);border-radius:1px;"></div></div>
+    </div>
+  </div>
+
+  <!-- scroll area -->
+  <div style="flex:1;overflow-y:auto;padding:4px 22px 28px;">
+
+    <!-- header -->
+    <div style="margin-bottom:18px;">
+      <span style="font:800 11px 'Nunito';letter-spacing:1.6px;color:oklch(0.6 0.02 75);">OPBOUW · WEEK 6 VAN 12</span>
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-top:4px;">
+        <h1 style="margin:0;font:800 28px/1.1 'Nunito';letter-spacing:-0.5px;color:oklch(0.27 0.02 70);">Deze week</h1>
+        <span style="font:700 13px 'Nunito';color:oklch(0.5 0.02 74);margin-bottom:3px;">15 – 21 jun</span>
+      </div>
+    </div>
+
+    <!-- TSS progress card -->
+    <div style="background:oklch(0.99 0.006 84);border-radius:28px;padding:20px 20px 22px;box-shadow:0 2px 14px rgba(60,45,20,0.05);border:1px solid oklch(0.93 0.01 82);margin-bottom:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;">
+        <span style="font:800 12px 'Nunito';letter-spacing:1.2px;color:oklch(0.6 0.02 75);">TSS DEZE WEEK</span>
+        <span style="font:600 13px 'Nunito';color:oklch(0.5 0.02 74);"><span style="font:600 22px 'Fredoka';color:oklch(0.28 0.02 70);">210</span> / 420</span>
+      </div>
+      <div style="height:9px;border-radius:999px;background:oklch(0.93 0.012 84);overflow:hidden;">
+        <div style="height:100%;width:50%;border-radius:999px;background:linear-gradient(90deg,oklch(0.64 0.14 248),oklch(0.79 0.14 168));"></div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:11px;">
+        <span style="font:700 12px 'Nunito';color:oklch(0.5 0.02 74);">50% van je weekdoel</span>
+        <span style="font:700 12px 'Nunito';color:oklch(0.5 0.13 162);">210 TSS te gaan</span>
+      </div>
+    </div>
+
+    <!-- availability secondary action -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:0 2px;">
+      <span style="font:800 12px 'Nunito';letter-spacing:1.2px;color:oklch(0.6 0.02 75);">5 SESSIES · 2 RUST</span>
+      <button onClick="{{ goAvail }}" style="display:flex;align-items:center;gap:7px;padding:9px 15px;border-radius:999px;background:transparent;border:1.5px solid oklch(0.86 0.014 80);color:oklch(0.36 0.02 72);font:700 12.5px 'Nunito';cursor:pointer;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 20l4-1L19 8l-3-3L5 16l-1 4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+        Beschikbaarheid aanpassen
+      </button>
+    </div>
+
+    <!-- day list -->
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <sc-for list="{{ days }}" as="day" hint-placeholder-count="7">
+
+        <!-- TRAINING DAY -->
+        <sc-if value="{{ day.train }}" hint-placeholder-val="{{ true }}">
+          <div onClick="{{ goWorkout }}" style="display:flex;align-items:center;gap:13px;border-radius:24px;padding:14px 15px;cursor:pointer;background:{{ day.bg }};border:{{ day.border }};box-shadow:0 2px 12px rgba(60,45,20,0.045);">
+            <!-- day / date -->
+            <div style="width:38px;flex:none;display:flex;flex-direction:column;align-items:center;gap:1px;">
+              <span style="font:800 10.5px 'Nunito';letter-spacing:0.5px;color:{{ day.wdColor }};">{{ day.wd }}</span>
+              <span style="font:600 22px 'Fredoka';line-height:1;color:oklch(0.3 0.02 70);">{{ day.date }}</span>
+            </div>
+            <!-- zone bar -->
+            <div style="width:4px;height:40px;border-radius:3px;flex:none;background:{{ day.color }};"></div>
+            <!-- main -->
+            <div style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font:700 15px 'Nunito';color:oklch(0.28 0.02 70);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ day.title }}</span>
+                <sc-if value="{{ day.todayTag }}" hint-placeholder-val="{{ false }}">
+                  <span style="flex:none;padding:2px 8px;border-radius:999px;background:oklch(0.345 0.035 245);color:oklch(0.92 0.02 200);font:800 9px 'Nunito';letter-spacing:0.8px;">VANDAAG</span>
+                </sc-if>
+              </div>
+              <div style="display:flex;align-items:center;gap:9px;">
+                <span style="display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:2px;background:{{ day.color }};"></span><span style="font:700 12px 'Nunito';color:oklch(0.5 0.02 74);">{{ day.zone }}</span></span>
+                <span style="font:600 12px 'Nunito';color:oklch(0.56 0.02 74);">{{ day.dur }} · {{ day.tss }} TSS</span>
+              </div>
+            </div>
+            <!-- status -->
+            <div style="flex:none;display:flex;align-items:center;">
+              <sc-if value="{{ day.done }}" hint-placeholder-val="{{ false }}">
+                <div style="width:24px;height:24px;border-radius:50%;background:oklch(0.6 0.13 165);display:flex;align-items:center;justify-content:center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              </sc-if>
+              <sc-if value="{{ day.planned }}" hint-placeholder-val="{{ true }}">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 5l7 7-7 7" stroke="oklch(0.62 0.02 75)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- REST DAY -->
+        <sc-if value="{{ day.rest }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;gap:13px;border-radius:24px;padding:13px 15px;background:transparent;border:1.5px dashed oklch(0.88 0.014 80);">
+            <div style="width:38px;flex:none;display:flex;flex-direction:column;align-items:center;gap:1px;">
+              <span style="font:800 10.5px 'Nunito';letter-spacing:0.5px;color:oklch(0.66 0.015 75);">{{ day.wd }}</span>
+              <span style="font:600 22px 'Fredoka';line-height:1;color:oklch(0.6 0.02 75);">{{ day.date }}</span>
+            </div>
+            <div style="width:36px;height:36px;flex:none;border-radius:50%;background:oklch(0.96 0.012 84);border:1.5px solid oklch(0.88 0.014 80);display:flex;align-items:center;justify-content:center;">
+              <div style="width:13px;height:3px;border-radius:2px;background:oklch(0.68 0.015 75);"></div>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
+              <span style="font:700 15px 'Nunito';color:oklch(0.5 0.02 74);">Rustdag</span>
+              <span style="font:600 12px 'Nunito';color:oklch(0.62 0.02 75);">Herstel · geen sessie gepland</span>
+            </div>
+          </div>
+        </sc-if>
+
+      </sc-for>
+    </div>
+
+  </div>
+
+  <!-- bottom navigation -->
+  <div style="height:78px;flex:none;background:oklch(0.99 0.006 84);border-top:1px solid oklch(0.91 0.012 82);display:flex;align-items:flex-start;justify-content:space-around;padding:11px 24px 0;">
+    <div onClick="{{ goHome }}" style="display:flex;flex-direction:column;align-items:center;gap:5px;color:oklch(0.62 0.015 75);cursor:pointer;">
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="8" height="8" rx="2.5" fill="currentColor"/><rect x="13" y="3" width="8" height="8" rx="2.5" fill="currentColor" opacity="0.4"/><rect x="3" y="13" width="8" height="8" rx="2.5" fill="currentColor" opacity="0.4"/><rect x="13" y="13" width="8" height="8" rx="2.5" fill="currentColor"/></svg>
+      <span style="font:700 11px 'Nunito';">Dashboard</span>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:5px;color:oklch(0.27 0.02 70);">
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="17" height="16" rx="3.5" stroke="currentColor" stroke-width="2"/><rect x="3.5" y="4.5" width="17" height="5" rx="2.5" fill="currentColor"/><rect x="7" y="2.5" width="2" height="4" rx="1" fill="currentColor"/><rect x="15" y="2.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+      <span style="font:800 11px 'Nunito';">Schema</span>
+    </div>
+    <div onClick="{{ goProgress }}" style="display:flex;flex-direction:column;align-items:center;gap:5px;color:oklch(0.62 0.015 75);cursor:pointer;">
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="none"><rect x="3" y="13" width="4.5" height="8" rx="1.5" fill="currentColor"/><rect x="9.75" y="8" width="4.5" height="13" rx="1.5" fill="currentColor"/><rect x="16.5" y="3" width="4.5" height="18" rx="1.5" fill="currentColor"/></svg>
+      <span style="font:700 11px 'Nunito';">Voortgang</span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:844}}">
+class Component extends DCLogic {
+  renderVals() {
+    const Z = {
+      1: 'oklch(0.82 0.05 245)',
+      2: 'oklch(0.70 0.12 240)',
+      3: 'oklch(0.72 0.13 165)',
+      4: 'oklch(0.74 0.13 70)',
+      5: 'oklch(0.62 0.14 30)'
+    };
+
+    const todayBg = 'oklch(0.975 0.02 215)';
+    const todayBorder = '1.5px solid oklch(0.78 0.07 220)';
+    const plainBg = 'oklch(0.99 0.006 84)';
+    const plainBorder = '1px solid oklch(0.93 0.01 82)';
+
+    const raw = [
+      { wd: 'MA', date: '15', rest: false, title: 'Tempo Duurrit', zone: 'Z3', zk: 3, dur: '1u 15m', tss: '90', state: 'done' },
+      { wd: 'DI', date: '16', rest: false, title: 'VO2max Intervallen', zone: 'Z5', zk: 5, dur: '1u 05m', tss: '120', state: 'done' },
+      { wd: 'WO', date: '17', rest: true },
+      { wd: 'DO', date: '18', rest: false, title: 'Sweet Spot Intervallen', zone: 'Z4', zk: 4, dur: '1u 02m', tss: '78', state: 'today' },
+      { wd: 'VR', date: '19', rest: false, title: 'Herstelrit', zone: 'Z1', zk: 1, dur: '45m', tss: '32', state: 'planned' },
+      { wd: 'ZA', date: '20', rest: false, title: 'Lange Duurrit', zone: 'Z2', zk: 2, dur: '2u 15m', tss: '100', state: 'planned' },
+      { wd: 'ZO', date: '21', rest: true }
+    ];
+
+    const days = raw.map(d => {
+      if (d.rest) return { rest: true, train: false, wd: d.wd, date: d.date };
+      const isToday = d.state === 'today';
+      return {
+        rest: false, train: true,
+        wd: d.wd, date: d.date, title: d.title, zone: d.zone, dur: d.dur, tss: d.tss,
+        color: Z[d.zk],
+        bg: isToday ? todayBg : plainBg,
+        border: isToday ? todayBorder : plainBorder,
+        wdColor: isToday ? 'oklch(0.5 0.13 230)' : 'oklch(0.58 0.02 75)',
+        done: d.state === 'done',
+        planned: d.state === 'planned' || isToday,
+        todayTag: isToday
+      };
+    });
+
+    const go = (f) => () => { window.location.href = f; };
+
+    return {
+      days,
+      goWorkout: go('Pedalytics Workout.dc.html'),
+      goAvail: go('Pedalytics Beschikbaarheid Aanpassen.dc.html'),
+      goHome: go('Pedalytics Home.dc.html'),
+      goProgress: go('Pedalytics Progress.dc.html')
+    };
+  }
+}
+</script>
+</body>
+</html>
