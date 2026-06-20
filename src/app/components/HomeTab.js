@@ -122,6 +122,14 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
           );
         })()}
 
+        {/* Streak badge */}
+        {streakWeeks >= 2 && (
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, alignSelf: "flex-start", padding: "8px 14px 8px 11px", borderRadius: 999, background: "linear-gradient(135deg, oklch(0.95 0.035 70), oklch(0.93 0.045 45))", border: "1px solid oklch(0.88 0.05 60)", marginBottom: 16 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2c1.5 3.5-1 5-2 7-1.2 2.4.3 4 2 4 1.8 0 3-1.4 2.4-3.4C17 12 18 14.5 18 16.5 18 20 15.3 22 12 22S6 20 6 16.5C6 12 9.5 9 12 2z" fill="oklch(0.66 0.16 45)"/><path d="M12 22c-1.8 0-3-1.3-3-3 0-1.7 1.3-2.6 2-3.8.7 1.2 1.2 1.6 1.6 2.6.5 1.3-.2 2.2 1.4 2.2-.5 1.2-1.2 2-2 2z" fill="oklch(0.82 0.13 75)"/></svg>
+            <span style={{ font: "800 13px var(--font-nunito), sans-serif", color: "oklch(0.45 0.1 45)" }}>{streakWeeks} weken op rij getraind</span>
+          </div>
+        )}
+
         {/* Weer-widget */}
         {weer && (
           <div style={{ background: T.cardBg, borderRadius: 20, padding: "14px 18px", boxShadow: "0 1px 8px rgba(60,45,20,0.03)", border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
@@ -288,22 +296,25 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
         {/* Week strip */}
         <WeekStrip beschikbaar={beschikbaar} weekSessies={weekSessies} weekSessiesLaden={weekSessiesLaden} onEdit={onEditBeschikbaarheid} />
 
-        {/* Streak + PR teaser */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-          {streakWeeks >= 2 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: 999, background: "linear-gradient(140deg, oklch(0.82 0.1 70), oklch(0.78 0.12 50))" }}>
-              <span style={{ fontSize: 14 }}>🔥</span>
-              <span style={{ font: "800 12.5px var(--font-nunito), sans-serif", color: "oklch(0.35 0.08 50)" }}>{streakWeeks} weken op rij</span>
+        {/* PR teaser */}
+        {prTeaser && (
+          <div style={{ display: "flex", alignItems: "center", gap: 12, borderRadius: 22, padding: "13px 16px", background: T.cardBg, border: `1px solid ${T.cardBorder}`, boxShadow: T.cardShadow, marginBottom: 16 }}>
+            <div style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 12, background: "oklch(0.95 0.035 80)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="oklch(0.72 0.12 68)"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
             </div>
-          )}
-          {prTeaser && (
-            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: 999, background: "oklch(0.93 0.05 70)" }}>
-              <span style={{ fontSize: 13 }}>⭐</span>
-              <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.4 0.08 70)" }}>PR {prTeaser.label}</span>
-              <span style={{ font: "800 12px var(--font-fredoka), sans-serif", padding: "2px 7px", borderRadius: 999, background: "oklch(0.93 0.05 162)", color: "oklch(0.4 0.13 162)" }}>+{prTeaser.delta}W</span>
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+              <span style={{ font: "800 10.5px var(--font-nunito), sans-serif", letterSpacing: 0.8, color: T.textTert }}>NIEUW RECORD</span>
+              <span style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{prTeaser.label}</span>
             </div>
-          )}
-        </div>
+            <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 9 }}>
+              <span style={{ font: "600 21px var(--font-fredoka), sans-serif", lineHeight: 1, color: T.text }}>{prTeaser.watt}<span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec, marginLeft: 1 }}>W</span></span>
+              <div style={{ display: "flex", alignItems: "center", gap: 3, padding: "4px 9px", borderRadius: 999, background: "oklch(0.93 0.045 168)" }}>
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M12 19V5M12 5l-6 6M12 5l6 6" stroke="oklch(0.46 0.12 165)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                <span style={{ font: "800 11px var(--font-nunito), sans-serif", color: "oklch(0.46 0.12 165)" }}>+{prTeaser.delta}W</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Today's session — voltooide rit of vooruitblik */}
         {weekSessiesLaden ? (
