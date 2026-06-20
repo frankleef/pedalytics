@@ -484,11 +484,14 @@ export default function Page() {
     const teVerwijderenEventIds = [];
     const gewijzigdeDatums = [];
 
+    const ritDatums = new Set((voortgang?.ritten || []).map(r => r.datum_iso).filter(Boolean));
+
     for (const dag of verwijderd) {
       for (let i = 0; i <= 10; i++) {
         const d = new Date(nu); d.setDate(nu.getDate() + i);
         if (DAGNAMEN[d.getDay()] === dag && datumISO(d) >= vandaagISO) {
           const datum = datumISO(d);
+          if (ritDatums.has(datum)) continue;
           const sessie = lokaalSessies.find(s => s.datum === datum && !s.voltooid);
           if (sessie) {
             if (sessie.intervalsEventId) teVerwijderenEventIds.push(sessie.intervalsEventId);
@@ -516,6 +519,7 @@ export default function Page() {
         const d = new Date(nu); d.setDate(nu.getDate() + i);
         if (DAGNAMEN[d.getDay()] === dag && datumISO(d) >= vandaagISO) {
           const datum = datumISO(d);
+          if (ritDatums.has(datum)) continue;
           const uren = nieuwUren[dag] || 1.5;
           const oudeSessie = lokaalSessies.find(s => s.datum === datum && !s.voltooid);
           const overigeSessies = lokaalSessies.filter(s => s.datum !== datum && !s.voltooid);
