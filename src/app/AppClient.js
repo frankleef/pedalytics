@@ -138,7 +138,6 @@ export default function Page() {
 
   const laadVoortgang = useCallback(async () => {
     setLaadtVoortgang(true);
-    setVoortgang(null);
     setFout(null);
     try {
       const actResp = await fetch("/api/intervals/activities?oldest=2026-01-01");
@@ -683,7 +682,7 @@ export default function Page() {
             />
           )}
 
-          <BottomNav activeTab={tab} onTabChange={(i) => { setTab(i); if (i === 1) setSchemaDagOffset(0); if (i === 2 && !voortgang) laadVoortgang(); }} />
+          <BottomNav activeTab={tab} onTabChange={(i) => { setTab(i); if (i === 1) setSchemaDagOffset(0); if (i === 2) laadVoortgang(); }} />
         </>
       )}
     </div>
