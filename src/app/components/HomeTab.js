@@ -122,22 +122,27 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
           );
         })()}
 
-        {/* Streak + PR teaser */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
-          {streakWeeks >= 2 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: 999, background: "linear-gradient(140deg, oklch(0.82 0.1 70), oklch(0.78 0.12 50))" }}>
-              <span style={{ fontSize: 14 }}>🔥</span>
-              <span style={{ font: "800 12.5px var(--font-nunito), sans-serif", color: "oklch(0.35 0.08 50)" }}>{streakWeeks} weken op rij</span>
+        {/* Weer-widget */}
+        {weer && (
+          <div style={{ background: T.cardBg, borderRadius: 20, padding: "14px 18px", boxShadow: "0 1px 8px rgba(60,45,20,0.03)", border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ font: "600 28px var(--font-fredoka), sans-serif", color: T.text }}>{weer.temp}°</span>
+                <div>
+                  <div style={{ font: "700 13px var(--font-nunito), sans-serif", color: T.text }}>{weer.conditie}</div>
+                  <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textSec }}>
+                    💧 {weer.neerslagKans}% · 💨 {weer.wind} km/u
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
-          {prTeaser && (
-            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: 999, background: "oklch(0.93 0.05 70)" }}>
-              <span style={{ fontSize: 13 }}>⭐</span>
-              <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.4 0.08 70)" }}>PR {prTeaser.label}</span>
-              <span style={{ font: "800 12px var(--font-fredoka), sans-serif", padding: "2px 7px", borderRadius: 999, background: "oklch(0.93 0.05 162)", color: "oklch(0.4 0.13 162)" }}>+{prTeaser.delta}W</span>
-            </div>
-          )}
-        </div>
+            {weer.neerslagMiddag > 50 && eerstvolgende && !((voortgang?.ritten || []).find(r => r.datum_iso === vandaagISO)) && (
+              <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 12, background: "oklch(0.96 0.04 82)", font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.48 0.11 66)" }}>
+                ☔ Regen verwacht vanmiddag — plan je buitenrit liever voor de ochtend
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Filter pills */}
         <div style={{ display: "flex", gap: 9, overflowX: "auto", margin: `0 -${T.pad}px 22px`, padding: `2px ${T.pad}px 6px` }}>
@@ -283,27 +288,22 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
         {/* Week strip */}
         <WeekStrip beschikbaar={beschikbaar} weekSessies={weekSessies} weekSessiesLaden={weekSessiesLaden} onEdit={onEditBeschikbaarheid} />
 
-        {/* Weer-widget */}
-        {weer && (
-          <div style={{ background: T.cardBg, borderRadius: 20, padding: "14px 18px", boxShadow: "0 1px 8px rgba(60,45,20,0.03)", border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ font: "600 28px var(--font-fredoka), sans-serif", color: T.text }}>{weer.temp}°</span>
-                <div>
-                  <div style={{ font: "700 13px var(--font-nunito), sans-serif", color: T.text }}>{weer.conditie}</div>
-                  <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textSec }}>
-                    💧 {weer.neerslagKans}% · 💨 {weer.wind} km/u
-                  </div>
-                </div>
-              </div>
+        {/* Streak + PR teaser */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+          {streakWeeks >= 2 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: 999, background: "linear-gradient(140deg, oklch(0.82 0.1 70), oklch(0.78 0.12 50))" }}>
+              <span style={{ fontSize: 14 }}>🔥</span>
+              <span style={{ font: "800 12.5px var(--font-nunito), sans-serif", color: "oklch(0.35 0.08 50)" }}>{streakWeeks} weken op rij</span>
             </div>
-            {weer.neerslagMiddag > 50 && eerstvolgende && !((voortgang?.ritten || []).find(r => r.datum_iso === vandaagISO)) && (
-              <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 12, background: "oklch(0.96 0.04 82)", font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.48 0.11 66)" }}>
-                ☔ Regen verwacht vanmiddag — plan je buitenrit liever voor de ochtend
-              </div>
-            )}
-          </div>
-        )}
+          )}
+          {prTeaser && (
+            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: 999, background: "oklch(0.93 0.05 70)" }}>
+              <span style={{ fontSize: 13 }}>⭐</span>
+              <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.4 0.08 70)" }}>PR {prTeaser.label}</span>
+              <span style={{ font: "800 12px var(--font-fredoka), sans-serif", padding: "2px 7px", borderRadius: 999, background: "oklch(0.93 0.05 162)", color: "oklch(0.4 0.13 162)" }}>+{prTeaser.delta}W</span>
+            </div>
+          )}
+        </div>
 
         {/* Today's session — voltooide rit of vooruitblik */}
         {weekSessiesLaden ? (
