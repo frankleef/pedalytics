@@ -7,6 +7,7 @@ import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 import InfoTooltip from "./InfoTooltip";
 import ScaleInput from "./ScaleInput";
 import SharedHeader from "./SharedHeader";
+import { StatusBanner, KerngetallenTiles } from "./SessieUitkomstKaart";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
 const DAG_KORT = ["ZO","MA","DI","WO","DO","VR","ZA"];
@@ -541,15 +542,7 @@ export default function SchemaTab({
         {/* ══ MATCHED ══ */}
         {mode === "matched" && (
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 11, background: "oklch(0.955 0.04 162)", border: "1px solid oklch(0.84 0.07 162)", borderRadius: 18, padding: "13px 15px", marginBottom: 16 }}>
-              <div style={{ width: 30, height: 30, flexShrink: 0, borderRadius: "50%", background: "oklch(0.6 0.13 165)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                <span style={{ font: "800 14px var(--font-nunito), sans-serif", color: "oklch(0.4 0.1 162)" }}>Uitgevoerd zoals gepland</span>
-                <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.5 0.06 162)" }}>Goede match met je geplande sessie</span>
-              </div>
-            </div>
+            <StatusBanner mode="matched" />
 
             {sessie && (
               <>
@@ -582,15 +575,7 @@ export default function SchemaTab({
         {/* ══ DEVIATED ══ */}
         {mode === "deviated" && (
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 11, background: "oklch(0.96 0.05 82)", border: "1px solid oklch(0.85 0.08 78)", borderRadius: 18, padding: "13px 15px", marginBottom: 16 }}>
-              <div style={{ width: 30, height: 30, flexShrink: 0, borderRadius: "50%", background: "oklch(0.72 0.13 70)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3L2 20h20L12 3z" stroke="#fff" strokeWidth="2.2" strokeLinejoin="round"/><path d="M12 10v4" stroke="#fff" strokeWidth="2.2" strokeLinecap="round"/><circle cx="12" cy="17" r="0.4" fill="#fff" stroke="#fff" strokeWidth="1.4"/></svg>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                <span style={{ font: "800 14px var(--font-nunito), sans-serif", color: "oklch(0.48 0.11 66)" }}>Andere rit gereden dan gepland</span>
-                <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.56 0.08 70)" }}>Telt gewoon mee voor je belasting</span>
-              </div>
-            </div>
+            <StatusBanner mode="deviated" />
 
             {gematchteRit?.naam && <p style={{ margin: "0 0 12px", font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>{gematchteRit.naam}</p>}
 
@@ -619,15 +604,7 @@ export default function SchemaTab({
         {/* ══ UNPLANNED ══ */}
         {mode === "unplanned" && (
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 11, background: "oklch(0.97 0.012 84)", border: `1px solid ${T.divider}`, borderRadius: 18, padding: "13px 15px", marginBottom: 16 }}>
-              <div style={{ width: 30, height: 30, flexShrink: 0, borderRadius: "50%", background: "oklch(0.55 0.07 215)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="6" cy="17" r="3.2" stroke="#fff" strokeWidth="2"/><circle cx="18" cy="17" r="3.2" stroke="#fff" strokeWidth="2"/><path d="M6 17l4-7h5l2 7M10 10h3" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                <span style={{ font: "800 14px var(--font-nunito), sans-serif", color: T.text }}>Ongeplande rit</span>
-                <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec }}>Geen sessie ingepland · rit toegevoegd</span>
-              </div>
-            </div>
+            <StatusBanner mode="unplanned" />
 
             <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.6, color: T.textTert, textTransform: "uppercase" }}>GEDETECTEERD · {(ritCls?.label || "Rit").toUpperCase()}</span>
             <h1 style={{ margin: "5px 0 18px", font: "800 28px/1.18 var(--font-nunito), sans-serif", letterSpacing: -0.5, textWrap: "pretty", color: T.text }}>{gematchteRit?.naam || ritCls?.label || "Rit"}</h1>

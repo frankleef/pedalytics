@@ -10,6 +10,8 @@ import WeekStrip from "./home/WeekStrip";
 import SessionCard from "./home/SessionCard";
 import InsightCard from "./home/InsightCard";
 import SharedHeader from "./SharedHeader";
+import SessieUitkomstKaart from "./SessieUitkomstKaart";
+import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
 const FILTERS = ["Vandaag", "Deze week", "Herstel", "Belasting"];
@@ -205,15 +207,30 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
         {/* Week strip */}
         <WeekStrip beschikbaar={beschikbaar} weekSessies={weekSessies} weekSessiesLaden={weekSessiesLaden} onEdit={onEditBeschikbaarheid} />
 
-        {/* Today's session */}
+        {/* Today's session — voltooide rit of vooruitblik */}
         {weekSessiesLaden ? (
           <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "28px 18px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16, textAlign: "center" }}>
             <div style={{ fontSize: 22, marginBottom: 8 }}>⏳</div>
             <div style={{ font: "600 14px var(--font-nunito), sans-serif", color: T.textSec }}>Sessies worden gegenereerd...</div>
           </div>
-        ) : (
-          <SessionCard sessie={eerstvolgende} ftp={profiel?.ftp} onOpen={onOpenWorkout} />
-        )}
+        ) : (() => {
+          const ftp = profiel?.ftp || 265;
+          const ritVandaag = (voortgang?.ritten || []).find(r => r.datum_iso === vandaagISO);
+          const sessieVandaag = (weekSessies?.sessies || []).find(s => s.datum === vandaagISO);
+          if (ritVandaag) {
+            const cls = classificeerRit(ritVandaag, ftp);
+            let mode = "unplanned";
+            if (sessieVandaag && ritVandaag) mode = ritMatchesSessie(cls, sessieVandaag.type) ? "matched" : "deviated";
+            else if (!sessieVandaag && ritVandaag) mode = "unplanned";
+            return (
+              <SessieUitkomstKaart
+                mode={mode} rit={ritVandaag} sessie={sessieVandaag} ritCls={cls} compact
+                onTap={() => onOpenWorkout?.({ datum: vandaagISO })}
+              />
+            );
+          }
+          return <SessionCard sessie={eerstvolgende} ftp={ftp} onOpen={onOpenWorkout} />;
+        })()}
 
         {/* AI Insight */}
         <InsightCard
