@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { T, STATUS, getStatus } from "../designTokens";
 import { berekenHerstelScore } from "./HerstelStatus";
 import InfoTooltip from "./InfoTooltip";
@@ -7,6 +7,13 @@ import SharedHeader from "./SharedHeader";
 
 export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voortgang, seizoensplan, onOpenProfiel }) {
   const [periode, setPeriode] = useState(8);
+  const [ftpHistorie, setFtpHistorie] = useState([]);
+
+  useEffect(() => {
+    fetch("/api/ftp-historie").then(r => r.json()).then(d => {
+      if (d.success && d.data) setFtpHistorie(d.data);
+    }).catch(() => {});
+  }, []);
 
   const ftp = profiel?.ftp || 265;
   const gewicht = profiel?.gewicht || 87;
@@ -200,16 +207,21 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
                 ritten.forEach(r => {
                   if (!r.wattage || !r.duur_min) return;
                   const duurSec = r.duur_min * 60;
-                  TIJDEN.forEach(t => {
-                    if (duurSec >= t.sec && r.wattage > (bests[t.sec] || 0)) {
-                      bests[t.sec] = r.wattage;
+                  const np = r.np || r.wattage;
+                  const maxW = r.max_watt || np;
+
+                  if (maxW > (bests[5] || 0)) bests[5] = maxW;
+                  if (maxW > (bests[15] || 0)) bests[15] = maxW;
+                  if (maxW * 0.92 > (bests[30] || 0)) bests[30] = Math.round(maxW * 0.92);
+                  if (maxW * 0.82 > (bests[60] || 0)) bests[60] = Math.round(maxW * 0.82);
+                  if (maxW * 0.72 > (bests[180] || 0) && duurSec >= 180) bests[180] = Math.round(maxW * 0.72);
+
+                  [300, 600, 1200, 3600].forEach(sec => {
+                    if (duurSec >= sec) {
+                      const geschat = duurSec <= sec * 1.5 ? np : Math.round(np * (sec / duurSec) ** 0.04);
+                      if (geschat > (bests[sec] || 0)) bests[sec] = geschat;
                     }
                   });
-                  if (r.max_watt) {
-                    [5, 15, 30].forEach(sec => {
-                      if (r.max_watt > (bests[sec] || 0)) bests[sec] = r.max_watt;
-                    });
-                  }
                 });
                 return TIJDEN.map(t => ({ ...t, watt: bests[t.sec] || 0 }));
               };
@@ -285,6 +297,87 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
             })()}
           </div>
         )}
+
+        {/* FTP-progressie */}
+        {ftpHistorie.length >= 2 && (() => {
+          const grens = new Date(Date.now() - periode * 7 * 86400000);
+          const punten = ftpHistorie.filter(h => new Date(h.datum) >= grens);
+          if (punten.length < 2) return null;
+
+          const doelFtp = seizoensplan?.streefwaarde ? (() => {
+            const m = seizoensplan.streefwaarde.match(/(\d+)\s*[-–]\s*(\d+)\s*W/i);
+            return m ? Math.max(Number(m[1]), Number(m[2])) : null;
+          })() : null;
+          const startFtp = punten[0].ftp;
+
+          const gH = 100, gW = 346;
+          const allFtp = punten.map(p => p.ftp);
+          if (doelFtp) allFtp.push(doelFtp);
+          const mn = Math.min(...allFtp) - 5;
+          const mx = Math.max(...allFtp) + 5;
+          const tMin = new Date(punten[0].datum).getTime();
+          const tMax = new Date(punten[punten.length - 1].datum).getTime() || tMin + 1;
+          const xT = (d) => ((new Date(d).getTime() - tMin) / (tMax - tMin)) * gW;
+          const yF = (v) => gH - 12 - ((v - mn) / (mx - mn)) * (gH - 22);
+
+          const lijn = punten.map((p, i) => `${i === 0 ? "M" : "L"}${xT(p.datum).toFixed(1)},${yF(p.ftp).toFixed(1)}`).join(" ");
+
+          return (
+            <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 18px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>FTP progressie</span>
+                  <InfoTooltip metricKey="ftp" />
+                </div>
+                <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: punten[punten.length - 1].ftp >= startFtp ? "#2F9468" : "#9C5848" }}>
+                  {punten[punten.length - 1].ftp >= startFtp ? "+" : ""}{punten[punten.length - 1].ftp - startFtp}W
+                </span>
+              </div>
+              <svg width="100%" viewBox={`0 0 ${gW} ${gH}`} style={{ display: "block" }}>
+                <defs>
+                  <linearGradient id="ftpGrad" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="oklch(0.64 0.14 248)" />
+                    <stop offset="100%" stopColor="oklch(0.79 0.14 168)" />
+                  </linearGradient>
+                </defs>
+                {doelFtp && <line x1="0" y1={yF(doelFtp)} x2={gW} y2={yF(doelFtp)} stroke="oklch(0.6 0.13 165)" strokeWidth="1.5" strokeDasharray="4 4" opacity="0.5" />}
+                <path d={lijn} fill="none" stroke="url(#ftpGrad)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+                {punten.map((p, i) => <circle key={i} cx={xT(p.datum)} cy={yF(p.ftp)} r="4" fill="oklch(0.64 0.14 248)" />)}
+                {doelFtp && <text x={gW - 2} y={yF(doelFtp) - 6} textAnchor="end" fill="oklch(0.6 0.13 165)" style={{ font: "600 9px var(--font-nunito), sans-serif" }}>Doel {doelFtp}W</text>}
+              </svg>
+            </div>
+          );
+        })()}
+
+        {/* HRV-baseline-trend */}
+        {wellnessData.length > 7 && (() => {
+          const hrvPunten = wellnessData.filter(d => d.hrv).map(d => ({ datum: d.id?.split("T")[0] || d.datum, hrv: d.hrv }));
+          if (hrvPunten.length < 5) return null;
+
+          const gH = 80, gW = 346;
+          const allH = hrvPunten.map(p => p.hrv);
+          const mn = Math.min(...allH) - 3;
+          const mx = Math.max(...allH) + 3;
+          const basislijn = profiel?.hrv_basislijn || Math.round(allH.reduce((s, v) => s + v, 0) / allH.length);
+          const xI = (i) => (i / (hrvPunten.length - 1)) * gW;
+          const yH = (v) => gH - 10 - ((v - mn) / (mx - mn)) * (gH - 20);
+
+          const lijn = hrvPunten.map((p, i) => `${i === 0 ? "M" : "L"}${xI(i).toFixed(1)},${yH(p.hrv).toFixed(1)}`).join(" ");
+
+          return (
+            <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 18px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>HRV trend</span>
+                <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>basislijn {basislijn}ms</span>
+              </div>
+              <svg width="100%" viewBox={`0 0 ${gW} ${gH}`} style={{ display: "block" }}>
+                <line x1="0" y1={yH(basislijn)} x2={gW} y2={yH(basislijn)} stroke="oklch(0.64 0.14 248)" strokeWidth="1.5" strokeDasharray="4 4" opacity="0.4" />
+                <path d={lijn} fill="none" stroke="oklch(0.64 0.12 280)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+          );
+        })()}
+
       </div>
     </div>
   );

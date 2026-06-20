@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { intervalsGet, intervalsAuth, ATHLETE_ID } from "@/lib/intervals";
+import { getKV } from "@/lib/kv";
 
 export async function GET() {
   try {
@@ -34,6 +35,19 @@ export async function GET() {
       hrv_basislijn: hrvWaarden.length > 0 ? Math.round(hrvWaarden.reduce((s, v) => s + v, 0) / hrvWaarden.length) : null,
       hr_basislijn: hrWaarden.length > 0 ? Math.round(hrWaarden.reduce((s, v) => s + v, 0) / hrWaarden.length) : null,
     };
+
+    if (profiel.ftp) {
+      try {
+        const kv = getKV();
+        const historie = (await kv.get("ftp-historie")) || [];
+        const vandaag = new Date().toISOString().split("T")[0];
+        const laatste = historie[historie.length - 1];
+        if (!laatste || laatste.ftp !== profiel.ftp) {
+          historie.push({ datum: vandaag, ftp: profiel.ftp });
+          await kv.set("ftp-historie", historie);
+        }
+      } catch {}
+    }
 
     return NextResponse.json({ success: true, data: profiel });
   } catch (e) {
