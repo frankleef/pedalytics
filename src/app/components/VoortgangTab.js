@@ -5,6 +5,65 @@ import { berekenHerstelScore } from "./HerstelStatus";
 import InfoTooltip from "./InfoTooltip";
 import SharedHeader from "./SharedHeader";
 
+function HrvChart({ hrvPunten, basislijn, gH, gW, gPadT, drawH, mn, mx, xI, yH, lijn, gridWaarden, labelInterval }) {
+  const [hover, setHover] = useState(null);
+
+  return (
+    <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 18px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>HRV trend</span>
+        <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>basislijn {basislijn}ms</span>
+      </div>
+      <div style={{ position: "relative" }}>
+        <svg width="100%" viewBox={`0 0 ${gW} ${gH}`} style={{ display: "block" }}
+          onMouseMove={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = ((e.clientX - rect.left) / rect.width) * gW;
+            const idx = Math.round((x / gW) * (hrvPunten.length - 1));
+            if (idx >= 0 && idx < hrvPunten.length) setHover(idx);
+          }}
+          onMouseLeave={() => setHover(null)}
+          onTouchStart={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = ((e.touches[0].clientX - rect.left) / rect.width) * gW;
+            const idx = Math.round((x / gW) * (hrvPunten.length - 1));
+            if (idx >= 0 && idx < hrvPunten.length) setHover(idx);
+          }}
+          onTouchEnd={() => setHover(null)}>
+          {gridWaarden.map((v, i) => (
+            <g key={i}>
+              <line x1="0" y1={yH(v)} x2={gW} y2={yH(v)} stroke="oklch(0.93 0.012 82)" strokeWidth="0.8" />
+              <text x={gW - 2} y={yH(v) - 4} textAnchor="end" fill={T.textTert} style={{ font: "600 8px var(--font-nunito), sans-serif" }}>{v}</text>
+            </g>
+          ))}
+          <line x1="0" y1={yH(basislijn)} x2={gW} y2={yH(basislijn)} stroke="oklch(0.64 0.14 248)" strokeWidth="1.5" strokeDasharray="4 4" opacity="0.4" />
+          <path d={lijn} fill="none" stroke="oklch(0.64 0.12 280)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          {hover != null && (
+            <>
+              <circle cx={xI(hover)} cy={yH(hrvPunten[hover].hrv)} r="5" fill="oklch(0.64 0.12 280)" stroke={T.cardBg} strokeWidth="2" />
+              <line x1={xI(hover)} y1={gPadT} x2={xI(hover)} y2={gH - 22} stroke="oklch(0.64 0.12 280)" strokeWidth="1" opacity="0.3" />
+            </>
+          )}
+          {hrvPunten.map((p, i) => {
+            if (i !== 0 && i !== hrvPunten.length - 1 && i % labelInterval !== 0) return null;
+            const d = p.datum.slice(5).replace("-", "/");
+            return <text key={i} x={xI(i)} y={gH - 6} textAnchor="middle" fill={T.textTert} style={{ font: "600 8px var(--font-nunito), sans-serif" }}>{d}</text>;
+          })}
+        </svg>
+        {hover != null && (
+          <div style={{
+            position: "absolute", left: `${(xI(hover) / gW) * 100}%`, top: `${(yH(hrvPunten[hover].hrv) / gH) * 100 - 12}%`,
+            transform: "translate(-50%, -100%)", background: T.slate, color: "#fff", borderRadius: 10, padding: "5px 10px",
+            font: "700 12px var(--font-nunito), sans-serif", whiteSpace: "nowrap", pointerEvents: "none", zIndex: 5,
+          }}>
+            {hrvPunten[hover].hrv}ms · {hrvPunten[hover].datum.slice(5).replace("-", "/")}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voortgang, seizoensplan, onOpenProfiel }) {
   const [periode, setPeriode] = useState(8);
   const [ftpHistorie, setFtpHistorie] = useState([]);
@@ -49,21 +108,30 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
   const w = chartW - padL - padR;
   const h = chartH - padT - padB;
 
+  const dagPunten = wellnessData.filter(d => d.ctl != null && d.atl != null).map(d => ({
+    datum: d.id?.split("T")[0] || "",
+    ctl: Math.round(d.ctl),
+    atl: Math.round(d.atl),
+  }));
+
   function buildCtlChart() {
-    if (weekPunten.length < 2) return null;
-    const allVals = weekPunten.flatMap(p => [p.ctl, p.atl]);
-    const mn = Math.min(...allVals) - 6;
-    const mx = Math.max(...allVals) + 6;
-    const xS = (i) => padL + (i / (weekPunten.length - 1)) * w;
+    if (dagPunten.length < 3) return null;
+    const allVals = dagPunten.flatMap(p => [p.ctl, p.atl]);
+    const mn = Math.min(...allVals) - 4;
+    const mx = Math.max(...allVals) + 4;
+    const xS = (i) => padL + (i / (dagPunten.length - 1)) * w;
     const yS = (v) => padT + h - ((v - mn) / (mx - mn)) * h;
 
-    const ctlPath = weekPunten.map((p, i) => `${i === 0 ? "M" : "L"}${xS(i)},${yS(p.ctl)}`).join(" ");
-    const atlPath = weekPunten.map((p, i) => `${i === 0 ? "M" : "L"}${xS(i)},${yS(p.atl)}`).join(" ");
-    const bandPath = weekPunten.map((p, i) => `${i === 0 ? "M" : "L"}${xS(i)},${yS(p.ctl)}`).join(" ")
-      + weekPunten.slice().reverse().map((p, i) => `L${xS(weekPunten.length - 1 - i)},${yS(p.atl)}`).join(" ") + "Z";
+    const ctlPath = dagPunten.map((p, i) => `${i === 0 ? "M" : "L"}${xS(i).toFixed(1)},${yS(p.ctl).toFixed(1)}`).join(" ");
+    const atlPath = dagPunten.map((p, i) => `${i === 0 ? "M" : "L"}${xS(i).toFixed(1)},${yS(p.atl).toFixed(1)}`).join(" ");
+    const bandPath = dagPunten.map((p, i) => `${i === 0 ? "M" : "L"}${xS(i).toFixed(1)},${yS(p.ctl).toFixed(1)}`).join(" ")
+      + dagPunten.slice().reverse().map((p, i) => `L${xS(dagPunten.length - 1 - i).toFixed(1)},${yS(p.atl).toFixed(1)}`).join(" ") + "Z";
 
-    const lastX = xS(weekPunten.length - 1);
-    const lastCtlY = yS(weekPunten[weekPunten.length - 1].ctl);
+    const lastX = xS(dagPunten.length - 1);
+    const lastCtlY = yS(dagPunten[dagPunten.length - 1].ctl);
+
+    const labelInterval = Math.max(1, Math.floor(dagPunten.length / 6));
+    const labels = dagPunten.filter((_, i) => i === 0 || i === dagPunten.length - 1 || i % labelInterval === 0);
 
     return (
       <svg width="100%" viewBox={`0 0 ${chartW} ${chartH}`} style={{ display: "block" }}>
@@ -73,22 +141,22 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
             <stop offset="100%" stopColor="oklch(0.79 0.14 168)" />
           </linearGradient>
           <linearGradient id="bandGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="oklch(0.79 0.14 168)" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="oklch(0.64 0.14 248)" stopOpacity="0.15" />
+            <stop offset="0%" stopColor="oklch(0.79 0.14 168)" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="oklch(0.64 0.14 248)" stopOpacity="0.04" />
           </linearGradient>
         </defs>
         {[0.25, 0.5, 0.75].map(f => (
-          <line key={f} x1={padL} y1={padT + h * (1 - f)} x2={padL + w} y2={padT + h * (1 - f)} stroke="oklch(0.92 0.012 82)" strokeWidth="1" />
+          <line key={f} x1={padL} y1={padT + h * (1 - f)} x2={padL + w} y2={padT + h * (1 - f)} stroke="oklch(0.93 0.012 82)" strokeWidth="0.8" />
         ))}
         <path d={bandPath} fill="url(#bandGrad)" />
         <path d={atlPath} fill="none" stroke="oklch(0.58 0.02 75)" strokeWidth="2" strokeLinejoin="round" />
         <path d={ctlPath} fill="none" stroke="url(#ctlGrad)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
         <circle cx={lastX} cy={lastCtlY} r="6" fill={T.cardBg} stroke="oklch(0.79 0.14 168)" strokeWidth="2.5" />
-        {weekPunten.map((p, i) => (
-          <text key={i} x={xS(i)} y={chartH - 4} textAnchor="middle" style={{ font: `${p.label === "nu" ? "800" : "600"} 10px var(--font-nunito), sans-serif`, fill: p.label === "nu" ? T.text : T.textTert }}>
-            {p.label}
-          </text>
-        ))}
+        {labels.map((p) => {
+          const i = dagPunten.indexOf(p);
+          const d = p.datum.slice(5).replace("-", "/");
+          return <text key={i} x={xS(i)} y={chartH - 4} textAnchor="middle" style={{ font: "600 9px var(--font-nunito), sans-serif", fill: T.textTert }}>{d}</text>;
+        })}
       </svg>
     );
   }
@@ -208,22 +276,26 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
                   if (!r.wattage || !r.duur_min) return;
                   const duurSec = r.duur_min * 60;
                   const np = r.np || r.wattage;
-                  const maxW = r.max_watt || np;
+                  const maxW = r.max_watt || Math.round(np * 1.3);
 
-                  if (maxW > (bests[5] || 0)) bests[5] = maxW;
-                  if (maxW > (bests[15] || 0)) bests[15] = maxW;
-                  if (maxW * 0.92 > (bests[30] || 0)) bests[30] = Math.round(maxW * 0.92);
-                  if (maxW * 0.82 > (bests[60] || 0)) bests[60] = Math.round(maxW * 0.82);
-                  if (maxW * 0.72 > (bests[180] || 0) && duurSec >= 180) bests[180] = Math.round(maxW * 0.72);
-
-                  [300, 600, 1200, 3600].forEach(sec => {
-                    if (duurSec >= sec) {
-                      const geschat = duurSec <= sec * 1.5 ? np : Math.round(np * (sec / duurSec) ** 0.04);
-                      if (geschat > (bests[sec] || 0)) bests[sec] = geschat;
-                    }
+                  TIJDEN.forEach(t => {
+                    if (duurSec < t.sec) return;
+                    let geschat;
+                    if (t.sec <= 15) geschat = maxW;
+                    else if (t.sec <= 30) geschat = Math.round(maxW * 0.90);
+                    else if (t.sec <= 60) geschat = Math.round(maxW * 0.80);
+                    else if (t.sec <= 180) geschat = Math.round(maxW * 0.68);
+                    else geschat = np;
+                    if (geschat > (bests[t.sec] || 0)) bests[t.sec] = geschat;
                   });
                 });
-                return TIJDEN.map(t => ({ ...t, watt: bests[t.sec] || 0 }));
+                const result = TIJDEN.map(t => ({ ...t, watt: bests[t.sec] || 0 }));
+                for (let i = 1; i < result.length; i++) {
+                  if (result[i].watt > 0 && result[i - 1].watt > 0 && result[i].watt > result[i - 1].watt) {
+                    result[i].watt = result[i - 1].watt;
+                  }
+                }
+                return result;
               };
 
               const huidigeRitten = soloRitten.filter(r => new Date(r.datum_iso) >= grens);
@@ -354,27 +426,22 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
           const hrvPunten = wellnessData.filter(d => d.hrv).map(d => ({ datum: d.id?.split("T")[0] || d.datum, hrv: d.hrv }));
           if (hrvPunten.length < 5) return null;
 
-          const gH = 80, gW = 346;
+          const gH = 110, gW = 346, gPadB = 22, gPadT = 8;
+          const drawH = gH - gPadB - gPadT;
           const allH = hrvPunten.map(p => p.hrv);
-          const mn = Math.min(...allH) - 3;
-          const mx = Math.max(...allH) + 3;
+          const mn = Math.min(...allH) - 5;
+          const mx = Math.max(...allH) + 5;
           const basislijn = profiel?.hrv_basislijn || Math.round(allH.reduce((s, v) => s + v, 0) / allH.length);
           const xI = (i) => (i / (hrvPunten.length - 1)) * gW;
-          const yH = (v) => gH - 10 - ((v - mn) / (mx - mn)) * (gH - 20);
+          const yH = (v) => gPadT + drawH - ((v - mn) / (mx - mn)) * drawH;
 
           const lijn = hrvPunten.map((p, i) => `${i === 0 ? "M" : "L"}${xI(i).toFixed(1)},${yH(p.hrv).toFixed(1)}`).join(" ");
 
+          const gridWaarden = [mn, mn + (mx - mn) * 0.33, mn + (mx - mn) * 0.66, mx].map(Math.round);
+          const labelInterval = Math.max(1, Math.floor(hrvPunten.length / 6));
+
           return (
-            <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 18px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>HRV trend</span>
-                <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>basislijn {basislijn}ms</span>
-              </div>
-              <svg width="100%" viewBox={`0 0 ${gW} ${gH}`} style={{ display: "block" }}>
-                <line x1="0" y1={yH(basislijn)} x2={gW} y2={yH(basislijn)} stroke="oklch(0.64 0.14 248)" strokeWidth="1.5" strokeDasharray="4 4" opacity="0.4" />
-                <path d={lijn} fill="none" stroke="oklch(0.64 0.12 280)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
+            <HrvChart hrvPunten={hrvPunten} basislijn={basislijn} gH={gH} gW={gW} gPadT={gPadT} drawH={drawH} mn={mn} mx={mx} xI={xI} yH={yH} lijn={lijn} gridWaarden={gridWaarden} labelInterval={labelInterval} />
           );
         })()}
 
