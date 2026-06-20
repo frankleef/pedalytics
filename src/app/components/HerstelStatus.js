@@ -89,8 +89,24 @@ export function berekenHerstelScore({ hrv, hrvBasislijn, rusthartslag, rustharts
     signalen.push({ label: ciLabel, k: ciK });
   }
 
-  const score = gewichtTotaal > 0
-    ? Math.round((gewogenSom / gewichtTotaal) * 100)
+  // Ontbrekende componenten tellen als neutraal (0.5), niet als afwezig.
+  // Dit voorkomt dat het toevoegen van een positief signaal de score verlaagt
+  // doordat hernormalisatie over een groter gewichtstotaal loopt.
+  const ALLE_GEWICHTEN = [
+    { aanwezig: tsb != null, gewicht: GEWICHT_TSB },
+    { aanwezig: !!(hrv && hrvBasislijn), gewicht: GEWICHT_HRV },
+    { aanwezig: !!(rusthartslag && rusthartslagBasislijn), gewicht: GEWICHT_RHR },
+    { aanwezig: !!(checkin && checkin >= 1 && checkin <= 5), gewicht: GEWICHT_CHECKIN },
+  ];
+  let totaalSom = gewogenSom;
+  let totaalGewicht = 0;
+  for (const c of ALLE_GEWICHTEN) {
+    totaalGewicht += c.gewicht;
+    if (!c.aanwezig) totaalSom += 0.5 * c.gewicht;
+  }
+
+  const score = totaalGewicht > 0
+    ? Math.round((totaalSom / totaalGewicht) * 100)
     : 50;
 
   let status;

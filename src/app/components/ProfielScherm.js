@@ -1,5 +1,7 @@
 "use client";
+import { useState, useEffect } from "react";
 import { T } from "../designTokens";
+import ScaleInput from "./ScaleInput";
 
 const ZONE_KLEUREN = [
   "oklch(0.82 0.05 245)", "oklch(0.70 0.12 240)", "oklch(0.72 0.13 165)",
@@ -40,6 +42,14 @@ function bouwHrZones(hrZones, namen) {
 }
 
 export default function ProfielScherm({ profiel, stravaAuth, onTerug, onUitloggen }) {
+  const [checkin, setCheckin] = useState(null);
+
+  useEffect(() => {
+    fetch("/api/checkin").then(r => r.json()).then(d => {
+      if (d.success && d.data) setCheckin(d.data.score);
+    }).catch(() => {});
+  }, []);
+
   const ftp = profiel?.ftp || 265;
   const gewicht = profiel?.gewicht || 90;
   const wkg = (ftp / gewicht).toFixed(1);
@@ -175,6 +185,23 @@ export default function ProfielScherm({ profiel, stravaAuth, onTerug, onUitlogge
               {i < diensten.length - 1 && <div style={{ height: 1, background: T.divider }} />}
             </div>
           ))}
+        </div>
+
+        {/* Ochtend check-in */}
+        <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 20px 22px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
+          <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, display: "block", marginBottom: 14 }}>GEVOEL VANDAAG</span>
+          <ScaleInput
+            value={checkin || 0}
+            max={5}
+            question={checkin ? null : "Hoe voel je je vandaag?"}
+            leftLabel="Slecht"
+            rightLabel="Top"
+            onChange={(val) => {
+              setCheckin(val);
+              fetch("/api/checkin", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ score: val }) });
+            }}
+          />
+          {checkin && <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.5 0.13 162)", marginTop: 10 }}>Tik opnieuw om aan te passen</div>}
         </div>
 
         {/* Uitloggen */}
