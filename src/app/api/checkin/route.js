@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
+import { vandaagISO } from "@/lib/datum";
 
 function vandaagSleutel() {
-  return `checkin:${new Date().toISOString().split("T")[0]}`;
+  return `checkin:${vandaagISO()}`;
 }
 
 export async function GET() {

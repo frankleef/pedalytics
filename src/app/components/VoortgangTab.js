@@ -4,6 +4,7 @@ import { T } from "../designTokens";
 import InfoTooltip from "./InfoTooltip";
 import SharedHeader from "./SharedHeader";
 import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
+import { datumISO } from "@/lib/datum";
 import { ResponsiveContainer, ComposedChart, LineChart, BarChart, Line, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Cell } from "recharts";
 
 const CARD = { background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 18px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 };
@@ -132,7 +133,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
     const zt = r.zoneTijden;
     if (!zt || !Array.isArray(zt) || zt.length === 0) return;
     const d = new Date(r.datum_iso); const ma = new Date(d); ma.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-    const wk = ma.toISOString().split("T")[0];
+    const wk = datumISO(ma);
     if (!polWekenMap[wk]) polWekenMap[wk] = { z12secs: 0, z35secs: 0 };
     zt.forEach(z => {
       if (z.id === "Z1" || z.id === "Z2") polWekenMap[wk].z12secs += z.secs || 0;
@@ -153,7 +154,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
   const planRitten = (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens);
   planSessies.forEach(s => {
     const d = new Date(s.datum); const ma = new Date(d); ma.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-    const wk = ma.toISOString().split("T")[0];
+    const wk = datumISO(ma);
     if (!planWekenMap[wk]) planWekenMap[wk] = { matched: 0, deviated: 0, missed: 0, totaal: 0 };
     const rit = planRitten.find(r => r.datum_iso === s.datum);
     if (rit) { const cls = classificeerRit(rit, ftp); ritMatchesSessie(cls, s.type) ? planWekenMap[wk].matched++ : planWekenMap[wk].deviated++; }
@@ -177,7 +178,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
   const weekUrenMap = {};
   (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens && r.duur_min).forEach(r => {
     const d = new Date(r.datum_iso); const ma = new Date(d); ma.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-    const wk = ma.toISOString().split("T")[0];
+    const wk = datumISO(ma);
     weekUrenMap[wk] = (weekUrenMap[wk] || 0) + r.duur_min;
   });
   const weekUren = Object.entries(weekUrenMap).sort(([a], [b]) => a.localeCompare(b)).slice(-10).map(([w, min]) => {
@@ -188,7 +189,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
   const consWekenMap = {};
   (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens).forEach(r => {
     const d = new Date(r.datum_iso); const ma = new Date(d); ma.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-    const wk = ma.toISOString().split("T")[0];
+    const wk = datumISO(ma);
     if (!consWekenMap[wk]) consWekenMap[wk] = new Set();
     consWekenMap[wk].add(r.datum_iso);
   });

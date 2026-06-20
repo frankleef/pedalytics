@@ -37,7 +37,7 @@ export function berekenTrainingLoad(ritten, ftp = 265) {
 
   const huidigeDatum = new Date(eerste);
   while (huidigeDatum <= laatste) {
-    const datumStr = huidigeDatum.toISOString().split("T")[0];
+    const datumStr = `${huidigeDatum.getFullYear()}-${String(huidigeDatum.getMonth()+1).padStart(2,"0")}-${String(huidigeDatum.getDate()).padStart(2,"0")}`;
     const tss = tssPerDag[datumStr] || 0;
 
     ctl = ctl * (1 - 1/42) + tss * (1/42);

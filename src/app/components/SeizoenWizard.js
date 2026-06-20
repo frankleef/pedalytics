@@ -36,7 +36,7 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
       tijdshorizon_weken: config.weken,
       huidige_ftp: profiel.ftp,
       huidige_ctl: ctl,
-      startdatum: new Date().toISOString().split("T")[0],
+      startdatum: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })(),
       config: { ...config },
       beschikbaarheid: beschikbaarheidData?.beschikbaar || {},
       urenPerDag: beschikbaarheidData?.uren || {},

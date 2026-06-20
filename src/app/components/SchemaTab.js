@@ -4,6 +4,7 @@ import { T, SLATE, STATUS, getStatus, zoneKleur } from "../designTokens";
 import { berekenHerstelScore } from "./HerstelStatus";
 import WorkoutViz, { WerkelijkViz } from "./WorkoutViz";
 import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
+import { datumISO } from "@/lib/datum";
 import InfoTooltip from "./InfoTooltip";
 import ScaleInput from "./ScaleInput";
 import SharedHeader from "./SharedHeader";
@@ -187,7 +188,7 @@ export default function SchemaTab({
     const offset = i - 10;
     const d = new Date(nu);
     d.setDate(nu.getDate() + offset);
-    const iso = d.toISOString().split("T")[0];
+    const iso = datumISO(d);
     const dagNaam = DAGEN[d.getDay() === 0 ? 6 : d.getDay() - 1];
     const sessie = weekSessies?.sessies?.find(s => s.datum === iso && s.type !== "rust")
       || weekSessies?.sessies?.find(s => !s.datum && s.dag === dagNaam && s.type !== "rust")

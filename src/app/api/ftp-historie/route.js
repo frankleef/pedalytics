@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
+import { vandaagISO } from "@/lib/datum";
 
 const KEY = "ftp-historie";
 
@@ -17,7 +18,7 @@ export async function POST(request) {
     const { ftp, datum } = await request.json();
     if (!ftp) return NextResponse.json({ success: false, error: "FTP ontbreekt" }, { status: 400 });
     const historie = (await getKV().get(KEY)) || [];
-    const iso = datum || new Date().toISOString().split("T")[0];
+    const iso = datum || vandaagISO();
     const bestaand = historie.findIndex(h => h.datum === iso);
     if (bestaand >= 0) historie[bestaand].ftp = ftp;
     else historie.push({ datum: iso, ftp });

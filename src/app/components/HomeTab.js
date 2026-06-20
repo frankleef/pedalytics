@@ -10,6 +10,7 @@ import WeekStrip from "./home/WeekStrip";
 import SessionCard from "./home/SessionCard";
 import InsightCard from "./home/InsightCard";
 import SharedHeader from "./SharedHeader";
+import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
 import SessieUitkomstKaart from "./SessieUitkomstKaart";
 import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 
@@ -43,7 +44,7 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
   const st = STATUS[statusKey];
 
   const nu = new Date();
-  const vandaagISO = nu.toISOString().split("T")[0];
+  const vandaagISO = getVandaag();
   const dagVolgorde = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
   const vandaagDagIdx = nu.getDay() === 0 ? 6 : nu.getDay() - 1;
 
@@ -54,7 +55,7 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
   const huidigeFase = weekNr && seizoensplan?.kader ? seizoensplan.kader.find(w => w.week === weekNr) || seizoensplan.kader[seizoensplan.kader.length - 1] : null;
   const faseLabel = huidigeFase ? `${FASE_NAMEN[huidigeFase.fase] || huidigeFase.fase} · Week ${weekNr} van ${totaalWeken}` : null;
 
-  const morgenISO = new Date(nu.getTime() + 86400000).toISOString().split("T")[0];
+  const morgenISO = datumOffset(1);
   const sessieMorgen = (weekSessies?.sessies || []).find(s => s.datum === morgenISO && s.type !== "rust");
 
   // Streak: weken op rij met minstens 1 rit
@@ -66,7 +67,7 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
     for (let w = 0; w < 52; w++) {
       const weekStart = new Date(huidigeWeekMa); weekStart.setDate(huidigeWeekMa.getDate() - w * 7);
       const weekEind = new Date(weekStart); weekEind.setDate(weekStart.getDate() + 7);
-      const heeftRit = ritten.some(r => r.datum_iso && r.datum_iso >= weekStart.toISOString().split("T")[0] && r.datum_iso < weekEind.toISOString().split("T")[0]);
+      const heeftRit = ritten.some(r => r.datum_iso && r.datum_iso >= datumISO(weekStart) && r.datum_iso < datumISO(weekEind));
       if (heeftRit) streak++;
       else break;
     }

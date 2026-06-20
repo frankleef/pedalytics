@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { intervalsGet, intervalsAuth, ATHLETE_ID } from "@/lib/intervals";
 import { getKV } from "@/lib/kv";
+import { vandaagISO, datumOffset } from "@/lib/datum";
 
 export async function GET() {
   try {
@@ -16,7 +17,7 @@ export async function GET() {
     ) || {};
 
     // HRV en HR basislijn berekenen uit laatste 30 dagen wellness
-    const oldest = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+    const oldest = datumOffset(-30);
     const wellness = await intervalsGet("/wellness.json", { oldest, fields: "id,hrv,restingHR" });
 
     const hrvWaarden = wellness.filter(w => w.hrv).map(w => w.hrv);
@@ -40,7 +41,7 @@ export async function GET() {
       try {
         const kv = getKV();
         const historie = (await kv.get("ftp-historie")) || [];
-        const vandaag = new Date().toISOString().split("T")[0];
+        const vandaag = vandaagISO();
         const laatste = historie[historie.length - 1];
         if (!laatste || laatste.ftp !== profiel.ftp) {
           historie.push({ datum: vandaag, ftp: profiel.ftp });

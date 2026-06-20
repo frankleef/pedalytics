@@ -20,7 +20,7 @@ export default function WeekStrip({ beschikbaar, weekSessies, weekSessiesLaden, 
     DAGEN.forEach((dag, i) => {
       const dagDatum = new Date(maandag);
       dagDatum.setDate(maandag.getDate() + i);
-      const iso = dagDatum.toISOString().split("T")[0];
+      const iso = `${dagDatum.getFullYear()}-${String(dagDatum.getMonth()+1).padStart(2,"0")}-${String(dagDatum.getDate()).padStart(2,"0")}`;
       const sessie = weekSessies.sessies.find(s => s.datum === iso && s.type !== "rust")
         || weekSessies.sessies.find(s => !s.datum && s.dag === dag && s.type !== "rust");
       if (sessie) sessieLookup[dag] = sessie;

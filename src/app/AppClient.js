@@ -10,6 +10,7 @@ import PlanGenereren from "./components/PlanGenereren";
 import SeizoensplanOverzicht from "./components/SeizoensplanOverzicht";
 import ProfielScherm from "./components/ProfielScherm";
 import { startJob, pollJob } from "@/lib/jobClient";
+import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
 
 const PROFIEL_DEFAULT = { ftp: 265, lt_hr: 184, max_hr: 200, gewicht: 90, hrv_basislijn: 58, hr_basislijn: 49, doel: "31+ km/u gemiddeld solo in Z2" };
 
@@ -86,8 +87,7 @@ export default function Page() {
 
   const laadDagelijkseData = useCallback(async () => {
     try {
-      const resp = await fetch("/api/intervals/wellness?oldest=" +
-        new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0]);
+      const resp = await fetch("/api/intervals/wellness?oldest=" + datumOffset(-30));
       const data = await resp.json();
       if (data.success && data.data) {
         const verwerkt = data.data.map(d => ({
@@ -112,7 +112,7 @@ export default function Page() {
 
   const laadRecenteRitten = useCallback(async () => {
     try {
-      const oldest = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+      const oldest = datumOffset(-30);
       const actResp = await fetch(`/api/intervals/activities?oldest=${oldest}`);
       const actData = await actResp.json();
       if (!actData.success) return;
@@ -308,7 +308,7 @@ export default function Page() {
     if (!stil) setWeekSessiesLaden(true);
     if (!stil) setFout(null);
     try {
-      const vandaagISO = new Date().toISOString().split("T")[0];
+      const vandaagISO = getVandaag();
       const bestaandeSessies = weekSessies?.sessies || [];
       const bewaardeSessies = [];
       (voortgang?.ritten || []).forEach(rit => {
@@ -465,7 +465,7 @@ export default function Page() {
     setBeschikbaarheidSchermOpen(false);
 
     const nu = new Date();
-    const vandaagISO = nu.toISOString().split("T")[0];
+    const vandaagISO = getVandaag();
     const alleDagen = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag", "Zondag"];
 
     const verwijderd = [];
@@ -487,8 +487,8 @@ export default function Page() {
     for (const dag of verwijderd) {
       for (let i = 0; i <= 10; i++) {
         const d = new Date(nu); d.setDate(nu.getDate() + i);
-        if (DAGNAMEN[d.getDay()] === dag && d.toISOString().split("T")[0] >= vandaagISO) {
-          const datum = d.toISOString().split("T")[0];
+        if (DAGNAMEN[d.getDay()] === dag && datumISO(d) >= vandaagISO) {
+          const datum = datumISO(d);
           const sessie = lokaalSessies.find(s => s.datum === datum && !s.voltooid);
           if (sessie) {
             if (sessie.intervalsEventId) teVerwijderenEventIds.push(sessie.intervalsEventId);
@@ -514,8 +514,8 @@ export default function Page() {
     for (const dag of toeTeVoegen) {
       for (let i = 0; i <= 10; i++) {
         const d = new Date(nu); d.setDate(nu.getDate() + i);
-        if (DAGNAMEN[d.getDay()] === dag && d.toISOString().split("T")[0] >= vandaagISO) {
-          const datum = d.toISOString().split("T")[0];
+        if (DAGNAMEN[d.getDay()] === dag && datumISO(d) >= vandaagISO) {
+          const datum = datumISO(d);
           const uren = nieuwUren[dag] || 1.5;
           const oudeSessie = lokaalSessies.find(s => s.datum === datum && !s.voltooid);
           const overigeSessies = lokaalSessies.filter(s => s.datum !== datum && !s.voltooid);

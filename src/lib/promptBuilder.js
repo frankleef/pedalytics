@@ -1,6 +1,7 @@
 // Server-side prompt-bouwers voor sessiegeneratie.
 // Elke functie retourneert { prompt, system, max_tokens }.
 
+import { vandaagISO, datumISO } from "./datum";
 const ZWAAR_TYPES = ["sweetspot", "interval", "drempel", "vo2max"];
 
 function bouwWeekrol(overigeSessies, kaderWeek, uren) {
@@ -60,12 +61,12 @@ export function bouwWeekSessiesPrompt({ profiel, wellness, dagelijkseData, voort
   const maxDagen = ctl < 30 ? 2 : ctl < 40 ? 3 : ctl < 60 ? 4 : ctl < 80 ? 5 : 6;
 
   const nu = new Date();
-  const vandaagISO = nu.toISOString().split("T")[0];
+  const vandaagISOStr = vandaagISO();
 
   const planDagen = [];
   for (let i = 0; i <= 10; i++) {
     const d = new Date(nu); d.setDate(nu.getDate() + i);
-    const iso = d.toISOString().split("T")[0];
+    const iso = datumISO(d);
     const dagNaam = DAGNAMEN[d.getDay()];
     planDagen.push({ datum: iso, dag: dagNaam, beschikbaar: !!beschikbareDagen.includes(dagNaam), uren: urenPerDag[dagNaam] || 1.5 });
   }
@@ -75,10 +76,10 @@ export function bouwWeekSessiesPrompt({ profiel, wellness, dagelijkseData, voort
   (voortgang?.ritten || []).forEach(rit => {
     if (!rit.datum_iso) return;
     const match = bestaandeSessies.find(s => s.datum === rit.datum_iso || (!s.datum && s.dag === DAGNAMEN[new Date(rit.datum_iso).getDay()]));
-    if (match && rit.datum_iso <= vandaagISO) voltooideDatams.add(rit.datum_iso);
+    if (match && rit.datum_iso <= vandaagISOStr) voltooideDatams.add(rit.datum_iso);
   });
 
-  const tePlannenDagen = planDagen.filter(d => d.beschikbaar && !voltooideDatams.has(d.datum) && d.datum >= vandaagISO);
+  const tePlannenDagen = planDagen.filter(d => d.beschikbaar && !voltooideDatams.has(d.datum) && d.datum >= vandaagISOStr);
   if (tePlannenDagen.length === 0) return null;
 
   const dagenSindsStart = Math.max(0, (Date.now() - new Date(seizoensplan.startdatum).getTime()) / 86400000);

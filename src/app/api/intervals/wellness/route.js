@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { intervalsGet, intervalsPut } from "@/lib/intervals";
+import { vandaagISO } from "@/lib/datum";
 
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const oldest = searchParams.get("oldest") || "2026-01-01";
-    const newest = searchParams.get("newest") || new Date().toISOString().split("T")[0];
+    const newest = searchParams.get("newest") || vandaagISO();
 
     const fields = [
       "id", "ctl", "atl", "rampRate",

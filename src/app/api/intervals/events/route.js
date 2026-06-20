@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { intervalsGet, intervalsPost, intervalsPut } from "@/lib/intervals";
 import { segmentenNaarZwo } from "@/lib/workoutZwo";
+import { vandaagISO, datumOffset } from "@/lib/datum";
 
 export async function GET(request) {
   try {
-    const vandaag = new Date().toISOString().split("T")[0];
-    const over14 = new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0];
+    const vandaag = vandaagISO();
+    const over14 = datumOffset(14);
     const data = await intervalsGet("/events.json", { oldest: vandaag, newest: over14 });
     return NextResponse.json({ success: true, data });
   } catch (e) {
