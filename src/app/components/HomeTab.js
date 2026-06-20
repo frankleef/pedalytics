@@ -20,11 +20,15 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
   const [filter, setFilter] = useState(0);
   const [checkin, setCheckin] = useState(null);
   const [checkinLaden, setCheckinLaden] = useState(true);
+  const [weer, setWeer] = useState(null);
 
   useEffect(() => {
     fetch("/api/checkin").then(r => r.json()).then(d => {
       if (d.success && d.data) setCheckin(d.data.score);
     }).catch(() => {}).finally(() => setCheckinLaden(false));
+    fetch("/api/weer").then(r => r.json()).then(d => {
+      if (d.success) setWeer(d.data);
+    }).catch(() => {});
   }, []);
   const hrvBasislijn = profiel?.hrv_basislijn || 58;
   const hrBasislijn = profiel?.hr_basislijn || 49;
@@ -53,6 +57,37 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
   const morgenISO = new Date(nu.getTime() + 86400000).toISOString().split("T")[0];
   const sessieMorgen = (weekSessies?.sessies || []).find(s => s.datum === morgenISO && s.type !== "rust");
 
+  // Streak: weken op rij met minstens 1 rit
+  const streakWeeks = (() => {
+    const ritten = voortgang?.ritten || [];
+    if (ritten.length === 0) return 0;
+    let streak = 0;
+    const huidigeWeekMa = new Date(nu); huidigeWeekMa.setDate(nu.getDate() - ((nu.getDay() + 6) % 7)); huidigeWeekMa.setHours(0,0,0,0);
+    for (let w = 0; w < 52; w++) {
+      const weekStart = new Date(huidigeWeekMa); weekStart.setDate(huidigeWeekMa.getDate() - w * 7);
+      const weekEind = new Date(weekStart); weekEind.setDate(weekStart.getDate() + 7);
+      const heeftRit = ritten.some(r => r.datum_iso && r.datum_iso >= weekStart.toISOString().split("T")[0] && r.datum_iso < weekEind.toISOString().split("T")[0]);
+      if (heeftRit) streak++;
+      else break;
+    }
+    return streak;
+  })();
+
+  // PR-teaser: beste recente PR uit power curve vergelijking
+  const prTeaser = (() => {
+    const DUREN = [{ sec: 5, label: "5s sprint" }, { sec: 60, label: "1 min" }, { sec: 300, label: "5 min" }, { sec: 1200, label: "20 min" }];
+    const ritten = voortgang?.ritten || [];
+    const grens14 = new Date(Date.now() - 14 * 86400000);
+    const recent = ritten.filter(r => r.datum_iso && new Date(r.datum_iso) >= grens14);
+    const ouder = ritten.filter(r => r.datum_iso && new Date(r.datum_iso) < grens14);
+    if (recent.length === 0 || ouder.length === 0) return null;
+    const best = (rs) => { const b = {}; rs.forEach(r => { if (!r.max_watt && !r.wattage) return; DUREN.forEach(d => { const v = d.sec <= 15 ? (r.max_watt || r.wattage) : r.wattage; if (v && r.duur_min * 60 >= d.sec && v > (b[d.sec] || 0)) b[d.sec] = v; }); }); return b; };
+    const nu2 = best(recent); const was = best(ouder);
+    let beste = null;
+    DUREN.forEach(d => { const delta = (nu2[d.sec] || 0) - (was[d.sec] || 0); if (delta > 0 && (!beste || delta > beste.delta)) beste = { ...d, watt: nu2[d.sec], delta }; });
+    return beste;
+  })();
+
   const eerstvolgende = (() => {
     const sessies = weekSessies?.sessies?.filter(s => s.type !== "rust") || [];
     const metDatum = sessies.filter(s => s.datum && s.datum >= vandaagISO);
@@ -77,9 +112,32 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
         )}
 
         {/* Status headline */}
-        <h1 style={{ margin: "0 0 20px", font: "800 27px/1.22 var(--font-nunito), sans-serif", letterSpacing: -0.4, textWrap: "pretty", color: st.color }}>
-          {st.headline("Frank")}
-        </h1>
+        {(() => {
+          const ritVandaag = (voortgang?.ritten || []).find(r => r.datum_iso === vandaagISO);
+          const headlineFn = ritVandaag && st.headlineNaRit ? st.headlineNaRit : st.headline;
+          return (
+            <h1 style={{ margin: "0 0 20px", font: "800 27px/1.22 var(--font-nunito), sans-serif", letterSpacing: -0.4, textWrap: "pretty", color: st.color }}>
+              {headlineFn("Frank")}
+            </h1>
+          );
+        })()}
+
+        {/* Streak + PR teaser */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
+          {streakWeeks >= 2 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: 999, background: "linear-gradient(140deg, oklch(0.82 0.1 70), oklch(0.78 0.12 50))" }}>
+              <span style={{ fontSize: 14 }}>🔥</span>
+              <span style={{ font: "800 12.5px var(--font-nunito), sans-serif", color: "oklch(0.35 0.08 50)" }}>{streakWeeks} weken op rij</span>
+            </div>
+          )}
+          {prTeaser && (
+            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: 999, background: "oklch(0.93 0.05 70)" }}>
+              <span style={{ fontSize: 13 }}>⭐</span>
+              <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.4 0.08 70)" }}>PR {prTeaser.label}</span>
+              <span style={{ font: "800 12px var(--font-fredoka), sans-serif", padding: "2px 7px", borderRadius: 999, background: "oklch(0.93 0.05 162)", color: "oklch(0.4 0.13 162)" }}>+{prTeaser.delta}W</span>
+            </div>
+          )}
+        </div>
 
         {/* Filter pills */}
         <div style={{ display: "flex", gap: 9, overflowX: "auto", margin: `0 -${T.pad}px 22px`, padding: `2px ${T.pad}px 6px` }}>
@@ -224,6 +282,28 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
 
         {/* Week strip */}
         <WeekStrip beschikbaar={beschikbaar} weekSessies={weekSessies} weekSessiesLaden={weekSessiesLaden} onEdit={onEditBeschikbaarheid} />
+
+        {/* Weer-widget */}
+        {weer && (
+          <div style={{ background: T.cardBg, borderRadius: 20, padding: "14px 18px", boxShadow: "0 1px 8px rgba(60,45,20,0.03)", border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ font: "600 28px var(--font-fredoka), sans-serif", color: T.text }}>{weer.temp}°</span>
+                <div>
+                  <div style={{ font: "700 13px var(--font-nunito), sans-serif", color: T.text }}>{weer.conditie}</div>
+                  <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textSec }}>
+                    💧 {weer.neerslagKans}% · 💨 {weer.wind} km/u
+                  </div>
+                </div>
+              </div>
+            </div>
+            {weer.neerslagMiddag > 50 && eerstvolgende && !((voortgang?.ritten || []).find(r => r.datum_iso === vandaagISO)) && (
+              <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 12, background: "oklch(0.96 0.04 82)", font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.48 0.11 66)" }}>
+                ☔ Regen verwacht vanmiddag — plan je buitenrit liever voor de ochtend
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Today's session — voltooide rit of vooruitblik */}
         {weekSessiesLaden ? (

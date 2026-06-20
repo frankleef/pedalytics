@@ -45,6 +45,7 @@ export const STATUS = {
   good: {
     label: 'Goede balans',
     headline: (naam) => `${naam}, je herstel is goed — tijd voor een pittige training.`,
+    headlineNaRit: (naam) => `${naam}, goed gereden — je herstel ziet er prima uit.`,
     color: 'oklch(0.5 0.13 162)',
     dot: 'oklch(0.6 0.13 165)',
     ringA: 'oklch(0.62 0.14 248)',
@@ -53,6 +54,7 @@ export const STATUS = {
   caution: {
     label: 'Let op',
     headline: (naam) => `${naam}, je vorm is prima — houd het vandaag gecontroleerd.`,
+    headlineNaRit: (naam) => `${naam}, sessie erop — neem het de rest van de dag rustig aan.`,
     color: 'oklch(0.55 0.11 92)',
     dot: 'oklch(0.74 0.13 95)',
     ringA: 'oklch(0.79 0.14 168)',
@@ -61,6 +63,7 @@ export const STATUS = {
   careful: {
     label: 'Voorzichtig',
     headline: (naam) => `${naam}, je belasting loopt op — kies vandaag voor een rustige rit.`,
+    headlineNaRit: (naam) => `${naam}, stevige dag — je lichaam heeft nu rust nodig.`,
     color: 'oklch(0.56 0.13 55)',
     dot: 'oklch(0.66 0.14 54)',
     ringA: 'oklch(0.8 0.13 96)',
@@ -69,6 +72,7 @@ export const STATUS = {
   rest: {
     label: 'Rust nodig',
     headline: (naam) => `${naam}, luister vandaag naar je lichaam — rust is winst.`,
+    headlineNaRit: (naam) => `${naam}, je hebt gereden terwijl rust beter was — luister morgen naar je lichaam.`,
     color: 'oklch(0.52 0.1 28)',
     dot: 'oklch(0.58 0.11 28)',
     ringA: 'oklch(0.67 0.14 52)',

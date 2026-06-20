@@ -41,12 +41,29 @@ function bouwHrZones(hrZones, namen) {
   });
 }
 
+const STEDEN = [
+  { stad: "Breda", lat: 51.59, lon: 4.78 },
+  { stad: "Amsterdam", lat: 52.37, lon: 4.90 },
+  { stad: "Rotterdam", lat: 51.92, lon: 4.48 },
+  { stad: "Utrecht", lat: 52.09, lon: 5.12 },
+  { stad: "Den Haag", lat: 52.08, lon: 4.30 },
+  { stad: "Eindhoven", lat: 51.44, lon: 5.47 },
+  { stad: "Tilburg", lat: 51.56, lon: 5.09 },
+  { stad: "Groningen", lat: 53.22, lon: 6.57 },
+  { stad: "Maastricht", lat: 50.85, lon: 5.69 },
+  { stad: "Arnhem", lat: 51.98, lon: 5.91 },
+];
+
 export default function ProfielScherm({ profiel, stravaAuth, onTerug, onUitloggen }) {
   const [checkin, setCheckin] = useState(null);
+  const [weerStad, setWeerStad] = useState("Breda");
 
   useEffect(() => {
     fetch("/api/checkin").then(r => r.json()).then(d => {
       if (d.success && d.data) setCheckin(d.data.score);
+    }).catch(() => {});
+    fetch("/api/weer").then(r => r.json()).then(d => {
+      if (d.success && d.data?.stad) setWeerStad(d.data.stad);
     }).catch(() => {});
   }, []);
 
@@ -187,7 +204,29 @@ export default function ProfielScherm({ profiel, stravaAuth, onTerug, onUitlogge
           ))}
         </div>
 
-        {/* Ochtend check-in */}
+        {/* Weer-locatie */}
+        <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 20px 22px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
+          <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, display: "block", marginBottom: 14 }}>WEER-LOCATIE</span>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {STEDEN.map(s => (
+              <button key={s.stad} onClick={() => {
+                setWeerStad(s.stad);
+                fetch("/api/weer", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s) });
+              }}
+                style={{
+                  padding: "7px 14px", borderRadius: T.pillRadius, cursor: "pointer",
+                  font: "700 12.5px var(--font-nunito), sans-serif",
+                  ...(s.stad === weerStad
+                    ? { background: T.slate, color: "oklch(0.97 0.01 84)", border: "none" }
+                    : { background: "transparent", border: "1.5px solid oklch(0.86 0.014 80)", color: "oklch(0.42 0.02 72)" }),
+                }}>
+                {s.stad}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Gevoel vandaag */}
         <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 20px 22px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
           <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, display: "block", marginBottom: 14 }}>GEVOEL VANDAAG</span>
           <ScaleInput
