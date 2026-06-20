@@ -853,8 +853,9 @@ Alleen JSON.`;
         if (DAGNAMEN[d.getDay()] === dag && d.toISOString().split("T")[0] >= vandaagISO) {
           const datum = d.toISOString().split("T")[0];
           const uren = nieuwUren[dag] || 1.5;
+          const oudeSessie = lokaalSessies.find(s => s.datum === datum && !s.voltooid);
           gewijzigdeDatums.push(datum);
-          console.log("[Beschikbaarheid] Genereer sessie voor:", datum, dag, uren, "uur");
+          console.log("[Beschikbaarheid] Genereer sessie voor:", datum, dag, uren, "uur", oudeSessie ? `(vervangt ${oudeSessie.type})` : "(nieuw)");
 
           const overigeSessies = lokaalSessies.filter(s => s.datum !== datum && !s.voltooid);
           const weekTssNu = overigeSessies.reduce((s, sess) => s + (sess.tss || 0), 0);
@@ -923,6 +924,7 @@ Alleen JSON.`;
             const sessie = parsed.sessie || parsed.sessies?.[0] || parsed;
             if (!sessie.datum) sessie.datum = datum;
             if (!sessie.dag) sessie.dag = dag;
+            if (oudeSessie?.intervalsEventId) sessie.intervalsEventId = oudeSessie.intervalsEventId;
             console.log("[Beschikbaarheid] Sessie geparsed:", sessie.datum, sessie.type, sessie.titel);
 
             try {
