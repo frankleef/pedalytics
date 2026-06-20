@@ -10,6 +10,58 @@ const CARD = { background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 
 const EYEBROW = { font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" };
 const TICK = { fontSize: 9, fontFamily: "var(--font-nunito), sans-serif", fill: T.textTert };
 
+function LegeStaat({ titel, wekenNodig = 8, wekenVerzameld = 0 }) {
+  const pct = wekenNodig > 0 ? Math.min(100, Math.round((wekenVerzameld / wekenNodig) * 100)) : 0;
+  return (
+    <div style={{ ...CARD, minHeight: 200, display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <span style={EYEBROW}>{titel}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 999, background: "oklch(0.94 0.02 230)" }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "oklch(0.6 0.06 230)" }} />
+          <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.45 0.04 230)" }}>In opbouw</span>
+        </div>
+      </div>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: "10px 0 16px" }}>
+        <div style={{ width: 48, height: 48, borderRadius: 16, background: "oklch(0.94 0.03 230)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 14.5l4-7 3.5 4.5L15 6l5 8.5" stroke="oklch(0.6 0.06 230)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </div>
+        <span style={{ font: "700 16px var(--font-nunito), sans-serif", color: T.text }}>Nog te weinig data</span>
+        <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec, textAlign: "center", maxWidth: 260 }}>
+          Nog {wekenNodig - wekenVerzameld} {wekenNodig - wekenVerzameld === 1 ? "week" : "weken"} trainingsdata nodig voor een betrouwbare trend.
+        </span>
+      </div>
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+          <span style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textTert }}>{wekenVerzameld} van de {wekenNodig} weken verzameld</span>
+          <span style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textTert }}>{pct}%</span>
+        </div>
+        <div style={{ height: 6, borderRadius: 999, background: "oklch(0.93 0.012 84)", overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${pct}%`, borderRadius: 999, background: T.gradient }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// CP-model: P(t) = CP + W'/t. Fit via lineaire regressie op P = CP + W' * (1/t).
+function fitCPModel(punten) {
+  const geldig = punten.filter(p => p.watt > 0 && p.sec >= 120);
+  if (geldig.length < 3) return null;
+  const n = geldig.length;
+  const xs = geldig.map(p => 1 / p.sec);
+  const ys = geldig.map(p => p.watt);
+  const sumX = xs.reduce((s, x) => s + x, 0);
+  const sumY = ys.reduce((s, y) => s + y, 0);
+  const sumXY = xs.reduce((s, x, i) => s + x * ys[i], 0);
+  const sumX2 = xs.reduce((s, x) => s + x * x, 0);
+  const denom = n * sumX2 - sumX * sumX;
+  if (Math.abs(denom) < 1e-10) return null;
+  const wPrime = (n * sumXY - sumX * sumY) / denom;
+  const cp = (sumY - wPrime * sumX) / n;
+  if (cp < 100 || cp > 500 || wPrime < 5000 || wPrime > 50000) return null;
+  return { cp: Math.round(cp), wPrime: Math.round(wPrime), wPrimeKj: +(wPrime / 1000).toFixed(1) };
+}
+
 function ChartTooltipContent({ active, payload, label, suffix = "" }) {
   if (!active || !payload?.length) return null;
   return (
@@ -55,7 +107,12 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
 
   const pcHuidig = powerCurves?.huidig || [];
   const pcVorig = powerCurves?.vorig || [];
-  const pcData = pcHuidig.map((p, i) => ({ label: p.label, nu: p.watt || null, vorig: pcVorig[i]?.watt || null })).filter(d => d.nu || d.vorig);
+  const cpModel = fitCPModel(pcHuidig);
+  const pcData = pcHuidig.map((p, i) => {
+    const d = { label: p.label, sec: p.sec, nu: p.watt || null, vorig: pcVorig[i]?.watt || null };
+    if (cpModel && p.sec >= 60) d.cpModel = Math.round(cpModel.cp + cpModel.wPrime / p.sec);
+    return d;
+  }).filter(d => d.nu || d.vorig);
 
   const highlights = [
     { sec: 5, titel: "Sprint", fallback: 15 },
@@ -228,6 +285,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
                 <XAxis dataKey="label" tick={TICK} tickLine={false} axisLine={false} />
                 <YAxis tick={TICK} tickLine={false} axisLine={false} domain={["auto", "auto"]} />
                 <Tooltip content={<ChartTooltipContent suffix="W" />} />
+                {cpModel && <Line dataKey="cpModel" stroke="oklch(0.56 0.12 285)" strokeWidth={1.6} strokeDasharray="1.5 5" dot={false} name="CP-model" connectNulls />}
                 <Line dataKey="vorig" stroke="oklch(0.58 0.02 75)" strokeWidth={2} strokeDasharray="4 4" dot={false} name="Vorig" connectNulls />
                 <Line dataKey="nu" stroke="oklch(0.64 0.14 248)" strokeWidth={4} dot={false} name="Nu" connectNulls />
               </LineChart>
@@ -240,10 +298,21 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
                 </div>
               ))}
             </div>
+            {cpModel && (
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.divider}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ width: 14, height: 0, borderTop: "1.6px dashed oklch(0.56 0.12 285)" }} />
+                  <span style={{ font: "800 10px var(--font-nunito), sans-serif", letterSpacing: 0.8, color: T.textTert }}>CP-MODEL</span>
+                </div>
+                <span style={{ font: "600 14px var(--font-fredoka), sans-serif", color: T.text }}>{cpModel.cp}<span style={{ font: "700 10px var(--font-nunito), sans-serif", color: T.textSec }}>W CP</span></span>
+                <span style={{ font: "600 14px var(--font-fredoka), sans-serif", color: T.text }}>{cpModel.wPrimeKj}<span style={{ font: "700 10px var(--font-nunito), sans-serif", color: T.textSec }}>kJ W′</span></span>
+              </div>
+            )}
           </div>
         )}
 
         {/* HRV trend */}
+        {hrvPunten.length < 5 && <LegeStaat titel="HRV trend" wekenNodig={4} wekenVerzameld={Math.floor(hrvPunten.length / 7)} />}
         {hrvPunten.length >= 5 && (
           <div style={CARD}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -376,6 +445,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
         )}
 
         {/* Weekuren-trend */}
+        {weekUren.length < 2 && <LegeStaat titel="Trainingsuren" wekenNodig={4} wekenVerzameld={weekUren.length} />}
         {weekUren.length >= 2 && (
           <div style={CARD}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -394,6 +464,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
         )}
 
         {/* Trainingsconsistentie */}
+        {consWeken.length < 2 && <LegeStaat titel="Consistentie" wekenNodig={4} wekenVerzameld={consWeken.length} />}
         {consWeken.length >= 2 && (
           <div style={CARD}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -414,6 +485,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
         )}
 
         {/* RHR-trend */}
+        {rhrPunten.length < 5 && <LegeStaat titel="Rusthartslag trend" wekenNodig={4} wekenVerzameld={Math.floor(rhrPunten.length / 7)} />}
         {rhrPunten.length >= 5 && (
           <div style={CARD}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -434,6 +506,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
         )}
 
         {/* Slaap-trend */}
+        {slaapPunten.length < 5 && <LegeStaat titel="Slaapscore trend" wekenNodig={4} wekenVerzameld={Math.floor(slaapPunten.length / 7)} />}
         {slaapPunten.length >= 5 && (
           <div style={CARD}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
