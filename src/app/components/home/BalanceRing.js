@@ -3,7 +3,7 @@ import { T, STATUS, getStatus } from "../../designTokens";
 import { berekenHerstelScore } from "../HerstelStatus";
 import InfoTooltip from "../InfoTooltip";
 
-export default function BalanceRing({ vandaagInvoer, tsb, slaapScore, wellenessHuidig, hrvBasislijn, hrBasislijn, label }) {
+export default function BalanceRing({ vandaagInvoer, tsb, slaapScore, wellenessHuidig, hrvBasislijn, hrBasislijn, label, checkin }) {
   const { score, signalen } = berekenHerstelScore({
     hrv: vandaagInvoer?.hrv,
     hrvBasislijn: hrvBasislijn || 58,
@@ -11,6 +11,7 @@ export default function BalanceRing({ vandaagInvoer, tsb, slaapScore, wellenessH
     rusthartslagBasislijn: hrBasislijn || 49,
     tsb,
     slaapScore,
+    checkin,
   });
 
   const statusKey = getStatus(score);

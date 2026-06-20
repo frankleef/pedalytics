@@ -5,6 +5,7 @@ import { berekenHerstelScore } from "./HerstelStatus";
 import WorkoutViz, { WerkelijkViz } from "./WorkoutViz";
 import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 import InfoTooltip from "./InfoTooltip";
+import ScaleInput from "./ScaleInput";
 import SharedHeader from "./SharedHeader";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
@@ -263,31 +264,39 @@ export default function SchemaTab({
   const renderRpe = () => {
     if (!gematchteRit) return null;
     const waarde = huidigeRpe ?? rpeWaarde;
-    const k = waarde <= 3 ? "oklch(0.5 0.13 162)" : waarde <= 5 ? "oklch(0.64 0.14 248)" : waarde <= 7 ? "oklch(0.55 0.11 92)" : "oklch(0.56 0.13 55)";
     return (
       <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "18px 20px 20px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>{huidigeRpe != null ? "RPE" : "Hoe voelde de rit?"}</span>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <span style={{ font: "600 28px var(--font-fredoka), sans-serif", color: k }}>{waarde}/10</span>
-          <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: k }}>{RPE_LABELS[waarde]}</span>
-        </div>
-        <input type="range" min={1} max={10} value={waarde} onChange={e => setRpeWaarde(Number(e.target.value))} disabled={huidigeRpe != null} style={{ width: "100%", accentColor: k, height: 6, marginBottom: 12 }} />
-        {huidigeRpe == null && (
-          <button disabled={rpeOpslaan} onClick={async () => {
-            setRpeOpslaan(true);
-            try {
-              const resp = await fetch(`/api/intervals/workouts/${gematchteRit.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rpe: rpeWaarde }) });
-              const data = await resp.json();
-              if (data.success) { setRpeOpgeslagen(p => ({ ...p, [gematchteRit.id]: rpeWaarde })); onRpeSaved?.(gematchteRit.id, rpeWaarde); }
-            } catch (e) { console.error("RPE opslaan:", e); }
-            setRpeOpslaan(false);
-          }} style={{ width: "100%", border: "none", cursor: "pointer", padding: 14, borderRadius: T.pillRadius, background: T.slate, color: "oklch(0.97 0.01 84)", font: "700 14px var(--font-nunito), sans-serif", opacity: rpeOpslaan ? 0.6 : 1 }}>
-            {rpeOpslaan ? "Opslaan..." : "RPE opslaan"}
-          </button>
+        {huidigeRpe != null ? (
+          <>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>RPE</span>
+              <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.5 0.13 162)" }}>Opgeslagen</span>
+            </div>
+            <ScaleInput value={waarde} max={10} onChange={() => {}} leftLabel="Heel licht" rightLabel="Maximaal" />
+          </>
+        ) : (
+          <>
+            <ScaleInput
+              value={rpeWaarde}
+              max={10}
+              question="Hoe voelde de rit?"
+              leftLabel="Heel licht"
+              rightLabel="Maximaal"
+              onChange={setRpeWaarde}
+            />
+            <button disabled={rpeOpslaan} onClick={async () => {
+              setRpeOpslaan(true);
+              try {
+                const resp = await fetch(`/api/intervals/workouts/${gematchteRit.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rpe: rpeWaarde }) });
+                const data = await resp.json();
+                if (data.success) { setRpeOpgeslagen(p => ({ ...p, [gematchteRit.id]: rpeWaarde })); onRpeSaved?.(gematchteRit.id, rpeWaarde); }
+              } catch (e) { console.error("RPE opslaan:", e); }
+              setRpeOpslaan(false);
+            }} style={{ width: "100%", marginTop: 14, border: "none", cursor: "pointer", padding: 14, borderRadius: T.pillRadius, background: T.slate, color: "oklch(0.97 0.01 84)", font: "700 14px var(--font-nunito), sans-serif", opacity: rpeOpslaan ? 0.6 : 1 }}>
+              {rpeOpslaan ? "Opslaan..." : "RPE opslaan"}
+            </button>
+          </>
         )}
-        {huidigeRpe != null && <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.5 0.13 162)", textAlign: "center" }}>Opgeslagen in intervals.icu</div>}
       </div>
     );
   };

@@ -881,6 +881,15 @@ Alleen JSON.`;
             weekrol = `Er ${aantalZwaar === 1 ? "is 1 intensiteitsdag" : "zijn geen intensiteitsdagen"} en ${aantalZ2} Z2-dag(en). Vul het weekpatroon aan op basis van wat ontbreekt.`;
           }
 
+          let vorigeSessieContext = "";
+          if (oudeSessie) {
+            vorigeSessieContext = `
+VORIGE SESSIE OP DEZE DAG (beschikbare uren zijn gewijzigd, de dag zelf bleef beschikbaar):
+  Type: ${oudeSessie.type} | Titel: ${oudeSessie.titel} | Vermogen: ${oudeSessie.vermogen || "?"} | TSS: ${oudeSessie.tss || "?"} | Duur: ${oudeSessie.duur_min || "?"}min
+
+BELANGRIJK: behoud hetzelfde sessietype en dezelfde vermogenszone als de vorige sessie hierboven. Pas ALLEEN de duur en TSS proportioneel aan op de nieuwe beschikbare tijd (${uren} uur). Wijzig het type NIET tenzij TSB of HRV daar expliciet aanleiding toe geeft.`;
+          }
+
           const prompt = `Maak één trainingssessie voor ${datum} (${dag}), ${uren} uur beschikbaar.
 
 PROFIEL: FTP ${ftp}W | LT ${PROFIEL.lt_hr} bpm | Max HR ${PROFIEL.max_hr} bpm | ${PROFIEL.gewicht} kg | Eerste seizoen
@@ -891,18 +900,18 @@ Fase: ${kaderWeek.fase} — ${kaderWeek.focus} (TSS-doel ${kaderWeek.tss_doel}/w
 
 OVERIGE SESSIES DEZE WEEK (niet wijzigen, houd spreiding — [ZWAAR] = intensiteitsdag):
 ${bestaande}
-
+${vorigeSessieContext}
 ROL VAN DEZE DAG IN HET WEEKPATROON:
 ${weekrol}
 
 REGELS:
 - Duur past binnen ${uren} uur
-- Volg de weekrol hierboven — die bepaalt welk type sessie hier past
+${oudeSessie ? "- BEHOUD het sessietype en de vermogenszone van de vorige sessie — alleen duur/TSS aanpassen" : "- Volg de weekrol hierboven — die bepaalt welk type sessie hier past"}
 - Min 1 rustdag tussen harde sessies (sweetspot/interval). Als TSB < -20 of HRV dalend: alleen Z2 of herstel
 - Houd week-TSS onder ${kaderWeek.tss_doel} totaal
 - GEEN warmup/cooldown segmenten, hoofdinspanning vult hele duur
 - Gebruik vermogenMin/vermogenMax in %FTP per segment
-- Geef een concrete, data-gedreven reden die verwijst naar de weekrol
+- Geef een concrete, data-gedreven reden
 
 SESSIETYPES: duur_lang | duur_variabel | sweetspot | interval | herstel
 

@@ -1,9 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { T, STATUS, getStatus } from "../designTokens";
 import { berekenHerstelScore } from "./HerstelStatus";
 import { berekenDagAdvies } from "./DagAdvies";
 import InfoTooltip from "./InfoTooltip";
+import ScaleInput from "./ScaleInput";
 import BalanceRing from "./home/BalanceRing";
 import WeekStrip from "./home/WeekStrip";
 import SessionCard from "./home/SessionCard";
@@ -15,6 +16,14 @@ const FILTERS = ["Vandaag", "Deze week", "Herstel", "Belasting"];
 
 export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagelijkseData, voortgang, seizoensplan, weekSessies, weekSessiesLaden, beschikbaar, onOpenWorkout, onEditBeschikbaarheid, onOpenProfiel }) {
   const [filter, setFilter] = useState(0);
+  const [checkin, setCheckin] = useState(null);
+  const [checkinLaden, setCheckinLaden] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/checkin").then(r => r.json()).then(d => {
+      if (d.success && d.data) setCheckin(d.data.score);
+    }).catch(() => {}).finally(() => setCheckinLaden(false));
+  }, []);
   const hrvBasislijn = profiel?.hrv_basislijn || 58;
   const hrBasislijn = profiel?.hr_basislijn || 49;
   const tsb = wellenessHuidig ? Math.round((wellenessHuidig.ctl || 0) - (wellenessHuidig.atl || 0)) : null;
@@ -22,7 +31,7 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
   const { score } = berekenHerstelScore({
     hrv: vandaagInvoer?.hrv, hrvBasislijn,
     rusthartslag: vandaagInvoer?.rusthartslag, rusthartslagBasislijn: hrBasislijn,
-    tsb, slaapScore: vandaagInvoer?.slaapScore,
+    tsb, slaapScore: vandaagInvoer?.slaapScore, checkin,
   });
   const statusKey = getStatus(score);
   const st = STATUS[statusKey];
@@ -76,6 +85,7 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
             wellenessHuidig={wellenessHuidig}
             hrvBasislijn={hrvBasislijn}
             hrBasislijn={hrBasislijn}
+            checkin={checkin}
           />
         )}
 
@@ -174,6 +184,23 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
             </div>
           );
         })()}
+
+        {/* Ochtend check-in */}
+        {!checkinLaden && !checkin && (
+          <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 20px 22px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
+            <ScaleInput
+              value={0}
+              max={5}
+              question="Hoe voel je je vandaag?"
+              leftLabel="Slecht"
+              rightLabel="Top"
+              onChange={(val) => {
+                setCheckin(val);
+                fetch("/api/checkin", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ score: val }) });
+              }}
+            />
+          </div>
+        )}
 
         {/* Week strip */}
         <WeekStrip beschikbaar={beschikbaar} weekSessies={weekSessies} weekSessiesLaden={weekSessiesLaden} onEdit={onEditBeschikbaarheid} />

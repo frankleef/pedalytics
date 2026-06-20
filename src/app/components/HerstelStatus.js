@@ -1,13 +1,16 @@
 "use client";
 
 // Samengestelde heuristiek, geen wetenschappelijk gestandaardiseerde formule.
-// TSB, HRV-afwijking en RHR-afwijking zijn elk individueel gevalideerde signalen
-// (Coggan/Allen, Plews et al.), maar de combinatie tot één 0-100 score met onderstaande
+// TSB, HRV-afwijking, RHR-afwijking en subjectieve check-in zijn elk individueel
+// gevalideerde signalen, maar de combinatie tot één 0-100 score met onderstaande
 // gewichten is een eigen keuze — vergelijkbaar met Whoop/Garmin/Oura readiness scores.
+// Met check-in: TSB 40%, HRV 25%, RHR 10%, check-in 25%.
+// Zonder check-in: TSB 50%, HRV 35%, RHR 15% (hernormalisatie).
 
-const GEWICHT_TSB = 0.50;
-const GEWICHT_HRV = 0.35;
-const GEWICHT_RHR = 0.15;
+const GEWICHT_TSB = 0.40;
+const GEWICHT_HRV = 0.25;
+const GEWICHT_RHR = 0.10;
+const GEWICHT_CHECKIN = 0.25;
 
 const TSB_MIN = -30;
 const TSB_MAX = 15;
@@ -30,7 +33,11 @@ function rhrSubscore(rhr, basislijn) {
   return clamp01(1 - afwijking / RHR_AFWIJKING_MAX);
 }
 
-export function berekenHerstelScore({ hrv, hrvBasislijn, rusthartslag, rusthartslagBasislijn, tsb, slaapScore }) {
+function checkinSubscore(score) {
+  return clamp01((score - 1) / 4);
+}
+
+export function berekenHerstelScore({ hrv, hrvBasislijn, rusthartslag, rusthartslagBasislijn, tsb, slaapScore, checkin }) {
   const subscores = [];
   const signalen = [];
   let gewichtTotaal = 0;
@@ -69,6 +76,17 @@ export function berekenHerstelScore({ hrv, hrvBasislijn, rusthartslag, rustharts
     const rhrLabel = diff <= 2 ? "Rusthartslag normaal" : diff <= 5 ? "Rusthartslag licht verhoogd" : "Rusthartslag verhoogd";
     const rhrK = diff <= 2 ? "#4ade80" : diff <= 5 ? "#fbbf24" : "#ef4444";
     signalen.push({ label: rhrLabel, k: rhrK });
+  }
+
+  if (checkin && checkin >= 1 && checkin <= 5) {
+    const sub = checkinSubscore(checkin);
+    subscores.push({ label: "Check-in", sub, gewicht: GEWICHT_CHECKIN });
+    gewogenSom += sub * GEWICHT_CHECKIN;
+    gewichtTotaal += GEWICHT_CHECKIN;
+
+    const ciLabel = checkin >= 4 ? "Gevoel: goed" : checkin === 3 ? "Gevoel: neutraal" : "Gevoel: moe";
+    const ciK = checkin >= 4 ? "#4ade80" : checkin === 3 ? "#fbbf24" : "#ef4444";
+    signalen.push({ label: ciLabel, k: ciK });
   }
 
   const score = gewichtTotaal > 0
