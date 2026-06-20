@@ -45,7 +45,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
 
   const wellnessData = (wellness || []).slice(-periode * 7);
   const dagPunten = wellnessData.filter(d => d.ctl != null && d.atl != null).map(d => ({
-    datum: (d.id?.split("T")[0] || "").slice(5).replace("-", "/"),
+    datum: (() => { const s = d.id?.split("T")[0] || ""; const [,m,dd] = s.split("-"); return m && dd ? `${dd}/${m}` : s; })(),
     ctl: Math.round(d.ctl), atl: Math.round(d.atl), tsb: Math.round((d.ctl || 0) - (d.atl || 0)),
   }));
 
@@ -66,21 +66,28 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
     return punt ? { ...punt, titel: h.titel } : { titel: h.titel, label: "", watt: 0 };
   });
 
-  const hrvPunten = wellnessData.filter(d => d.hrv).map(d => ({ datum: (d.id?.split("T")[0] || "").slice(5).replace("-", "/"), hrv: d.hrv }));
+  const hrvPunten = wellnessData.filter(d => d.hrv).map(d => ({ datum: (() => { const s = d.id?.split("T")[0] || ""; const [,m,dd] = s.split("-"); return m && dd ? `${dd}/${m}` : s; })(), hrv: d.hrv }));
   const hrvBasislijn = profiel?.hrv_basislijn || (hrvPunten.length > 0 ? Math.round(hrvPunten.reduce((s, p) => s + p.hrv, 0) / hrvPunten.length) : 58);
 
   // Polarisatie
   const polWekenMap = {};
-  (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens && r.wattage).forEach(r => {
+  (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens).forEach(r => {
+    const zt = r.zoneTijden;
+    if (!zt || !Array.isArray(zt) || zt.length === 0) return;
     const d = new Date(r.datum_iso); const ma = new Date(d); ma.setDate(d.getDate() - ((d.getDay() + 6) % 7));
     const wk = ma.toISOString().split("T")[0];
-    if (!polWekenMap[wk]) polWekenMap[wk] = { z2: 0, totaal: 0 };
-    const ifVal = r.np ? r.np / ftp : r.wattage / ftp;
-    if (ifVal <= 0.76) polWekenMap[wk].z2++;
-    polWekenMap[wk].totaal++;
+    if (!polWekenMap[wk]) polWekenMap[wk] = { z12secs: 0, z35secs: 0 };
+    zt.forEach(z => {
+      if (z.id === "Z1" || z.id === "Z2") polWekenMap[wk].z12secs += z.secs || 0;
+      else polWekenMap[wk].z35secs += z.secs || 0;
+    });
   });
-  const polWeken = Object.entries(polWekenMap).sort(([a], [b]) => a.localeCompare(b)).slice(-10).map(([w, d]) => ({ week: w.slice(5).replace("-", "/"), pct: d.totaal > 0 ? Math.round((d.z2 / d.totaal) * 100) : 0 }));
-  const polGem = polWeken.length > 0 ? Math.round(polWeken.reduce((s, w) => s + w.pct, 0) / polWeken.length) : 0;
+  const polWeken = Object.entries(polWekenMap).sort(([a], [b]) => a.localeCompare(b)).slice(-10).map(([w, d]) => {
+    const [,m,dd] = w.split("-");
+    const totaal = d.z12secs + d.z35secs;
+    return { week: `${dd}/${m}`, z2: totaal > 0 ? Math.round((d.z12secs / totaal) * 100) : 0, z35: totaal > 0 ? Math.round((d.z35secs / totaal) * 100) : 0 };
+  });
+  const polGem = polWeken.length > 0 ? Math.round(polWeken.reduce((s, w) => s + w.z2, 0) / polWeken.length) : 0;
 
   // Plan-naleving
   const planWekenMap = {};
@@ -96,7 +103,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
     else if (new Date(s.datum) < new Date()) planWekenMap[wk].missed++;
     planWekenMap[wk].totaal++;
   });
-  const planWeken = Object.entries(planWekenMap).sort(([a], [b]) => a.localeCompare(b)).slice(-10).map(([w, d]) => ({ week: w.slice(5).replace("-", "/"), ...d, pct: d.totaal > 0 ? Math.round((d.matched / d.totaal) * 100) : 0 }));
+  const planWeken = Object.entries(planWekenMap).sort(([a], [b]) => a.localeCompare(b)).slice(-10).map(([w, d]) => ({ week: (() => { const [,m,d] = w.split("-"); return `${d}/${m}`; })(), ...d, pct: d.totaal > 0 ? Math.round((d.matched / d.totaal) * 100) : 0 }));
   const planGem = planWeken.length > 0 ? Math.round(planWeken.reduce((s, w) => s + w.pct, 0) / planWeken.length) : 0;
 
   // PR feed — uit echte power curve data
@@ -218,21 +225,40 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
         {/* Polarisatie */}
         {polWeken.length >= 2 && (
           <div style={CARD}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <span style={EYEBROW}>Polarisatie</span>
-              <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: polGem >= 75 ? "oklch(0.5 0.13 162)" : "oklch(0.55 0.11 92)" }}>gem. {polGem}% Z1-Z2</span>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <span style={EYEBROW}>Polarisatie</span>
+                <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>80% rustig, 20% pittig</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: T.subtleFill }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: polGem >= 75 ? "oklch(0.6 0.13 165)" : "oklch(0.72 0.13 70)" }} />
+                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.4 0.02 72)" }}>{polGem >= 75 ? "Op koers" : "Let op"}</span>
+              </div>
             </div>
-            <ResponsiveContainer width="100%" height={polWeken.length * 22 + 10}>
-              <BarChart data={polWeken} layout="vertical" margin={{ top: 0, right: 30, bottom: 0, left: 0 }}>
-                <XAxis type="number" domain={[0, 100]} tick={TICK} tickLine={false} axisLine={false} />
+            <ResponsiveContainer width="100%" height={polWeken.length * 21 + 10}>
+              <BarChart data={polWeken} layout="vertical" margin={{ top: 0, right: 4, bottom: 0, left: 0 }} stackOffset="expand" barSize={12}>
+                <XAxis type="number" domain={[0, 100]} hide />
                 <YAxis type="category" dataKey="week" tick={TICK} tickLine={false} axisLine={false} width={36} />
                 <Tooltip content={<ChartTooltipContent suffix="%" />} />
-                <ReferenceLine x={80} stroke="oklch(0.5 0.02 74)" strokeDasharray="3 3" strokeOpacity={0.5} />
-                <Bar dataKey="pct" radius={[0, 4, 4, 0]} name="Z1-Z2" barSize={14}>
-                  {polWeken.map((w, i) => <Cell key={i} fill={w.pct >= 80 ? "oklch(0.70 0.12 240)" : "oklch(0.72 0.13 70)"} />)}
-                </Bar>
+                <ReferenceLine x={80} stroke="oklch(0.45 0.02 70)" strokeWidth={1.5} strokeDasharray="3 3" label={{ value: "80%", position: "top", style: { font: "800 9px var(--font-nunito), sans-serif", fill: "oklch(0.45 0.02 70)" } }} />
+                <Bar dataKey="z2" stackId="pol" name="Z1–Z2" fill="oklch(0.8 0.07 232)" radius={[6, 0, 0, 6]} />
+                <Bar dataKey="z35" stackId="pol" name="Z3–Z5" fill="oklch(0.74 0.13 52)" radius={[0, 6, 6, 0]} />
               </BarChart>
             </ResponsiveContainer>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${T.divider}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                <div style={{ width: 14, height: 10, borderRadius: 3, background: "oklch(0.8 0.07 232)" }} />
+                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.42 0.02 72)" }}>Z1–Z2 · rustig</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                <div style={{ width: 14, height: 10, borderRadius: 3, background: "oklch(0.74 0.13 52)" }} />
+                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.42 0.02 72)" }}>Z3–Z5 · pittig</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                <div style={{ width: 14, height: 0, borderTop: "2px dashed oklch(0.45 0.02 70)" }} />
+                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.42 0.02 72)" }}>doel 80%</span>
+              </div>
+            </div>
           </div>
         )}
 

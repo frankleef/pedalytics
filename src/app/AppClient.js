@@ -130,6 +130,7 @@ export default function Page() {
           hartslag: a.average_heartrate ? Math.round(a.average_heartrate) : null,
           tss: a.icu_training_load || null, rpe: a.icu_rpe || null,
           max_watt: a.max_watts || null, strava_id: a.strava_id || null,
+          zoneTijden: a.icu_zone_times || null,
           solo: true,
         }));
       setVoortgang(prev => ({ ...(prev || {}), ritten }));
@@ -182,10 +183,7 @@ export default function Page() {
             const totaal = a.icu_hr_zone_times.reduce((s, t) => s + t, 0);
             return totaal > 0 ? a.icu_hr_zone_times.map(t => Math.round((t / totaal) * 100)) : null;
           })() : null,
-          power_zones: a.icu_power_zone_times ? (() => {
-            const totaal = a.icu_power_zone_times.reduce((s, t) => s + t, 0);
-            return totaal > 0 ? a.icu_power_zone_times.map(t => Math.round((t / totaal) * 100)) : null;
-          })() : null,
+          zoneTijden: a.icu_zone_times || null,
         }));
 
       try {
