@@ -1,0 +1,93 @@
+import { NextResponse } from "next/server";
+import { getKV } from "@/lib/kv";
+import { bouwSeizoensplanPrompt, bouwWeekSessiesPrompt, bouwSessieDagPrompt } from "@/lib/promptBuilder";
+
+function genId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function claudeCall({ prompt, system, max_tokens }) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY niet geconfigureerd");
+
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens, system, messages: [{ role: "user", content: prompt }] }),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`Claude API ${resp.status}: ${errText}`);
+  }
+
+  const data = await resp.json();
+  const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+  const cleaned = text.replace(/```json|```/g, "").trim();
+  if (!cleaned) throw new Error("Lege response van Claude");
+  if (data.stop_reason === "max_tokens") {
+    console.error("[claudeCall] Response afgekapt (max_tokens bereikt). Laatste 200 chars:", cleaned.slice(-200));
+    throw new Error("Claude response afgekapt — max_tokens te laag voor deze prompt");
+  }
+  try {
+    return JSON.parse(cleaned);
+  } catch (e) {
+    console.error("[claudeCall] JSON parse mislukt. Eerste 300 chars:", cleaned.slice(0, 300));
+    throw new Error(`JSON parse mislukt: ${e.message}`);
+  }
+}
+
+export async function POST(request) {
+  const { type, params } = await request.json();
+  const jobId = genId();
+  const kv = getKV();
+
+  await kv.set(`genjob:${jobId}`, { status: "pending", type, created: new Date().toISOString() }, { ex: 300 });
+
+  // Fire-and-forget: start de generatie op de achtergrond
+  (async () => {
+    try {
+      let promptData;
+      if (type === "seizoensplan") {
+        promptData = bouwSeizoensplanPrompt(params);
+      } else if (type === "weekSessies") {
+        promptData = bouwWeekSessiesPrompt(params);
+        if (!promptData) {
+          await kv.set(`genjob:${jobId}`, { status: "done", type, result: { sessies: [], tss_totaal: 0 } }, { ex: 300 });
+          return;
+        }
+      } else if (type === "sessieDag") {
+        promptData = bouwSessieDagPrompt(params);
+        console.log(`[Job ${jobId}] sessieDag prompt voor ${params.datum}:`, params.oudeSessie ? `VORIGE: ${params.oudeSessie.type} ${params.oudeSessie.vermogen}` : "NIEUW");
+        console.log(`[Job ${jobId}] prompt bevat 'VORIGE SESSIE':`, promptData.prompt.includes("VORIGE SESSIE OP DEZE DAG"));
+        console.log(`[Job ${jobId}] prompt bevat 'BEHOUD':`, promptData.prompt.includes("BEHOUD het sessietype"));
+      } else {
+        throw new Error(`Onbekend job type: ${type}`);
+      }
+
+      const raw = await claudeCall(promptData);
+      if (type === "sessieDag") {
+        const r = raw.sessie || raw.sessies?.[0] || raw;
+        console.log(`[Job ${jobId}] Claude response type: ${r.type} ${r.vermogen} | duur: ${r.duur_min}min | tss: ${r.tss} | uren param: ${params.uren}`);
+      }
+
+      let result;
+      if (type === "sessieDag") {
+        result = raw.sessie || raw.sessies?.[0] || raw;
+        if (!result.datum) result.datum = params.datum;
+        if (!result.dag) result.dag = params.dagNaam;
+      } else if (type === "weekSessies") {
+        result = raw;
+        result.voltooideDatams = promptData.voltooideDatams;
+      } else {
+        result = raw;
+      }
+
+      await kv.set(`genjob:${jobId}`, { status: "done", type, result }, { ex: 300 });
+    } catch (e) {
+      await kv.set(`genjob:${jobId}`, { status: "failed", type, error: e.message }, { ex: 300 });
+    }
+  })();
+
+  return NextResponse.json({ success: true, jobId });
+}

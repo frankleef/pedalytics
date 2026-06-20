@@ -49,6 +49,9 @@ export async function POST(request) {
         description: workoutTekst,
       };
 
+      console.log(`[Events] ${sessie.datum} "${sessie.titel}" | moving_time: ${eventBody.moving_time}s (${(eventBody.moving_time/60).toFixed(0)}min) | duur_min in sessie: ${sessie.duur_min} | segmenten: ${(sessie.segmenten||[]).length} | ftp: ${ftp}`);
+      console.log(`[Events] ruwe segmenten:`, JSON.stringify((sessie.segmenten||[]).map(s => ({ type: s.type, min: s.vermogenMin, max: s.vermogenMax, duur: s.duur_min }))));
+      console.log(`[Events] description:\n${workoutTekst}`);
       const bestaandId = sessie.intervalsEventId || bestaandeEvents[datumDag];
       let result;
       if (bestaandId) {
