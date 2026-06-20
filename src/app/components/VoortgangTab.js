@@ -106,6 +106,47 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
   const planWeken = Object.entries(planWekenMap).sort(([a], [b]) => a.localeCompare(b)).slice(-10).map(([w, d]) => ({ week: (() => { const [,m,d] = w.split("-"); return `${d}/${m}`; })(), ...d, pct: d.totaal > 0 ? Math.round((d.matched / d.totaal) * 100) : 0 }));
   const planGem = planWeken.length > 0 ? Math.round(planWeken.reduce((s, w) => s + w.pct, 0) / planWeken.length) : 0;
 
+  // Seizoensdoel-perspectief
+  const kader = seizoensplan?.kader || [];
+  const seizoenWeken = seizoensplan?.tijdshorizon_weken || kader.length || 12;
+  const seizoenStart = seizoensplan?.startdatum ? new Date(seizoensplan.startdatum) : null;
+  const wekenVerstreken = seizoenStart ? Math.max(0, Math.floor((Date.now() - seizoenStart.getTime()) / (7 * 86400000))) : 0;
+  const wekenOver = Math.max(0, seizoenWeken - wekenVerstreken);
+  const totaalTssDoel = kader.reduce((s, w) => s + (w.tss_doel || 0), 0);
+  const totaalTssWerkelijk = (voortgang?.ritten || []).filter(r => r.datum_iso && seizoenStart && new Date(r.datum_iso) >= seizoenStart).reduce((s, r) => s + (r.tss || 0), 0);
+  const tssPct = totaalTssDoel > 0 ? Math.min(100, Math.round((totaalTssWerkelijk / totaalTssDoel) * 100)) : 0;
+
+  // Weekuren-trend
+  const weekUrenMap = {};
+  (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens && r.duur_min).forEach(r => {
+    const d = new Date(r.datum_iso); const ma = new Date(d); ma.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    const wk = ma.toISOString().split("T")[0];
+    weekUrenMap[wk] = (weekUrenMap[wk] || 0) + r.duur_min;
+  });
+  const weekUren = Object.entries(weekUrenMap).sort(([a], [b]) => a.localeCompare(b)).slice(-10).map(([w, min]) => {
+    const [,m,dd] = w.split("-"); return { week: `${dd}/${m}`, uren: +(min / 60).toFixed(1) };
+  });
+
+  // Trainingsconsistentie: dagen per week getraind
+  const consWekenMap = {};
+  (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens).forEach(r => {
+    const d = new Date(r.datum_iso); const ma = new Date(d); ma.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    const wk = ma.toISOString().split("T")[0];
+    if (!consWekenMap[wk]) consWekenMap[wk] = new Set();
+    consWekenMap[wk].add(r.datum_iso);
+  });
+  const consWeken = Object.entries(consWekenMap).sort(([a], [b]) => a.localeCompare(b)).slice(-10).map(([w, dagen]) => {
+    const [,m,dd] = w.split("-"); return { week: `${dd}/${m}`, dagen: dagen.size };
+  });
+  const consGem = consWeken.length > 0 ? +(consWeken.reduce((s, w) => s + w.dagen, 0) / consWeken.length).toFixed(1) : 0;
+
+  // RHR-trend
+  const rhrPunten = wellnessData.filter(d => d.restingHR).map(d => ({ datum: (() => { const s = d.id?.split("T")[0] || ""; const [,m,dd] = s.split("-"); return m && dd ? `${dd}/${m}` : s; })(), rhr: Math.round(d.restingHR) }));
+  const rhrBasislijn = profiel?.hr_basislijn ? Math.round(profiel.hr_basislijn) : (rhrPunten.length > 0 ? Math.round(rhrPunten.reduce((s, p) => s + p.rhr, 0) / rhrPunten.length) : 49);
+
+  // Slaap-trend
+  const slaapPunten = wellnessData.filter(d => d.sleepScore).map(d => ({ datum: (() => { const s = d.id?.split("T")[0] || ""; const [,m,dd] = s.split("-"); return m && dd ? `${dd}/${m}` : s; })(), score: d.sleepScore }));
+
   // PR feed — uit echte power curve data
   const prs = [{ sec: 5, label: "5s sprint" }, { sec: 60, label: "1 min" }, { sec: 300, label: "5 min" }, { sec: 1200, label: "20 min" }]
     .map(d => {
@@ -236,7 +277,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
               </div>
             </div>
             <ResponsiveContainer width="100%" height={polWeken.length * 21 + 10}>
-              <BarChart data={polWeken} layout="vertical" margin={{ top: 0, right: 4, bottom: 0, left: 0 }} stackOffset="expand" barSize={12}>
+              <BarChart data={polWeken} layout="vertical" margin={{ top: 0, right: 4, bottom: 0, left: 0 }} barSize={12}>
                 <XAxis type="number" domain={[0, 100]} hide />
                 <YAxis type="category" dataKey="week" tick={TICK} tickLine={false} axisLine={false} width={36} />
                 <Tooltip content={<ChartTooltipContent suffix="%" />} />
@@ -313,6 +354,102 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Seizoensdoel-perspectief */}
+        {seizoenStart && kader.length > 0 && (
+          <div style={CARD}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+              <div><span style={EYEBROW}>Seizoensdoel</span><div style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec, marginTop: 3 }}>{seizoensplan?.doel_label || "FTP verhogen"}</div></div>
+              <span style={{ font: "600 15px var(--font-fredoka), sans-serif", color: T.text }}>{wekenOver} <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: T.textSec }}>wk over</span></span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+              <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: T.textSec }}>TSS-voortgang</span>
+              <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}><span style={{ font: "600 19px var(--font-fredoka), sans-serif", color: T.text }}>{Math.round(totaalTssWerkelijk)}</span> / {Math.round(totaalTssDoel)}</span>
+            </div>
+            <div style={{ height: 8, borderRadius: T.pillRadius, background: "oklch(0.93 0.012 84)", overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${tssPct}%`, borderRadius: T.pillRadius, background: T.gradient }} />
+            </div>
+            <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textTert, marginTop: 6, textAlign: "right" }}>{tssPct}% voltooid · week {wekenVerstreken} van {seizoenWeken}</div>
+          </div>
+        )}
+
+        {/* Weekuren-trend */}
+        {weekUren.length >= 2 && (
+          <div style={CARD}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={EYEBROW}>Trainingsuren per week</span>
+              <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>gem. {weekUren.length > 0 ? (weekUren.reduce((s, w) => s + w.uren, 0) / weekUren.length).toFixed(1) : 0}u</span>
+            </div>
+            <ResponsiveContainer width="100%" height={80}>
+              <BarChart data={weekUren} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
+                <XAxis dataKey="week" tick={TICK} tickLine={false} axisLine={false} />
+                <YAxis tick={TICK} tickLine={false} axisLine={false} />
+                <Tooltip content={<ChartTooltipContent suffix="u" />} />
+                <Bar dataKey="uren" name="Uren" radius={[4, 4, 0, 0]} fill="oklch(0.70 0.12 240)" barSize={20} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Trainingsconsistentie */}
+        {consWeken.length >= 2 && (
+          <div style={CARD}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={EYEBROW}>Consistentie</span>
+              <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>gem. {consGem} dagen/wk</span>
+            </div>
+            <ResponsiveContainer width="100%" height={80}>
+              <BarChart data={consWeken} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
+                <XAxis dataKey="week" tick={TICK} tickLine={false} axisLine={false} />
+                <YAxis tick={TICK} tickLine={false} axisLine={false} domain={[0, 7]} />
+                <Tooltip content={<ChartTooltipContent suffix=" dagen" />} />
+                <Bar dataKey="dagen" name="Dagen" radius={[4, 4, 0, 0]} barSize={20}>
+                  {consWeken.map((w, i) => <Cell key={i} fill={w.dagen >= 3 ? "oklch(0.6 0.13 165)" : w.dagen >= 2 ? "oklch(0.72 0.13 70)" : "oklch(0.72 0.015 75)"} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* RHR-trend */}
+        {rhrPunten.length >= 5 && (
+          <div style={CARD}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={EYEBROW}>Rusthartslag trend</span>
+              <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>basislijn {rhrBasislijn} bpm</span>
+            </div>
+            <ResponsiveContainer width="100%" height={100}>
+              <LineChart data={rhrPunten} margin={{ top: 5, right: 0, bottom: 0, left: -20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.012 82)" vertical={false} />
+                <XAxis dataKey="datum" tick={TICK} tickLine={false} axisLine={false} interval={Math.max(1, Math.floor(rhrPunten.length / 6))} />
+                <YAxis tick={TICK} tickLine={false} axisLine={false} domain={["auto", "auto"]} />
+                <Tooltip content={<ChartTooltipContent suffix=" bpm" />} />
+                <ReferenceLine y={rhrBasislijn} stroke="oklch(0.55 0.12 35)" strokeDasharray="4 4" strokeOpacity={0.5} />
+                <Line dataKey="rhr" stroke="oklch(0.55 0.12 35)" strokeWidth={2.5} dot={false} name="RHR" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Slaap-trend */}
+        {slaapPunten.length >= 5 && (
+          <div style={CARD}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={EYEBROW}>Slaapscore trend</span>
+              <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>gem. {Math.round(slaapPunten.reduce((s, p) => s + p.score, 0) / slaapPunten.length)}</span>
+            </div>
+            <ResponsiveContainer width="100%" height={100}>
+              <LineChart data={slaapPunten} margin={{ top: 5, right: 0, bottom: 0, left: -20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.012 82)" vertical={false} />
+                <XAxis dataKey="datum" tick={TICK} tickLine={false} axisLine={false} interval={Math.max(1, Math.floor(slaapPunten.length / 6))} />
+                <YAxis tick={TICK} tickLine={false} axisLine={false} domain={[0, 100]} />
+                <Tooltip content={<ChartTooltipContent />} />
+                <ReferenceLine y={70} stroke="oklch(0.64 0.14 248)" strokeDasharray="4 4" strokeOpacity={0.4} label={{ value: "Goed", position: "right", style: { font: "600 8px var(--font-nunito), sans-serif", fill: T.textTert } }} />
+                <Line dataKey="score" stroke="oklch(0.64 0.12 280)" strokeWidth={2.5} dot={false} name="Slaap" />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         )}
 
