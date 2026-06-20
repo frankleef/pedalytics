@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { intervalsGet, intervalsPost, intervalsPut } from "@/lib/intervals";
-import { segmentenNaarTekst } from "@/lib/workoutText";
+import { segmentenNaarZwo } from "@/lib/workoutZwo";
 
 export async function GET(request) {
   try {
@@ -29,15 +29,14 @@ export async function POST(request) {
       const events = await intervalsGet("/events.json", { oldest, newest });
       (events || []).forEach(e => {
         if (e.category === "WORKOUT" && e.start_date_local) {
-          const dag = e.start_date_local.split("T")[0];
-          bestaandeEvents[dag] = e.id;
+          bestaandeEvents[e.start_date_local.split("T")[0]] = e.id;
         }
       });
     } catch {}
 
     const resultaten = [];
     for (const sessie of sessies) {
-      const workoutTekst = segmentenNaarTekst(sessie.segmenten, ftp);
+      const zwo = segmentenNaarZwo(sessie.segmenten, sessie.titel);
       const datum = sessie.datum?.includes("T") ? sessie.datum : `${sessie.datum}T08:00:00`;
       const datumDag = sessie.datum?.split("T")[0] || sessie.datum;
       const eventBody = {
@@ -46,12 +45,9 @@ export async function POST(request) {
         name: sessie.titel || sessie.type,
         type: "Ride",
         moving_time: (sessie.duur_min || 90) * 60,
-        description: workoutTekst,
+        ...(zwo ? { file_contents: zwo, file_type: "zwo" } : {}),
       };
 
-      console.log(`[Events] ${sessie.datum} "${sessie.titel}" | moving_time: ${eventBody.moving_time}s (${(eventBody.moving_time/60).toFixed(0)}min) | duur_min in sessie: ${sessie.duur_min} | segmenten: ${(sessie.segmenten||[]).length} | ftp: ${ftp}`);
-      console.log(`[Events] ruwe segmenten:`, JSON.stringify((sessie.segmenten||[]).map(s => ({ type: s.type, min: s.vermogenMin, max: s.vermogenMax, duur: s.duur_min }))));
-      console.log(`[Events] description:\n${workoutTekst}`);
       const bestaandId = sessie.intervalsEventId || bestaandeEvents[datumDag];
       let result;
       if (bestaandId) {
@@ -63,6 +59,17 @@ export async function POST(request) {
       } else {
         result = await intervalsPost("/events", eventBody);
       }
+
+      if (result.id && zwo) {
+        try {
+          const segDuur = (sessie.segmenten || []).reduce((s, seg) => s + (seg.duur_min || 0), 0) * 60;
+          const resolvedDuur = result.moving_time || result.workout_doc?.duration;
+          if (resolvedDuur && Math.abs(resolvedDuur - segDuur) > 60) {
+            console.warn(`[Events] Duur-mismatch voor ${datumDag}: app=${segDuur}s, intervals.icu=${resolvedDuur}s`);
+          }
+        } catch {}
+      }
+
       bestaandeEvents[datumDag] = result.id;
       resultaten.push({ id: result.id, datum: sessie.datum });
     }

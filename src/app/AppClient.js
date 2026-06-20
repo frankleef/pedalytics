@@ -60,7 +60,7 @@ export default function Page() {
       } else setTab(1);
     }).catch(() => setTab(1));
     laadDagelijkseData();
-    laadVoortgang();
+    laadRecenteRitten();
   }, []);
 
   useEffect(() => {
@@ -108,6 +108,32 @@ export default function Page() {
         }
       }
     } catch (e) { console.error("Dagelijkse data laden:", e); }
+  }, []);
+
+  const laadRecenteRitten = useCallback(async () => {
+    try {
+      const oldest = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+      const actResp = await fetch(`/api/intervals/activities?oldest=${oldest}`);
+      const actData = await actResp.json();
+      if (!actData.success) return;
+      const ritten = (actData.data || [])
+        .filter(a => a.type === "Ride" || a.type === "VirtualRide")
+        .map(a => ({
+          id: a.id, naam: a.name,
+          datum: new Date(a.start_date_local).toLocaleDateString("nl-NL", { day: "2-digit", month: "2-digit" }),
+          datum_iso: a.start_date_local?.split("T")[0], type: a.type,
+          afstand: a.distance ? Math.round(a.distance / 1000) : null,
+          duur_min: a.moving_time ? Math.round(a.moving_time / 60) : null,
+          snelheid: a.average_speed ? Math.round(a.average_speed * 3.6 * 10) / 10 : null,
+          wattage: a.icu_weighted_avg_watts || a.average_watts || null,
+          np: a.icu_weighted_avg_watts || null, avgWatts: a.average_watts || null,
+          hartslag: a.average_heartrate ? Math.round(a.average_heartrate) : null,
+          tss: a.icu_training_load || null, rpe: a.icu_rpe || null,
+          max_watt: a.max_watts || null, strava_id: a.strava_id || null,
+          solo: true,
+        }));
+      setVoortgang(prev => ({ ...(prev || {}), ritten }));
+    } catch (e) { console.error("Recente ritten laden:", e); }
   }, []);
 
   const laadVoortgang = useCallback(async () => {

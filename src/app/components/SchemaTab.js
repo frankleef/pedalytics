@@ -139,7 +139,8 @@ const SESSIE_LABELS = { duur_lang: "Duurrit", duur_variabel: "Variabele duurrit"
 
 function bepaalMode(offset, sessie, rit, ftp, planStartISO) {
   const isVerleden = offset < 0;
-  if (!isVerleden) return sessie ? "planned" : "rest";
+  const isVandaagMetRit = offset === 0 && rit;
+  if (!isVerleden && !isVandaagMetRit) return sessie ? "planned" : "rest";
   if (rit && planStartISO && rit.datum_iso < planStartISO && !sessie) return "buiten_planperiode";
   if (sessie && rit) {
     const cls = classificeerRit(rit, ftp);
