@@ -43,6 +43,16 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
   const dagVolgorde = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
   const vandaagDagIdx = nu.getDay() === 0 ? 6 : nu.getDay() - 1;
 
+  const FASE_NAMEN = { basis: "Opbouw", sweetspot: "Sweetspot", drempel: "Drempel", consolidatie: "Consolidatie", test: "Testweek", herstel: "Herstel" };
+  const seizoenStart = seizoensplan?.startdatum ? new Date(seizoensplan.startdatum) : null;
+  const weekNr = seizoenStart ? Math.max(1, Math.ceil((Date.now() - seizoenStart.getTime()) / (7 * 86400000)) || 1) : null;
+  const totaalWeken = seizoensplan?.tijdshorizon_weken || seizoensplan?.kader?.length || null;
+  const huidigeFase = weekNr && seizoensplan?.kader ? seizoensplan.kader.find(w => w.week === weekNr) || seizoensplan.kader[seizoensplan.kader.length - 1] : null;
+  const faseLabel = huidigeFase ? `${FASE_NAMEN[huidigeFase.fase] || huidigeFase.fase} · Week ${weekNr} van ${totaalWeken}` : null;
+
+  const morgenISO = new Date(nu.getTime() + 86400000).toISOString().split("T")[0];
+  const sessieMorgen = (weekSessies?.sessies || []).find(s => s.datum === morgenISO && s.type !== "rust");
+
   const eerstvolgende = (() => {
     const sessies = weekSessies?.sessies?.filter(s => s.type !== "rust") || [];
     const metDatum = sessies.filter(s => s.datum && s.datum >= vandaagISO);
@@ -57,6 +67,14 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
       <div style={{ maxWidth: 540, margin: "0 auto", padding: `16px ${T.pad}px 28px` }}>
 
         <SharedHeader onAvatarClick={onOpenProfiel} />
+
+        {/* Fase/week eyebrow */}
+        {faseLabel && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.gradient }} />
+            <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: T.textTert, textTransform: "uppercase" }}>{faseLabel}</span>
+          </div>
+        )}
 
         {/* Status headline */}
         <h1 style={{ margin: "0 0 20px", font: "800 27px/1.22 var(--font-nunito), sans-serif", letterSpacing: -0.4, textWrap: "pretty", color: st.color }}>
@@ -229,8 +247,36 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
               />
             );
           }
-          return <SessionCard sessie={eerstvolgende} ftp={ftp} onOpen={onOpenWorkout} />;
+          return (
+            <>
+              <SessionCard sessie={eerstvolgende} ftp={ftp} onOpen={onOpenWorkout} />
+              {eerstvolgende?.intervalsEventId && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: -10, marginBottom: 16, padding: "0 4px" }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="oklch(0.5 0.13 162)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  <span style={{ font: "600 11.5px var(--font-nunito), sans-serif", color: "oklch(0.5 0.13 162)" }}>Gesynchroniseerd naar Wahoo</span>
+                </div>
+              )}
+            </>
+          );
         })()}
+
+        {/* Morgen-teaser */}
+        {sessieMorgen && !(voortgang?.ritten || []).find(r => r.datum_iso === vandaagISO) && (
+          <div onClick={() => onOpenWorkout?.({ datum: morgenISO })}
+            style={{ background: T.cardBg, borderRadius: 20, padding: "14px 16px", boxShadow: "0 1px 8px rgba(60,45,20,0.03)", border: `1px solid ${T.cardBorder}`, marginBottom: 16, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 12, background: T.subtleFill, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 5l7 7-7 7" stroke={T.textSec} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ font: "700 13px var(--font-nunito), sans-serif", color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                Morgen: {sessieMorgen.titel}
+              </div>
+              <div style={{ font: "600 11.5px var(--font-nunito), sans-serif", color: T.textSec }}>
+                {sessieMorgen.duur_min ? `${Math.round(sessieMorgen.duur_min)}min` : ""}{sessieMorgen.vermogen ? ` · ${sessieMorgen.vermogen}` : ""}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* AI Insight */}
         <InsightCard
