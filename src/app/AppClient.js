@@ -678,6 +678,7 @@ export default function Page() {
               wellenessHuidig={wellenessHuidig}
               voortgang={voortgang}
               seizoensplan={seizoensplan}
+              weekSessies={weekSessies}
               onOpenProfiel={() => setProfielOpen(true)}
             />
           )}

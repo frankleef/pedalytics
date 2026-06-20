@@ -4,6 +4,7 @@ import { T, STATUS, getStatus } from "../designTokens";
 import { berekenHerstelScore } from "./HerstelStatus";
 import InfoTooltip from "./InfoTooltip";
 import SharedHeader from "./SharedHeader";
+import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 
 function HrvChart({ hrvPunten, basislijn, gH, gW, gPadT, drawH, mn, mx, xI, yH, lijn, gridWaarden, labelInterval }) {
   const [hover, setHover] = useState(null);
@@ -64,7 +65,7 @@ function HrvChart({ hrvPunten, basislijn, gH, gW, gPadT, drawH, mn, mx, xI, yH, 
   );
 }
 
-export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voortgang, seizoensplan, onOpenProfiel }) {
+export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voortgang, seizoensplan, onOpenProfiel, weekSessies }) {
   const [periode, setPeriode] = useState(8);
   const [ftpHistorie, setFtpHistorie] = useState([]);
 
@@ -442,6 +443,204 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
 
           return (
             <HrvChart hrvPunten={hrvPunten} basislijn={basislijn} gH={gH} gW={gW} gPadT={gPadT} drawH={drawH} mn={mn} mx={mx} xI={xI} yH={yH} lijn={lijn} gridWaarden={gridWaarden} labelInterval={labelInterval} />
+          );
+        })()}
+
+        {/* Polarisatie-naleving */}
+        {(() => {
+          const grens = new Date(Date.now() - periode * 7 * 86400000);
+          const relevanteRitten = (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens && r.wattage);
+          if (relevanteRitten.length < 3) return null;
+
+          const wekenMap = {};
+          relevanteRitten.forEach(r => {
+            const d = new Date(r.datum_iso);
+            const maandag = new Date(d); maandag.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+            const weekKey = maandag.toISOString().split("T")[0];
+            if (!wekenMap[weekKey]) wekenMap[weekKey] = [];
+            wekenMap[weekKey].push(r);
+          });
+
+          const weken = Object.entries(wekenMap).sort(([a], [b]) => a.localeCompare(b)).slice(-10).map(([week, ritten]) => {
+            const z2Count = ritten.filter(r => {
+              const ifVal = r.np ? r.np / ftp : r.wattage / ftp;
+              return ifVal <= 0.76;
+            }).length;
+            const totaal = ritten.length;
+            const pct = totaal > 0 ? Math.round((z2Count / totaal) * 100) : 0;
+            return { week: week.slice(5).replace("-", "/"), pct, z2: z2Count, totaal };
+          });
+
+          if (weken.length < 2) return null;
+          const gemPct = Math.round(weken.reduce((s, w) => s + w.pct, 0) / weken.length);
+
+          return (
+            <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 18px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>Polarisatie</span>
+                <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: gemPct >= 75 ? "oklch(0.5 0.13 162)" : "oklch(0.55 0.11 92)" }}>gem. {gemPct}% Z1-Z2</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {weken.map((w, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ font: "600 9px var(--font-nunito), sans-serif", color: T.textTert, width: 34, textAlign: "right" }}>{w.week}</span>
+                    <div style={{ flex: 1, height: 14, borderRadius: 7, background: "oklch(0.94 0.02 75)", position: "relative", overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${w.pct}%`, borderRadius: 7, background: "oklch(0.70 0.12 240)" }} />
+                      <div style={{ position: "absolute", left: "80%", top: 0, bottom: 0, width: 1.5, background: "oklch(0.5 0.02 74)", opacity: 0.5 }} />
+                    </div>
+                    <span style={{ font: "600 10px var(--font-nunito), sans-serif", color: T.textSec, width: 28 }}>{w.pct}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Plan-naleving-trend */}
+        {(() => {
+          const grens = new Date(Date.now() - periode * 7 * 86400000);
+          const sessies = weekSessies?.sessies || [];
+          const ritten = (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens);
+          if (sessies.length < 2 && ritten.length < 2) return null;
+
+          const wekenMap = {};
+          const startDatum = seizoensplan?.startdatum;
+
+          sessies.filter(s => s.datum && new Date(s.datum) >= grens && !s.voltooid).forEach(s => {
+            const d = new Date(s.datum);
+            const maandag = new Date(d); maandag.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+            const weekKey = maandag.toISOString().split("T")[0];
+            if (!wekenMap[weekKey]) wekenMap[weekKey] = { matched: 0, deviated: 0, missed: 0, totaal: 0 };
+            const rit = ritten.find(r => r.datum_iso === s.datum);
+            if (rit) {
+              const cls = classificeerRit(rit, ftp);
+              if (ritMatchesSessie(cls, s.type)) wekenMap[weekKey].matched++;
+              else wekenMap[weekKey].deviated++;
+            } else if (new Date(s.datum) < new Date()) {
+              wekenMap[weekKey].missed++;
+            }
+            wekenMap[weekKey].totaal++;
+          });
+
+          const weken = Object.entries(wekenMap).sort(([a], [b]) => a.localeCompare(b)).slice(-10).map(([week, d]) => ({
+            week: week.slice(5).replace("-", "/"),
+            ...d,
+            pct: d.totaal > 0 ? Math.round((d.matched / d.totaal) * 100) : 0,
+          }));
+
+          if (weken.length < 2) return null;
+          const gemPct = Math.round(weken.reduce((s, w) => s + w.pct, 0) / weken.length);
+          const maxH = 60;
+
+          return (
+            <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 18px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>Plan-naleving</span>
+                <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: gemPct >= 70 ? "oklch(0.5 0.13 162)" : "oklch(0.55 0.11 92)" }}>gem. {gemPct}%</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: maxH + 20 }}>
+                {weken.map((w, i) => (
+                  <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                    <div style={{ width: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end", height: maxH }}>
+                      {w.totaal > 0 && (
+                        <div style={{ width: "100%", borderRadius: "5px 5px 2px 2px", overflow: "hidden", height: Math.max(4, (w.pct / 100) * maxH) }}>
+                          <div style={{ height: "100%", background: w.matched > 0 ? "oklch(0.6 0.13 165)" : w.deviated > 0 ? "oklch(0.72 0.13 70)" : "oklch(0.72 0.015 75)" }} />
+                        </div>
+                      )}
+                    </div>
+                    <span style={{ font: "600 8px var(--font-nunito), sans-serif", color: T.textTert }}>{w.week}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
+                {[
+                  { label: "Gematcht", color: "oklch(0.6 0.13 165)" },
+                  { label: "Afgeweken", color: "oklch(0.72 0.13 70)" },
+                  { label: "Gemist", color: "oklch(0.72 0.015 75)" },
+                ].map((l, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: 2, background: l.color }} />
+                    <span style={{ font: "600 10px var(--font-nunito), sans-serif", color: T.textSec }}>{l.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* PR/mijlpaal-feed */}
+        {(() => {
+          const grens = new Date(Date.now() - periode * 7 * 86400000);
+          const vorigeGrens = new Date(grens - periode * 7 * 86400000);
+          const huidigeRitten = soloRitten.filter(r => new Date(r.datum_iso) >= grens);
+          const vorigeRitten = soloRitten.filter(r => { const d = new Date(r.datum_iso); return d >= vorigeGrens && d < grens; });
+
+          const DUREN = [
+            { sec: 5, label: "5s sprint" }, { sec: 60, label: "1 min" },
+            { sec: 300, label: "5 min" }, { sec: 1200, label: "20 min" },
+          ];
+
+          const bestPerDuur = (ritten) => {
+            const bests = {};
+            ritten.forEach(r => {
+              if (!r.wattage || !r.duur_min) return;
+              const maxW = r.max_watt || Math.round((r.np || r.wattage) * 1.3);
+              const np = r.np || r.wattage;
+              DUREN.forEach(d => {
+                if (r.duur_min * 60 < d.sec) return;
+                let geschat;
+                if (d.sec <= 15) geschat = maxW;
+                else if (d.sec <= 60) geschat = Math.round(maxW * 0.80);
+                else geschat = np;
+                if (geschat > (bests[d.sec] || 0)) bests[d.sec] = geschat;
+              });
+            });
+            return bests;
+          };
+
+          const huidig = bestPerDuur(huidigeRitten);
+          const vorig = bestPerDuur(vorigeRitten);
+
+          const prs = DUREN.map(d => {
+            const nu = huidig[d.sec] || 0;
+            const was = vorig[d.sec] || 0;
+            if (!nu) return null;
+            const delta = was > 0 ? nu - was : null;
+            return { ...d, watt: nu, delta, isPR: delta != null && delta > 0 };
+          }).filter(Boolean);
+
+          if (prs.length === 0) return null;
+
+          return (
+            <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 18px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
+              <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase", display: "block", marginBottom: 14 }}>Best efforts</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {prs.map((p, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 10, background: p.isPR ? "oklch(0.93 0.05 70)" : T.subtleFill, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span style={{ fontSize: 16 }}>{p.isPR ? "⭐" : "⚡"}</span>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.text }}>{p.label}</div>
+                      <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec }}>
+                        {p.isPR ? `Nieuw PR deze periode` : `Beste ${periode} weken`}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                      <span style={{ font: "600 20px var(--font-fredoka), sans-serif", color: T.text }}>{p.watt}<span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>w</span></span>
+                      {p.delta != null && (
+                        <span style={{ padding: "3px 8px", borderRadius: 999, font: "800 11px var(--font-nunito), sans-serif",
+                          background: p.delta > 0 ? "oklch(0.93 0.05 162)" : p.delta < 0 ? "oklch(0.95 0.03 35)" : T.subtleFill,
+                          color: p.delta > 0 ? "oklch(0.4 0.13 162)" : p.delta < 0 ? "oklch(0.5 0.12 35)" : T.textSec,
+                        }}>
+                          {p.delta > 0 ? "+" : ""}{p.delta}W
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           );
         })()}
 
