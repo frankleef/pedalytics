@@ -1,26 +1,31 @@
 "use client";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { signIn } from "next-auth/react";
+import Turnstile from "../components/Turnstile";
 
 export default function RegisterPage() {
   const [naam, setNaam] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [bevestig, setBevestig] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState(null);
   const [fout, setFout] = useState("");
   const [laden, setLaden] = useState(false);
+
+  const handleTurnstile = useCallback((token) => setTurnstileToken(token), []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFout("");
     if (password.length < 8) { setFout("Kies een wachtwoord van minimaal 8 tekens"); return; }
     if (password !== bevestig) { setFout("De wachtwoorden komen niet overeen"); return; }
+    if (!turnstileToken) { setFout("Bevestig dat je geen robot bent"); return; }
     setLaden(true);
     try {
       const resp = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ naam, email, password }),
+        body: JSON.stringify({ naam, email, password, turnstileToken }),
       });
       const data = await resp.json();
       if (!data.success) { setFout(data.error || "Registratie mislukt"); setLaden(false); return; }
@@ -71,8 +76,10 @@ export default function RegisterPage() {
               style={{ width: "100%", padding: "13px 16px", borderRadius: 16, border: "1.5px solid oklch(0.88 0.014 80)", background: "oklch(0.965 0.012 84)", font: "600 15px var(--font-nunito), sans-serif", color: "oklch(0.27 0.02 70)", outline: "none", boxSizing: "border-box" }} />
           </label>
 
-          <button type="submit" disabled={laden}
-            style={{ width: "100%", padding: 16, borderRadius: 999, border: "none", background: "oklch(0.24 0.012 70)", color: "oklch(0.97 0.01 84)", font: "800 16px var(--font-nunito), sans-serif", cursor: laden ? "not-allowed" : "pointer", opacity: laden ? 0.6 : 1, letterSpacing: 0.2 }}>
+          <Turnstile onVerify={handleTurnstile} />
+
+          <button type="submit" disabled={laden || !turnstileToken}
+            style={{ width: "100%", padding: 16, borderRadius: 999, border: "none", background: turnstileToken ? "oklch(0.24 0.012 70)" : "oklch(0.88 0.014 80)", color: turnstileToken ? "oklch(0.97 0.01 84)" : "oklch(0.6 0.02 75)", font: "800 16px var(--font-nunito), sans-serif", cursor: laden || !turnstileToken ? "not-allowed" : "pointer", opacity: laden ? 0.6 : 1, letterSpacing: 0.2 }}>
             {laden ? "Account aanmaken..." : "Registreren"}
           </button>
         </form>

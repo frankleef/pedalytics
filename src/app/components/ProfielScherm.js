@@ -203,6 +203,16 @@ export default function ProfielScherm({ profiel, onTerug, onUitloggen }) {
           ))}
         </div>
 
+        {/* Koppeling intrekken */}
+        <button onClick={async () => {
+          if (!confirm("Weet je zeker dat je de intervals.icu-koppeling wilt intrekken? De app stopt met het ophalen van nieuwe gezondheidsgegevens.")) return;
+          await fetch("/api/onboarding/toestemming", { method: "DELETE" });
+          window.location.href = "/onboarding";
+        }}
+          style={{ width: "100%", padding: "13px 16px", borderRadius: 16, border: "1.5px solid oklch(0.88 0.014 80)", background: "transparent", cursor: "pointer", font: "700 13px var(--font-nunito), sans-serif", color: T.textSec, marginBottom: 16, textAlign: "center" }}>
+          Intervals.icu-koppeling intrekken
+        </button>
+
         {/* Weer-locatie */}
         <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 20px 22px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
           <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, display: "block", marginBottom: 14 }}>WEER-LOCATIE</span>

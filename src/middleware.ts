@@ -4,7 +4,7 @@ import { getToken } from "next-auth/jwt";
 import { Redis } from "@upstash/redis";
 
 const PUBLIC_PATHS = ["/login", "/register", "/api/auth", "/api/register"];
-const ONBOARDING_PATHS = ["/onboarding", "/api/onboarding"];
+const ONBOARDING_PATHS = ["/onboarding", "/api/onboarding", "/privacybeleid"];
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + "/") || pathname.startsWith(p + "?"));

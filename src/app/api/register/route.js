@@ -1,9 +1,30 @@
 import { NextResponse } from "next/server";
 import { createUser } from "@/lib/users";
 
+async function verifyTurnstile(token) {
+  const secret = process.env.TURNSTILE_SECRET_KEY;
+  if (!secret) return true; // skip in dev als geen key geconfigureerd
+  const resp = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ secret, response: token }),
+  });
+  const data = await resp.json();
+  return data.success === true;
+}
+
 export async function POST(request) {
   try {
-    const { naam, email, password } = await request.json();
+    const { naam, email, password, turnstileToken } = await request.json();
+
+    if (!turnstileToken) {
+      return NextResponse.json({ success: false, error: "Bevestig dat je geen robot bent" }, { status: 400 });
+    }
+    const geldig = await verifyTurnstile(turnstileToken);
+    if (!geldig) {
+      return NextResponse.json({ success: false, error: "Verificatie mislukt. Probeer opnieuw." }, { status: 400 });
+    }
+
     if (!naam || !email || !password) {
       return NextResponse.json({ success: false, error: "Alle velden zijn verplicht" }, { status: 400 });
     }
