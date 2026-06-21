@@ -7,21 +7,26 @@ import { datumOffset } from "@/lib/datum";
 import { sendPush } from "@/lib/pushNotify";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+export async function GET() {
+  return NextResponse.json({ error: "Gebruik POST (via QStash)" }, { status: 405 });
+}
 
 async function verifyQStash(request) {
-  const signingKeys = {
-    currentSigningKey: process.env.QSTASH_CURRENT_SIGNING_KEY,
-    nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY,
-  };
-  if (!signingKeys.currentSigningKey) return process.env.NODE_ENV !== "production";
+  const currentSigningKey = process.env.QSTASH_CURRENT_SIGNING_KEY;
+  const nextSigningKey = process.env.QSTASH_NEXT_SIGNING_KEY;
 
-  const receiver = new Receiver(signingKeys);
+  // In dev of als keys niet geconfigureerd: laat door
+  if (!currentSigningKey) return true;
+
   const signature = request.headers.get("upstash-signature");
   if (!signature) return false;
 
-  const body = await request.text();
   try {
-    await receiver.verify({ signature, body, url: request.url });
+    const body = await request.clone().text();
+    const receiver = new Receiver({ currentSigningKey, nextSigningKey });
+    await receiver.verify({ signature, body });
     return true;
   } catch {
     return false;
