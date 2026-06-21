@@ -4,17 +4,22 @@ export async function subscribeToPush() {
   const permission = await Notification.requestPermission();
   if (permission !== "granted") return false;
 
+  const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  if (!vapidKey) { console.error("VAPID public key ontbreekt"); return false; }
+
   const reg = await navigator.serviceWorker.ready;
   const subscription = await reg.pushManager.subscribe({
     userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
+    applicationServerKey: urlBase64ToUint8Array(vapidKey),
   });
 
-  await fetch("/api/push/subscribe", {
+  const resp = await fetch("/api/push/subscribe", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(subscription.toJSON()),
   });
+  const data = await resp.json();
+  if (!data.success) { console.error("Push subscribe mislukt:", data.error); return false; }
 
   return true;
 }
