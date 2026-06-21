@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { T } from "../designTokens";
 import ScaleInput from "./ScaleInput";
+import { subscribeToPush, unsubscribeFromPush, isPushSubscribed } from "../../lib/pushClient";
 
 const ZONE_KLEUREN = [
   "oklch(0.82 0.05 245)", "oklch(0.70 0.12 240)", "oklch(0.72 0.13 165)",
@@ -238,7 +239,15 @@ export default function ProfielScherm({ profiel, onTerug, onUitloggen }) {
               <div style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.text }}>Push-notificaties</div>
               <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec, marginTop: 2 }}>Melding bij nieuwe ritten en herinneringen</div>
             </div>
-            <button type="button" onClick={() => { window.alert("Push knop werkt"); }}
+            <button type="button" onClick={() => {
+              isPushSubscribed().then(subscribed => {
+                if (subscribed) {
+                  unsubscribeFromPush().then(() => window.alert("Notificaties uitgeschakeld"));
+                } else {
+                  subscribeToPush().then(ok => window.alert(ok ? "Notificaties ingeschakeld!" : "Toestemming geweigerd of niet ondersteund"));
+                }
+              }).catch(e => window.alert("Fout: " + e.message));
+            }}
               style={{ padding: "8px 16px", borderRadius: 999, border: "1.5px solid oklch(0.86 0.014 80)", background: "transparent", cursor: "pointer", font: "700 12.5px var(--font-nunito), sans-serif", color: "oklch(0.42 0.02 72)" }}>
               Beheren
             </button>
