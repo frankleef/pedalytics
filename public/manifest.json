@@ -1,24 +1,36 @@
 {
-  "name": "Fietscoach Frank",
-  "short_name": "Fietscoach",
-  "description": "Persoonlijke fietscoach met Strava-analyse en weekschema",
+  "name": "Pedalytics",
+  "short_name": "Pedalytics",
+  "description": "Je persoonlijke AI-fietscoach — trainingsplan, monitoring en bijsturing",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#07111d",
-  "theme_color": "#07111d",
+  "background_color": "#F5F1EA",
+  "theme_color": "#F5F1EA",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/icons/icon-192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "categories": ["sports", "health", "fitness"]

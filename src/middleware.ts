@@ -18,7 +18,7 @@ function isOnboarding(pathname: string) {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (isPublic(pathname) || pathname.startsWith("/_next/") || pathname.startsWith("/favicon") || /\.(ico|png|svg|jpg|webp|css|js|woff2?)$/.test(pathname)) {
+  if (isPublic(pathname) || pathname.startsWith("/_next/") || pathname.startsWith("/favicon") || pathname.startsWith("/.well-known/") || /\.(ico|png|svg|jpg|webp|css|js|woff2?|json)$/.test(pathname)) {
     return NextResponse.next();
   }
 
@@ -44,7 +44,7 @@ export async function middleware(request: NextRequest) {
     const overgeslagen = await redis.get(`user:${userId}:onboarding_overgeslagen`);
     if (!hasKey && !overgeslagen) {
       const onboardingUrl = request.nextUrl.clone();
-      onboardingUrl.pathname = "/onboarding";
+      onboardingUrl.pathname = "/onboarding/intervals";
       return NextResponse.redirect(onboardingUrl);
     }
   }

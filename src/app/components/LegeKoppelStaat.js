@@ -15,7 +15,7 @@ export default function LegeKoppelStaat({ context = "data" }) {
         Koppel intervals.icu
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 5l7 7-7 7" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
       </a>
-      <a href="/onboarding" style={{ display: "block", marginTop: 14, font: "700 13px var(--font-nunito), sans-serif", color: "oklch(0.5 0.14 248)", textDecoration: "none" }}>
+      <a href="/onboarding/intervals" style={{ display: "block", marginTop: 14, font: "700 13px var(--font-nunito), sans-serif", color: "oklch(0.5 0.14 248)", textDecoration: "none" }}>
         Hulp nodig bij het koppelen?
       </a>
     </div>
