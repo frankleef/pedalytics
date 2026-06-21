@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { Redis } from "@upstash/redis";
+import { getToken } from "next-auth/jwt";
 
-const PUBLIC_PATHS = ["/login", "/api/login", "/api/logout-all", "/api/test"];
+const PUBLIC_PATHS = ["/login", "/register", "/api/auth"];
 
 function isPublic(pathname: string) {
-  return PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + "/"));
+  return PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + "/") || pathname.startsWith(p + "?"));
 }
 
 export async function middleware(request: NextRequest) {
@@ -15,18 +15,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const sessionId = request.cookies.get("session_id")?.value;
+  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
 
-  if (sessionId) {
-    try {
-      const redis = new Redis({
-        url: process.env.KV_REST_API_URL!,
-        token: process.env.KV_REST_API_TOKEN!,
-      });
-      const valid = await redis.get(`session:${sessionId}`);
-      if (valid) return NextResponse.next();
-    } catch {}
-  }
+  if (token) return NextResponse.next();
 
   const loginUrl = request.nextUrl.clone();
   loginUrl.pathname = "/login";

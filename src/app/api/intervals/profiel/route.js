@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
-import { intervalsGet, intervalsAuth, ATHLETE_ID } from "@/lib/intervals";
+import { intervalsGet, intervalsAuth } from "@/lib/intervals";
 import { getKV } from "@/lib/kv";
 import { vandaagISO, datumOffset } from "@/lib/datum";
 
 export async function GET() {
   try {
+    const ATHLETE_ID = process.env.INTERVALS_ATHLETE_ID || "i594622";
+    const API_KEY = process.env.INTERVALS_API_KEY;
     const resp = await fetch(`https://intervals.icu/api/v1/athlete/${ATHLETE_ID}`, {
-      headers: { Authorization: intervalsAuth() },
+      headers: { Authorization: intervalsAuth(API_KEY) },
       next: { revalidate: 0 },
     });
     if (!resp.ok) throw new Error(`Intervals API ${resp.status}`);
