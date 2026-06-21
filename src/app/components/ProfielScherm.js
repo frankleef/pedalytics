@@ -231,6 +231,25 @@ export default function ProfielScherm({ profiel, onTerug, onUitloggen }) {
           )}
         </div>
 
+        {/* Notificaties */}
+        <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "16px 20px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.text }}>Push-notificaties</div>
+              <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec, marginTop: 2 }}>Melding bij nieuwe ritten en herinneringen</div>
+            </div>
+            <button onClick={async () => {
+              const { subscribeToPush, unsubscribeFromPush, isPushSubscribed } = await import("@/lib/pushClient");
+              const subscribed = await isPushSubscribed();
+              if (subscribed) { await unsubscribeFromPush(); alert("Notificaties uitgeschakeld"); }
+              else { const ok = await subscribeToPush(); alert(ok ? "Notificaties ingeschakeld" : "Toestemming geweigerd"); }
+            }}
+              style={{ padding: "8px 16px", borderRadius: 999, border: "1.5px solid oklch(0.86 0.014 80)", background: "transparent", cursor: "pointer", font: "700 12.5px var(--font-nunito), sans-serif", color: "oklch(0.42 0.02 72)" }}>
+              Beheren
+            </button>
+          </div>
+        </div>
+
         {/* Koppeling intrekken */}
         <button onClick={async () => {
           if (!confirm("Weet je zeker dat je de intervals.icu-koppeling wilt intrekken? De app stopt met het ophalen van nieuwe gezondheidsgegevens.")) return;

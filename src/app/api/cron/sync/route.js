@@ -4,6 +4,7 @@ import { getKV } from "@/lib/kv";
 import { intervalsGet } from "@/lib/intervals";
 import { decrypt } from "@/lib/crypto";
 import { datumOffset } from "@/lib/datum";
+import { sendPush } from "@/lib/pushNotify";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,13 @@ export async function POST(request) {
           id: nieuwste.id,
           datum_iso: nieuwste.start_date_local?.split("T")[0],
           checkedAt: new Date().toISOString(),
+        });
+
+        // Push-notificatie bij nieuwe rit
+        await sendPush(userId, {
+          title: "Nieuwe rit gedetecteerd",
+          body: `Je rit van ${nieuwste.start_date_local?.split("T")[0]} is verwerkt`,
+          url: "/",
         });
 
         results.push({ userId, status: "new_activity", id: nieuwste.id });
