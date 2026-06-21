@@ -75,19 +75,23 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
   })();
 
   // PR-teaser: beste recente PR uit power curve vergelijking
-  const prTeaser = (() => {
-    const DUREN = [{ sec: 5, label: "5s sprint" }, { sec: 60, label: "1 min" }, { sec: 300, label: "5 min" }, { sec: 1200, label: "20 min" }];
-    const ritten = voortgang?.ritten || [];
-    const grens14 = new Date(Date.now() - 14 * 86400000);
-    const recent = ritten.filter(r => r.datum_iso && new Date(r.datum_iso) >= grens14);
-    const ouder = ritten.filter(r => r.datum_iso && new Date(r.datum_iso) < grens14);
-    if (recent.length === 0 || ouder.length === 0) return null;
-    const best = (rs) => { const b = {}; rs.forEach(r => { if (!r.max_watt && !r.wattage) return; DUREN.forEach(d => { const v = d.sec <= 15 ? (r.max_watt || r.wattage) : r.wattage; if (v && r.duur_min * 60 >= d.sec && v > (b[d.sec] || 0)) b[d.sec] = v; }); }); return b; };
-    const nu2 = best(recent); const was = best(ouder);
-    let beste = null;
-    DUREN.forEach(d => { const delta = (nu2[d.sec] || 0) - (was[d.sec] || 0); if (delta > 0 && (!beste || delta > beste.delta)) beste = { ...d, watt: nu2[d.sec], delta }; });
-    return beste;
-  })();
+  const [prTeaser, setPrTeaser] = useState(null);
+  useEffect(() => {
+    fetch("/api/intervals/power-curves?periode=42d&vorige=84d").then(r => r.json()).then(d => {
+      if (!d.success) return;
+      const DUREN = [{ sec: 5, label: "5s sprint" }, { sec: 60, label: "1 min" }, { sec: 300, label: "5 min" }, { sec: 1200, label: "20 min" }];
+      let beste = null;
+      DUREN.forEach(dur => {
+        const nu = (d.huidig || []).find(p => p.sec === dur.sec)?.watt || 0;
+        const was = (d.vorig || []).find(p => p.sec === dur.sec)?.watt || 0;
+        if (nu > 0 && was > 0) {
+          const delta = nu - was;
+          if (delta > 0 && (!beste || delta > beste.delta)) beste = { ...dur, watt: nu, delta };
+        }
+      });
+      setPrTeaser(beste);
+    }).catch(() => {});
+  }, []);
 
   const eerstvolgende = (() => {
     const sessies = weekSessies?.sessies?.filter(s => s.type !== "rust") || [];
