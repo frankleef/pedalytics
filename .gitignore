@@ -4,3 +4,15 @@ node_modules/
 .strava-token.json
 .seizoensplan.json
 design/
+
+# Bubblewrap / Android TWA
+android.keystore
+app/
+build.gradle
+settings.gradle
+gradle.properties
+gradle/
+gradlew
+gradlew.bat
+manifest-checksum.txt
+store_icon.png

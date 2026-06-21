@@ -3,8 +3,8 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "VERVANG_MET_JE_PAKKETNAAM",
-      "sha256_cert_fingerprints": ["VERVANG_MET_JE_SHA256_VINGERAFDRUK"]
+      "package_name": "app.vercel.pedalytics_opal.twa",
+      "sha256_cert_fingerprints": ["A6:5D:79:BE:08:76:04:49:CE:CF:43:D9:21:E3:BB:70:77:60:87:6C:75:41:C2:9C:41:7B:93:5F:89:09:EF:8C"]
     }
   }
 ]
