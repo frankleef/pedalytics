@@ -238,14 +238,7 @@ export default function ProfielScherm({ profiel, onTerug, onUitloggen }) {
               <div style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.text }}>Push-notificaties</div>
               <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec, marginTop: 2 }}>Melding bij nieuwe ritten en herinneringen</div>
             </div>
-            <button onClick={async () => {
-              try {
-                const mod = await import("../../lib/pushClient");
-                const subscribed = await mod.isPushSubscribed();
-                if (subscribed) { await mod.unsubscribeFromPush(); alert("Notificaties uitgeschakeld"); }
-                else { const ok = await mod.subscribeToPush(); alert(ok ? "Notificaties ingeschakeld" : "Toestemming geweigerd of niet ondersteund"); }
-              } catch (e) { alert("Fout: " + e.message); console.error("Push error:", e); }
-            }}
+            <button type="button" onClick={() => { window.alert("Push knop werkt"); }}
               style={{ padding: "8px 16px", borderRadius: 999, border: "1.5px solid oklch(0.86 0.014 80)", background: "transparent", cursor: "pointer", font: "700 12.5px var(--font-nunito), sans-serif", color: "oklch(0.42 0.02 72)" }}>
               Beheren
             </button>
