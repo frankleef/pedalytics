@@ -7,7 +7,7 @@ design/
 
 # Bubblewrap / Android TWA
 android.keystore
-app/
+/app/
 build.gradle
 settings.gradle
 gradle.properties
