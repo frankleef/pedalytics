@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { Redis } from "@upstash/redis";
+// Redis wordt alleen gebruikt als het JWT-token nog geen hasIntervalsKey/onboardingSkipped flag heeft (eerste login na koppeling)
 
 const PUBLIC_PATHS = ["/login", "/register", "/api/auth", "/api/register"];
 const ONBOARDING_PATHS = ["/onboarding", "/api/onboarding", "/privacybeleid"];
@@ -33,7 +34,8 @@ export async function middleware(request: NextRequest) {
   if (isOnboarding(pathname)) return NextResponse.next();
 
   const userId = token.userId as string;
-  if (userId) {
+  const hasSetup = token.hasIntervalsKey || token.onboardingSkipped;
+  if (userId && !hasSetup) {
     const redis = new Redis({
       url: process.env.KV_REST_API_URL!,
       token: process.env.KV_REST_API_TOKEN!,

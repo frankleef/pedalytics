@@ -52,6 +52,20 @@ export const authOptions = {
           token.userId = user.id;
         }
       }
+      if (token.userId && !token.hasIntervalsKey) {
+        const kv = getKV();
+        const [encKey, athleteId, skipped] = await kv.mget(
+          `user:${token.userId}:intervals_key`,
+          `user:${token.userId}:athlete_id`,
+          `user:${token.userId}:onboarding_overgeslagen`
+        );
+        if (encKey) {
+          token.hasIntervalsKey = true;
+          token.athleteId = athleteId;
+        } else if (skipped) {
+          token.onboardingSkipped = true;
+        }
+      }
       return token;
     },
     async session({ session, token }) {

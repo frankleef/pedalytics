@@ -50,15 +50,28 @@ export async function setIntervalsKey(userId, apiKey) {
   await kv.set(`user:${userId}:athlete_id`, athlete.id);
   await kv.set(`user:${userId}:athlete_naam`, athlete.name || athlete.firstname || "");
   await kv.set(`user:${userId}:apparaten`, gekoppeldeApparaten);
+  invalidateCredsCache(userId);
   return { athleteId: athlete.id, naam: athlete.name, apparaten: gekoppeldeApparaten };
 }
 
+// In-memory cache voor credentials (24 uur TTL, per serverless instance)
+const credsCache = new Map();
+const CREDS_TTL = 24 * 60 * 60 * 1000;
+
+export function invalidateCredsCache(userId) {
+  credsCache.delete(userId);
+}
+
 export async function getIntervalsCredentials(userId) {
+  const cached = credsCache.get(userId);
+  if (cached && Date.now() - cached.ts < CREDS_TTL) return cached.data;
+
   const kv = getKV();
-  const encKey = await kv.get(`user:${userId}:intervals_key`);
-  const athleteId = await kv.get(`user:${userId}:athlete_id`);
+  const [encKey, athleteId] = await kv.mget(`user:${userId}:intervals_key`, `user:${userId}:athlete_id`);
   if (!encKey) return null;
-  return { apiKey: decrypt(encKey), athleteId };
+  const data = { apiKey: decrypt(encKey), athleteId };
+  credsCache.set(userId, { data, ts: Date.now() });
+  return data;
 }
 
 export function kvKey(userId, key) {

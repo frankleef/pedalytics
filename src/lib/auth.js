@@ -1,4 +1,5 @@
 import { getServerSession } from "next-auth";
+import { getToken } from "next-auth/jwt";
 import { authOptions } from "./authOptions";
 import { getIntervalsCredentials, kvKey } from "./users";
 import { getKV } from "./kv";
