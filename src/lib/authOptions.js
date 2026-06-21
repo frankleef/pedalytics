@@ -52,7 +52,7 @@ export const authOptions = {
           token.userId = user.id;
         }
       }
-      if (token.userId && !token.hasIntervalsKey) {
+      if (token.userId && !token.hasIntervalsKey && !token._checkedAt) {
         const kv = getKV();
         const [encKey, athleteId, skipped] = await kv.mget(
           `user:${token.userId}:intervals_key`,
@@ -65,6 +65,7 @@ export const authOptions = {
         } else if (skipped) {
           token.onboardingSkipped = true;
         }
+        token._checkedAt = Date.now();
       }
       return token;
     },

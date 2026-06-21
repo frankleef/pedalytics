@@ -12,6 +12,7 @@ import ProfielScherm from "./components/ProfielScherm";
 import { startJob, pollJob } from "@/lib/jobClient";
 import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
 import LegeKoppelStaat from "./components/LegeKoppelStaat";
+import { demoProfiel, demoSeizoensplan, demoWellness, demoRitten } from "@/lib/demoData";
 
 const PROFIEL_DEFAULT = { ftp: 265, lt_hr: 184, max_hr: 200, gewicht: 90, hrv_basislijn: 58, hr_basislijn: 49, doel: "31+ km/u gemiddeld solo in Z2" };
 
@@ -46,22 +47,31 @@ export default function Page() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("tab") === "ochtend") setTab(0);
     fetch("/api/intervals/profiel").then(r => r.json()).then(d => {
-      if (d.success && d.data) setProfiel(p => ({ ...p, ...d.data }));
-      else if (d.notLinked) setNietGekoppeld(true);
-    }).catch(() => {});
-    fetch("/api/plan").then(r => r.json()).then(d => {
       if (d.success && d.data) {
-        setSeizoensplan(d.data);
-        if (d.data.beschikbaarheid) setBeschikbaar(d.data.beschikbaarheid);
-        if (d.data.urenPerDag) setUrenPerDag(d.data.urenPerDag);
-        if (d.data.weekSessies) setWeekSessies(d.data.weekSessies);
-        if (d.data.planStatus === "genereren") {
-          setPlanStap("genereren");
-          setPlanVoortgang(d.data.kader ? 4 : 0);
-          if (!d.data.kader) setPlanHerstart(true);
-        }
-      } else setTab(1);
-    }).catch(() => setTab(1));
+        setProfiel(p => ({ ...p, ...d.data }));
+        // Profiel OK → laad plan
+        fetch("/api/plan").then(r => r.json()).then(pd => {
+          if (pd.success && pd.data) {
+            setSeizoensplan(pd.data);
+            if (pd.data.beschikbaarheid) setBeschikbaar(pd.data.beschikbaarheid);
+            if (pd.data.urenPerDag) setUrenPerDag(pd.data.urenPerDag);
+            if (pd.data.weekSessies) setWeekSessies(pd.data.weekSessies);
+            if (pd.data.planStatus === "genereren") {
+              setPlanStap("genereren");
+              setPlanVoortgang(pd.data.kader ? 4 : 0);
+              if (!pd.data.kader) setPlanHerstart(true);
+            }
+          } else setTab(1);
+        }).catch(() => setTab(1));
+      } else if (d.notLinked) {
+        setNietGekoppeld(true);
+        setProfiel(demoProfiel);
+        setSeizoensplan(demoSeizoensplan);
+        setWeekSessies(demoSeizoensplan.weekSessies);
+        setWellness(demoWellness);
+        setVoortgang({ ritten: demoRitten });
+      }
+    }).catch(() => {});
     laadDagelijkseData();
     laadRecenteRitten();
   }, []);
@@ -578,7 +588,7 @@ export default function Page() {
         <SeizoensplanOverzicht plan={seizoensplan} onDoorGaan={() => setPlanStap(null)} />
       )}
 
-      {!planStap && !seizoensplan && tab === 1 && (
+      {!planStap && !seizoensplan && !nietGekoppeld && tab === 1 && (
         <SeizoenWizard
           profiel={PROFIEL}
           wellness={wellenessHuidig}
@@ -610,11 +620,18 @@ export default function Page() {
             </div>
           )}
 
-          {nietGekoppeld && tab === 0 && <LegeKoppelStaat context="data" />}
-          {nietGekoppeld && tab === 1 && <LegeKoppelStaat context="training" />}
-          {nietGekoppeld && tab === 2 && <LegeKoppelStaat context="voortgang" />}
+          {/* Demo-banner als niet gekoppeld */}
+          {nietGekoppeld && (
+            <div style={{ maxWidth: 540, margin: "0 auto", padding: "0 14px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 16, background: "oklch(0.95 0.022 248)", border: "1px solid oklch(0.9 0.03 240)", marginBottom: 14 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="9" stroke="oklch(0.55 0.09 248)" strokeWidth="2"/><path d="M12 8v4l2.5 1.5" stroke="oklch(0.55 0.09 248)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                <span style={{ flex: 1, font: "600 12.5px var(--font-nunito), sans-serif", color: "oklch(0.4 0.06 248)" }}>Dit is een voorbeeldomgeving</span>
+                <a href="/onboarding/intervals" style={{ flexShrink: 0, font: "800 12px var(--font-nunito), sans-serif", color: "oklch(0.97 0.01 84)", background: "oklch(0.55 0.12 248)", padding: "6px 12px", borderRadius: 999, textDecoration: "none" }}>Koppelen</a>
+              </div>
+            </div>
+          )}
 
-          {!nietGekoppeld && tab === 0 && (
+          {tab === 0 && (
             <HomeTab
               profiel={profiel}
               wellenessHuidig={wellenessHuidig}
@@ -642,7 +659,7 @@ export default function Page() {
             />
           )}
 
-          {!nietGekoppeld && tab === 1 && (
+          {seizoensplan && tab === 1 && (
             <SchemaTab
               key={schemaDagOffset}
               seizoensplan={seizoensplan}
@@ -659,7 +676,7 @@ export default function Page() {
             />
           )}
 
-          {!nietGekoppeld && tab === 2 && (
+          {tab === 2 && (
             <VoortgangTab
               profiel={profiel}
               wellness={wellness}
