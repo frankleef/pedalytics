@@ -9,11 +9,15 @@ export async function getSessionUser() {
   return session.user;
 }
 
+export class NietGekoppeldError extends Error {
+  constructor() { super("Intervals.icu niet gekoppeld"); this.code = "NOT_LINKED"; }
+}
+
 export async function getUserIntervalsConfig() {
   const user = await getSessionUser();
   if (!user) throw new Error("Niet ingelogd");
   const creds = await getIntervalsCredentials(user.id);
-  if (!creds) throw new Error("Intervals.icu niet gekoppeld");
+  if (!creds) throw new NietGekoppeldError();
   return { userId: user.id, ...creds };
 }
 

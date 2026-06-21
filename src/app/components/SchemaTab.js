@@ -168,7 +168,7 @@ export default function SchemaTab({
   const [rpeOpgeslagen, setRpeOpgeslagen] = useState({});
   const [streamsCache, setStreamsCache] = useState({});
   const [streamsLaden, setStreamsLaden] = useState(null);
-  const [wahooTipWeg, setWahooTipWeg] = useState(() => typeof window !== "undefined" && localStorage.getItem("wahooTipGezien") === "1");
+  const [deviceTipWeg, setDeviceTipWeg] = useState(() => typeof window !== "undefined" && localStorage.getItem("deviceTipGezien") === "1");
   const stripRef = useRef(null);
 
   const nu = new Date();
@@ -528,16 +528,16 @@ export default function SchemaTab({
               </div>
             )}
 
-            {sessie.intervalsEventId && !wahooTipWeg && (
+            {sessie.intervalsEventId && !deviceTipWeg && (
               <div style={{ background: "oklch(0.955 0.03 220)", border: "1px solid oklch(0.85 0.06 220)", borderRadius: 18, padding: "14px 16px", marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 10 }}>
                 <span style={{ fontSize: 16, lineHeight: 1.3, flexShrink: 0 }}>&#x2139;&#xFE0F;</span>
                 <div style={{ flex: 1 }}>
-                  <div style={{ font: "700 13px var(--font-nunito), sans-serif", color: "oklch(0.35 0.06 220)", marginBottom: 4 }}>Wahoo-koppeling nodig</div>
+                  <div style={{ font: "700 13px var(--font-nunito), sans-serif", color: "oklch(0.35 0.06 220)", marginBottom: 4 }}>Fietscomputer-koppeling</div>
                   <div style={{ font: "600 12px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.45 0.04 220)" }}>
-                    Deze sessie staat in intervals.icu. Om hem op je Wahoo te krijgen: koppel Wahoo in intervals.icu-instellingen en vink "upload workouts" aan.
+                    Deze sessie staat in intervals.icu. Om hem op je fietscomputer te krijgen: koppel je toestel in intervals.icu-instellingen en vink "upload workouts" aan.
                   </div>
                 </div>
-                <button onClick={() => { setWahooTipWeg(true); localStorage.setItem("wahooTipGezien", "1"); }}
+                <button onClick={() => { setWahooTipWeg(true); localStorage.setItem("deviceTipGezien", "1"); }}
                   style={{ background: "none", border: "none", cursor: "pointer", font: "600 11px var(--font-nunito), sans-serif", color: "oklch(0.55 0.04 220)", padding: "2px 6px", flexShrink: 0 }}>Begrepen</button>
               </div>
             )}

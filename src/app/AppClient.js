@@ -11,6 +11,7 @@ import SeizoensplanOverzicht from "./components/SeizoensplanOverzicht";
 import ProfielScherm from "./components/ProfielScherm";
 import { startJob, pollJob } from "@/lib/jobClient";
 import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
+import LegeKoppelStaat from "./components/LegeKoppelStaat";
 
 const PROFIEL_DEFAULT = { ftp: 265, lt_hr: 184, max_hr: 200, gewicht: 90, hrv_basislijn: 58, hr_basislijn: 49, doel: "31+ km/u gemiddeld solo in Z2" };
 
@@ -37,6 +38,7 @@ export default function Page() {
   const [fout, setFout] = useState(null);
   const [succesMelding, setSuccesMelding] = useState(null);
   const [profielOpen, setProfielOpen] = useState(false);
+  const [nietGekoppeld, setNietGekoppeld] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -45,6 +47,7 @@ export default function Page() {
     if (params.get("tab") === "ochtend") setTab(0);
     fetch("/api/intervals/profiel").then(r => r.json()).then(d => {
       if (d.success && d.data) setProfiel(p => ({ ...p, ...d.data }));
+      else if (d.notLinked) setNietGekoppeld(true);
     }).catch(() => {});
     fetch("/api/plan").then(r => r.json()).then(d => {
       if (d.success && d.data) {
@@ -607,7 +610,11 @@ export default function Page() {
             </div>
           )}
 
-          {tab === 0 && (
+          {nietGekoppeld && tab === 0 && <LegeKoppelStaat context="data" />}
+          {nietGekoppeld && tab === 1 && <LegeKoppelStaat context="training" />}
+          {nietGekoppeld && tab === 2 && <LegeKoppelStaat context="voortgang" />}
+
+          {!nietGekoppeld && tab === 0 && (
             <HomeTab
               profiel={profiel}
               wellenessHuidig={wellenessHuidig}
@@ -635,7 +642,7 @@ export default function Page() {
             />
           )}
 
-          {tab === 1 && (
+          {!nietGekoppeld && tab === 1 && (
             <SchemaTab
               key={schemaDagOffset}
               seizoensplan={seizoensplan}
@@ -652,7 +659,7 @@ export default function Page() {
             />
           )}
 
-          {tab === 2 && (
+          {!nietGekoppeld && tab === 2 && (
             <VoortgangTab
               profiel={profiel}
               wellness={wellness}

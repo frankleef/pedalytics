@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { intervalsGet, intervalsAuth } from "@/lib/intervals";
 import { getKV } from "@/lib/kv";
 import { vandaagISO, datumOffset } from "@/lib/datum";
-import { getUserIntervalsConfig } from "@/lib/auth";
+import { getUserIntervalsConfig, NietGekoppeldError } from "@/lib/auth";
 
 export async function GET() {
   try {
@@ -55,6 +55,7 @@ export async function GET() {
 
     return NextResponse.json({ success: true, data: profiel });
   } catch (e) {
+    if (e.code === "NOT_LINKED") return NextResponse.json({ success: false, notLinked: true });
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }

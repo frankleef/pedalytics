@@ -9,8 +9,11 @@ export default function ToestemmingPage() {
   const router = useRouter();
 
   useEffect(() => {
-    fetch("/api/onboarding/toestemming").then(r => r.json()).then(d => {
-      if (d.success && d.heeftToestemming) { setAlToestemming(true); router.push("/onboarding/intervals"); }
+    fetch("/api/onboarding/intervals").then(r => r.json()).then(d => {
+      if (d.success) {
+        if (d.heeftKey) { router.push("/"); return; }
+        if (d.heeftToestemming) { setAlToestemming(true); router.push("/onboarding/intervals"); }
+      }
     }).catch(() => {});
   }, []);
 

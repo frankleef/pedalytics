@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { intervalsGet, intervalsPut } from "@/lib/intervals";
 import { vandaagISO } from "@/lib/datum";
-import { getUserIntervalsConfig } from "@/lib/auth";
+import { getUserIntervalsConfig, NietGekoppeldError } from "@/lib/auth";
 
 export async function GET(request) {
   try {

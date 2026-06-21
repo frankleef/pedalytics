@@ -98,11 +98,47 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
       .filter(s => s.dagIdx >= vandaagDagIdx)
       .sort((a, b) => a.dagIdx - b.dagIdx)[0] || null;
   })();
+
+  // Sync health-check: toon banner alleen als:
+  // - geen wellness-data in 3+ dagen EN er een geplande sessie gemist is (geen rustweek)
+  // - NIET als het gewoon een rustweek is zonder geplande sessies
+  const [syncBannerWeg, setSyncBannerWeg] = useState(false);
+  const syncGap = (() => {
+    const data = dagelijkseData || [];
+    if (data.length === 0) return false;
+    const laatste = data[data.length - 1];
+    const laatsteDatum = laatste?.datum?.replace("/", "-") || laatste?.id?.split("T")[0];
+    if (!laatsteDatum) return false;
+    const diff = (Date.now() - new Date(laatsteDatum.length === 5 ? `2026-${laatsteDatum}` : laatsteDatum).getTime()) / 86400000;
+    if (diff <= 3) return false;
+    // Check of er geplande sessies waren in de gap-periode (niet alleen een rustweek)
+    const sessies = weekSessies?.sessies || [];
+    const heeftGeplandInGap = sessies.some(s => s.datum && !s.voltooid && new Date(s.datum) < new Date());
+    return heeftGeplandInGap;
+  })();
+
   return (
     <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: T.font, paddingBottom: T.navH + 20 }}>
       <div style={{ maxWidth: 540, margin: "0 auto", padding: `16px ${T.pad}px 28px` }}>
 
         <SharedHeader onAvatarClick={onOpenProfiel} />
+
+        {/* Sync health banner */}
+        {syncGap && !syncBannerWeg && (
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 11, padding: "14px 16px", borderRadius: 18, background: "oklch(0.97 0.022 78)", border: "1px solid oklch(0.9 0.05 75)", marginBottom: 16 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, marginTop: 1 }}><path d="M12 4l9 16H3z" fill="oklch(0.92 0.05 75)" stroke="oklch(0.72 0.13 70)" strokeWidth="1.6" strokeLinejoin="round"/><path d="M12 10v4M12 17h.01" stroke="oklch(0.55 0.11 65)" strokeWidth="2" strokeLinecap="round"/></svg>
+            <div style={{ flex: 1 }}>
+              <div style={{ font: "700 13px var(--font-nunito), sans-serif", color: "oklch(0.48 0.1 62)", marginBottom: 3 }}>Geen nieuwe data in 3+ dagen</div>
+              <div style={{ font: "600 12px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.5 0.02 74)" }}>
+                Controleer je Garmin/WHOOP-koppeling in intervals.icu.{" "}
+                <a href="https://intervals.icu/settings" target="_blank" rel="noopener" style={{ color: "oklch(0.55 0.13 200)", fontWeight: 800, textDecoration: "none" }}>Instellingen →</a>
+              </div>
+            </div>
+            <button onClick={() => setSyncBannerWeg(true)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, flexShrink: 0 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="oklch(0.55 0.05 70)" strokeWidth="2.2" strokeLinecap="round"/></svg>
+            </button>
+          </div>
+        )}
 
         {/* Fase/week eyebrow */}
         {faseLabel && (
@@ -345,7 +381,7 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
               {eerstvolgende?.intervalsEventId && (
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: -10, marginBottom: 16, padding: "0 4px" }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="oklch(0.5 0.13 162)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  <span style={{ font: "600 11.5px var(--font-nunito), sans-serif", color: "oklch(0.5 0.13 162)" }}>Gesynchroniseerd naar Wahoo</span>
+                  <span style={{ font: "600 11.5px var(--font-nunito), sans-serif", color: "oklch(0.5 0.13 162)" }}>Gesynchroniseerd naar je fietscomputer</span>
                 </div>
               )}
             </>

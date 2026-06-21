@@ -57,6 +57,7 @@ const STEDEN = [
 export default function ProfielScherm({ profiel, onTerug, onUitloggen }) {
   const [checkin, setCheckin] = useState(null);
   const [weerStad, setWeerStad] = useState("Breda");
+  const [hulpOpen, setHulpOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/checkin").then(r => r.json()).then(d => {
@@ -78,9 +79,10 @@ export default function ProfielScherm({ profiel, onTerug, onUitloggen }) {
   const powerZones = bouwPowerZones(ftp, profiel?.power_zones, profiel?.power_zone_names);
   const hrZones = bouwHrZones(profiel?.hr_zones, profiel?.hr_zone_names);
 
+  const heeftKey = !!profiel?.ftp;
   const diensten = [
-    { naam: "intervals.icu", initiaal: "i", bg: "oklch(0.345 0.035 245)", kleur: "oklch(0.82 0.05 200)", verbonden: true, sub: "Trainingsdata & planning" },
-    { naam: "Wahoo", initiaal: "W", bg: "oklch(0.96 0.012 84)", kleur: "oklch(0.62 0.02 75)", verbonden: false, sub: "Koppelen via intervals.icu" },
+    { naam: "intervals.icu", initiaal: "i", bg: "oklch(0.345 0.035 245)", kleur: "oklch(0.82 0.05 200)", verbonden: heeftKey, sub: heeftKey ? "Trainingsdata & planning" : "Nog niet gekoppeld", link: heeftKey ? "/onboarding/intervals" : "/onboarding", linkLabel: heeftKey ? "Bijwerken" : "Koppelen" },
+    { naam: "Fietscomputer", initiaal: "⚡", bg: "oklch(0.96 0.012 84)", kleur: "oklch(0.62 0.02 75)", verbonden: false, sub: "Wahoo/Garmin · koppel via intervals.icu" },
   ];
 
   const ZoneRij = ({ zone, isLaatste }) => (
@@ -190,17 +192,43 @@ export default function ProfielScherm({ profiel, onTerug, onUitloggen }) {
                   <span style={{ font: "600 11.5px var(--font-nunito), sans-serif", color: T.textTert }}>{d.sub}</span>
                 </div>
                 {d.verbonden ? (
-                  <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 999, background: "oklch(0.93 0.05 165)" }}>
+                  <a href={d.link} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 999, background: "oklch(0.93 0.05 165)", textDecoration: "none" }}>
                     <div style={{ width: 7, height: 7, borderRadius: "50%", background: "oklch(0.6 0.13 165)" }} />
-                    <span style={{ font: "800 11px var(--font-nunito), sans-serif", color: "oklch(0.45 0.13 162)" }}>Verbonden</span>
-                  </div>
+                    <span style={{ font: "800 11px var(--font-nunito), sans-serif", color: "oklch(0.45 0.13 162)" }}>{d.linkLabel || "Verbonden"}</span>
+                  </a>
                 ) : (
-                  <span style={{ flexShrink: 0, font: "800 12px var(--font-nunito), sans-serif", color: T.textSec, padding: "8px 15px", borderRadius: 999, border: "1.5px solid oklch(0.86 0.014 80)" }}>Koppelen</span>
+                  <a href={d.link || "#"} style={{ flexShrink: 0, font: "800 12px var(--font-nunito), sans-serif", color: T.textSec, padding: "8px 15px", borderRadius: 999, border: "1.5px solid oklch(0.86 0.014 80)", textDecoration: "none" }}>{d.linkLabel || "Koppelen"}</a>
                 )}
               </div>
               {i < diensten.length - 1 && <div style={{ height: 1, background: T.divider }} />}
             </div>
           ))}
+        </div>
+
+        {/* Device-koppelingshulp */}
+        <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "16px 20px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
+          <div onClick={() => setHulpOpen(!hulpOpen)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
+            <span style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.text }}>Toestel koppelen aan intervals.icu</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ transform: hulpOpen ? "rotate(90deg)" : "none", transition: "transform 0.2s" }}><path d="M9 5l7 7-7 7" stroke={T.textSec} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </div>
+          {hulpOpen && (
+            <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 14 }}>
+              {[
+                { toestel: "Wahoo", stappen: "intervals.icu → Instellingen → Wahoo → Koppelen → vink 'Upload planned workouts' aan" },
+                { toestel: "Garmin", stappen: "intervals.icu → Instellingen → Garmin → Koppelen (wellness + sleep scopes) → vink 'Upload planned workouts' aan" },
+                { toestel: "WHOOP", stappen: "intervals.icu → Instellingen → WHOOP → Koppelen (alleen hersteldata, geen workout-upload nodig)" },
+              ].map((d, i) => (
+                <div key={i} style={{ padding: "12px 14px", borderRadius: 14, background: T.subtleFill }}>
+                  <div style={{ font: "700 13px var(--font-nunito), sans-serif", color: T.text, marginBottom: 4 }}>{d.toestel}</div>
+                  <div style={{ font: "600 12px/1.5 var(--font-nunito), sans-serif", color: T.textSec }}>{d.stappen}</div>
+                </div>
+              ))}
+              <a href="https://intervals.icu/settings" target="_blank" rel="noopener"
+                style={{ font: "700 13px var(--font-nunito), sans-serif", color: "oklch(0.5 0.14 248)", textDecoration: "none", textAlign: "center" }}>
+                Open intervals.icu-instellingen →
+              </a>
+            </div>
+          )}
         </div>
 
         {/* Koppeling intrekken */}

@@ -26,7 +26,12 @@ export async function POST(request) {
       timestamp: new Date().toISOString(),
       userId: user.id,
     };
-    await getKV().set(`user:${user.id}:toestemming_gezondheid`, record);
+    const kv = getKV();
+    await kv.set(`user:${user.id}:toestemming_gezondheid`, record);
+    await kv.set(`user:${user.id}:onboarding`, {
+      stap: "intervals_key",
+      laatstBijgewerkt: new Date().toISOString(),
+    });
     return NextResponse.json({ success: true });
   } catch (e) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });

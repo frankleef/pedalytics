@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { intervalsGet, intervalsPost, intervalsPut } from "@/lib/intervals";
 import { segmentenNaarZwo } from "@/lib/workoutZwo";
 import { vandaagISO, datumOffset } from "@/lib/datum";
-import { getUserIntervalsConfig } from "@/lib/auth";
+import { getUserIntervalsConfig, NietGekoppeldError } from "@/lib/auth";
 
 export async function GET(request) {
   try {
@@ -12,6 +12,7 @@ export async function GET(request) {
     const data = await intervalsGet("/events.json", { oldest: vandaag, newest: over14 }, creds);
     return NextResponse.json({ success: true, data });
   } catch (e) {
+    if (e.code === "NOT_LINKED") return NextResponse.json({ success: false, notLinked: true });
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }
@@ -84,6 +85,7 @@ export async function POST(request) {
       message: `${resultaten.length} sessies gesynchroniseerd naar intervals.icu`,
     });
   } catch (e) {
+    if (e.code === "NOT_LINKED") return NextResponse.json({ success: false, notLinked: true });
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }

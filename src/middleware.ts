@@ -39,7 +39,8 @@ export async function middleware(request: NextRequest) {
       token: process.env.KV_REST_API_TOKEN!,
     });
     const hasKey = await redis.get(`user:${userId}:intervals_key`);
-    if (!hasKey) {
+    const overgeslagen = await redis.get(`user:${userId}:onboarding_overgeslagen`);
+    if (!hasKey && !overgeslagen) {
       const onboardingUrl = request.nextUrl.clone();
       onboardingUrl.pathname = "/onboarding";
       return NextResponse.redirect(onboardingUrl);
