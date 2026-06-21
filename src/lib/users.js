@@ -51,6 +51,14 @@ export async function setIntervalsKey(userId, apiKey) {
   await kv.set(`user:${userId}:athlete_naam`, athlete.name || athlete.firstname || "");
   await kv.set(`user:${userId}:apparaten`, gekoppeldeApparaten);
   invalidateCredsCache(userId);
+
+  // Voeg user toe aan actieve-users-lijst voor cron-sync
+  const actief = (await kv.get("users:active")) || [];
+  if (!actief.includes(userId)) {
+    actief.push(userId);
+    await kv.set("users:active", actief);
+  }
+
   return { athleteId: athlete.id, naam: athlete.name, apparaten: gekoppeldeApparaten };
 }
 
