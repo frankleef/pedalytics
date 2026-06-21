@@ -9,7 +9,7 @@ export async function startJob(type, params) {
   return data.jobId;
 }
 
-export function pollJob(jobId, { interval = 2500, timeout = 120000 } = {}) {
+export function pollJob(jobId, { interval = 5000, timeout = 120000 } = {}) {
   return new Promise((resolve, reject) => {
     const start = Date.now();
     const check = async () => {

@@ -271,7 +271,7 @@ export default function Page() {
       setPlanVoortgang(1);
       setPlanVoortgang(2);
       const jobId = await startJob("seizoensplan", { profiel: PROFIEL, doelConfig, kader });
-      const plan = await pollJob(jobId, { interval: 3000 });
+      const plan = await pollJob(jobId, { interval: 5000 });
       setPlanVoortgang(3);
       const volledigPlan = { ...doelConfig, kader, ...plan, planStatus: undefined };
       setSeizoensplan(volledigPlan);
@@ -308,7 +308,7 @@ export default function Page() {
         profiel: PROFIEL, wellness: wellenessHuidig, dagelijkseData: trimDagelijks, voortgang: trimVoortgang,
         seizoensplan: { ...seizoensplan, weekSessies: undefined }, weekSessies, urenPerDag, beschikbareDagen,
       });
-      const result = await pollJob(jobId, { interval: 3000, timeout: 180000 });
+      const result = await pollJob(jobId, { interval: 5000, timeout: 180000 });
 
       if (!result.sessies || result.sessies.length === 0) {
         setWeekSessies({ sessies: bewaardeSessies, tss_totaal: 0 });
@@ -373,7 +373,7 @@ export default function Page() {
         profiel: PROFIEL, wellness: wellenessHuidig, dagelijkseData: trimDagelijks, voortgang: trimVoortgang,
         seizoensplan: { ...seizoensplan, weekSessies: undefined }, overigeSessies: oSessies, datum, dagNaam, uren, oudeSessie: oudeSessie || null,
       });
-      const sessie = await pollJob(jobId, { interval: 2500, timeout: 60000 });
+      const sessie = await pollJob(jobId, { interval: 5000, timeout: 60000 });
 
       if (oudeSessie?.intervalsEventId) sessie.intervalsEventId = oudeSessie.intervalsEventId;
       try {
