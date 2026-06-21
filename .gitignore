@@ -16,3 +16,9 @@ gradlew
 gradlew.bat
 manifest-checksum.txt
 store_icon.png
+twa-manifest.json
+.gradle/
+build/
+*.apk
+*.aab
+*.idsig
