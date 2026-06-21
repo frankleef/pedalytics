@@ -1,8 +1,14 @@
 import CredentialsProvider from "next-auth/providers/credentials";
-import { getUserByEmail, verifyPassword } from "./users";
+import GoogleProvider from "next-auth/providers/google";
+import { getUserByEmail, verifyPassword, createUser, getUserById } from "./users";
+import { getKV } from "./kv";
 
 export const authOptions = {
   providers: [
+    ...(process.env.GOOGLE_CLIENT_ID ? [GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    })] : []),
     CredentialsProvider({
       name: "Inloggen",
       credentials: {
@@ -21,8 +27,31 @@ export const authOptions = {
   ],
   session: { strategy: "jwt" },
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) token.userId = user.id;
+    async signIn({ user, account }) {
+      if (account?.provider === "google") {
+        const kv = getKV();
+        const bestaand = await kv.get(`email:${user.email.toLowerCase()}`);
+        if (!bestaand) {
+          const id = `u_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+          const newUser = { id, email: user.email.toLowerCase(), passwordHash: null, naam: user.name || "", createdAt: new Date().toISOString(), provider: "google" };
+          await kv.set(`user:${id}`, newUser);
+          await kv.set(`email:${user.email.toLowerCase()}`, id);
+          user.id = id;
+        } else {
+          user.id = bestaand;
+        }
+      }
+      return true;
+    },
+    async jwt({ token, user, account }) {
+      if (user) {
+        if (account?.provider === "google" && !token.userId) {
+          const userId = await getKV().get(`email:${user.email?.toLowerCase()}`);
+          token.userId = userId || user.id;
+        } else {
+          token.userId = user.id;
+        }
+      }
       return token;
     },
     async session({ session, token }) {

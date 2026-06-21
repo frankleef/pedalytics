@@ -9,6 +9,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [bevestig, setBevestig] = useState("");
   const [turnstileToken, setTurnstileToken] = useState(null);
+  const [toestemming, setToestemming] = useState(false);
   const [fout, setFout] = useState("");
   const [laden, setLaden] = useState(false);
 
@@ -19,13 +20,14 @@ export default function RegisterPage() {
     setFout("");
     if (password.length < 8) { setFout("Kies een wachtwoord van minimaal 8 tekens"); return; }
     if (password !== bevestig) { setFout("De wachtwoorden komen niet overeen"); return; }
+    if (!toestemming) { setFout("Geef toestemming voor het verwerken van gezondheidsgegevens"); return; }
     if (!turnstileToken) { setFout("Bevestig dat je geen robot bent"); return; }
     setLaden(true);
     try {
       const resp = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ naam, email, password, turnstileToken }),
+        body: JSON.stringify({ naam, email, password, turnstileToken, toestemming }),
       });
       const data = await resp.json();
       if (!data.success) { setFout(data.error || "Registratie mislukt"); setLaden(false); return; }
@@ -46,7 +48,7 @@ export default function RegisterPage() {
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M4 14.5l4-7 3.5 4.5L15 6l5 8.5" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </div>
           <h1 style={{ margin: 0, font: "800 28px var(--font-nunito), 'Nunito', sans-serif", letterSpacing: -0.4, color: "oklch(0.27 0.02 70)" }}>Account aanmaken</h1>
-          <p style={{ margin: "8px 0 0", font: "600 14px var(--font-nunito), 'Nunito', sans-serif", color: "oklch(0.5 0.02 74)" }}>Begin je trainingsplan in een paar stappen</p>
+          <p style={{ margin: "8px 0 0", font: "600 14px var(--font-nunito), 'Nunito', sans-serif", color: "oklch(0.5 0.02 74)" }}>Gratis · begin je trainingsplan in een paar stappen</p>
         </div>
 
         <form onSubmit={handleSubmit} style={{ background: "oklch(0.99 0.006 84)", borderRadius: 28, padding: "28px 24px", border: "1px solid oklch(0.93 0.01 82)", boxShadow: "0 2px 14px rgba(60,45,20,0.05)" }}>
@@ -74,6 +76,16 @@ export default function RegisterPage() {
             <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.5 0.02 74)", display: "block", marginBottom: 6 }}>Bevestig wachtwoord</span>
             <input type="password" value={bevestig} onChange={e => setBevestig(e.target.value)} required autoComplete="new-password" placeholder="Herhaal je wachtwoord"
               style={{ width: "100%", padding: "13px 16px", borderRadius: 16, border: "1.5px solid oklch(0.88 0.014 80)", background: "oklch(0.965 0.012 84)", font: "600 15px var(--font-nunito), sans-serif", color: "oklch(0.27 0.02 70)", outline: "none", boxSizing: "border-box" }} />
+          </label>
+
+          <label onClick={() => setToestemming(!toestemming)} style={{ display: "flex", gap: 12, alignItems: "flex-start", cursor: "pointer", marginBottom: 16, padding: "14px 16px", borderRadius: 16, background: "oklch(0.965 0.012 84)" }}>
+            <div style={{ width: 20, height: 20, flexShrink: 0, borderRadius: 5, border: toestemming ? "none" : "2px solid oklch(0.78 0.014 80)", background: toestemming ? "oklch(0.64 0.14 248)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+              {toestemming && <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            </div>
+            <span style={{ font: "600 12.5px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.35 0.02 70)" }}>
+              Ik geef toestemming voor het ophalen en verwerken van mijn gezondheidsgegevens (HRV, hartslag, slaap) via intervals.icu, conform het{" "}
+              <a href="/privacybeleid" onClick={e => e.stopPropagation()} style={{ color: "oklch(0.5 0.14 248)", textDecoration: "underline" }}>privacybeleid</a>.
+            </span>
           </label>
 
           <Turnstile onVerify={handleTurnstile} />

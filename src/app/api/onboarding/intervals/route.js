@@ -38,7 +38,7 @@ export async function POST(request) {
       laatstBijgewerkt: new Date().toISOString(),
     });
 
-    return NextResponse.json({ success: true, athleteId: result.athleteId, naam: result.naam, dataStatus });
+    return NextResponse.json({ success: true, athleteId: result.athleteId, naam: result.naam, dataStatus, apparaten: result.apparaten });
   } catch (e) {
     return NextResponse.json({ success: false, error: e.message }, { status: 400 });
   }

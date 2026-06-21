@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createUser } from "@/lib/users";
+import { getKV } from "@/lib/kv";
 
 async function verifyTurnstile(token) {
   const secret = process.env.TURNSTILE_SECRET_KEY;
@@ -15,7 +16,7 @@ async function verifyTurnstile(token) {
 
 export async function POST(request) {
   try {
-    const { naam, email, password, turnstileToken } = await request.json();
+    const { naam, email, password, turnstileToken, toestemming } = await request.json();
 
     if (!turnstileToken) {
       return NextResponse.json({ success: false, error: "Bevestig dat je geen robot bent" }, { status: 400 });
@@ -31,7 +32,14 @@ export async function POST(request) {
     if (password.length < 8) {
       return NextResponse.json({ success: false, error: "Wachtwoord moet minimaal 8 tekens zijn" }, { status: 400 });
     }
-    await createUser({ email, password, naam });
+    const user = await createUser({ email, password, naam });
+
+    if (toestemming) {
+      await getKV().set(`user:${user.id}:toestemming_gezondheid`, {
+        akkoord: true, versie: "1.0-concept", timestamp: new Date().toISOString(), userId: user.id,
+      });
+    }
+
     return NextResponse.json({ success: true });
   } catch (e) {
     return NextResponse.json({ success: false, error: e.message }, { status: 400 });

@@ -39,14 +39,42 @@ export default function IntervalsOnboardingPage() {
     }
   };
 
+  const valideerEnConnect = (key) => {
+    const k = key.trim();
+    if (!k) return;
+    if (k.startsWith("http")) { setStatus("invalid"); setStatusData("Dit lijkt een URL, niet een API-sleutel"); return; }
+    if (k.length < 10) { setStatus("invalid"); setStatusData("API-sleutel is te kort"); return; }
+    setApiKey(k);
+    setStatus("verifying");
+    fetch("/api/onboarding/intervals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ apiKey: k }) })
+      .then(r => r.json()).then(data => {
+        if (!data.success) { setStatusData(data.error); setStatus(data.error?.includes("Ongeldig") || data.error?.includes("401") || data.error?.includes("403") ? "invalid" : "error"); return; }
+        setStatusData(data);
+        setStatus(data.dataStatus === "verified_with_data" ? "connected" : "warning");
+      }).catch(() => { setStatus("error"); setStatusData("Verbinding mislukt"); });
+  };
+
   const handlePlakken = async () => {
     try {
       const tekst = await navigator.clipboard.readText();
-      if (tekst) setApiKey(tekst.trim());
+      if (tekst) valideerEnConnect(tekst);
     } catch {}
   };
 
-  const handleKlaar = () => router.push("/");
+  const handlePaste = (e) => {
+    const tekst = e.clipboardData?.getData("text");
+    if (tekst) { e.preventDefault(); valideerEnConnect(tekst); }
+  };
+
+  const handleBlur = () => {
+    if (apiKey.trim() && status === "idle") valideerEnConnect(apiKey);
+  };
+
+  const [toonWelkom, setToonWelkom] = useState(false);
+  const handleKlaar = () => {
+    setToonWelkom(true);
+    setTimeout(() => router.push("/"), 2200);
+  };
 
   const handleOverslaan = async () => {
     await fetch("/api/onboarding/overslaan", { method: "POST" });
@@ -54,6 +82,20 @@ export default function IntervalsOnboardingPage() {
   };
 
   const isConnected = status === "connected" || status === "warning";
+
+  if (toonWelkom) {
+    return (
+      <div style={{ minHeight: "100vh", background: "oklch(0.962 0.012 84)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-nunito), 'Nunito', sans-serif", textAlign: "center", padding: 30 }}>
+        <div>
+          <div style={{ width: 72, height: 72, borderRadius: 22, background: "linear-gradient(140deg, oklch(0.64 0.14 248), oklch(0.79 0.14 168))", margin: "0 auto 20px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 10px 28px rgba(40,90,140,0.3)" }}>
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="#fff" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </div>
+          <h1 style={{ margin: "0 0 8px", font: "800 26px var(--font-nunito), sans-serif", color: "oklch(0.27 0.02 70)" }}>Welkom, {statusData?.naam || "atleet"}!</h1>
+          <p style={{ margin: 0, font: "600 15px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.5 0.02 74)" }}>Je coach staat klaar. Laten we je eerste doel instellen.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "oklch(0.962 0.012 84)", display: "flex", flexDirection: "column", fontFamily: "var(--font-nunito), 'Nunito', sans-serif", color: "oklch(0.27 0.02 70)" }}>
@@ -136,7 +178,7 @@ export default function IntervalsOnboardingPage() {
               <label style={{ font: "800 12.5px var(--font-nunito), sans-serif", letterSpacing: 0.3, color: "oklch(0.4 0.02 72)" }}>API-sleutel</label>
               <div style={{ position: "relative", display: "flex", gap: 8 }}>
                 <div style={{ flex: 1, position: "relative" }}>
-                  <input type={toonKey ? "text" : "password"} value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Plak hier je API-sleutel" autoComplete="off"
+                  <input type={toonKey ? "text" : "password"} value={apiKey} onChange={e => setApiKey(e.target.value)} onPaste={handlePaste} onBlur={handleBlur} placeholder="Plak hier je API-sleutel" autoComplete="off"
                     style={{ width: "100%", padding: "16px 44px 16px 17px", borderRadius: 16, border: "1.5px solid oklch(0.88 0.014 80)", background: "oklch(0.99 0.006 84)", font: "600 14.5px var(--font-nunito), sans-serif", color: "oklch(0.28 0.02 70)", outline: "none", boxSizing: "border-box", fontFamily: "monospace", letterSpacing: 0.3 }} />
                   <button type="button" onClick={() => setToonKey(!toonKey)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 4 }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d={toonKey ? "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" : "M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"} stroke="oklch(0.55 0.02 75)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>{toonKey && <circle cx="12" cy="12" r="3" stroke="oklch(0.55 0.02 75)" strokeWidth="2"/>}</svg>
@@ -155,6 +197,7 @@ export default function IntervalsOnboardingPage() {
             </button>
 
             {/* Live status */}
+            <div aria-live="polite" aria-atomic="true">
             {status === "verifying" && (
               <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "15px 16px", borderRadius: 18, background: "oklch(0.96 0.015 248)", border: "1px solid oklch(0.9 0.03 240)" }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ animation: "spin 1s linear infinite" }}><path d="M12 3a9 9 0 1 0 9 9" stroke="oklch(0.55 0.09 248)" strokeWidth="2.4" strokeLinecap="round"/></svg>
@@ -193,6 +236,7 @@ export default function IntervalsOnboardingPage() {
                 <span style={{ font: "800 14px var(--font-nunito), sans-serif", color: "oklch(0.5 0.12 28)" }}>{statusData || "Ongeldige API-key"}</span>
               </div>
             )}
+            </div>
           </div>
         )}
       </div>
@@ -217,7 +261,10 @@ export default function IntervalsOnboardingPage() {
         </div>
       </div>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid oklch(0.62 0.12 235); outline-offset: 2px; }
+      `}</style>
     </div>
   );
 }

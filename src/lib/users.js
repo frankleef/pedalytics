@@ -39,11 +39,18 @@ export async function setIntervalsKey(userId, apiKey) {
   const athlete = await resp.json();
   if (!athlete.id) throw new Error("Kon athlete ID niet ophalen");
 
+  const gekoppeldeApparaten = {
+    garmin: !!athlete.icu_garmin_health,
+    wahoo: !!athlete.wahoo_user_id,
+    whoop: !!athlete.whoop_scope,
+  };
+
   const kv = getKV();
   await kv.set(`user:${userId}:intervals_key`, encrypt(apiKey));
   await kv.set(`user:${userId}:athlete_id`, athlete.id);
   await kv.set(`user:${userId}:athlete_naam`, athlete.name || athlete.firstname || "");
-  return { athleteId: athlete.id, naam: athlete.name };
+  await kv.set(`user:${userId}:apparaten`, gekoppeldeApparaten);
+  return { athleteId: athlete.id, naam: athlete.name, apparaten: gekoppeldeApparaten };
 }
 
 export async function getIntervalsCredentials(userId) {
