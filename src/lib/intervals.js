@@ -8,8 +8,8 @@ export function intervalsAuth(apiKey) {
 }
 
 export async function intervalsGet(pad, params = {}, { apiKey, athleteId } = {}) {
-  const key = apiKey || process.env.INTERVALS_API_KEY;
-  const athlete = athleteId || process.env.INTERVALS_ATHLETE_ID || "i594622";
+  const key = apiKey;
+  const athlete = athleteId;
   const url = new URL(`${BASE_URL}/athlete/${athlete}${pad}`);
   Object.entries(params).forEach(([k, v]) => { if (v !== undefined) url.searchParams.set(k, v); });
 
@@ -26,8 +26,8 @@ export async function intervalsGet(pad, params = {}, { apiKey, athleteId } = {})
 }
 
 export async function intervalsPost(pad, body, { apiKey, athleteId } = {}) {
-  const key = apiKey || process.env.INTERVALS_API_KEY;
-  const athlete = athleteId || process.env.INTERVALS_ATHLETE_ID || "i594622";
+  const key = apiKey;
+  const athlete = athleteId;
   const url = `${BASE_URL}/athlete/${athlete}${pad}`;
   const resp = await fetch(url, {
     method: "POST",
@@ -43,8 +43,8 @@ export async function intervalsPost(pad, body, { apiKey, athleteId } = {}) {
 }
 
 export async function intervalsPut(pad, body, { apiKey, athleteId } = {}) {
-  const key = apiKey || process.env.INTERVALS_API_KEY;
-  const athlete = athleteId || process.env.INTERVALS_ATHLETE_ID || "i594622";
+  const key = apiKey;
+  const athlete = athleteId;
   const url = `${BASE_URL}/athlete/${athlete}${pad}`;
   const resp = await fetch(url, {
     method: "PUT",
@@ -60,8 +60,8 @@ export async function intervalsPut(pad, body, { apiKey, athleteId } = {}) {
 }
 
 export async function intervalsDelete(pad, { apiKey, athleteId } = {}) {
-  const key = apiKey || process.env.INTERVALS_API_KEY;
-  const athlete = athleteId || process.env.INTERVALS_ATHLETE_ID || "i594622";
+  const key = apiKey;
+  const athlete = athleteId;
   const url = `${BASE_URL}/athlete/${athlete}${pad}`;
   const resp = await fetch(url, {
     method: "DELETE",
@@ -75,7 +75,7 @@ export async function intervalsDelete(pad, { apiKey, athleteId } = {}) {
 }
 
 export async function intervalsActivityGet(id, { apiKey } = {}) {
-  const key = apiKey || process.env.INTERVALS_API_KEY;
+  const key = apiKey;
   const resp = await fetch(`${BASE_URL}/activity/${id}`, {
     headers: { Authorization: intervalsAuth(key) },
     next: { revalidate: 0 },
@@ -88,7 +88,7 @@ export async function intervalsActivityGet(id, { apiKey } = {}) {
 }
 
 export async function intervalsActivityPut(id, body, { apiKey } = {}) {
-  const key = apiKey || process.env.INTERVALS_API_KEY;
+  const key = apiKey;
   const resp = await fetch(`${BASE_URL}/activity/${id}`, {
     method: "PUT",
     headers: { Authorization: intervalsAuth(key), "Content-Type": "application/json" },

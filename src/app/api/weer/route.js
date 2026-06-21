@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
+import { getSessionUser } from "@/lib/auth";
 
 const DEFAULT_LAT = 51.59;
 const DEFAULT_LON = 4.78;
@@ -14,7 +15,9 @@ const CONDITIE_MAP = {
 
 export async function GET() {
   try {
-    const locatie = await getKV().get("weer-locatie").catch(() => null);
+    const user = await getSessionUser();
+    const weerKey = user?.id ? `${user.id}:weer-locatie` : "weer-locatie";
+    const locatie = await getKV().get(weerKey).catch(() => null);
     const lat = locatie?.lat || DEFAULT_LAT;
     const lon = locatie?.lon || DEFAULT_LON;
 
@@ -46,9 +49,11 @@ export async function GET() {
 
 export async function PUT(request) {
   try {
+    const user = await getSessionUser();
     const { stad, lat, lon } = await request.json();
     if (!stad || !lat || !lon) return NextResponse.json({ success: false, error: "stad, lat en lon zijn verplicht" }, { status: 400 });
-    await getKV().set("weer-locatie", { stad, lat, lon });
+    const weerKey = user?.id ? `${user.id}:weer-locatie` : "weer-locatie";
+    await getKV().set(weerKey, { stad, lat, lon });
     return NextResponse.json({ success: true });
   } catch (e) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });

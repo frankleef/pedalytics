@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { intervalsGet, intervalsPost, intervalsPut } from "@/lib/intervals";
 import { segmentenNaarZwo } from "@/lib/workoutZwo";
 import { vandaagISO, datumOffset } from "@/lib/datum";
+import { getUserIntervalsConfig } from "@/lib/auth";
 
 export async function GET(request) {
   try {
+    const creds = await getUserIntervalsConfig();
     const vandaag = vandaagISO();
     const over14 = datumOffset(14);
-    const data = await intervalsGet("/events.json", { oldest: vandaag, newest: over14 });
+    const data = await intervalsGet("/events.json", { oldest: vandaag, newest: over14 }, creds);
     return NextResponse.json({ success: true, data });
   } catch (e) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
@@ -16,6 +18,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    const creds = await getUserIntervalsConfig();
     const { sessies, ftp } = await request.json();
     if (!sessies || sessies.length === 0) {
       return NextResponse.json({ success: false, error: "Geen sessies opgegeven" }, { status: 400 });
@@ -27,7 +30,7 @@ export async function POST(request) {
 
     let bestaandeEvents = {};
     try {
-      const events = await intervalsGet("/events.json", { oldest, newest });
+      const events = await intervalsGet("/events.json", { oldest, newest }, creds);
       (events || []).forEach(e => {
         if (e.category === "WORKOUT" && e.start_date_local) {
           bestaandeEvents[e.start_date_local.split("T")[0]] = e.id;
@@ -53,12 +56,12 @@ export async function POST(request) {
       let result;
       if (bestaandId) {
         try {
-          result = await intervalsPut(`/events/${bestaandId}`, eventBody);
+          result = await intervalsPut(`/events/${bestaandId}`, eventBody, creds);
         } catch {
-          result = await intervalsPost("/events", eventBody);
+          result = await intervalsPost("/events", eventBody, creds);
         }
       } else {
-        result = await intervalsPost("/events", eventBody);
+        result = await intervalsPost("/events", eventBody, creds);
       }
 
       if (result.id && zwo) {

@@ -34,7 +34,6 @@ export default function Page() {
   const [weekSessiesLaden, setWeekSessiesLaden] = useState(false);
   const [beschikbaarheidSchermOpen, setBeschikbaarheidSchermOpen] = useState(false);
   const [schemaDagOffset, setSchemaDagOffset] = useState(0);
-  const [stravaAuth, setStravaAuth] = useState(null);
   const [fout, setFout] = useState(null);
   const [succesMelding, setSuccesMelding] = useState(null);
   const [profielOpen, setProfielOpen] = useState(false);
@@ -186,25 +185,7 @@ export default function Page() {
           zoneTijden: a.icu_zone_times || null,
         }));
 
-      try {
-        const stravaResp = await fetch("/api/strava/activities?after=2026-01-01");
-        const stravaData = await stravaResp.json();
-        if (stravaData.success) {
-          setStravaAuth(true);
-          ritten.forEach(r => {
-            if (!r.strava_id) return;
-            if (stravaData.data[r.strava_id]) {
-              r.athlete_count = stravaData.data[r.strava_id].athlete_count;
-              r.solo = r.athlete_count === 1;
-            }
-          });
-        } else if (stravaData.authUrl) {
-          window.location.href = "/api/strava/auth";
-          return;
-        }
-      } catch (e) { console.log("Strava data niet beschikbaar:", e.message); }
-
-      const soloRitten = ritten.filter(r => r.solo && r.snelheid);
+      const soloRitten = ritten.filter(r => r.snelheid);
 
       const maanden = {};
       soloRitten.forEach(r => {
@@ -580,9 +561,8 @@ export default function Page() {
       {profielOpen && (
         <ProfielScherm
           profiel={profiel}
-          stravaAuth={stravaAuth}
           onTerug={() => setProfielOpen(false)}
-          onUitloggen={() => { fetch("/api/logout-all", { method: "POST" }).then(() => window.location.href = "/login"); }}
+          onUitloggen={() => { import("next-auth/react").then(m => m.signOut({ callbackUrl: "/login" })); }}
         />
       )}
 

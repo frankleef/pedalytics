@@ -149,7 +149,11 @@ function bepaalMode(offset, sessie, rit, ftp, planStartISO) {
     return ritMatchesSessie(cls, sessie.type) ? "matched" : "deviated";
   }
   if (!sessie && rit) return "unplanned";
-  if (sessie && !rit) return "missed";
+  if (sessie && !rit) {
+    // Pas "missed" tonen als het voorbij 06:00 de volgende ochtend is
+    if (offset === -1 && new Date().getHours() < 6) return "planned";
+    return "missed";
+  }
   return "rest";
 }
 

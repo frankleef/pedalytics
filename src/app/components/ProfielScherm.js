@@ -54,7 +54,7 @@ const STEDEN = [
   { stad: "Arnhem", lat: 51.98, lon: 5.91 },
 ];
 
-export default function ProfielScherm({ profiel, stravaAuth, onTerug, onUitloggen }) {
+export default function ProfielScherm({ profiel, onTerug, onUitloggen }) {
   const [checkin, setCheckin] = useState(null);
   const [weerStad, setWeerStad] = useState("Breda");
 
@@ -80,7 +80,6 @@ export default function ProfielScherm({ profiel, stravaAuth, onTerug, onUitlogge
 
   const diensten = [
     { naam: "intervals.icu", initiaal: "i", bg: "oklch(0.345 0.035 245)", kleur: "oklch(0.82 0.05 200)", verbonden: true, sub: "Trainingsdata & planning" },
-    { naam: "Strava", initiaal: "S", bg: "oklch(0.345 0.035 245)", kleur: "oklch(0.82 0.08 60)", verbonden: !!stravaAuth, sub: stravaAuth ? "Automatisch importeren" : "Niet verbonden" },
     { naam: "Wahoo", initiaal: "W", bg: "oklch(0.96 0.012 84)", kleur: "oklch(0.62 0.02 75)", verbonden: false, sub: "Koppelen via intervals.icu" },
   ];
 

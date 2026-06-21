@@ -1,9 +1,10 @@
 import { getServerSession } from "next-auth";
+import { authOptions } from "./authOptions";
 import { getIntervalsCredentials, kvKey } from "./users";
 import { getKV } from "./kv";
 
 export async function getSessionUser() {
-  const session = await getServerSession();
+  const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
   return session.user;
 }

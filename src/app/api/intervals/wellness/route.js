@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { intervalsGet, intervalsPut } from "@/lib/intervals";
 import { vandaagISO } from "@/lib/datum";
+import { getUserIntervalsConfig } from "@/lib/auth";
 
 export async function GET(request) {
   try {
+    const creds = await getUserIntervalsConfig();
     const { searchParams } = new URL(request.url);
     const oldest = searchParams.get("oldest") || "2026-01-01";
     const newest = searchParams.get("newest") || vandaagISO();
@@ -18,7 +20,7 @@ export async function GET(request) {
       "avgSkinTemp", "hydration",
     ].join(",");
 
-    const data = await intervalsGet("/wellness.json", { oldest, newest, fields });
+    const data = await intervalsGet("/wellness.json", { oldest, newest, fields }, creds);
     return NextResponse.json({ success: true, data });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -27,6 +29,7 @@ export async function GET(request) {
 
 export async function PUT(request) {
   try {
+    const creds = await getUserIntervalsConfig();
     const body = await request.json();
     const { datum, rpe, gevoel, opmerking, slaapUren, slaapScore, hrv, rusthartslag } = body;
 
@@ -39,7 +42,7 @@ export async function PUT(request) {
     if (gevoel != null) wellnessData.feel = { top: 5, goed: 4, matig: 3, moe: 2, slecht: 1 }[gevoel] || 3;
     if (opmerking) wellnessData.comments = opmerking;
 
-    const data = await intervalsPut(`/wellness/${datum}`, wellnessData);
+    const data = await intervalsPut(`/wellness/${datum}`, wellnessData, creds);
     return NextResponse.json({ success: true, data });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

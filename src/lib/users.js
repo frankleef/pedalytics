@@ -32,10 +32,18 @@ export async function verifyPassword(user, password) {
   return await bcrypt.compare(password, user.passwordHash);
 }
 
-export async function setIntervalsKey(userId, apiKey, athleteId) {
+export async function setIntervalsKey(userId, apiKey) {
+  const auth = "Basic " + Buffer.from("API_KEY:" + apiKey).toString("base64");
+  const resp = await fetch("https://intervals.icu/api/v1/athlete/0", { headers: { Authorization: auth } });
+  if (!resp.ok) throw new Error(`Ongeldige API-key (intervals.icu ${resp.status})`);
+  const athlete = await resp.json();
+  if (!athlete.id) throw new Error("Kon athlete ID niet ophalen");
+
   const kv = getKV();
   await kv.set(`user:${userId}:intervals_key`, encrypt(apiKey));
-  await kv.set(`user:${userId}:athlete_id`, athleteId);
+  await kv.set(`user:${userId}:athlete_id`, athlete.id);
+  await kv.set(`user:${userId}:athlete_naam`, athlete.name || athlete.firstname || "");
+  return { athleteId: athlete.id, naam: athlete.name };
 }
 
 export async function getIntervalsCredentials(userId) {

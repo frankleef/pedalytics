@@ -274,6 +274,40 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
           <span style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.textSec }}>{wkg} W/kg</span>
         </div>
 
+        {/* FTP-progressie */}
+        {ftpHistorie.length >= 2 && (() => {
+          const grensD = new Date(Date.now() - periode * 7 * 86400000);
+          const punten = ftpHistorie.filter(h => new Date(h.datum) >= grensD).map(h => {
+            const [,m,d] = h.datum.split("-"); return { datum: `${d}/${m}`, ftp: h.ftp };
+          });
+          if (punten.length < 2) return null;
+          const doelFtp = seizoensplan?.streefwaarde ? (() => {
+            const m = seizoensplan.streefwaarde.match(/(\d+)\s*[-–]\s*(\d+)\s*W/i);
+            return m ? Math.max(Number(m[1]), Number(m[2])) : null;
+          })() : null;
+          const startFtp = punten[0].ftp;
+          const delta = punten[punten.length - 1].ftp - startFtp;
+
+          return (
+            <div style={CARD}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={EYEBROW}>FTP progressie</span><InfoTooltip metricKey="ftp" /></div>
+                <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: delta >= 0 ? "#2F9468" : "#9C5848" }}>{delta >= 0 ? "+" : ""}{delta}W</span>
+              </div>
+              <ResponsiveContainer width="100%" height={100}>
+                <LineChart data={punten} margin={{ top: 5, right: 0, bottom: 0, left: -20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.012 82)" vertical={false} />
+                  <XAxis dataKey="datum" tick={TICK} tickLine={false} axisLine={false} />
+                  <YAxis tick={TICK} tickLine={false} axisLine={false} domain={["auto", "auto"]} />
+                  <Tooltip content={<ChartTooltipContent suffix="W" />} />
+                  {doelFtp && <ReferenceLine y={doelFtp} stroke="oklch(0.6 0.13 165)" strokeDasharray="4 4" strokeOpacity={0.5} label={{ value: `Doel ${doelFtp}W`, position: "right", style: { font: "600 8px var(--font-nunito), sans-serif", fill: "oklch(0.6 0.13 165)" } }} />}
+                  <Line dataKey="ftp" stroke="oklch(0.64 0.14 248)" strokeWidth={3.5} dot={{ fill: "oklch(0.64 0.14 248)", r: 4 }} name="FTP" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          );
+        })()}
+
         {/* Power curve */}
         {pcData.length >= 2 && (
           <div style={CARD}>
