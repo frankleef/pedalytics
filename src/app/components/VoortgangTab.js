@@ -77,9 +77,11 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
   const [periode, setPeriode] = useState(8);
   const [ftpHistorie, setFtpHistorie] = useState([]);
   const [powerCurves, setPowerCurves] = useState(null);
+  const [distributieAfwijking, setDistributieAfwijking] = useState(null);
 
   useEffect(() => {
     fetch("/api/ftp-historie").then(r => r.json()).then(d => { if (d.success && d.data) setFtpHistorie(d.data); }).catch(() => {});
+    fetch("/api/distributie").then(r => r.json()).then(d => { if (d.success && d.data) setDistributieAfwijking(d.data); }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -407,6 +409,20 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
           </div>
         )}
 
+        {/* Distributie-correctie chip */}
+        {distributieAfwijking && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 999, background: distributieAfwijking.richting === "te_intensief" ? "oklch(0.94 0.05 82)" : "oklch(0.94 0.05 200)", marginBottom: 16 }}>
+            <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: distributieAfwijking.richting === "te_intensief" ? "oklch(0.42 0.06 70)" : "oklch(0.38 0.06 220)" }}>
+              {distributieAfwijking.richting === "te_intensief"
+                ? "↓ We sturen deze week bij: iets meer Z2"
+                : "↑ We sturen deze week bij: iets meer intensiteit"}
+            </span>
+          </div>
+        )}
+
+        {/* Cardiac decoupling */}
+        <DecouplingKaart voortgang={voortgang} profiel={profiel} />
+
         {/* Plan-naleving */}
         {planWeken.length >= 2 && (
           <div style={CARD}>
@@ -562,6 +578,75 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
         )}
 
       </div>
+    </div>
+  );
+}
+
+function DecouplingKaart({ voortgang }) {
+  const [punten, setPunten] = useState([]);
+
+  useEffect(() => {
+    if (!voortgang?.ritten) return;
+
+    const z2Ritten = voortgang.ritten.filter(r => {
+      if (!r.datum_iso || !r.duur_min || r.duur_min < 45) return false;
+      const np = r.np || r.wattage;
+      if (!np) return false;
+      const ifVal = np / 265;
+      return ifVal >= 0.55 && ifVal <= 0.75;
+    });
+
+    if (z2Ritten.length < 3) { setPunten([]); return; }
+
+    const decouplingPunten = [];
+    const fetchStreams = async () => {
+      for (const rit of z2Ritten.slice(-10)) {
+        try {
+          const resp = await fetch(`/api/intervals/activities/${rit.id}/streams`);
+          const data = await resp.json();
+          if (!data.success || !data.data) continue;
+          const watts = data.data.watts?.data || [];
+          const hr = data.data.heartrate?.data || [];
+          if (watts.length < 60 || hr.length < 60) continue;
+          const n = Math.min(watts.length, hr.length);
+          const helft = Math.floor(n / 2);
+          const gem = arr => { const f = arr.filter(v => v > 0); return f.length > 0 ? f.reduce((s, v) => s + v, 0) / f.length : 1; };
+          const pwHr1 = gem(watts.slice(0, helft)) / gem(hr.slice(0, helft));
+          const pwHr2 = gem(watts.slice(helft)) / gem(hr.slice(helft));
+          if (pwHr1 > 0) {
+            const dc = ((pwHr1 - pwHr2) / pwHr1) * 100;
+            const [, m, d] = rit.datum_iso.split("-");
+            decouplingPunten.push({ datum: `${d}/${m}`, decoupling: Math.round(dc * 10) / 10 });
+          }
+        } catch {}
+      }
+      setPunten(decouplingPunten);
+    };
+    fetchStreams();
+  }, [voortgang?.ritten]);
+
+  if (punten.length < 3) {
+    return <LegeStaat titel="Aerobe efficiëntie" wekenNodig={4} wekenVerzameld={Math.max(0, punten.length)} />;
+  }
+
+  return (
+    <div style={CARD}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div>
+          <span style={EYEBROW}>Aerobe efficiëntie</span>
+          <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec, marginTop: 2 }}>Cardiac decoupling</div>
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={120}>
+        <LineChart data={punten} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.012 82)" vertical={false} />
+          <XAxis dataKey="datum" tick={TICK} tickLine={false} axisLine={false} />
+          <YAxis tick={TICK} tickLine={false} axisLine={false} domain={[-2, 15]} />
+          <ReferenceLine y={5} stroke="oklch(0.6 0.13 165)" strokeDasharray="4 4" label={{ value: "5%", position: "right", style: { font: "700 9px var(--font-nunito), sans-serif", fill: "oklch(0.5 0.13 165)" } }} />
+          <ReferenceLine y={7} stroke="oklch(0.72 0.13 70)" strokeDasharray="4 4" label={{ value: "7%", position: "right", style: { font: "700 9px var(--font-nunito), sans-serif", fill: "oklch(0.6 0.11 70)" } }} />
+          <Line type="monotone" dataKey="decoupling" stroke="oklch(0.64 0.14 248)" strokeWidth={2.5} dot={{ r: 3.5, fill: "oklch(0.64 0.14 248)" }} name="Decoupling" />
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 }

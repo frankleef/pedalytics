@@ -18,11 +18,18 @@ const EVENEMENT_TYPES = [
   { id: "sociaal", label: "Sociale rit / Groepsrit" },
 ];
 
+const NIVEAUS = [
+  { id: "starter", icon: "🚲", naam: "Starter", beschrijving: "Ik fiets minder dan een jaar regelmatig" },
+  { id: "recreatief", icon: "🚴", naam: "Recreatief", beschrijving: "1–3 jaar ervaring, soms sportieve tochten" },
+  { id: "getraind", icon: "🏆", naam: "Getraind", beschrijving: "3+ jaar, regelmatig structureel getraind" },
+];
+
 export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
   const [stap, setStap] = useState(1);
   const [doel, setDoel] = useState(null);
   const [config, setConfig] = useState({ weken: 12, evenementNaam: "", evenementDatum: "", evenementType: "granfondo", streefSnelheid: 31 });
   const [beschikbaarheidData, setBeschikbaarheidData] = useState(null);
+  const [ervaringsniveau, setErvaringsniveau] = useState(null);
 
   const gekozenDoel = DOELEN.find(d => d.id === doel);
   const verwachteFtp = (weken) => `${Math.round(profiel.ftp * (1 + weken * 0.004))}-${Math.round(profiel.ftp * (1 + weken * 0.007))}W`;
@@ -36,6 +43,7 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
       tijdshorizon_weken: config.weken,
       huidige_ftp: profiel.ftp,
       huidige_ctl: ctl,
+      ervaringsniveau: ervaringsniveau || "recreatief",
       startdatum: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })(),
       config: { ...config },
       beschikbaarheid: beschikbaarheidData?.beschikbaar || {},
@@ -46,7 +54,7 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
   // Progress bar
   const ProgressBar = () => (
     <div style={{ display: "flex", gap: 6, marginBottom: 24 }}>
-      {[1, 2, 3].map(s => (
+      {[1, 2, 3, 4].map(s => (
         <div key={s} style={{ flex: 1, height: 6, borderRadius: 3,
           background: s < stap ? T.slate : s === stap ? T.gradient : "oklch(0.91 0.012 82)" }} />
       ))}
@@ -81,7 +89,7 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
           {stap > 1 ? (
             <button onClick={() => setStap(s => s - 1)} style={{ width: 42, height: 42, borderRadius: "50%", background: T.cardBg, border: `1px solid ${T.cardBorder}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 18, color: T.text }}>‹</button>
           ) : <div style={{ width: 42 }} />}
-          <span style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.textSec }}>Stap {stap} van 3</span>
+          <span style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.textSec }}>Stap {stap} van 4</span>
           <div style={{ width: 42 }} />
         </div>
 
@@ -191,11 +199,37 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
           </div>
         )}
 
-        {/* ══ STAP 3: Samenvatting + opslaan ══ */}
+        {/* ══ STAP 3: Ervaringsniveau ══ */}
         {stap === 3 && (
           <div style={{ flex: 1 }}>
             <div style={{ marginBottom: 20 }}>
-              <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: T.textTert, textTransform: "uppercase" }}>Seizoensdoel · Overzicht</span>
+              <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: T.textTert, textTransform: "uppercase" }}>Seizoensdoel · Ervaringsniveau</span>
+              <h1 style={{ margin: "6px 0 8px", font: "800 27px/1.2 var(--font-nunito), sans-serif", letterSpacing: -0.5, color: T.text }}>Hoe ervaren ben je?</h1>
+              <p style={{ margin: 0, font: "600 14px/1.45 var(--font-nunito), sans-serif", color: T.textSec }}>Dit bepaalt de opbouwsnelheid en intensiteitsverdeling van je plan.</p>
+            </div>
+
+            {NIVEAUS.map(n => (
+              <div key={n.id} onClick={() => setErvaringsniveau(n.id)}
+                style={{ display: "flex", gap: 14, alignItems: "center", padding: 16, background: T.cardBg,
+                  border: `1.5px solid ${ervaringsniveau === n.id ? T.gradientA : T.cardBorder}`,
+                  borderRadius: 20, marginBottom: 10, cursor: "pointer", boxShadow: ervaringsniveau === n.id ? "0 2px 14px rgba(60,45,20,0.08)" : T.cardShadow }}>
+                <div style={{ fontSize: 28, flexShrink: 0 }}>{n.icon}</div>
+                <div>
+                  <div style={{ font: "700 15px var(--font-nunito), sans-serif", color: T.text }}>{n.naam}</div>
+                  <div style={{ font: "600 12.5px var(--font-nunito), sans-serif", color: T.textSec, marginTop: 2 }}>{n.beschrijving}</div>
+                </div>
+              </div>
+            ))}
+
+            <Footer onTerug={() => setStap(2)} onVolgende={() => { if (ervaringsniveau) setStap(4); }} disabled={!ervaringsniveau} />
+          </div>
+        )}
+
+        {/* ══ STAP 4: Samenvatting + opslaan ══ */}
+        {stap === 4 && (
+          <div style={{ flex: 1 }}>
+            <div style={{ marginBottom: 20 }}>
+              <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: T.textTert, textTransform: "uppercase" }}>Seizoensdoel · overzicht</span>
               <h1 style={{ margin: "6px 0 8px", font: "800 27px/1.2 var(--font-nunito), sans-serif", letterSpacing: -0.5, color: T.text }}>Klaar om te starten</h1>
               <p style={{ margin: 0, font: "600 14px/1.45 var(--font-nunito), sans-serif", color: T.textSec }}>Controleer je plan. Na opslaan genereert de coach je eerste trainingsweek.</p>
             </div>
@@ -221,7 +255,7 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
               )}
 
               {beschikbaarheidData?.beschikbaar && (
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: ervaringsniveau ? 12 : 0 }}>
                   {Object.entries(beschikbaarheidData.beschikbaar).filter(([, v]) => v).map(([dag]) => (
                     <div key={dag} style={{ padding: "6px 12px", borderRadius: T.pillRadius, background: T.subtleFill, font: "700 12px var(--font-nunito), sans-serif", color: T.textSec }}>
                       {dag.slice(0, 2)} · {beschikbaarheidData.uren?.[dag] || 1.5}u
@@ -229,9 +263,15 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
                   ))}
                 </div>
               )}
+
+              {ervaringsniveau && (
+                <div style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>
+                  {NIVEAUS.find(n => n.id === ervaringsniveau)?.icon} {NIVEAUS.find(n => n.id === ervaringsniveau)?.naam}
+                </div>
+              )}
             </div>
 
-            <Footer onTerug={() => setStap(2)} onVolgende={slaDoelOp} volgendeLabel="Doel opslaan" />
+            <Footer onTerug={() => setStap(3)} onVolgende={slaDoelOp} volgendeLabel="Doel opslaan" />
           </div>
         )}
       </div>

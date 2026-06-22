@@ -244,31 +244,62 @@ export default function Page() {
     const weken = doelConfig.tijdshorizon_weken || 12;
     const ctl = doelConfig.huidige_ctl || 45;
     const baseTss = Math.round(ctl * 5);
+    const niveau = doelConfig.ervaringsniveau || "recreatief";
+    const opbouwPct = { starter: 0.05, recreatief: 0.10, getraind: 0.15 }[niveau] || 0.10;
+
     const fasen = doelConfig.doel === "herstel"
       ? Array(weken).fill("herstel")
       : (() => {
         const f = [];
         for (let w = 1; w <= weken; w++) {
-          if (w % 4 === 0) f.push("test");
-          else if (w <= Math.ceil(weken * 0.25)) f.push("basis");
+          if (w <= Math.ceil(weken * 0.25)) f.push("basis");
           else if (w <= Math.ceil(weken * 0.5)) f.push("sweetspot");
           else if (w <= Math.ceil(weken * 0.75)) f.push("drempel");
           else f.push("consolidatie");
         }
         return f;
       })();
-    const tssMultiplier = { basis: 1, sweetspot: 1.1, drempel: 1.15, consolidatie: 1, test: 0.7, herstel: 0.6 };
+
     const focusTekst = {
       basis: "Z2 volume + sweetspot intro", sweetspot: "Sweetspot blokken (88-93% FTP)",
       drempel: "Drempel intervals (95-105% FTP)", consolidatie: "Drempel vasthouden, herstel",
-      test: "Herstelweek + FTP-test", herstel: "Lage belasting, HRV optimaliseren",
+      herstel: "Lage belasting, HRV optimaliseren",
     };
-    return fasen.map((fase, i) => ({
-      week: i + 1,
-      fase,
-      tss_doel: Math.round(baseTss * (tssMultiplier[fase] || 1) * (1 + i * 0.02)),
-      focus: focusTekst[fase] || "",
-    }));
+
+    // 3:1 TSS-ritme: 3 opbouwweken met stijgende TSS, 1 herstelweek
+    const result = [];
+    let vorigOpbouwTss = baseTss;
+    let piekTss = baseTss;
+
+    for (let i = 0; i < weken; i++) {
+      const weekNr = i + 1;
+      const weektype = (weekNr % 4 === 0) ? "herstel" : "opbouw";
+      const fase = fasen[i];
+      let tss_doel;
+
+      if (weektype === "herstel") {
+        tss_doel = Math.round(piekTss * 0.45);
+        piekTss = baseTss;
+      } else {
+        if (i === 0) {
+          tss_doel = baseTss;
+        } else {
+          tss_doel = Math.round(vorigOpbouwTss * (1 + opbouwPct));
+        }
+        vorigOpbouwTss = tss_doel;
+        piekTss = Math.max(piekTss, tss_doel);
+      }
+
+      result.push({
+        week: weekNr,
+        fase,
+        weektype,
+        tss_doel,
+        focus: focusTekst[fase] || focusTekst[weektype] || "",
+      });
+    }
+
+    return result;
   };
 
   const genereerSeizoensplan = useCallback(async (doelConfig) => {
@@ -372,7 +403,7 @@ export default function Page() {
     }
   }, [weekSessies, seizoensplan]);
 
-  const genereerSessieDagViaJob = useCallback(async (datum, dagNaam, uren, { overigeSessies, oudeSessie } = {}) => {
+  const genereerSessieDagViaJob = useCallback(async (datum, dagNaam, uren, { overigeSessies, oudeSessie, aanleiding = "beschikbaarheid_nieuw" } = {}) => {
     if (!seizoensplan?.kader) return null;
     const oSessies = overigeSessies || (weekSessies?.sessies || []).filter(s => s.datum !== datum && !s.voltooid);
     try {
@@ -381,7 +412,7 @@ export default function Page() {
       const trimVoortgang = voortgang ? { ritten: (voortgang.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= zevenDagenGeleden) } : null;
       const jobId = await startJob("sessieDag", {
         profiel: PROFIEL, wellness: wellenessHuidig, dagelijkseData: trimDagelijks, voortgang: trimVoortgang,
-        seizoensplan: { ...seizoensplan, weekSessies: undefined }, overigeSessies: oSessies, datum, dagNaam, uren, oudeSessie: oudeSessie || null,
+        seizoensplan: { ...seizoensplan, weekSessies: undefined }, overigeSessies: oSessies, datum, dagNaam, uren, oudeSessie: oudeSessie || null, aanleiding,
       });
       const sessie = await pollJob(jobId, { interval: 5000, timeout: 60000 });
 
@@ -435,9 +466,9 @@ export default function Page() {
       if (sessie && !sessie.voltooid) {
         const dagNaam = DAGNAMEN[new Date(datum).getDay()];
         const uren = urenPerDag[dagNaam] || 1.5;
-        const sessie = await genereerSessieDagViaJob(datum, dagNaam, uren);
-        if (sessie) {
-          const alleSessies = [...(weekSessies?.sessies || []).filter(s => s.datum !== datum), sessie];
+        const nieuweSessie = await genereerSessieDagViaJob(datum, dagNaam, uren, { oudeSessie: sessie, aanleiding: "fase_2_conflict" });
+        if (nieuweSessie) {
+          const alleSessies = [...(weekSessies?.sessies || []).filter(s => s.datum !== datum), nieuweSessie];
           const nieuweWeekSessies = { ...weekSessies, sessies: alleSessies };
           setWeekSessies(nieuweWeekSessies);
           const bijgewerkt = { ...seizoensplan, weekSessies: nieuweWeekSessies };
@@ -520,7 +551,8 @@ export default function Page() {
           gewijzigdeDatums.push(datum);
           console.log("[Beschikbaarheid] Genereer sessie voor:", datum, dag, uren, "uur", oudeSessie ? `(vervangt ${oudeSessie.type})` : "(nieuw)");
 
-          const sessie = await genereerSessieDagViaJob(datum, dag, uren, { overigeSessies, oudeSessie });
+          const beschAanleiding = oudeSessie ? "beschikbaarheid_uren" : "beschikbaarheid_nieuw";
+          const sessie = await genereerSessieDagViaJob(datum, dag, uren, { overigeSessies, oudeSessie, aanleiding: beschAanleiding });
           if (sessie) {
             lokaalSessies = [...lokaalSessies.filter(s => s.datum !== datum), sessie];
             setWeekSessies({ ...weekSessies, sessies: lokaalSessies });
@@ -673,6 +705,14 @@ export default function Page() {
               initialDagOffset={schemaDagOffset}
               onRpeSaved={handleRpeSaved}
               onOpenProfiel={() => setProfielOpen(true)}
+              onPlanWijziging={() => {
+                fetch("/api/plan").then(r => r.json()).then(pd => {
+                  if (pd.success && pd.data) {
+                    setSeizoensplan(pd.data);
+                    if (pd.data.weekSessies) setWeekSessies(pd.data.weekSessies);
+                  }
+                });
+              }}
             />
           )}
 

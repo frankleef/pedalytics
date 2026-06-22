@@ -160,7 +160,7 @@ function bepaalMode(offset, sessie, rit, ftp, planStartISO) {
 export default function SchemaTab({
   seizoensplan, weekSessies, weekSessiesLaden, beschikbaar, voortgang,
   profiel, wellenessHuidig, vandaagInvoer, onEditBeschikbaarheid, initialDagOffset,
-  onRpeSaved, onOpenProfiel,
+  onRpeSaved, onOpenProfiel, onPlanWijziging,
 }) {
   const [selectedIdx, setSelectedIdx] = useState(10 + (initialDagOffset || 0));
   const [rpeWaarde, setRpeWaarde] = useState(6);
@@ -505,6 +505,37 @@ export default function SchemaTab({
               </div>
             )}
 
+            {/* Rest-waarschuwingskaart */}
+            {sessie.rest_waarschuwing && (
+              <div style={{ background: "oklch(0.96 0.05 82)", border: "1.5px solid oklch(0.85 0.08 78)", borderRadius: T.cardRadius, padding: "22px 22px 24px", marginBottom: 16 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
+                  <span style={{ fontSize: 22, lineHeight: 1.2, flexShrink: 0 }}>&#x26A0;&#xFE0F;</span>
+                  <div>
+                    <div style={{ font: "800 15px var(--font-nunito), sans-serif", color: "oklch(0.35 0.06 60)", marginBottom: 6 }}>Je herstel is vandaag onvoldoende voor een training</div>
+                    <p style={{ margin: 0, font: "600 13.5px/1.55 var(--font-nunito), sans-serif", color: "oklch(0.42 0.04 65)" }}>
+                      Op basis van je slaap, HRV en hoe je je voelt is volledige rust vandaag waarschijnlijk beter dan zelfs een lichte training. We hebben de sessie vervangen door een korte herstelrit.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={async () => {
+                    try {
+                      const resp = await fetch("/api/checkin", {
+                        method: "DELETE",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ datum: sessie.datum }),
+                      });
+                      if (resp.ok) {
+                        onPlanWijziging?.();
+                      }
+                    } catch (e) { console.error("Advies opvolgen mislukt:", e); }
+                  }}
+                  style={{ width: "100%", padding: "14px 20px", borderRadius: T.pillRadius, border: "none", background: T.slate, color: "oklch(0.97 0.01 84)", font: "800 14.5px var(--font-nunito), sans-serif", cursor: "pointer", letterSpacing: 0.2 }}>
+                  Advies opvolgen — dag overslaan
+                </button>
+              </div>
+            )}
+
             {sessie.reden && (
               <div style={{ background: SLATE.bg, borderRadius: T.cardRadius, padding: "22px 22px 24px", boxShadow: SLATE.shadow, marginBottom: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 13 }}>
@@ -512,6 +543,11 @@ export default function SchemaTab({
                   <span style={{ font: "800 11.5px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: SLATE.label }}>{dayOffset === 0 ? "WAAROM VANDAAG" : `WAAROM ${bekekeDagNaam.toUpperCase()}`}</span>
                 </div>
                 <p style={{ margin: "0 0 16px", font: "600 15px/1.5 var(--font-nunito), sans-serif", color: SLATE.text, textWrap: "pretty" }}>{sessie.reden}</p>
+                {sessie.check_in_aangepast && sessie.check_in_modulatie && (
+                  <p style={{ margin: "0 0 16px", font: "600 13px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.75 0.06 168)" }}>
+                    We hebben je sessie {sessie.check_in_modulatie} gemaakt op basis van je hersteldata van vanochtend.
+                  </p>
+                )}
                 <div style={{ display: "flex", gap: 10 }}>
                   {tsb != null && (
                     <div style={{ flex: 1, background: SLATE.tile, borderRadius: 14, padding: "11px 13px" }}>

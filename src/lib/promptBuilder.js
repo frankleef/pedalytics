@@ -2,33 +2,61 @@
 // Elke functie retourneert { prompt, system, max_tokens }.
 
 import { vandaagISO, datumISO } from "./datum";
-const ZWAAR_TYPES = ["sweetspot", "interval", "drempel", "vo2max"];
+import { bouwSessieContext } from "./sessie/context";
 
-function bouwWeekrol(overigeSessies, kaderWeek, uren) {
-  const aantalZwaar = overigeSessies.filter(s => ZWAAR_TYPES.includes(s.type)).length;
-  const aantalZ2 = overigeSessies.filter(s => ["duur_lang", "duur_variabel", "herstel"].includes(s.type)).length;
-  const totaal = overigeSessies.length;
+function sessietypesVoorFase(fase) {
+  const tabel = {
+    basis: "z2_vlak, z2_variabel, z1_herstel — GEEN intensiteitssessies",
+    sweetspot: "sweetspot_intervallen, z2_vlak, z2_variabel, z1_herstel",
+    drempel: "drempel_intervallen, over_under, pyramide, z2_vlak, z1_herstel",
+    consolidatie: "z2_variabel, drempel_intervallen, z1_herstel",
+    test: "z2_vlak, ramp_test",
+  };
+  return tabel[fase] || tabel.basis;
+}
 
-  if (aantalZwaar >= 2) return `Deze week heeft al ${aantalZwaar} intensiteitsdagen. Dit slot moet een Z2-duurrit of herstelrit worden (80/20 polarisatie).`;
-  if (aantalZwaar === 1 && aantalZ2 >= 2) return `Er is al 1 intensiteitsdag en ${aantalZ2} Z2-dag(en). Dit slot kan een tweede intensiteitsdag worden als TSB en HRV het toelaten, of een Z2/variabele duurrit als extra volume.`;
-  if (aantalZwaar === 0 && totaal >= 1) return `Er zijn nog geen intensiteitsdagen deze week. Dit slot zou bij voorkeur de eerste intensiteitsdag moeten zijn (sweetspot of interval), passend bij de fase "${kaderWeek.fase}".`;
-  if (totaal === 0) return `Dit is de eerste sessie van de week. Kies op basis van de fase "${kaderWeek.fase}" en de beschikbare ${uren} uur.`;
-  return `Er ${aantalZwaar === 1 ? "is 1 intensiteitsdag" : "zijn geen intensiteitsdagen"} en ${aantalZ2} Z2-dag(en). Vul het weekpatroon aan op basis van wat ontbreekt.`;
+function z1z2Doel(niveau) {
+  return { starter: "90%", recreatief: "80%", getraind: "75%" }[niveau] || "80%";
 }
 
 export function bouwSeizoensplanPrompt({ profiel, doelConfig, kader }) {
   const week1 = kader[0];
   const week2 = kader[1];
+  const niveau = doelConfig.ervaringsniveau || "recreatief";
+  const opbouwPct = { starter: "5%", recreatief: "10%", getraind: "15%" }[niveau] || "10%";
+
   return {
     prompt: `Genereer concrete trainingssessies voor week 1 en 2 van een fietsplan.
 
-PROFIEL: FTP ${doelConfig.huidige_ftp}W | LT ${profiel.lt_hr} bpm | Max HR ${profiel.max_hr} bpm | ${profiel.gewicht} kg | CTL ~${doelConfig.huidige_ctl} | Eerste seizoen
+PROFIEL: FTP ${doelConfig.huidige_ftp}W | LT ${profiel.lt_hr} bpm | Max HR ${profiel.max_hr} bpm | ${profiel.gewicht} kg | CTL ~${doelConfig.huidige_ctl} | Ervaringsniveau: ${niveau}
 DOEL: ${doelConfig.doel_label}
 
-WEEK 1: fase=${week1.fase}, TSS-doel=${week1.tss_doel}, focus=${week1.focus}
-WEEK 2: fase=${week2.fase}, TSS-doel=${week2.tss_doel}, focus=${week2.focus}
+WEEKSTRUCTUUR (verplicht):
+- 3:1-ritme: 3 opbouwweken gevolgd door 1 herstelweek, herhaald
+- Opbouwweken: TSS stijgt ~${opbouwPct} per week
+- Herstelweek TSS: 40-50% van de piekweek
+- Week 1 weektype: ${week1.weektype}, Week 2 weektype: ${week2.weektype}
+
+WEEK 1: fase=${week1.fase}, weektype=${week1.weektype}, TSS-doel=${week1.tss_doel}, focus=${week1.focus}
+WEEK 2: fase=${week2.fase}, weektype=${week2.weektype}, TSS-doel=${week2.tss_doel}, focus=${week2.focus}
 
 Maak 3 fietssessies per week. Verdeel over de week met rustdagen ertussen.
+
+SESSIETYPES VOOR DEZE FASE:
+- Week 1 (${week1.fase}): ${sessietypesVoorFase(week1.fase)}
+- Week 2 (${week2.fase}): ${sessietypesVoorFase(week2.fase)}
+
+DAG-INTENTIE (verplicht voor elke trainingsdag):
+Elke sessie bevat een "intentie"-object met:
+- rol: één van [intensiteitsdag, aerobe_dag, hersteldag, variabele_dag, ftp_test]
+- sessietype: één van [sweetspot_intervallen, drempel_intervallen, vo2max_intervallen, over_under, sprint_neuraal, pyramide, z2_vlak, z2_variabel, z1_herstel, ramp_test]
+- toegestane_zones: array van zones die deze dag gebruikt mogen worden (bv. ["Z1", "Z2"])
+- tss_range: { min, max } waarbinnen de TSS moet vallen
+- toelichting: één zin over de rol van deze dag in het weekpatroon
+
+INTENSITEITSDISTRIBUTIE:
+- Z1-Z2 doel-aandeel: ${z1z2Doel(niveau)}
+- Max intensiteitssessies per week: ${niveau === "starter" ? "1" : niveau === "getraind" ? "2" : "1-2"}
 
 Geef JSON:
 {
@@ -36,20 +64,32 @@ Geef JSON:
   "streefwaarde": "bijv. 280-290W na 12 weken",
   "detail_weken": [
     {
-      "week": 1, "fase": "${week1.fase}", "weekdoel": "...",
+      "week": 1, "fase": "${week1.fase}", "weektype": "${week1.weektype}", "weekdoel": "...",
       "sessies": [
-        { "dag": "Dinsdag", "type": "duur_lang|sweetspot|interval|herstel|ftp_test", "titel": "...", "tss": 90, "duur_min": 150, "vermogen": "170-195W", "hartslag": "<152 bpm", "reden": "..." }
+        {
+          "dag": "Dinsdag",
+          "type": "duur_lang|duur_variabel|sweetspot|interval|herstel|ftp_test",
+          "titel": "...", "tss": 90, "duur_min": 150,
+          "vermogen": "170-195W", "hartslag": "<152 bpm", "reden": "...",
+          "intentie": {
+            "rol": "aerobe_dag",
+            "sessietype": "z2_vlak",
+            "toegestane_zones": ["Z1", "Z2"],
+            "tss_range": { "min": 70, "max": 100 },
+            "toelichting": "Aerobe basis opbouwen"
+          }
+        }
       ]
     },
     {
-      "week": 2, "fase": "${week2.fase}", "weekdoel": "...",
+      "week": 2, "fase": "${week2.fase}", "weektype": "${week2.weektype}", "weekdoel": "...",
       "sessies": [...]
     }
   ]
 }
 Alleen JSON.`,
-    system: "Je bent een professionele fietscoach. Geef concrete sessies in JSON. Nederlands.",
-    max_tokens: 3000,
+    system: "Je bent een professionele fietscoach. Geef concrete sessies in JSON met dag-intentie per sessie. Nederlands.",
+    max_tokens: 4000,
   };
 }
 
@@ -159,8 +199,10 @@ RECENTE RITTEN:
 ${recenteRitten}
 
 PLANPERIODE:
-- Huidige fase: ${kaderWeek.fase} — ${kaderWeek.focus} (TSS-doel ${kaderWeek.tss_doel}/week)
-${kaderWeek2 !== kaderWeek ? `- Volgende fase: ${kaderWeek2.fase} — ${kaderWeek2.focus} (TSS-doel ${kaderWeek2.tss_doel}/week)` : ""}
+- Huidige fase: ${kaderWeek.fase} — ${kaderWeek.focus} (TSS-doel ${kaderWeek.tss_doel}/week, weektype: ${kaderWeek.weektype || "opbouw"})
+${kaderWeek2 !== kaderWeek ? `- Volgende fase: ${kaderWeek2.fase} — ${kaderWeek2.focus} (TSS-doel ${kaderWeek2.tss_doel}/week, weektype: ${kaderWeek2.weektype || "opbouw"})` : ""}
+- Ervaringsniveau: ${seizoensplan.ervaringsniveau || "recreatief"}
+- Toegestane sessietypes deze fase: ${sessietypesVoorFase(kaderWeek.fase)}
 
 BESCHIKBARE DAGEN (plan ALLEEN op deze datums):
 ${tePlannenDagen.map(d => `  ${d.datum} (${d.dag}): ${d.uren} uur`).join("\n")}
@@ -175,7 +217,7 @@ REGELS:
 - Als TSB < -20: alleen Z2 of herstel, geen intensiteit
 - Als HRV dalend: stel intensiteitsblok uit, focus op Z2
 - Als vorige week RPE > 7 en TSS < 80%: verlaag deze week met 10%
-- 80/20 polarisatie | Max ~150 TSS per sessie
+- Z1-Z2 doel-aandeel: ${z1z2Doel(seizoensplan.ervaringsniveau || "recreatief")} | Max ~150 TSS per sessie
 - Geef bij elke sessie een concrete, data-gedreven reden
 
 SESSIETYPES:
@@ -184,6 +226,17 @@ SESSIETYPES:
 - sweetspot: 88-93% FTP blokken met herstel ertussen
 - interval: 95-120% FTP blokken met herstel ertussen
 - herstel: laag vermogen (50-60% FTP)
+- over_under: sets van 2m @ 86-90% FTP (under) + 1m @ 103-107% FTP (over), 5m Z1 herstel tussen sets. TSS 70-90
+- sprint_neuraal: 6-8x sprint 10-15s @ max (>150% FTP), 3-5m Z1 herstel. TSS 30-45. Nooit naast intensiteitsdag
+- pyramide: oplopend+aflopend rondom drempel: 2m→4m→6m→4m→2m @ 95-105% FTP, 1m herstel. TSS 75-100
+
+DAG-INTENTIE (verplicht voor elke trainingsdag):
+Elke sessie moet een "intentie"-object bevatten met:
+- rol: één van [intensiteitsdag, aerobe_dag, hersteldag, variabele_dag, ftp_test]
+- sessietype: één van [sweetspot_intervallen, drempel_intervallen, vo2max_intervallen, over_under, sprint_neuraal, pyramide, z2_vlak, z2_variabel, z1_herstel, ramp_test]
+- toegestane_zones: array van zones (bv. ["Z1", "Z2"])
+- tss_range: { min, max }
+- toelichting: één zin over de rol van deze dag
 
 SEGMENTEN-FORMAAT:
 - GEEN warmup of cooldown segmenten genereren
@@ -193,69 +246,108 @@ SEGMENTEN-FORMAAT:
 Geef JSON:
 {
   "weekdoel": "...",
-  "sessies": [{ "datum": "...", "dag": "...", "type": "...", "titel": "...", "tss": ..., "duur_min": ..., "vermogen": "...", "reden": "...", "segmenten": [...] }],
+  "sessies": [{
+    "datum": "...", "dag": "...", "type": "...", "titel": "...", "tss": ..., "duur_min": ...,
+    "vermogen": "...", "reden": "...", "segmenten": [...],
+    "intentie": { "rol": "...", "sessietype": "...", "toegestane_zones": [...], "tss_range": { "min": ..., "max": ... }, "toelichting": "..." }
+  }],
   "tss_totaal": ...
 }
 Alleen JSON.`,
-    system: "Je bent een professionele fietscoach. Genereer gepersonaliseerde sessies met gedetailleerde workout-segmenten. Nederlands, alleen JSON.",
-    max_tokens: 6000,
+    system: "Je bent een professionele fietscoach. Genereer gepersonaliseerde sessies met dag-intentie en gedetailleerde workout-segmenten. Nederlands, alleen JSON.",
+    max_tokens: 8000,
     voltooideDatams: [...voltooideDatams],
   };
 }
 
-export function bouwSessieDagPrompt({ profiel, wellness, dagelijkseData, voortgang, seizoensplan, overigeSessies, datum, dagNaam, uren, oudeSessie }) {
-  const ftp = profiel.ftp || 265;
-  const ctl = wellness?.ctl || seizoensplan.huidige_ctl || 45;
-  const atl = wellness?.atl || 0;
-  const tsb = Math.round(ctl - atl);
+export function bouwSessieDagPrompt(params) {
+  const ctx = bouwSessieContext(params);
+  return bouwSessieDagPromptVanContext(ctx);
+}
 
-  const dagenSindsStart = seizoensplan?.startdatum ? Math.max(0, (Date.now() - new Date(seizoensplan.startdatum).getTime()) / 86400000) : 0;
-  const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7) || 1);
-  const kaderWeek = seizoensplan.kader?.find(w => w.week === weekNr) || seizoensplan.kader?.[0] || { fase: "basis", tss_doel: 250, focus: "Z2 volume" };
+/**
+ * Bouwt de prompt op basis van een vooraf geassembleerde SessieContext.
+ * Dag-intentie is leidend als die aanwezig is — het type/zones worden niet veranderd.
+ */
+export function bouwSessieDagPromptVanContext(ctx) {
+  const weekTssNu = ctx.overigeSessiesDezeWeek.reduce((s, sess) => s + (sess.tss || 0), 0);
+  const tssRuimte = ctx.tssDoel - weekTssNu;
 
-  const weekTssNu = overigeSessies.reduce((s, sess) => s + (sess.tss || 0), 0);
-  const tssRuimte = kaderWeek.tss_doel - weekTssNu;
-  const bestaande = overigeSessies
-    .map(s => `  ${s.datum} (${s.dag}): ${s.type}${ZWAAR_TYPES.includes(s.type) ? " [ZWAAR]" : ""}, ${s.tss || "?"} TSS, ${s.duur_min || "?"}min`)
+  const bestaande = ctx.overigeSessiesDezeWeek
+    .map(s => `  ${s.datum} (${s.dag}): ${s.type}${s.isZwaar ? " [ZWAAR]" : ""}, ${s.tss || "?"} TSS, ${s.duur_min || "?"}min`)
     .join("\n") || "Geen";
 
-  const weekrol = bouwWeekrol(overigeSessies, kaderWeek, uren);
+  const weekrol = bouwWeekrolVanContext(ctx.overigeSessiesDezeWeek, ctx.fase, ctx.uren);
 
-  const recenteHrv = (dagelijkseData || []).filter(d => d.hrv).slice(-5);
-  let hrvInfo = "onbekend";
-  if (recenteHrv.length > 0) {
-    const laatsteHrv = recenteHrv[recenteHrv.length - 1].hrv;
-    const eerste = recenteHrv.length >= 3 ? recenteHrv.slice(0, 2).reduce((s, d) => s + d.hrv, 0) / 2 : laatsteHrv;
-    const laatste = recenteHrv.length >= 3 ? recenteHrv.slice(-2).reduce((s, d) => s + d.hrv, 0) / 2 : laatsteHrv;
-    const trend = laatste < eerste - 3 ? "dalend" : laatste > eerste + 3 ? "stijgend" : "stabiel";
-    hrvInfo = `${laatsteHrv}ms (basislijn ${profiel.hrv_basislijn || 58}) | trend: ${trend}`;
-  }
+  const hrvInfo = ctx.hrvEnRhr.hrv
+    ? `${ctx.hrvEnRhr.hrv}ms (basislijn ${ctx.hrvEnRhr.basislijn_hrv}) | trend: ${ctx.hrvEnRhr.trend}`
+    : "onbekend";
 
-  const zevenDagen = new Date(Date.now() - 7 * 86400000);
-  const rittenMetRpe = (voortgang?.ritten || []).filter(r => r.rpe && r.datum_iso && new Date(r.datum_iso) >= zevenDagen);
-  let rpeInfo = "geen data";
-  if (rittenMetRpe.length >= 2) {
-    const gem = +(rittenMetRpe.reduce((s, r) => s + r.rpe, 0) / rittenMetRpe.length).toFixed(1);
-    rpeInfo = `gem ${gem}/10 (${gem > 7 ? "te zwaar — verlaag intensiteit" : gem < 4 ? "te licht — verhoog intensiteit" : "passend"})`;
+  const rpeInfo = ctx.rpeTrend.aantal >= 2
+    ? `gem ${ctx.rpeTrend.gemiddelde}/10 (${ctx.rpeTrend.trend === "hoog" ? "te zwaar — verlaag intensiteit" : ctx.rpeTrend.trend === "laag" ? "te licht — verhoog intensiteit" : "passend"})`
+    : "geen data";
+
+  // Intentie-sectie: leidend als aanwezig, anders laten bepalen
+  let intentieInstructie;
+  if (ctx.dagIntentie) {
+    intentieInstructie = `DAG-INTENTIE (leidend — niet ter discussie):
+Rol: ${ctx.dagIntentie.rol}
+Sessietype: ${ctx.dagIntentie.sessietype}
+Toegestane zones: ${(ctx.dagIntentie.toegestane_zones || []).join(", ")}
+TSS-range: ${ctx.dagIntentie.tss_range?.min || "?"}–${ctx.dagIntentie.tss_range?.max || "?"}
+Achtergrond: ${ctx.dagIntentie.toelichting || ""}
+
+Jouw taak: genereer een sessie die PAST BINNEN deze intentie.
+Pas UITSLUITEND aan: duur, exact vermogensbereik binnen de toegestane zones, TSS binnen de opgegeven range.
+Verander NOOIT: sessietype, zone-bandbreedte, of de intentie zelf.
+Aanleiding voor deze aanroep: ${ctx.aanleiding}`;
+  } else {
+    intentieInstructie = `DAG-INTENTIE (verplicht — bepaal zelf):
+Voeg een "intentie"-object toe met:
+- rol: één van [intensiteitsdag, aerobe_dag, hersteldag, variabele_dag, ftp_test]
+- sessietype: één van [sweetspot_intervallen, drempel_intervallen, vo2max_intervallen, over_under, sprint_neuraal, pyramide, z2_vlak, z2_variabel, z1_herstel, ramp_test]
+- toegestane_zones: array van zones (bv. ["Z1", "Z2"])
+- tss_range: { min, max }
+- toelichting: één zin over de rol van deze dag
+Aanleiding: ${ctx.aanleiding}`;
   }
 
   let vorigeSessieContext = "";
-  if (oudeSessie) {
+  if (ctx.vorigeSessieOpDezeDag && !ctx.dagIntentie) {
     vorigeSessieContext = `
 VORIGE SESSIE OP DEZE DAG (beschikbare uren zijn gewijzigd):
-  Type: ${oudeSessie.type} | Titel: ${oudeSessie.titel} | Vermogen: ${oudeSessie.vermogen || "?"} | TSS: ${oudeSessie.tss || "?"} | Duur: ${oudeSessie.duur_min || "?"}min
+  Type: ${ctx.vorigeSessieOpDezeDag.type} | Titel: ${ctx.vorigeSessieOpDezeDag.titel} | Vermogen: ${ctx.vorigeSessieOpDezeDag.vermogen || "?"} | TSS: ${ctx.vorigeSessieOpDezeDag.tss || "?"} | Duur: ${ctx.vorigeSessieOpDezeDag.duur_min || "?"}min
 
-BELANGRIJK: behoud hetzelfde sessietype en dezelfde vermogenszone als de vorige sessie. Pas ALLEEN de duur en TSS proportioneel aan op de nieuwe beschikbare tijd (${uren} uur). Wijzig het type NIET tenzij TSB of HRV daar expliciet aanleiding toe geeft.`;
+BELANGRIJK: behoud hetzelfde sessietype en dezelfde vermogenszone. Pas ALLEEN de duur en TSS aan.`;
+  }
+
+  let checkInContext = "";
+  if (ctx.checkInVandaag) {
+    checkInContext = `\nCHECK-IN VANDAAG: ${ctx.checkInVandaag}/5`;
+  }
+
+  let distributieContext = "";
+  if (ctx.distributieAfwijking) {
+    const richting = ctx.distributieAfwijking.richting;
+    if (richting === "te_intensief") {
+      distributieContext = "\nDISTRIBUTIE-CORRECTIE: te intensief — genereer een vlakkere Z2-sessie, TSS 10% lager dan normaal.";
+    } else if (richting === "te_rustig") {
+      distributieContext = "\nDISTRIBUTIE-CORRECTIE: te rustig — verhoog Z3-aandeel licht, TSS 5% hoger dan normaal.";
+    }
   }
 
   return {
-    prompt: `Maak één trainingssessie voor ${datum} (${dagNaam}), ${uren} uur beschikbaar.
+    prompt: `Maak één trainingssessie voor ${ctx.datum} (${ctx.dagVanDeWeek}), ${ctx.uren} uur beschikbaar.
 
-PROFIEL: FTP ${ftp}W | LT ${profiel.lt_hr} bpm | Max HR ${profiel.max_hr} bpm | ${profiel.gewicht} kg | Eerste seizoen
-CTL: ${Math.round(ctl)} | ATL: ${Math.round(atl)} | TSB: ${tsb}
+${intentieInstructie}
+
+PROFIEL: FTP ${ctx.atleetProfiel.ftp}W | LT ${ctx.atleetProfiel.lt_hr} bpm | Max HR ${ctx.atleetProfiel.max_hr} bpm | ${ctx.atleetProfiel.gewicht} kg
+CTL: ${ctx.ctlAtlTsb.ctl} | ATL: ${ctx.ctlAtlTsb.atl} | TSB: ${ctx.ctlAtlTsb.tsb}
 HRV: ${hrvInfo}
-RPE afgelopen week: ${rpeInfo}
-Fase: ${kaderWeek.fase} — ${kaderWeek.focus} (TSS-doel ${kaderWeek.tss_doel}/week, reeds gepland: ${weekTssNu} TSS, ruimte: ${tssRuimte} TSS)
+RPE afgelopen week: ${rpeInfo}${checkInContext}${distributieContext}
+Fase: ${ctx.fase} — ${ctx.focus} (TSS-doel ${ctx.tssDoel}/week, weektype: ${ctx.weektype}, reeds gepland: ${weekTssNu} TSS, ruimte: ${tssRuimte} TSS)
+Ervaringsniveau: ${ctx.atleetProfiel.ervaringsniveau}
+Toegestane sessietypes deze fase: ${sessietypesVoorFase(ctx.fase)}
 
 OVERIGE SESSIES DEZE WEEK (niet wijzigen, houd spreiding — [ZWAAR] = intensiteitsdag):
 ${bestaande}
@@ -264,20 +356,37 @@ ROL VAN DEZE DAG IN HET WEEKPATROON:
 ${weekrol}
 
 REGELS:
-- Duur past binnen ${uren} uur
-${oudeSessie ? "- BEHOUD het sessietype en de vermogenszone van de vorige sessie — alleen duur/TSS aanpassen" : "- Volg de weekrol hierboven — die bepaalt welk type sessie hier past"}
-- Min 1 rustdag tussen harde sessies (sweetspot/interval). Als TSB < -20 of HRV dalend: alleen Z2 of herstel
-- Houd week-TSS onder ${kaderWeek.tss_doel} totaal
+- Duur past binnen ${ctx.uren} uur
+${ctx.dagIntentie ? "- Intentie is leidend — pas alleen duur/vermogen/TSS aan binnen de intentie-grenzen" : "- Volg de weekrol hierboven — die bepaalt welk type sessie hier past"}
+- Min 1 rustdag tussen harde sessies. Als TSB < -20 of HRV dalend: alleen Z2 of herstel
+- Houd week-TSS onder ${ctx.tssDoel} totaal
 - GEEN warmup/cooldown segmenten, hoofdinspanning vult hele duur
 - Gebruik vermogenMin/vermogenMax in %FTP per segment
 - Geef een concrete, data-gedreven reden
+- Z1-Z2 doel-aandeel: ${z1z2Doel(ctx.atleetProfiel.ervaringsniveau)}
 
 SESSIETYPES: duur_lang | duur_variabel | sweetspot | interval | herstel
 
 Geef JSON (alleen het sessie-object, geen array):
-{ "datum": "${datum}", "dag": "${dagNaam}", "type": "...", "titel": "...", "tss": ..., "duur_min": ..., "vermogen": "...", "reden": "...", "segmenten": [...] }
+{
+  "datum": "${ctx.datum}", "dag": "${ctx.dagVanDeWeek}", "type": "...", "titel": "...", "tss": ..., "duur_min": ...,
+  "vermogen": "...", "reden": "...", "segmenten": [...],
+  "intentie": { "rol": "...", "sessietype": "...", "toegestane_zones": [...], "tss_range": { "min": ..., "max": ... }, "toelichting": "..." }
+}
 Alleen JSON.`,
-    system: "Je bent een professionele fietscoach. Genereer één gepersonaliseerde sessie met gedetailleerde workout-segmenten. Nederlands, alleen JSON.",
-    max_tokens: 3000,
+    system: "Je bent een professionele fietscoach. Genereer één gepersonaliseerde sessie die past binnen de opgegeven dag-intentie. Nederlands, alleen JSON.",
+    max_tokens: 4000,
   };
+}
+
+function bouwWeekrolVanContext(overigeSessies, fase, uren) {
+  const aantalZwaar = overigeSessies.filter(s => s.isZwaar).length;
+  const aantalZ2 = overigeSessies.filter(s => !s.isZwaar).length;
+  const totaal = overigeSessies.length;
+
+  if (aantalZwaar >= 2) return `Deze week heeft al ${aantalZwaar} intensiteitsdagen. Dit slot moet een Z2-duurrit of herstelrit worden (polarisatie).`;
+  if (aantalZwaar === 1 && aantalZ2 >= 2) return `Er is al 1 intensiteitsdag en ${aantalZ2} Z2-dag(en). Dit slot kan een tweede intensiteitsdag worden als TSB en HRV het toelaten.`;
+  if (aantalZwaar === 0 && totaal >= 1) return `Er zijn nog geen intensiteitsdagen deze week. Dit slot zou bij voorkeur een intensiteitsdag moeten zijn, passend bij de fase "${fase}".`;
+  if (totaal === 0) return `Dit is de eerste sessie van de week. Kies op basis van de fase "${fase}" en de beschikbare ${uren} uur.`;
+  return `Er ${aantalZwaar === 1 ? "is 1 intensiteitsdag" : "zijn geen intensiteitsdagen"} en ${aantalZ2} Z2-dag(en). Vul het weekpatroon aan.`;
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { bouwSeizoensplanPrompt, bouwWeekSessiesPrompt, bouwSessieDagPrompt } from "@/lib/promptBuilder";
+import { valideerSeizoensPlan } from "@/lib/seizoen/valideer";
 
 function genId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -58,9 +59,13 @@ export async function POST(request) {
         }
       } else if (type === "sessieDag") {
         promptData = bouwSessieDagPrompt(params);
-        console.log(`[Job ${jobId}] sessieDag prompt voor ${params.datum}:`, params.oudeSessie ? `VORIGE: ${params.oudeSessie.type} ${params.oudeSessie.vermogen}` : "NIEUW");
-        console.log(`[Job ${jobId}] prompt bevat 'VORIGE SESSIE':`, promptData.prompt.includes("VORIGE SESSIE OP DEZE DAG"));
-        console.log(`[Job ${jobId}] prompt bevat 'BEHOUD':`, promptData.prompt.includes("BEHOUD het sessietype"));
+        const intentieInfo = params.oudeSessie?.intentie
+          ? `INTENTIE: ${params.oudeSessie.intentie.sessietype} (${params.oudeSessie.intentie.rol})`
+          : "GEEN INTENTIE (wordt bepaald)";
+        console.log(`[Job ${jobId}] sessieDag voor ${params.datum}: ${intentieInfo} | aanleiding: ${params.aanleiding || "niet opgegeven"}`);
+        if (process.env.DEBUG_SESSIE_CONTEXT === "true") {
+          console.log(`[Job ${jobId}] Volledige prompt:`, promptData.prompt.slice(0, 800));
+        }
       } else {
         throw new Error(`Onbekend job type: ${type}`);
       }
@@ -81,6 +86,17 @@ export async function POST(request) {
         result.voltooideDatams = promptData.voltooideDatams;
       } else {
         result = raw;
+      }
+
+      // Valideer seizoensplan en weekSessies output
+      if (type === "seizoensplan" || type === "weekSessies") {
+        const planVoorValidatie = type === "seizoensplan"
+          ? { ...params, ...result }
+          : { kader: params.seizoensplan?.kader, weekSessies: { sessies: result.sessies } };
+        const { geldig, fouten } = valideerSeizoensPlan(planVoorValidatie);
+        if (!geldig) {
+          console.warn(`[Job ${jobId}] Validatiefouten:`, fouten);
+        }
       }
 
       await kv.set(`genjob:${jobId}`, { status: "done", type, result }, { ex: 300 });

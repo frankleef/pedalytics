@@ -5,6 +5,9 @@ import { intervalsGet } from "@/lib/intervals";
 import { decrypt } from "@/lib/crypto";
 import { datumOffset } from "@/lib/datum";
 import { sendPush } from "@/lib/pushNotify";
+import { verwerkFtpTest } from "@/lib/sessie/ftpUpdate";
+import { berekenDistributie } from "@/lib/sessie/distributie";
+import { checkFaseOvergang } from "@/lib/decoupling";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -79,6 +82,87 @@ export async function POST(request) {
           datum_iso: nieuwste.start_date_local?.split("T")[0],
           checkedAt: new Date().toISOString(),
         });
+
+        // Check of nieuwste rit een FTP-test was
+        const plan = await kv.get(`${userId}:seizoensplan`);
+        if (plan?.weekSessies?.sessies) {
+          const ritDatum = nieuwste.start_date_local?.split("T")[0];
+          const sessie = plan.weekSessies.sessies.find(s => s.datum === ritDatum);
+          if (sessie?.intentie?.rol === "ftp_test") {
+            try {
+              const fullActivity = await intervalsGet(`/activities/${nieuwste.id}`, {}, { apiKey, athleteId });
+              const ftpResult = await verwerkFtpTest(userId, fullActivity);
+              if (ftpResult.updated) {
+                await sendPush(userId, {
+                  title: "FTP bijgewerkt",
+                  body: `Je FTP is bijgewerkt naar ${ftpResult.newFtp}W — je toekomstige trainingen zijn aangepast.`,
+                  url: "/",
+                });
+              }
+            } catch (e) {
+              console.warn(`[sync] FTP-test verwerking mislukt voor ${userId}:`, e.message);
+            }
+          }
+
+          // Wekelijkse distributie-check
+          const veertienDagenGeleden = datumOffset(-14);
+          const recenteRitten = ritten.filter(r => (r.start_date_local?.split("T")[0] || "") >= veertienDagenGeleden);
+          if (recenteRitten.length >= 3) {
+            try {
+              await berekenDistributie(userId, recenteRitten, plan.ervaringsniveau || "recreatief");
+            } catch (e) {
+              console.warn(`[sync] Distributie-berekening mislukt voor ${userId}:`, e.message);
+            }
+          }
+
+          // Fase-overgang check via cardiac decoupling (bouwstuk 8b)
+          if (plan.kader) {
+            const dagenSindsStart = plan.startdatum ? Math.max(0, (Date.now() - new Date(plan.startdatum).getTime()) / 86400000) : 0;
+            const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7) || 1);
+            const isLaatsteOpbouwWeek = weekNr % 4 === 3;
+
+            if (isLaatsteOpbouwWeek) {
+              try {
+                const decouplingWaarden = [];
+                const cached = await kv.get(`decoupling_check:${userId}:${weekNr}`);
+                if (!cached) {
+                  // Haal Z2-duurritten van afgelopen 3 weken
+                  const drieWekenGeleden = datumOffset(-21);
+                  const z2Ritten = ritten.filter(r => {
+                    const d = r.start_date_local?.split("T")[0] || "";
+                    return d >= drieWekenGeleden;
+                  });
+                  // Gebruik decoupling-waarden uit KV cache
+                  for (const rit of z2Ritten) {
+                    const dc = await kv.get(`decoupling:${rit.id}`);
+                    if (dc !== null && dc !== undefined) decouplingWaarden.push(dc);
+                  }
+
+                  if (decouplingWaarden.length >= 2) {
+                    const aantalVerlengingen = plan.fase_verlengd_count || 0;
+                    const { uitstel, mediaan } = checkFaseOvergang(decouplingWaarden, aantalVerlengingen);
+
+                    if (uitstel) {
+                      console.log(`[sync] Fase-overgang uitgesteld voor ${userId}: mediaan decoupling ${mediaan}%`);
+                      plan.fase_verlengd_count = aantalVerlengingen + 1;
+                      await kv.set(planKey, plan);
+
+                      await sendPush(userId, {
+                        title: "Extra opbouwweek",
+                        body: "Je aerobe basis is nog in ontwikkeling — we geven je een extra week voordat we de belasting verhogen.",
+                        url: "/",
+                      });
+                    }
+
+                    await kv.set(`decoupling_check:${userId}:${weekNr}`, { mediaan, uitstel }, { ex: 14 * 86400 });
+                  }
+                }
+              } catch (e) {
+                console.warn(`[sync] Fase-overgang check mislukt voor ${userId}:`, e.message);
+              }
+            }
+          }
+        }
 
         // Push-notificatie bij nieuwe rit
         await sendPush(userId, {
