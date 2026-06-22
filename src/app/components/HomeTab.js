@@ -193,6 +193,23 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
           </div>
         )}
 
+        {/* Ochtend check-in */}
+        {!checkinLaden && !checkin && (
+          <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 20px 22px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
+            <ScaleInput
+              value={0}
+              max={5}
+              question="Hoe voel je je vandaag?"
+              leftLabel="Slecht"
+              rightLabel="Top"
+              onChange={(val) => {
+                setCheckin(val);
+                fetch("/api/checkin", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ score: val }) });
+              }}
+            />
+          </div>
+        )}
+
         {/* Filter pills */}
         <div style={{ display: "flex", gap: 9, overflowX: "auto", margin: `0 -${T.pad}px 22px`, padding: `2px ${T.pad}px 6px` }}>
           {FILTERS.map((label, i) => (
@@ -316,23 +333,6 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
             </div>
           );
         })()}
-
-        {/* Ochtend check-in */}
-        {!checkinLaden && !checkin && (
-          <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 20px 22px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
-            <ScaleInput
-              value={0}
-              max={5}
-              question="Hoe voel je je vandaag?"
-              leftLabel="Slecht"
-              rightLabel="Top"
-              onChange={(val) => {
-                setCheckin(val);
-                fetch("/api/checkin", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ score: val }) });
-              }}
-            />
-          </div>
-        )}
 
         {/* Week strip */}
         <WeekStrip beschikbaar={beschikbaar} weekSessies={weekSessies} weekSessiesLaden={weekSessiesLaden} onEdit={onEditBeschikbaarheid} />

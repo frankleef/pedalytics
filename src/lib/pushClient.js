@@ -1,3 +1,13 @@
+async function getRegistration() {
+  if (!("serviceWorker" in navigator)) return null;
+  let reg = await navigator.serviceWorker.getRegistration("/");
+  if (!reg) {
+    reg = await navigator.serviceWorker.register("/sw.js");
+  }
+  await navigator.serviceWorker.ready;
+  return reg;
+}
+
 export async function subscribeToPush() {
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) return false;
 
@@ -7,7 +17,9 @@ export async function subscribeToPush() {
   const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   if (!vapidKey) { console.error("VAPID public key ontbreekt"); return false; }
 
-  const reg = await navigator.serviceWorker.ready;
+  const reg = await getRegistration();
+  if (!reg) return false;
+
   const subscription = await reg.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(vapidKey),
@@ -25,7 +37,8 @@ export async function subscribeToPush() {
 }
 
 export async function unsubscribeFromPush() {
-  const reg = await navigator.serviceWorker.ready;
+  const reg = await getRegistration();
+  if (!reg) return;
   const subscription = await reg.pushManager.getSubscription();
   if (subscription) await subscription.unsubscribe();
   await fetch("/api/push/subscribe", { method: "DELETE" });
@@ -33,7 +46,8 @@ export async function unsubscribeFromPush() {
 
 export async function isPushSubscribed() {
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) return false;
-  const reg = await navigator.serviceWorker.ready;
+  const reg = await navigator.serviceWorker.getRegistration("/");
+  if (!reg || !reg.active) return false;
   const subscription = await reg.pushManager.getSubscription();
   return !!subscription;
 }
