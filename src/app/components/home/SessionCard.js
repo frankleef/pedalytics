@@ -12,9 +12,10 @@ export default function SessionCard({ sessie, ftp, onOpen }) {
   const isVandaag = sessieDagIdx === vandaagDagIdx;
   const dagLabel = isVandaag ? "Vandaag" : sessie.dag;
 
+  const heeftSegmenten = sessie.segmenten && sessie.segmenten.length > 0;
   const isInterval = sessie.type === "sweetspot" || sessie.type === "interval" || sessie.type === "ftp_test";
   const duurStr = sessie.duur_min ? `${Math.floor(sessie.duur_min / 60)}u ${String(sessie.duur_min % 60).padStart(2, "0")}m` : null;
-  const blokken = sessie.segmenten?.filter(s => s.vermogen_pct > 80 && s.type !== "warmup" && s.type !== "cooldown").length;
+  const blokken = sessie.segmenten?.filter(s => (s.vermogenMin ?? s.vermogen_pct ?? 0) > 80 && s.type !== "warmup" && s.type !== "cooldown").length;
 
   return (
     <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 20px 22px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
@@ -48,7 +49,7 @@ export default function SessionCard({ sessie, ftp, onOpen }) {
       </div>
 
       {/* Workout viz */}
-      {isInterval && sessie.segmenten ? (
+      {heeftSegmenten ? (
         <div style={{ background: T.subtleFill, borderRadius: T.tileRadius, padding: "12px 12px 10px" }}>
           <WorkoutViz segmenten={sessie.segmenten} hoogte={90} ftp={ftp} />
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 11, paddingTop: 10, borderTop: `1px solid ${T.divider}` }}>

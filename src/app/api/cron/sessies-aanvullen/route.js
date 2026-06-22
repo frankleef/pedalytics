@@ -6,6 +6,7 @@ import { intervalsGet, intervalsPost } from "@/lib/intervals";
 import { vandaagISO, datumISO } from "@/lib/datum";
 import { bouwSessieDagPrompt } from "@/lib/promptBuilder";
 import { segmentenNaarZwo } from "@/lib/workoutZwo";
+import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -141,6 +142,7 @@ export async function POST(request) {
           const sessie = raw.sessie || raw.sessies?.[0] || raw;
           if (!sessie.datum) sessie.datum = datum;
           if (!sessie.dag) sessie.dag = dagNaam;
+          normaliseerSessieSegmenten(sessie);
 
           // Sync naar intervals.icu
           try {

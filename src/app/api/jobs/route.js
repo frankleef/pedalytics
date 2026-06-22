@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { bouwSeizoensplanPrompt, bouwWeekSessiesPrompt, bouwSessieDagPrompt } from "@/lib/promptBuilder";
 import { valideerSeizoensPlan } from "@/lib/seizoen/valideer";
+import { normaliseerSegmenten } from "@/lib/sessie/normaliseer";
 
 function genId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -81,11 +82,14 @@ export async function POST(request) {
         result = raw.sessie || raw.sessies?.[0] || raw;
         if (!result.datum) result.datum = params.datum;
         if (!result.dag) result.dag = params.dagNaam;
+        normaliseerSessieSegmenten(result);
       } else if (type === "weekSessies") {
         result = raw;
         result.voltooideDatams = promptData.voltooideDatams;
+        (result.sessies || []).forEach(normaliseerSessieSegmenten);
       } else {
         result = raw;
+        (result.detail_weken || []).forEach(w => (w.sessies || []).forEach(normaliseerSessieSegmenten));
       }
 
       // Valideer seizoensplan en weekSessies output
