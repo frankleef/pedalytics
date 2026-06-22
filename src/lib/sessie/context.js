@@ -62,6 +62,11 @@ export function bouwSessieContext({
   distributieAfwijking = null,
 }) {
   const ftp = profiel?.ftp || 265;
+
+  // Toekomstige dagen: wellness-data van vandaag is niet representatief
+  const vandaag = new Date().toISOString().slice(0, 10);
+  const isToekomst = datum > vandaag;
+
   const ctl = wellness?.ctl || seizoensplan?.huidige_ctl || 45;
   const atl = wellness?.atl || 0;
   const tsb = Math.round(ctl - atl);
@@ -118,9 +123,21 @@ export function bouwSessieContext({
     intentie: s.intentie || null,
   }));
 
+  // Rollend 7-dagen TSS-venster: [datum-6, datum] inclusief
+  const datumMs = new Date(datum).getTime();
+  const zevenDagenTerugMs = datumMs - 6 * 86400000;
+  const tssRollend7d = overigeSessiesFormatted
+    .filter((s) => {
+      if (!s.datum) return false;
+      const sMs = new Date(s.datum).getTime();
+      return sMs >= zevenDagenTerugMs && sMs <= datumMs;
+    })
+    .reduce((sum, s) => sum + (s.tss || 0), 0);
+
   return {
     datum,
     dagVanDeWeek: dagNaam,
+    isToekomst,
     fase: kaderWeek.fase,
     weeknummer,
     weektype: kaderWeek.weektype || "opbouw",
@@ -129,16 +146,17 @@ export function bouwSessieContext({
     uren,
     dagIntentie,
     overigeSessiesDezeWeek: overigeSessiesFormatted,
+    tssRollend7d,
     vorigeSessieOpDezeDag: oudeSessie || null,
-    ctlAtlTsb: { ctl: Math.round(ctl), atl: Math.round(atl), tsb },
-    hrvEnRhr: {
+    ctlAtlTsb: isToekomst ? null : { ctl: Math.round(ctl), atl: Math.round(atl), tsb },
+    hrvEnRhr: isToekomst ? null : {
       hrv: hrvWaarde,
       rhr: rhrWaarde,
       trend: hrvTrend,
       basislijn_hrv: profiel?.hrv_basislijn || 58,
       basislijn_rhr: profiel?.hr_basislijn || 49,
     },
-    checkInVandaag: checkInScore,
+    checkInVandaag: isToekomst ? null : checkInScore,
     rpeTrend: { gemiddelde: rpeTrendGem, trend: rpeTrendRichting, aantal: rittenMetRpe.length },
     aanleiding,
     atleetProfiel: {

@@ -397,8 +397,19 @@ export default function SchemaTab({
 
         <div style={{ padding: `0 ${T.pad}px` }}>
 
-        {/* TSS week card */}
+        {/* Fase + TSS card */}
         <div style={{ background: T.cardBg, borderRadius: 24, padding: "15px 17px 16px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 18 }}>
+          {kaderWeek && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${T.divider}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.gradient }} />
+                <span style={{ font: "700 13.5px var(--font-nunito), sans-serif", color: T.text, textTransform: "capitalize" }}>{kaderWeek.fase}</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: T.pillRadius, background: T.subtleFill }}>
+                <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>Week {weekNr} · {kaderWeek.weektype}</span>
+              </div>
+            </div>
+          )}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 11 }}>
             <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>TSS deze week</span>
             <span style={{ font: "600 12.5px var(--font-nunito), sans-serif", color: T.textSec }}>

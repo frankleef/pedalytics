@@ -270,7 +270,7 @@ export function bouwSessieDagPrompt(params) {
  * Dag-intentie is leidend als die aanwezig is — het type/zones worden niet veranderd.
  */
 export function bouwSessieDagPromptVanContext(ctx) {
-  const weekTssNu = ctx.overigeSessiesDezeWeek.reduce((s, sess) => s + (sess.tss || 0), 0);
+  const weekTssNu = ctx.tssRollend7d || 0;
   const tssRuimte = ctx.tssDoel - weekTssNu;
 
   const bestaande = ctx.overigeSessiesDezeWeek
@@ -279,9 +279,9 @@ export function bouwSessieDagPromptVanContext(ctx) {
 
   const weekrol = bouwWeekrolVanContext(ctx.overigeSessiesDezeWeek, ctx.fase, ctx.uren);
 
-  const hrvInfo = ctx.hrvEnRhr.hrv
+  const hrvInfo = ctx.hrvEnRhr?.hrv
     ? `${ctx.hrvEnRhr.hrv}ms (basislijn ${ctx.hrvEnRhr.basislijn_hrv}) | trend: ${ctx.hrvEnRhr.trend}`
-    : "onbekend";
+    : ctx.isToekomst ? "n.v.t. (toekomstige dag)" : "onbekend";
 
   const rpeInfo = ctx.rpeTrend.aantal >= 2
     ? `gem ${ctx.rpeTrend.gemiddelde}/10 (${ctx.rpeTrend.trend === "hoog" ? "te zwaar — verlaag intensiteit" : ctx.rpeTrend.trend === "laag" ? "te licht — verhoog intensiteit" : "passend"})`
@@ -313,12 +313,12 @@ Aanleiding: ${ctx.aanleiding}`;
   }
 
   let vorigeSessieContext = "";
-  if (ctx.vorigeSessieOpDezeDag && !ctx.dagIntentie) {
+  if (ctx.vorigeSessieOpDezeDag && (ctx.aanleiding === "beschikbaarheid_uren" || !ctx.dagIntentie)) {
     vorigeSessieContext = `
-VORIGE SESSIE OP DEZE DAG (beschikbare uren zijn gewijzigd):
+VORIGE SESSIE OP DEZE DAG (beschikbare uren zijn gewijzigd van ${ctx.vorigeSessieOpDezeDag.duur_min || "?"}min naar ${Math.round(ctx.uren * 60)}min):
   Type: ${ctx.vorigeSessieOpDezeDag.type} | Titel: ${ctx.vorigeSessieOpDezeDag.titel} | Vermogen: ${ctx.vorigeSessieOpDezeDag.vermogen || "?"} | TSS: ${ctx.vorigeSessieOpDezeDag.tss || "?"} | Duur: ${ctx.vorigeSessieOpDezeDag.duur_min || "?"}min
 
-BELANGRIJK: behoud hetzelfde sessietype en dezelfde vermogenszone. Pas ALLEEN de duur en TSS aan.`;
+BELANGRIJK: behoud hetzelfde sessietype en dezelfde vermogenszone. Schaal de duur proportioneel naar de nieuwe beschikbare tijd. Pas het vermogen NIET aan.`;
   }
 
   let checkInContext = "";
@@ -342,10 +342,10 @@ BELANGRIJK: behoud hetzelfde sessietype en dezelfde vermogenszone. Pas ALLEEN de
 ${intentieInstructie}
 
 PROFIEL: FTP ${ctx.atleetProfiel.ftp}W | LT ${ctx.atleetProfiel.lt_hr} bpm | Max HR ${ctx.atleetProfiel.max_hr} bpm | ${ctx.atleetProfiel.gewicht} kg
-CTL: ${ctx.ctlAtlTsb.ctl} | ATL: ${ctx.ctlAtlTsb.atl} | TSB: ${ctx.ctlAtlTsb.tsb}
-HRV: ${hrvInfo}
+${ctx.ctlAtlTsb ? `CTL: ${ctx.ctlAtlTsb.ctl} | ATL: ${ctx.ctlAtlTsb.atl} | TSB: ${ctx.ctlAtlTsb.tsb}` : "CTL/ATL/TSB: niet meegewogen (toekomstige dag — plan op basis van het weekschema, niet op dagvorm)"}
+${ctx.isToekomst ? "" : `HRV: ${hrvInfo}`}
 RPE afgelopen week: ${rpeInfo}${checkInContext}${distributieContext}
-Fase: ${ctx.fase} — ${ctx.focus} (TSS-doel ${ctx.tssDoel}/week, weektype: ${ctx.weektype}, reeds gepland: ${weekTssNu} TSS, ruimte: ${tssRuimte} TSS)
+Fase: ${ctx.fase} — ${ctx.focus} (TSS-doel ${ctx.tssDoel} per 7 dagen, weektype: ${ctx.weektype}, reeds gepland afgelopen 7d: ${weekTssNu} TSS, ruimte: ${tssRuimte} TSS)
 Ervaringsniveau: ${ctx.atleetProfiel.ervaringsniveau}
 Toegestane sessietypes deze fase: ${sessietypesVoorFase(ctx.fase)}
 
@@ -358,7 +358,7 @@ ${weekrol}
 REGELS:
 - Duur past binnen ${ctx.uren} uur
 ${ctx.dagIntentie ? "- Intentie is leidend — pas alleen duur/vermogen/TSS aan binnen de intentie-grenzen" : "- Volg de weekrol hierboven — die bepaalt welk type sessie hier past"}
-- Min 1 rustdag tussen harde sessies. Als TSB < -20 of HRV dalend: alleen Z2 of herstel
+- Min 1 rustdag tussen harde sessies${ctx.isToekomst ? "" : ". Als TSB < -20 of HRV dalend: alleen Z2 of herstel"}
 - Houd week-TSS onder ${ctx.tssDoel} totaal
 - GEEN warmup/cooldown segmenten, hoofdinspanning vult hele duur
 - Gebruik vermogenMin/vermogenMax in %FTP per segment
@@ -381,12 +381,27 @@ Alleen JSON.`,
 
 function bouwWeekrolVanContext(overigeSessies, fase, uren) {
   const aantalZwaar = overigeSessies.filter(s => s.isZwaar).length;
-  const aantalZ2 = overigeSessies.filter(s => !s.isZwaar).length;
+  const aantalVariabel = overigeSessies.filter(s => s.type === "duur_variabel" || s.intentie?.sessietype === "z2_variabel").length;
+  const aantalVlak = overigeSessies.filter(s => s.type === "duur_lang" || s.intentie?.sessietype === "z2_vlak").length;
   const totaal = overigeSessies.length;
 
-  if (aantalZwaar >= 2) return `Deze week heeft al ${aantalZwaar} intensiteitsdagen. Dit slot moet een Z2-duurrit of herstelrit worden (polarisatie).`;
-  if (aantalZwaar === 1 && aantalZ2 >= 2) return `Er is al 1 intensiteitsdag en ${aantalZ2} Z2-dag(en). Dit slot kan een tweede intensiteitsdag worden als TSB en HRV het toelaten.`;
-  if (aantalZwaar === 0 && totaal >= 1) return `Er zijn nog geen intensiteitsdagen deze week. Dit slot zou bij voorkeur een intensiteitsdag moeten zijn, passend bij de fase "${fase}".`;
-  if (totaal === 0) return `Dit is de eerste sessie van de week. Kies op basis van de fase "${fase}" en de beschikbare ${uren} uur.`;
-  return `Er ${aantalZwaar === 1 ? "is 1 intensiteitsdag" : "zijn geen intensiteitsdagen"} en ${aantalZ2} Z2-dag(en). Vul het weekpatroon aan.`;
+  let rol;
+  if (aantalZwaar >= 2) {
+    rol = `Deze week heeft al ${aantalZwaar} intensiteitsdagen. Dit slot moet een Z2-duurrit of herstelrit worden (polarisatie).`;
+  } else if (aantalZwaar === 1) {
+    rol = `Er is al 1 intensiteitsdag. Dit slot wordt een Z2-dag.`;
+  } else if (totaal === 0) {
+    rol = `Dit is de eerste sessie van de week. Kies op basis van de fase "${fase}" en de beschikbare ${uren} uur.`;
+  } else {
+    rol = `Er zijn ${totaal} sessie(s) gepland. Vul het weekpatroon aan passend bij de fase "${fase}".`;
+  }
+
+  // Variëteit afdwingen: wissel vlak en variabel af
+  if (aantalVariabel > 0 && aantalVlak === 0) {
+    rol += ` BELANGRIJK: er zijn al ${aantalVariabel} variabele Z2/Z3-sessie(s). Maak deze sessie een VLAKKE Z2-duurrit (duur_lang, constant 68–76% FTP, geen Z3-blokken) voor afwisseling.`;
+  } else if (aantalVlak > 0 && aantalVariabel === 0 && totaal >= 1) {
+    rol += ` Er is al ${aantalVlak} vlakke Z2-rit. Een variabele Z2/Z3-sessie (duur_variabel) zorgt voor afwisseling.`;
+  }
+
+  return rol;
 }
