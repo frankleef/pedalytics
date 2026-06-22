@@ -59,6 +59,8 @@ export default function ProfielScherm({ profiel, onTerug, onUitloggen }) {
   const [checkin, setCheckin] = useState(null);
   const [weerStad, setWeerStad] = useState("Breda");
   const [hulpOpen, setHulpOpen] = useState(false);
+  const [pushStatus, setPushStatus] = useState(null);
+  const [pushFout, setPushFout] = useState("");
 
   useEffect(() => {
     fetch("/api/checkin").then(r => r.json()).then(d => {
@@ -237,19 +239,25 @@ export default function ProfielScherm({ profiel, onTerug, onUitloggen }) {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <div style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.text }}>Push-notificaties</div>
-              <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec, marginTop: 2 }}>Melding bij nieuwe ritten en herinneringen</div>
+              <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec, marginTop: 2 }}>
+                {pushStatus === "aan" ? "Ingeschakeld" : pushStatus === "uit" ? "Uitgeschakeld" : pushStatus === "fout" ? pushFout : "Melding bij nieuwe ritten en herinneringen"}
+              </div>
             </div>
             <button type="button" onClick={() => {
+              setPushStatus("laden");
               isPushSubscribed().then(subscribed => {
                 if (subscribed) {
-                  unsubscribeFromPush().then(() => window.alert("Notificaties uitgeschakeld"));
+                  unsubscribeFromPush().then(() => setPushStatus("uit")).catch(() => setPushStatus("fout"));
                 } else {
-                  subscribeToPush().then(ok => window.alert(ok ? "Notificaties ingeschakeld!" : "Toestemming geweigerd of niet ondersteund"));
+                  subscribeToPush().then(ok => {
+                    if (ok) setPushStatus("aan");
+                    else { setPushFout("Niet ondersteund of toestemming geweigerd"); setPushStatus("fout"); }
+                  }).catch(e => { setPushFout(e.message); setPushStatus("fout"); });
                 }
-              }).catch(e => window.alert("Fout: " + e.message));
+              }).catch(e => { setPushFout(e.message); setPushStatus("fout"); });
             }}
               style={{ padding: "8px 16px", borderRadius: 999, border: "1.5px solid oklch(0.86 0.014 80)", background: "transparent", cursor: "pointer", font: "700 12.5px var(--font-nunito), sans-serif", color: "oklch(0.42 0.02 72)" }}>
-              Beheren
+              {pushStatus === "laden" ? "..." : pushStatus === "aan" ? "Uitschakelen" : "Inschakelen"}
             </button>
           </div>
         </div>
