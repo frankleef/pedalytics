@@ -6,10 +6,12 @@ import { ADAPTATIE_CONFIG, DOMINANT_LABEL } from "@/lib/adaptatie";
 export default function AdaptatieScoreKaart({ weekTss, doelTss, fase, weekNr, weektype }) {
   const [adaptatieScore, setAdaptatieScore] = useState(null);
   const [uitklap, setUitklap] = useState(false);
+  const [hitteMelding, setHitteMelding] = useState(false);
 
   useEffect(() => {
     fetch("/api/plan/adaptatie-score").then(r => r.json()).then(d => {
       if (d.success && d.data) setAdaptatieScore(d.data);
+      if (d.hitteMelding) setHitteMelding(true);
     }).catch(() => {});
   }, []);
 
@@ -60,6 +62,11 @@ export default function AdaptatieScoreKaart({ weekTss, doelTss, fase, weekNr, we
       {uitklap && dominantTekst && (
         <div style={{ font: "600 12.5px/1.5 var(--font-nunito), sans-serif", color: T.textSec, marginTop: 6 }}>
           {dominantTekst}
+        </div>
+      )}
+      {hitteMelding && (
+        <div style={{ font: "600 12px/1.5 var(--font-nunito), sans-serif", color: T.textSec, marginTop: 8, paddingTop: 8, borderTop: `1px solid oklch(0.93 0.01 82)` }}>
+          Je recente ritten waren overwegend in warme omstandigheden. De aerobe trend is tijdelijk minder betrouwbaar — dit herstelt zich zodra de omstandigheden normaliseren.
         </div>
       )}
     </div>

@@ -11,7 +11,7 @@ import { berekenDistributie } from "@/lib/sessie/distributie";
 import { checkFaseOvergang, berekenEnCacheDecoupling, bijwerkenDecouplingBaseline, backfillDecoupling } from "@/lib/decoupling";
 import { berekenRpeTrend, verwerkRpeTrend } from "@/lib/sessie/rpeTrend";
 import { berekenAdaptatieScore } from "@/lib/adaptatie";
-import { haalRitTemperatuur } from "@/lib/hitte";
+import { haalRitTemperatuur, berekenTempBaseline, berekenHitteVlag, migreerHitteTemperatuur } from "@/lib/hitte";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -151,10 +151,21 @@ export async function POST(request) {
             const alCached = await kv.get(`decoupling:${rit.id}`);
             if (alCached !== null && alCached !== undefined) continue;
 
-            // Hitte-detectie
-            let hitteInfo = { temperatuur_celsius: null, hitte_gecorrigeerd: false };
+            // Hitte-detectie met persoonlijke baseline
+            let apparent_temp_celsius = null;
+            let temp_baseline = null;
+            let hitte_gecorrigeerd = false;
             try {
-              hitteInfo = await haalRitTemperatuur(userId, rit.start_date_local, Math.round(duurMin));
+              const tempResult = await haalRitTemperatuur(userId, rit.start_date_local, Math.round(duurMin));
+              apparent_temp_celsius = tempResult.apparent_temp_celsius;
+              // Baseline berekenen uit bestaande entries
+              const alleEntries = [];
+              for (const r of ritten) {
+                const entry = await kv.get(`decoupling:${r.id}`);
+                if (entry && typeof entry === "object" && entry.startTijd) alleEntries.push(entry);
+              }
+              temp_baseline = berekenTempBaseline(alleEntries);
+              hitte_gecorrigeerd = berekenHitteVlag(apparent_temp_celsius, temp_baseline);
             } catch {}
 
             try {
@@ -166,7 +177,7 @@ export async function POST(request) {
               berekenEnCacheDecoupling(rit.id, wattsArr, hrArr)
                 .then(async (dc) => {
                   if (dc != null) {
-                    await kv.set(`decoupling:${rit.id}`, { decoupling: dc, ...hitteInfo, startTijd: rit.start_date_local, duurMinuten: Math.round(duurMin), userId });
+                    await kv.set(`decoupling:${rit.id}`, { decoupling: dc, apparent_temp_celsius, temp_baseline, hitte_gecorrigeerd, startTijd: rit.start_date_local, duurMinuten: Math.round(duurMin), userId });
                   }
                   await bijwerkenDecouplingBaseline(userId).catch(() => {});
                 })
@@ -233,17 +244,27 @@ export async function POST(request) {
               console.warn(`[sync] Wellness voor adaptatie mislukt:`, e.message);
             }
 
-            // Decoupling medianen
-            const dcKeys = [];
+            // Decoupling medianen — alle ritten (incl. hitte) voor adaptatie-score
+            const dcAllEntries = [];
             for (const rit of ritten) {
               const dc = await kv.get(`decoupling:${rit.id}`);
               if (dc == null) continue;
               const waarde = typeof dc === "number" ? dc : dc?.decoupling;
               const isHitte = typeof dc === "object" && (dc?.hitte_gecorrigeerd ?? false);
-              if (waarde != null && !isHitte) dcKeys.push(waarde);
+              if (waarde != null) dcAllEntries.push({ waarde, isHitte });
             }
-            const dcHuidig = dcKeys.length >= 3 ? dcKeys.slice(-3).sort((a,b)=>a-b)[1] : null;
-            const dcVorig = dcKeys.length >= 6 ? dcKeys.slice(-6, -3).sort((a,b)=>a-b)[1] : null;
+            // Fallback als >50% van laatste 6 ritten hitte-gecorrigeerd zijn
+            const laatste6 = dcAllEntries.slice(-6);
+            const hitteAandeel = laatste6.length > 0 ? laatste6.filter(e => e.isHitte).length / laatste6.length : 0;
+            const dcBeschikbaar = dcAllEntries.length >= 6 && hitteAandeel <= 0.5;
+            const dcWaarden = dcAllEntries.map(e => e.waarde);
+            const dcHuidig = dcBeschikbaar && dcWaarden.length >= 3 ? dcWaarden.slice(-3).sort((a,b)=>a-b)[1] : null;
+            const dcVorig = dcBeschikbaar && dcWaarden.length >= 6 ? dcWaarden.slice(-6, -3).sort((a,b)=>a-b)[1] : null;
+            if (!dcBeschikbaar && dcAllEntries.length >= 6) {
+              await kv.set(`adaptatie-hitte-melding:${userId}`, true, { ex: 14 * 86400 });
+            } else {
+              await kv.del(`adaptatie-hitte-melding:${userId}`).catch(() => {});
+            }
 
             const adaptatie = berekenAdaptatieScore({
               rpe_delta_trend: rpeTrend ?? null,

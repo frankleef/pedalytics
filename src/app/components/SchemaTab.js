@@ -614,7 +614,7 @@ export default function SchemaTab({
 
             {hitteData[gematchteRit?.id]?.hitte_gecorrigeerd && (
               <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "oklch(0.96 0.05 82)", marginBottom: 12 }}>
-                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.48 0.1 62)" }}>🌡️ Hitte-rit · {hitteData[gematchteRit.id].temperatuur_celsius}°C</span>
+                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.48 0.1 62)" }}>🌡️ Hitte-rit · {hitteData[gematchteRit.id].apparent_temp_celsius ?? hitteData[gematchteRit.id].temperatuur_celsius}°C{hitteData[gematchteRit.id].temp_baseline ? ` (+${Math.round(hitteData[gematchteRit.id].apparent_temp_celsius - hitteData[gematchteRit.id].temp_baseline)}°C)` : ""}</span>
                 <InfoTooltip metricKey="hitte" />
               </div>
             )}
@@ -668,7 +668,7 @@ export default function SchemaTab({
 
             {hitteData[gematchteRit?.id]?.hitte_gecorrigeerd && (
               <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "oklch(0.96 0.05 82)", marginBottom: 12 }}>
-                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.48 0.1 62)" }}>🌡️ Hitte-rit · {hitteData[gematchteRit.id].temperatuur_celsius}°C</span>
+                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.48 0.1 62)" }}>🌡️ Hitte-rit · {hitteData[gematchteRit.id].apparent_temp_celsius ?? hitteData[gematchteRit.id].temperatuur_celsius}°C{hitteData[gematchteRit.id].temp_baseline ? ` (+${Math.round(hitteData[gematchteRit.id].apparent_temp_celsius - hitteData[gematchteRit.id].temp_baseline)}°C)` : ""}</span>
                 <InfoTooltip metricKey="hitte" />
               </div>
             )}

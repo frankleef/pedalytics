@@ -12,7 +12,8 @@ export async function GET(request) {
     return NextResponse.json({
       success: true,
       data: {
-        temperatuur_celsius: data.temperatuur_celsius ?? null,
+        apparent_temp_celsius: data.apparent_temp_celsius ?? data.temperatuur_celsius ?? null,
+        temp_baseline: data.temp_baseline ?? null,
         hitte_gecorrigeerd: data.hitte_gecorrigeerd ?? false,
       },
     });
