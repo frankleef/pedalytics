@@ -559,7 +559,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
         )}
 
         {/* Cardiac decoupling */}
-        <DecouplingKaart voortgang={voortgang} profiel={profiel} />
+        <DecouplingKaart voortgang={voortgang} ftp={ftp} />
 
         {/* Plan-naleving */}
         {planWeken.length >= 2 && (
@@ -720,8 +720,9 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
   );
 }
 
-function DecouplingKaart({ voortgang }) {
+function DecouplingKaart({ voortgang, ftp: propFtp }) {
   const [punten, setPunten] = useState([]);
+  const ftpVal = propFtp || 265;
 
   useEffect(() => {
     if (!voortgang?.ritten) return;
@@ -730,7 +731,7 @@ function DecouplingKaart({ voortgang }) {
       if (!r.datum_iso || !r.duur_min || r.duur_min < 45) return false;
       const np = r.np || r.wattage;
       if (!np) return false;
-      const ifVal = np / 265;
+      const ifVal = np / ftpVal;
       return ifVal >= 0.55 && ifVal <= 0.75;
     });
 

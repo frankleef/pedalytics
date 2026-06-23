@@ -7,7 +7,7 @@ import { sendPush } from "@/lib/pushNotify";
 import { verifyQStash } from "@/lib/qstash";
 import { verwerkFtpTest } from "@/lib/sessie/ftpUpdate";
 import { berekenDistributie } from "@/lib/sessie/distributie";
-import { checkFaseOvergang } from "@/lib/decoupling";
+import { checkFaseOvergang, berekenEnCacheDecoupling } from "@/lib/decoupling";
 import { berekenRpeTrend, verwerkRpeTrend } from "@/lib/sessie/rpeTrend";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +40,7 @@ export async function POST(request) {
           oldest,
           newest: datumOffset(0),
           limit: "10",
-          fields: "id,start_date_local,type,icu_training_load",
+          fields: "id,start_date_local,type,icu_training_load,moving_time,icu_weighted_avg_watts",
         }, { apiKey, athleteId });
 
         const ritten = (activities || []).filter(a => a.type === "Ride" || a.type === "VirtualRide");
@@ -82,6 +82,27 @@ export async function POST(request) {
               }
             } catch (e) {
               console.warn(`[sync] FTP-test verwerking mislukt voor ${userId}:`, e.message);
+            }
+          }
+
+          // Decoupling cachen voor Z2-duurritten (>45 min)
+          for (const rit of ritten) {
+            const duurMin = (rit.moving_time || 0) / 60;
+            if (duurMin < 45) continue;
+            const np = rit.icu_weighted_avg_watts;
+            const ritFtp = plan.huidige_ftp || 265;
+            if (!np || (np / ritFtp) < 0.55 || (np / ritFtp) > 0.75) continue;
+            const alCached = await kv.get(`decoupling:${rit.id}`);
+            if (alCached !== null && alCached !== undefined) continue;
+            try {
+              const streams = await fetch(`https://intervals.icu/api/v1/activity/${rit.id}/streams?types=watts,heartrate`, {
+                headers: { Authorization: "Basic " + Buffer.from("API_KEY:" + apiKey).toString("base64") },
+              }).then(r => r.json());
+              const wattsArr = (Array.isArray(streams) ? streams.find(s => s.type === "watts") : streams?.watts)?.data || [];
+              const hrArr = (Array.isArray(streams) ? streams.find(s => s.type === "heartrate") : streams?.heartrate)?.data || [];
+              berekenEnCacheDecoupling(rit.id, wattsArr, hrArr).catch(e => console.warn(`[sync] Decoupling cache mislukt:`, e.message));
+            } catch (e) {
+              console.warn(`[sync] Streams ophalen mislukt voor rit ${rit.id}:`, e.message);
             }
           }
 
@@ -163,6 +184,29 @@ export async function POST(request) {
                     if (uitstel) {
                       console.log(`[sync] Fase-overgang uitgesteld voor ${userId}: mediaan decoupling ${mediaan}%`);
                       plan.fase_verlengd_count = aantalVerlengingen + 1;
+                      plan.fase_verlengd = true;
+
+                      // Verschuif kader: voeg extra opbouwweek in vóór de herstelweek
+                      if (plan.kader) {
+                        const herstelIdx = plan.kader.findIndex((w, i) => i >= weekNr - 1 && w.weektype === "herstel");
+                        if (herstelIdx > 0) {
+                          const vorigeWeek = plan.kader[herstelIdx - 1];
+                          const extraWeek = {
+                            ...vorigeWeek,
+                            week: vorigeWeek.week + 0.5,
+                            tss_doel: vorigeWeek.tss_doel,
+                            fase: vorigeWeek.fase,
+                            weektype: "opbouw",
+                          };
+                          plan.kader.splice(herstelIdx, 0, extraWeek);
+                          // Hernummer alle weken na de invoeging
+                          for (let k = 0; k < plan.kader.length; k++) {
+                            plan.kader[k].week = k + 1;
+                          }
+                          plan.tijdshorizon_weken = plan.kader.length;
+                        }
+                      }
+
                       await kv.set(planKey, plan);
 
                       await sendPush(userId, {

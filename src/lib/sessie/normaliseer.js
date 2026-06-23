@@ -26,6 +26,16 @@ export function normaliseerSegmenten(segmenten) {
       // Kan niet omrekenen zonder FTP — laat null
     }
 
+    // cadans_rpm: Claude stuurt soms een string ("85–90") i.p.v. object
+    if (typeof genormaliseerd.cadans_rpm === "string") {
+      const match = genormaliseerd.cadans_rpm.match(/(\d+)\s*[–-]\s*(\d+)/);
+      if (match) {
+        genormaliseerd.cadans_rpm = { min: parseInt(match[1]), max: parseInt(match[2]) };
+      } else {
+        delete genormaliseerd.cadans_rpm;
+      }
+    }
+
     // Opschonen: verwijder alternatieve veldnamen
     delete genormaliseerd.vermogenMin_pct;
     delete genormaliseerd.vermogenMax_pct;
