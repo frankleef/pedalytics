@@ -6,8 +6,13 @@
  */
 export function berekenVerwachtRpe(gewogenGemVermogen, duurMinuten) {
   const IF = gewogenGemVermogen / 100;
-  const basis_rpe = IF * 10;
-  const duur_correctie = (duurMinuten - 60) * 0.015;
+  // Niet-lineaire mapping: Z1/Z2 = lage RPE, sweetspot/drempel = steil oplopend
+  // Gebaseerd op Borg RPE vs IF relatie (Foster et al.)
+  const basis_rpe = IF <= 0.55 ? IF * 4
+    : IF <= 0.75 ? 2 + (IF - 0.55) * 10
+    : IF <= 0.90 ? 4 + (IF - 0.75) * 20
+    : 7 + (IF - 0.90) * 30;
+  const duur_correctie = (duurMinuten - 60) * 0.005;
   const rpe = basis_rpe + duur_correctie;
   return Math.round(Math.min(10, Math.max(1, rpe)) * 2) / 2;
 }
