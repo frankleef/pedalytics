@@ -252,7 +252,6 @@ export default function SchemaTab({
   const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7) || 1);
   const kaderWeek = seizoensplan?.kader?.find(w => w.week === weekNr) || seizoensplan?.kader?.[0];
   const doelTss = kaderWeek?.tss_doel || 0;
-  const tssPct = doelTss > 0 ? Math.min(100, Math.round((werkelijkTss / doelTss) * 100)) : 0;
 
   // Session metrics
   const duurStr = sessie?.duur_min ? `${Math.floor(sessie.duur_min / 60)}u ${String(sessie.duur_min % 60).padStart(2, "0")}m` : null;

@@ -780,7 +780,7 @@ function DecouplingKaart({ voortgang, ftp: propFtp }) {
           const hr2 = hr.slice(si).reduce((a, b) => a + b, 0) / (hr.length - si);
           if (!hr1 || !hr2) continue;
           const ef1 = np1 / hr1, ef2 = np2 / hr2;
-          const dc = ((ef1 - ef2) / ef1) * 100;
+          const dc = Math.max(0, ((ef1 - ef2) / ef1) * 100);
           const [, m, d] = rit.datum_iso.split("-");
           decouplingPunten.push({ datum: `${d}/${m}`, decoupling: Math.round(dc * 10) / 10 });
         } catch {}
@@ -812,7 +812,7 @@ function DecouplingKaart({ voortgang, ftp: propFtp }) {
         <LineChart data={punten} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.012 82)" vertical={false} />
           <XAxis dataKey="datum" tick={TICK} tickLine={false} axisLine={false} />
-          <YAxis tick={TICK} tickLine={false} axisLine={false} domain={[-2, 15]} />
+          <YAxis tick={TICK} tickLine={false} axisLine={false} domain={[0, 15]} />
           <ReferenceLine y={5} stroke="oklch(0.6 0.13 165)" strokeDasharray="4 4" label={{ value: "5%", position: "right", style: { font: "700 9px var(--font-nunito), sans-serif", fill: "oklch(0.5 0.13 165)" } }} />
           <ReferenceLine y={7} stroke="oklch(0.72 0.13 70)" strokeDasharray="4 4" label={{ value: "7%", position: "right", style: { font: "700 9px var(--font-nunito), sans-serif", fill: "oklch(0.6 0.11 70)" } }} />
           {baseline && <ReferenceLine y={baseline.mediaan} stroke="oklch(0.64 0.14 248)" strokeDasharray="2 4" label={{ value: "Jouw gem.", position: "left", style: { font: "700 9px var(--font-nunito), sans-serif", fill: "oklch(0.55 0.10 248)" } }} />}
