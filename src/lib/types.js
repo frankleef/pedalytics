@@ -6,7 +6,7 @@
  */
 
 /**
- * @typedef {"sweetspot_intervallen" | "drempel_intervallen" | "vo2max_intervallen" | "over_under" | "sprint_neuraal" | "pyramide" | "z2_vlak" | "z2_variabel" | "z1_herstel" | "ramp_test"} Sessietype
+ * @typedef {"sweetspot_intervallen" | "drempel_intervallen" | "vo2max_intervallen" | "over_under" | "sprint_neuraal" | "pyramide" | "z2_vlak" | "z2_variabel" | "z1_herstel" | "ramp_test" | "kracht_lage_cadans" | "z2_embedded_sprint" | "sprint_peak_test"} Sessietype
  */
 
 /**
@@ -61,7 +61,24 @@ export const SESSIETYPES = [
   "z2_variabel",
   "z1_herstel",
   "ramp_test",
+  "kracht_lage_cadans",
+  "z2_embedded_sprint",
+  "sprint_peak_test",
 ];
 
 /** Geldige Weektype-waarden */
 export const WEEKTYPES = ["opbouw", "herstel"];
+
+/**
+ * @typedef {"ftp" | "aerobe_basis" | "klimmen" | "uithoudingsvermogen" | "sprint"} DoelType
+ *
+ * @typedef {Object} SeizoensDoel
+ * @property {DoelType} type
+ * @property {number} [doel_ftp] - alleen bij 'ftp' en 'klimmen'
+ * @property {number} [doel_wkg] - alleen bij 'klimmen'
+ * @property {string} [doel_omschrijving] - alleen bij 'aerobe_basis', 'uithoudingsvermogen', 'sprint'
+ * @property {string} [event_datum] - ISO-datumstring, alleen bij 'uithoudingsvermogen'
+ */
+
+/** Geldige DoelType-waarden */
+export const DOEL_TYPES = ["ftp", "aerobe_basis", "klimmen", "uithoudingsvermogen", "sprint"];

@@ -8,6 +8,7 @@ import { sendPush } from "@/lib/pushNotify";
 import { verwerkFtpTest } from "@/lib/sessie/ftpUpdate";
 import { berekenDistributie } from "@/lib/sessie/distributie";
 import { checkFaseOvergang } from "@/lib/decoupling";
+import { berekenRpeTrend, verwerkRpeTrend } from "@/lib/sessie/rpeTrend";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -113,6 +114,23 @@ export async function POST(request) {
             } catch (e) {
               console.warn(`[sync] Distributie-berekening mislukt voor ${userId}:`, e.message);
             }
+          }
+
+          // RPE-trend check
+          try {
+            const trend = await berekenRpeTrend(userId);
+            if (trend !== null) {
+              const actie = await verwerkRpeTrend(userId, trend);
+              if (actie === "overbelasting") {
+                await sendPush(userId, {
+                  title: "Plan aangepast",
+                  body: "Je trainingen voelen zwaarder aan dan ze zouden moeten. We hebben de komende sessies iets teruggeschroefd.",
+                  url: "/",
+                });
+              }
+            }
+          } catch (e) {
+            console.warn(`[sync] RPE-trend check mislukt voor ${userId}:`, e.message);
           }
 
           // Fase-overgang check via cardiac decoupling (bouwstuk 8b)

@@ -95,6 +95,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
   const ftp = profiel?.ftp || 265;
   const gewicht = profiel?.gewicht || 87;
   const wkg = (ftp / gewicht).toFixed(1);
+  const doelType = seizoensplan?.seizoensdoel?.type || "ftp";
   const grens = new Date(Date.now() - periode * 7 * 86400000);
   const vorigeGrens = new Date(grens - periode * 7 * 86400000);
 
@@ -176,6 +177,55 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
   const totaalTssWerkelijk = (voortgang?.ritten || []).filter(r => r.datum_iso && seizoenStart && new Date(r.datum_iso) >= seizoenStart).reduce((s, r) => s + (r.tss || 0), 0);
   const tssPct = totaalTssDoel > 0 ? Math.min(100, Math.round((totaalTssWerkelijk / totaalTssDoel) * 100)) : 0;
 
+  // Primaire doel-indicator data
+  const doelIndicatorData = (() => {
+    const ritten = (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens);
+    const weekMap = {};
+    ritten.forEach(r => {
+      const d = new Date(r.datum_iso); const ma = new Date(d); ma.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      const wk = datumISO(ma);
+      if (!weekMap[wk]) weekMap[wk] = { ritten: [] };
+      weekMap[wk].ritten.push(r);
+    });
+    const weken = Object.entries(weekMap).sort(([a],[b]) => a.localeCompare(b));
+
+    if (doelType === "ftp") {
+      return ftpHistorie.slice(-periode).map(h => {
+        const [,m,d] = h.datum.split("-");
+        return { datum: `${d}/${m}`, waarde: h.ftp };
+      });
+    }
+    if (doelType === "klimmen") {
+      return ftpHistorie.slice(-periode).map(h => {
+        const [,m,d] = h.datum.split("-");
+        return { datum: `${d}/${m}`, waarde: Math.round((h.ftp / gewicht) * 10) / 10 };
+      });
+    }
+    if (doelType === "uithoudingsvermogen") {
+      return weken.map(([wk, d]) => {
+        const [,m,dd] = wk.split("-");
+        const langste = Math.max(...d.ritten.map(r => r.duur_min || 0));
+        return { datum: `${dd}/${m}`, waarde: Math.round(langste / 6) / 10 };
+      });
+    }
+    if (doelType === "sprint") {
+      return weken.map(([wk, d]) => {
+        const [,m,dd] = wk.split("-");
+        const piek = Math.max(...d.ritten.map(r => r.max_watt || 0));
+        return { datum: `${dd}/${m}`, waarde: piek > 0 ? piek : null };
+      }).filter(d => d.waarde);
+    }
+    return [];
+  })();
+
+  const doelIndicatorConfig = {
+    ftp: { titel: "FTP-progressie", eenheid: "W", doelLijn: seizoensplan?.seizoensdoel?.doel_ftp, doelLabel: "Doel", leegTekst: "Nog te weinig FTP-metingen voor een trend." },
+    aerobe_basis: null,
+    klimmen: { titel: "W/kg-progressie", eenheid: "W/kg", doelLijn: seizoensplan?.seizoensdoel?.doel_wkg, doelLabel: "Doel", leegTekst: "Nog te weinig data voor een W/kg-trend." },
+    uithoudingsvermogen: { titel: "Langste rit per week", eenheid: "uur", doelLijn: null, doelLabel: null, leegTekst: "Nog te weinig data — je langste rit per week verschijnt hier zodra er ritten beschikbaar zijn." },
+    sprint: { titel: "Piek-sprintvermogen", eenheid: "W", doelLijn: null, doelLabel: null, leegTekst: "Nog te weinig data — je piek-sprintvermogen verschijnt hier zodra je 3+ ritten met volledige sprint-inspanningen hebt gereden." },
+  }[doelType];
+
   // Weekuren-trend
   const weekUrenMap = {};
   (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens && r.duur_min).forEach(r => {
@@ -232,6 +282,37 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
             {periode} weken ▾
           </button>
         </div>
+
+        {/* Primaire doel-indicator */}
+        {doelIndicatorConfig && doelIndicatorData.length >= 3 ? (
+          <div style={CARD}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+              <div>
+                <span style={EYEBROW}>{doelIndicatorConfig.titel}</span>
+                {doelIndicatorData.length > 0 && (
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 4 }}>
+                    <span style={{ font: "600 38px var(--font-fredoka), sans-serif", color: T.text }}>{doelIndicatorData[doelIndicatorData.length - 1]?.waarde}</span>
+                    <span style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.textSec }}>{doelIndicatorConfig.eenheid}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={100}>
+              <LineChart data={doelIndicatorData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.012 82)" vertical={false} />
+                <XAxis dataKey="datum" tick={TICK} tickLine={false} axisLine={false} />
+                <YAxis tick={TICK} tickLine={false} axisLine={false} domain={["auto", "auto"]} />
+                {doelIndicatorConfig.doelLijn && (
+                  <ReferenceLine y={doelIndicatorConfig.doelLijn} stroke="oklch(0.6 0.13 165)" strokeDasharray="4 4"
+                    label={{ value: `${doelIndicatorConfig.doelLabel} ${doelIndicatorConfig.doelLijn}`, position: "right", style: { font: "700 9px var(--font-nunito), sans-serif", fill: "oklch(0.5 0.13 165)" } }} />
+                )}
+                <Line type="monotone" dataKey="waarde" stroke="oklch(0.64 0.14 248)" strokeWidth={3} dot={{ r: 4, fill: "oklch(0.64 0.14 248)" }} name={doelIndicatorConfig.titel} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ) : doelIndicatorConfig ? (
+          <LegeStaat titel={doelIndicatorConfig.titel} wekenNodig={4} wekenVerzameld={doelIndicatorData.length} />
+        ) : null}
 
         {/* Hero: CTL/ATL/TSB */}
         {dagPunten.length >= 3 && (

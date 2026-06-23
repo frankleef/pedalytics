@@ -241,51 +241,36 @@ export default function Page() {
   }, []);
 
   const bouwKader = (doelConfig) => {
-    const weken = doelConfig.tijdshorizon_weken || 12;
+    const { DOELPROFIELEN, faseVoorWeek } = require("@/lib/seizoen/doelprofielen");
+    const weken = doelConfig.tijdshorizon_weken || 13;
     const ctl = doelConfig.huidige_ctl || 45;
     const baseTss = Math.round(ctl * 5);
+    const doelType = doelConfig.seizoensdoel?.type || doelConfig.doel || "ftp";
+    const profiel = DOELPROFIELEN[doelType] || DOELPROFIELEN.ftp;
     const niveau = doelConfig.ervaringsniveau || "recreatief";
-    const opbouwPct = { starter: 0.05, recreatief: 0.10, getraind: 0.15 }[niveau] || 0.10;
+    const niveauOpbouw = { starter: 0.05, recreatief: 0.10, getraind: 0.15 }[niveau] || 0.10;
+    const opbouwPct = profiel.tss_opbouw_pct ?? niveauOpbouw;
 
-    const fasen = doelConfig.doel === "herstel"
-      ? Array(weken).fill("herstel")
-      : (() => {
-        const f = [];
-        for (let w = 1; w <= weken; w++) {
-          if (w <= Math.ceil(weken * 0.25)) f.push("basis");
-          else if (w <= Math.ceil(weken * 0.5)) f.push("sweetspot");
-          else if (w <= Math.ceil(weken * 0.75)) f.push("drempel");
-          else f.push("consolidatie");
-        }
-        return f;
-      })();
-
-    const focusTekst = {
-      basis: "Z2 volume + sweetspot intro", sweetspot: "Sweetspot blokken (88-93% FTP)",
-      drempel: "Drempel intervals (95-105% FTP)", consolidatie: "Drempel vasthouden, herstel",
-      herstel: "Lage belasting, HRV optimaliseren",
-    };
-
-    // 3:1 TSS-ritme: 3 opbouwweken met stijgende TSS, 1 herstelweek
     const result = [];
     let vorigOpbouwTss = baseTss;
     let piekTss = baseTss;
+    const taperPct = profiel.taper_tss_pct || 0.45;
 
     for (let i = 0; i < weken; i++) {
       const weekNr = i + 1;
       const weektype = (weekNr % 4 === 0) ? "herstel" : "opbouw";
-      const fase = fasen[i];
+      const faseInfo = faseVoorWeek(profiel, weekNr);
+      const fase = faseInfo?.naam || "Basis";
       let tss_doel;
 
       if (weektype === "herstel") {
-        tss_doel = Math.round(piekTss * 0.45);
+        tss_doel = Math.round(piekTss * taperPct);
+        vorigOpbouwTss = baseTss;
         piekTss = baseTss;
       } else {
-        if (i === 0) {
-          tss_doel = baseTss;
-        } else {
-          tss_doel = Math.round(vorigOpbouwTss * (1 + opbouwPct));
-        }
+        const blokGroei = 1 + opbouwPct * Math.floor(i / 4);
+        tss_doel = i === 0 ? baseTss : Math.round(vorigOpbouwTss * (1 + opbouwPct));
+        tss_doel = Math.min(tss_doel, Math.round(baseTss * blokGroei * 1.3));
         vorigOpbouwTss = tss_doel;
         piekTss = Math.max(piekTss, tss_doel);
       }
@@ -295,7 +280,10 @@ export default function Page() {
         fase,
         weektype,
         tss_doel,
-        focus: focusTekst[fase] || focusTekst[weektype] || "",
+        focus: faseInfo ? `${faseInfo.sessietypes.slice(0, 3).join(", ")}` : "Z2 volume",
+        z1z2_doel: faseInfo?.z1z2_doel || 0.80,
+        max_intensiteit: faseInfo?.max_intensiteit_per_week ?? 1,
+        sessietypes: faseInfo?.sessietypes || ["z2_vlak", "z2_variabel", "z1_herstel"],
       });
     }
 

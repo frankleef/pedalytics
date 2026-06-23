@@ -69,7 +69,10 @@ function steadyState(seg) {
   const dur = (seg.duur_min || 1) * 60;
   const low = (seg.vermogenMin ?? seg.vermogenMin_pct ?? 50) / 100;
   const high = (seg.vermogenMax ?? seg.vermogenMax_pct ?? 75) / 100;
-  return `<SteadyState Duration="${dur}" PowerLow="${low}" PowerHigh="${high}" />`;
+  const cadansAttr = seg.cadans_rpm
+    ? ` cadence="${Math.round((seg.cadans_rpm.min + seg.cadans_rpm.max) / 2 || seg.cadans_rpm.max || 53)}"`
+    : "";
+  return `<SteadyState Duration="${dur}" PowerLow="${low}" PowerHigh="${high}"${cadansAttr} />`;
 }
 
 function midpoint(seg) {

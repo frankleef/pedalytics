@@ -4,18 +4,11 @@ import { T } from "../designTokens";
 import BeschikbaarheidEditor from "./BeschikbaarheidEditor";
 
 const DOELEN = [
-  { id: "ftp_verhogen", icon: "⚡", naam: "FTP verhogen", beschrijving: "Gestructureerde drempel- en VO2max training om meer vermogen te leveren", standaardWeken: 12 },
-  { id: "evenement", icon: "🏁", naam: "Trainen voor evenement", beschrijving: "Alles werkt toe naar één datum met taper in de laatste week", standaardWeken: 12 },
-  { id: "z2_sneller", icon: "🚴", naam: "Sneller in Z2", beschrijving: "Meer watt bij gelijke hartslag — aerobe efficiëntie verbeteren", standaardWeken: 12 },
-  { id: "fitheid", icon: "💪", naam: "Algemene fitheid", beschrijving: "Geleidelijk volume opbouwen zonder specifieke piek", standaardWeken: 12 },
-  { id: "herstel", icon: "🔄", naam: "Herstel & consolidatie", beschrijving: "Lagere belasting, HRV optimaliseren na intensief blok", standaardWeken: 4 },
-];
-
-const EVENEMENT_TYPES = [
-  { id: "granfondo", label: "Granfondo / Toertocht" },
-  { id: "wedstrijd", label: "Wedstrijd / Criterium" },
-  { id: "klimrit", label: "Klimrit / Bergrit" },
-  { id: "sociaal", label: "Sociale rit / Groepsrit" },
+  { id: "ftp", icon: "⚡", naam: "FTP verhogen", beschrijving: "Meer wattage aan de drempel — algemene prestatiesprong", standaardWeken: 13 },
+  { id: "aerobe_basis", icon: "🫁", naam: "Betere aerobe basis", beschrijving: "Efficiënter rijden op lage intensiteit, verder komen zonder leeg te lopen", standaardWeken: 13 },
+  { id: "klimmen", icon: "⛰️", naam: "Klimmen & W/kg", beschrijving: "Meer vermogen per kilo — de bergen in", standaardWeken: 13 },
+  { id: "uithoudingsvermogen", icon: "🏔️", naam: "Lange ritten", beschrijving: "Een gran fondo, meerdaagse of lange tocht afmaken", standaardWeken: 13 },
+  { id: "sprint", icon: "🚀", naam: "Snelheid & sprint", beschrijving: "Piekvermogen, aanvallen, eindspurt", standaardWeken: 13 },
 ];
 
 const NIVEAUS = [
@@ -27,24 +20,46 @@ const NIVEAUS = [
 export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
   const [stap, setStap] = useState(1);
   const [doel, setDoel] = useState(null);
-  const [config, setConfig] = useState({ weken: 12, evenementNaam: "", evenementDatum: "", evenementType: "granfondo", streefSnelheid: 31 });
+  const [doelExtra, setDoelExtra] = useState({ doel_ftp: null, doel_wkg: null, event_datum: null });
+  const [config, setConfig] = useState({ weken: 13 });
   const [beschikbaarheidData, setBeschikbaarheidData] = useState(null);
   const [ervaringsniveau, setErvaringsniveau] = useState(null);
 
   const gekozenDoel = DOELEN.find(d => d.id === doel);
   const verwachteFtp = (weken) => `${Math.round(profiel.ftp * (1 + weken * 0.004))}-${Math.round(profiel.ftp * (1 + weken * 0.007))}W`;
 
+  const berekenStartdatum = (eventDatum, weken) => {
+    if (!eventDatum) return null;
+    const event = new Date(eventDatum);
+    const start = new Date(event);
+    start.setDate(event.getDate() - weken * 7);
+    return `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,"0")}-${String(start.getDate()).padStart(2,"0")}`;
+  };
+
   const slaDoelOp = () => {
     const ctl = wellness ? Math.round(wellness.ctl || 0) : 0;
+    const seizoensdoel = { type: doel };
+    if (doel === "ftp") seizoensdoel.doel_ftp = doelExtra.doel_ftp || Math.round(profiel.ftp * 1.1);
+    if (doel === "klimmen") {
+      seizoensdoel.doel_ftp = doelExtra.doel_ftp || Math.round(profiel.ftp * 1.1);
+      seizoensdoel.doel_wkg = doelExtra.doel_wkg || null;
+    }
+    if (doel === "uithoudingsvermogen") seizoensdoel.event_datum = doelExtra.event_datum || null;
+
+    const startdatum = (doel === "uithoudingsvermogen" && doelExtra.event_datum)
+      ? berekenStartdatum(doelExtra.event_datum, config.weken)
+      : (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })();
+
     onVoltooid({
       doel,
       doel_label: gekozenDoel.naam,
       doel_icon: gekozenDoel.icon,
+      seizoensdoel,
       tijdshorizon_weken: config.weken,
       huidige_ftp: profiel.ftp,
       huidige_ctl: ctl,
       ervaringsniveau: ervaringsniveau || "recreatief",
-      startdatum: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })(),
+      startdatum,
       config: { ...config },
       beschikbaarheid: beschikbaarheidData?.beschikbaar || {},
       urenPerDag: beschikbaarheidData?.uren || {},
@@ -117,63 +132,46 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
               </div>
             ))}
 
-            {/* Doel-specifieke config */}
-            {doel === "ftp_verhogen" && (
+            {/* Doel-specifieke vervolgvelden */}
+            {doel === "ftp" && (
               <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "16px 18px", border: `1px solid ${T.cardBorder}`, marginTop: 6 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: T.textSec }}>Tijdshorizon</span>
-                  <span style={{ font: "600 16px var(--font-fredoka), sans-serif", color: T.text }}>{config.weken} weken</span>
-                </div>
-                <input type="range" min={8} max={16} value={config.weken}
-                  onChange={e => setConfig(p => ({ ...p, weken: Number(e.target.value) }))}
-                  style={{ width: "100%", accentColor: "oklch(0.64 0.14 248)" }} />
+                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: T.textSec, marginBottom: 6, display: "block" }}>Wat is je doel-FTP? (W) — optioneel</span>
+                <input type="number" value={doelExtra.doel_ftp || ""} onChange={e => setDoelExtra(p => ({ ...p, doel_ftp: e.target.value ? Number(e.target.value) : null }))}
+                  placeholder={String(Math.round(profiel.ftp * 1.1))}
+                  style={{ width: "100%", background: T.subtleFill, border: `1px solid ${T.cardBorder}`, borderRadius: 12, padding: 12, color: T.text, font: "600 14px var(--font-nunito), sans-serif", boxSizing: "border-box", outline: "none" }} />
                 <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.5 0.13 162)", marginTop: 8 }}>
                   Verwachting: FTP {profiel.ftp}W → {verwachteFtp(config.weken)}
                 </div>
               </div>
             )}
 
-            {doel === "evenement" && (
+            {doel === "klimmen" && (
               <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "16px 18px", border: `1px solid ${T.cardBorder}`, marginTop: 6, display: "flex", flexDirection: "column", gap: 12 }}>
                 <div>
-                  <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: T.textSec, marginBottom: 6, display: "block" }}>Evenement naam</span>
-                  <input type="text" value={config.evenementNaam} onChange={e => setConfig(p => ({ ...p, evenementNaam: e.target.value }))} placeholder="bijv. Amstel Gold Race"
+                  <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: T.textSec, marginBottom: 6, display: "block" }}>Doel-FTP (W) — optioneel</span>
+                  <input type="number" value={doelExtra.doel_ftp || ""} onChange={e => setDoelExtra(p => ({ ...p, doel_ftp: e.target.value ? Number(e.target.value) : null }))}
+                    placeholder={String(Math.round(profiel.ftp * 1.1))}
                     style={{ width: "100%", background: T.subtleFill, border: `1px solid ${T.cardBorder}`, borderRadius: 12, padding: 12, color: T.text, font: "600 14px var(--font-nunito), sans-serif", boxSizing: "border-box", outline: "none" }} />
                 </div>
                 <div>
-                  <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: T.textSec, marginBottom: 6, display: "block" }}>Datum</span>
-                  <input type="date" value={config.evenementDatum} onChange={e => { const wk = Math.max(4, Math.min(24, Math.ceil((new Date(e.target.value) - new Date()) / (7 * 86400000)))); setConfig(p => ({ ...p, evenementDatum: e.target.value, weken: wk })); }}
+                  <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: T.textSec, marginBottom: 6, display: "block" }}>Doel W/kg — optioneel</span>
+                  <input type="number" step="0.1" value={doelExtra.doel_wkg || ""} onChange={e => setDoelExtra(p => ({ ...p, doel_wkg: e.target.value ? Number(e.target.value) : null }))}
+                    placeholder={profiel.gewicht ? String(Math.round(profiel.ftp * 1.1 / profiel.gewicht * 10) / 10) : "4.0"}
                     style={{ width: "100%", background: T.subtleFill, border: `1px solid ${T.cardBorder}`, borderRadius: 12, padding: 12, color: T.text, font: "600 14px var(--font-nunito), sans-serif", boxSizing: "border-box", outline: "none" }} />
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                  {EVENEMENT_TYPES.map(t => (
-                    <button key={t.id} onClick={() => setConfig(p => ({ ...p, evenementType: t.id }))}
-                      style={{ padding: "10px 12px", background: config.evenementType === t.id ? T.subtleFill : "transparent", border: `1px solid ${config.evenementType === t.id ? T.gradientA : T.cardBorder}`, borderRadius: 12, color: T.text, font: "600 12px var(--font-nunito), sans-serif", cursor: "pointer", textAlign: "left" }}>
-                      {t.label}
-                    </button>
-                  ))}
                 </div>
               </div>
             )}
 
-            {(doel === "z2_sneller" || doel === "fitheid" || doel === "herstel") && (
+            {doel === "uithoudingsvermogen" && (
               <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "16px 18px", border: `1px solid ${T.cardBorder}`, marginTop: 6 }}>
-                {doel === "z2_sneller" && (
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: T.textSec }}>Streefsnelheid</span>
-                      <span style={{ font: "600 16px var(--font-fredoka), sans-serif", color: T.text }}>{config.streefSnelheid} km/u</span>
-                    </div>
-                    <input type="range" min={28} max={38} step={0.5} value={config.streefSnelheid} onChange={e => setConfig(p => ({ ...p, streefSnelheid: Number(e.target.value) }))}
-                      style={{ width: "100%", accentColor: "oklch(0.64 0.14 248)" }} />
+                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: T.textSec, marginBottom: 6, display: "block" }}>Wanneer is je evenement? — optioneel</span>
+                <input type="date" value={doelExtra.event_datum || ""} onChange={e => setDoelExtra(p => ({ ...p, event_datum: e.target.value || null }))}
+                  style={{ width: "100%", background: T.subtleFill, border: `1px solid ${T.cardBorder}`, borderRadius: 12, padding: 12, color: T.text, font: "600 14px var(--font-nunito), sans-serif", boxSizing: "border-box", outline: "none" }} />
+                {doelExtra.event_datum && (
+                  <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.5 0.13 162)", marginTop: 8 }}>
+                    Je plan start dan op {berekenStartdatum(doelExtra.event_datum, config.weken)}
                   </div>
                 )}
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: T.textSec }}>Tijdshorizon</span>
-                  <span style={{ font: "600 16px var(--font-fredoka), sans-serif", color: T.text }}>{config.weken} weken</span>
-                </div>
-                <input type="range" min={doel === "herstel" ? 2 : 8} max={doel === "herstel" ? 6 : 16} value={config.weken} onChange={e => setConfig(p => ({ ...p, weken: Number(e.target.value) }))}
-                  style={{ width: "100%", accentColor: "oklch(0.64 0.14 248)" }} />
               </div>
             )}
 
@@ -243,14 +241,19 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
                 </div>
               </div>
 
-              {doel === "ftp_verhogen" && (
+              {doel === "ftp" && (
                 <div style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec, marginBottom: 12 }}>
-                  Verwachting: FTP {profiel.ftp}W → {verwachteFtp(config.weken)}
+                  Doel: FTP {profiel.ftp}W → {doelExtra.doel_ftp || Math.round(profiel.ftp * 1.1)}W
                 </div>
               )}
-              {doel === "evenement" && config.evenementNaam && (
+              {doel === "klimmen" && (
                 <div style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec, marginBottom: 12 }}>
-                  🏁 {config.evenementNaam} op {config.evenementDatum}
+                  Doel: {doelExtra.doel_ftp || Math.round(profiel.ftp * 1.1)}W{doelExtra.doel_wkg ? ` · ${doelExtra.doel_wkg} W/kg` : ""}
+                </div>
+              )}
+              {doel === "uithoudingsvermogen" && doelExtra.event_datum && (
+                <div style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec, marginBottom: 12 }}>
+                  Evenement: {doelExtra.event_datum} · start {berekenStartdatum(doelExtra.event_datum, config.weken)}
                 </div>
               )}
 

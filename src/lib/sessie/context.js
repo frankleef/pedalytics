@@ -1,8 +1,10 @@
 // Assembleert de volledige context voor het genereren/aanpassen van één sessiedag.
 // Bouwstuk 3: elke sessie-aanroep krijgt dezelfde, complete context mee.
 
+import { kiesZ2Subtype, Z2_SUBTYPES } from "./z2subtypes";
+
 const DAGNAMEN = ["Zondag", "Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag"];
-const ZWAAR_TYPES = ["sweetspot", "interval", "drempel", "vo2max", "sweetspot_intervallen", "drempel_intervallen", "vo2max_intervallen", "over_under", "sprint_neuraal", "pyramide"];
+const ZWAAR_TYPES = ["sweetspot", "interval", "drempel", "vo2max", "sweetspot_intervallen", "drempel_intervallen", "vo2max_intervallen", "over_under", "sprint_neuraal", "pyramide", "kracht_lage_cadans"];
 
 /**
  * @typedef {import('../types').DagIntentie} DagIntentie
@@ -83,6 +85,21 @@ export function bouwSessieContext({
   // Dag-intentie: uit oudeSessie of null
   const dagIntentie = oudeSessie?.intentie || null;
 
+  // Z2-subtype selectie
+  let z2Subtype = null;
+  const isZ2Type = dagIntentie?.sessietype === "z2_vlak" || dagIntentie?.sessietype === "z2_variabel"
+    || (!dagIntentie && !oudeSessie);
+  if (isZ2Type) {
+    const subKey = kiesZ2Subtype({
+      beschikbaarMinuten: uren * 60,
+      laatsteSubtype: null,
+      decouplingMediaan: null,
+    });
+    if (subKey && Z2_SUBTYPES[subKey]) {
+      z2Subtype = { key: subKey, label: Z2_SUBTYPES[subKey].label, beschrijving: Z2_SUBTYPES[subKey].beschrijving };
+    }
+  }
+
   // HRV/RHR
   const recenteHrv = (dagelijkseData || []).filter((d) => d.hrv).slice(-5);
   let hrvTrend = "stabiel";
@@ -143,8 +160,13 @@ export function bouwSessieContext({
     weektype: kaderWeek.weektype || "opbouw",
     tssDoel: kaderWeek.tss_doel,
     focus: kaderWeek.focus,
+    sessietypes: kaderWeek.sessietypes || null,
+    maxIntensiteit: kaderWeek.max_intensiteit ?? 1,
+    z1z2Doel: kaderWeek.z1z2_doel || 0.80,
+    doelType: seizoensplan?.seizoensdoel?.type || "ftp",
     uren,
     dagIntentie,
+    z2Subtype,
     overigeSessiesDezeWeek: overigeSessiesFormatted,
     tssRollend7d,
     vorigeSessieOpDezeDag: oudeSessie || null,
@@ -167,6 +189,8 @@ export function bouwSessieContext({
       ervaringsniveau: seizoensplan?.ervaringsniveau || "recreatief",
     },
     distributieAfwijking,
+    rpeOverbelasting: false,
+    rpeOnderstimulering: false,
   };
 }
 

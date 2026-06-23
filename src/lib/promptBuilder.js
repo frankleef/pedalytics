@@ -4,7 +4,8 @@
 import { vandaagISO, datumISO } from "./datum";
 import { bouwSessieContext } from "./sessie/context";
 
-function sessietypesVoorFase(fase) {
+function sessietypesVoorFase(fase, kaderWeek) {
+  if (kaderWeek?.sessietypes?.length > 0) return kaderWeek.sessietypes.join(", ");
   const tabel = {
     basis: "z2_vlak, z2_variabel, z1_herstel — GEEN intensiteitssessies",
     sweetspot: "sweetspot_intervallen, z2_vlak, z2_variabel, z1_herstel",
@@ -20,13 +21,24 @@ function z1z2Doel(niveau) {
 }
 
 export function bouwSeizoensplanPrompt({ profiel, doelConfig, kader }) {
+  const { DOELPROFIELEN, fasetabelAlsTekst, doelInstructiesAlsTekst } = require("./seizoen/doelprofielen");
   const week1 = kader[0];
   const week2 = kader[1];
   const niveau = doelConfig.ervaringsniveau || "recreatief";
-  const opbouwPct = { starter: "5%", recreatief: "10%", getraind: "15%" }[niveau] || "10%";
+  const doelType = doelConfig.seizoensdoel?.type || doelConfig.doel || "ftp";
+  const doelProfiel = DOELPROFIELEN[doelType] || DOELPROFIELEN.ftp;
 
   return {
     prompt: `Genereer concrete trainingssessies voor week 1 en 2 van een fietsplan.
+
+SEIZOENSDOEL: ${doelType} — ${doelProfiel.naam}
+Dit plan volgt uitsluitend de fasevolgorde, intensiteitsdistributie en sessietypes hieronder.
+
+FASETABEL:
+${fasetabelAlsTekst(doelProfiel)}
+
+DOEL-SPECIFIEKE INSTRUCTIES:
+${doelInstructiesAlsTekst(doelProfiel)}
 
 PROFIEL: FTP ${doelConfig.huidige_ftp}W | LT ${profiel.lt_hr} bpm | Max HR ${profiel.max_hr} bpm | ${profiel.gewicht} kg | CTL ~${doelConfig.huidige_ctl} | Ervaringsniveau: ${niveau}
 DOEL: ${doelConfig.doel_label}
@@ -43,13 +55,13 @@ WEEK 2: fase=${week2.fase}, weektype=${week2.weektype}, TSS-doel=${week2.tss_doe
 Maak 3 fietssessies per week. Verdeel over de week met rustdagen ertussen.
 
 SESSIETYPES VOOR DEZE FASE:
-- Week 1 (${week1.fase}): ${sessietypesVoorFase(week1.fase)}
-- Week 2 (${week2.fase}): ${sessietypesVoorFase(week2.fase)}
+- Week 1 (${week1.fase}): ${sessietypesVoorFase(week1.fase, week1)}
+- Week 2 (${week2.fase}): ${sessietypesVoorFase(week2.fase, week2)}
 
 DAG-INTENTIE (verplicht voor elke trainingsdag):
 Elke sessie bevat een "intentie"-object met:
 - rol: één van [intensiteitsdag, aerobe_dag, hersteldag, variabele_dag, ftp_test]
-- sessietype: één van [sweetspot_intervallen, drempel_intervallen, vo2max_intervallen, over_under, sprint_neuraal, pyramide, z2_vlak, z2_variabel, z1_herstel, ramp_test]
+- sessietype: één van [sweetspot_intervallen, drempel_intervallen, vo2max_intervallen, over_under, sprint_neuraal, pyramide, z2_vlak, z2_variabel, z1_herstel, ramp_test, kracht_lage_cadans, z2_embedded_sprint, sprint_peak_test]
 - toegestane_zones: array van zones die deze dag gebruikt mogen worden (bv. ["Z1", "Z2"])
 - tss_range: { min, max } waarbinnen de TSS moet vallen
 - toelichting: één zin over de rol van deze dag in het weekpatroon
@@ -181,10 +193,14 @@ export function bouwWeekSessiesPrompt({ profiel, wellness, dagelijkseData, voort
     rpeAnalyse = `\nRPE-ANALYSE (afgelopen 14 dagen, ${rittenMetRpe.length} ritten):\n- Gemiddelde RPE: ${gemRpe}/10\n${tssRatio ? `- TSS-ratio (werkelijk/gepland): ${Math.round(tssRatio * 100)}%\n` : ""}- Signaal: ${signaal}\n- RPE per trainingstype:\n${typeRegels}`;
   }
 
+  const doelType = seizoensplan.seizoensdoel?.type || "ftp";
+
   return {
     prompt: `Maak concrete trainingssessies voor een wielrenner voor de komende 10 dagen.
 
-PROFIEL: FTP ${profiel.ftp}W | LT ${profiel.lt_hr} bpm | Max HR ${profiel.max_hr} bpm | ${profiel.gewicht} kg | Eerste seizoen
+SEIZOENSDOEL: ${doelType}
+
+PROFIEL: FTP ${profiel.ftp}W | LT ${profiel.lt_hr} bpm | Max HR ${profiel.max_hr} bpm | ${profiel.gewicht} kg
 
 HUIDIGE STAAT:
 - CTL: ${Math.round(ctl)} (fitheid) | ATL: ${Math.round(atl)} (vermoeidheid) | TSB: ${tsb} (vorm)
@@ -202,7 +218,7 @@ PLANPERIODE:
 - Huidige fase: ${kaderWeek.fase} — ${kaderWeek.focus} (TSS-doel ${kaderWeek.tss_doel}/week, weektype: ${kaderWeek.weektype || "opbouw"})
 ${kaderWeek2 !== kaderWeek ? `- Volgende fase: ${kaderWeek2.fase} — ${kaderWeek2.focus} (TSS-doel ${kaderWeek2.tss_doel}/week, weektype: ${kaderWeek2.weektype || "opbouw"})` : ""}
 - Ervaringsniveau: ${seizoensplan.ervaringsniveau || "recreatief"}
-- Toegestane sessietypes deze fase: ${sessietypesVoorFase(kaderWeek.fase)}
+- Toegestane sessietypes deze fase: ${sessietypesVoorFase(kaderWeek.fase, kaderWeek)}
 
 BESCHIKBARE DAGEN (plan ALLEEN op deze datums):
 ${tePlannenDagen.map(d => `  ${d.datum} (${d.dag}): ${d.uren} uur`).join("\n")}
@@ -217,7 +233,8 @@ REGELS:
 - Als TSB < -20: alleen Z2 of herstel, geen intensiteit
 - Als HRV dalend: stel intensiteitsblok uit, focus op Z2
 - Als vorige week RPE > 7 en TSS < 80%: verlaag deze week met 10%
-- Z1-Z2 doel-aandeel: ${z1z2Doel(seizoensplan.ervaringsniveau || "recreatief")} | Max ~150 TSS per sessie
+- Z1-Z2 doel-aandeel: ${kaderWeek.z1z2_doel ? Math.round(kaderWeek.z1z2_doel * 100) + "%" : z1z2Doel(seizoensplan.ervaringsniveau || "recreatief")} | Max ~150 TSS per sessie
+- Max intensiteitssessies deze week: ${kaderWeek.max_intensiteit ?? 1}
 - Geef bij elke sessie een concrete, data-gedreven reden
 
 SESSIETYPES:
@@ -229,11 +246,14 @@ SESSIETYPES:
 - over_under: sets van 2m @ 86-90% FTP (under) + 1m @ 103-107% FTP (over), 5m Z1 herstel tussen sets. TSS 70-90
 - sprint_neuraal: 6-8x sprint 10-15s @ max (>150% FTP), 3-5m Z1 herstel. TSS 30-45. Nooit naast intensiteitsdag
 - pyramide: oplopend+aflopend rondom drempel: 2m→4m→6m→4m→2m @ 95-105% FTP, 1m herstel. TSS 75-100
+- kracht_lage_cadans: 4-6x 5min @ 88-100% FTP met cadans_rpm {min:48, max:58}, 3min Z1 herstel ertussen. TSS 55-80. Voeg cadans_rpm toe aan de segmenten
+- z2_embedded_sprint: Z2 duurrit met 4-6 ingebedde max sprints (10-15s), 5min Z1 herstel na elke sprint. TSS 50-70
+- sprint_peak_test: 3x max sprint 10s, 5min Z1 rust ertussen. Eindtest voor sprint-doel
 
 DAG-INTENTIE (verplicht voor elke trainingsdag):
 Elke sessie moet een "intentie"-object bevatten met:
 - rol: één van [intensiteitsdag, aerobe_dag, hersteldag, variabele_dag, ftp_test]
-- sessietype: één van [sweetspot_intervallen, drempel_intervallen, vo2max_intervallen, over_under, sprint_neuraal, pyramide, z2_vlak, z2_variabel, z1_herstel, ramp_test]
+- sessietype: één van [sweetspot_intervallen, drempel_intervallen, vo2max_intervallen, over_under, sprint_neuraal, pyramide, z2_vlak, z2_variabel, z1_herstel, ramp_test, kracht_lage_cadans, z2_embedded_sprint, sprint_peak_test]
 - toegestane_zones: array van zones (bv. ["Z1", "Z2"])
 - tss_range: { min, max }
 - toelichting: één zin over de rol van deze dag
@@ -287,6 +307,15 @@ export function bouwSessieDagPromptVanContext(ctx) {
     ? `gem ${ctx.rpeTrend.gemiddelde}/10 (${ctx.rpeTrend.trend === "hoog" ? "te zwaar — verlaag intensiteit" : ctx.rpeTrend.trend === "laag" ? "te licht — verhoog intensiteit" : "passend"})`
     : "geen data";
 
+  // Z2-subtype context
+  let z2SubtypeContext = "";
+  if (ctx.z2Subtype) {
+    z2SubtypeContext = `\nZ2 SUBTYPE VOOR DEZE SESSIE: ${ctx.z2Subtype.key}
+Label: ${ctx.z2Subtype.label}
+Beschrijving: ${ctx.z2Subtype.beschrijving}
+Gebruik de segmentstructuur die bij dit subtype hoort.`;
+  }
+
   // Intentie-sectie: leidend als aanwezig, anders laten bepalen
   let intentieInstructie;
   if (ctx.dagIntentie) {
@@ -295,7 +324,7 @@ Rol: ${ctx.dagIntentie.rol}
 Sessietype: ${ctx.dagIntentie.sessietype}
 Toegestane zones: ${(ctx.dagIntentie.toegestane_zones || []).join(", ")}
 TSS-range: ${ctx.dagIntentie.tss_range?.min || "?"}–${ctx.dagIntentie.tss_range?.max || "?"}
-Achtergrond: ${ctx.dagIntentie.toelichting || ""}
+Achtergrond: ${ctx.dagIntentie.toelichting || ""}${z2SubtypeContext}
 
 Jouw taak: genereer een sessie die PAST BINNEN deze intentie.
 Pas UITSLUITEND aan: duur, exact vermogensbereik binnen de toegestane zones, TSS binnen de opgegeven range.
@@ -305,7 +334,7 @@ Aanleiding voor deze aanroep: ${ctx.aanleiding}`;
     intentieInstructie = `DAG-INTENTIE (verplicht — bepaal zelf):
 Voeg een "intentie"-object toe met:
 - rol: één van [intensiteitsdag, aerobe_dag, hersteldag, variabele_dag, ftp_test]
-- sessietype: één van [sweetspot_intervallen, drempel_intervallen, vo2max_intervallen, over_under, sprint_neuraal, pyramide, z2_vlak, z2_variabel, z1_herstel, ramp_test]
+- sessietype: één van [sweetspot_intervallen, drempel_intervallen, vo2max_intervallen, over_under, sprint_neuraal, pyramide, z2_vlak, z2_variabel, z1_herstel, ramp_test, kracht_lage_cadans, z2_embedded_sprint, sprint_peak_test]
 - toegestane_zones: array van zones (bv. ["Z1", "Z2"])
 - tss_range: { min, max }
 - toelichting: één zin over de rol van deze dag
@@ -326,6 +355,13 @@ BELANGRIJK: behoud hetzelfde sessietype en dezelfde vermogenszone. Schaal de duu
     checkInContext = `\nCHECK-IN VANDAAG: ${ctx.checkInVandaag}/5`;
   }
 
+  let rpeContext = "";
+  if (ctx.rpeOverbelasting) {
+    rpeContext = "\nRPE-TREND: overbelasting gedetecteerd. Genereer sessie aan de onderkant van de TSS-range en zone-bandbreedte.";
+  } else if (ctx.rpeOnderstimulering) {
+    rpeContext = "\nRPE-TREND: onderstimulering. Genereer sessie aan de bovenkant van de TSS-range.";
+  }
+
   let distributieContext = "";
   if (ctx.distributieAfwijking) {
     const richting = ctx.distributieAfwijking.richting;
@@ -344,10 +380,10 @@ ${intentieInstructie}
 PROFIEL: FTP ${ctx.atleetProfiel.ftp}W | LT ${ctx.atleetProfiel.lt_hr} bpm | Max HR ${ctx.atleetProfiel.max_hr} bpm | ${ctx.atleetProfiel.gewicht} kg
 ${ctx.ctlAtlTsb ? `CTL: ${ctx.ctlAtlTsb.ctl} | ATL: ${ctx.ctlAtlTsb.atl} | TSB: ${ctx.ctlAtlTsb.tsb}` : "CTL/ATL/TSB: niet meegewogen (toekomstige dag — plan op basis van het weekschema, niet op dagvorm)"}
 ${ctx.isToekomst ? "" : `HRV: ${hrvInfo}`}
-RPE afgelopen week: ${rpeInfo}${checkInContext}${distributieContext}
+RPE afgelopen week: ${rpeInfo}${checkInContext}${rpeContext}${distributieContext}
 Fase: ${ctx.fase} — ${ctx.focus} (TSS-doel ${ctx.tssDoel} per 7 dagen, weektype: ${ctx.weektype}, reeds gepland afgelopen 7d: ${weekTssNu} TSS, ruimte: ${tssRuimte} TSS)
 Ervaringsniveau: ${ctx.atleetProfiel.ervaringsniveau}
-Toegestane sessietypes deze fase: ${sessietypesVoorFase(ctx.fase)}
+Toegestane sessietypes deze fase: ${ctx.sessietypes ? ctx.sessietypes.join(", ") : sessietypesVoorFase(ctx.fase)}
 
 OVERIGE SESSIES DEZE WEEK (niet wijzigen, houd spreiding — [ZWAAR] = intensiteitsdag):
 ${bestaande}
@@ -363,7 +399,8 @@ ${ctx.dagIntentie ? "- Intentie is leidend — pas alleen duur/vermogen/TSS aan 
 - GEEN warmup/cooldown segmenten, hoofdinspanning vult hele duur
 - Gebruik vermogenMin/vermogenMax in %FTP per segment
 - Geef een concrete, data-gedreven reden
-- Z1-Z2 doel-aandeel: ${z1z2Doel(ctx.atleetProfiel.ervaringsniveau)}
+- Z1-Z2 doel-aandeel: ${ctx.z1z2Doel ? Math.round(ctx.z1z2Doel * 100) + "%" : z1z2Doel(ctx.atleetProfiel.ervaringsniveau)}
+- Max intensiteitssessies deze week: ${ctx.maxIntensiteit}
 
 SESSIETYPES: duur_lang | duur_variabel | sweetspot | interval | herstel
 

@@ -86,7 +86,8 @@ function bouwBlockGroups(segmenten, ftp) {
     const pct = segMidPct(seg);
     const zn = segZoneNr(pct);
     const label = seg.type === "herstel" || seg.type === "rust" ? "Herstel" : (seg.label?.replace(/\s*\d+$/, "") || seg.type);
-    return { title: label, zone: zn, rpe: segRpeRange(pct), time: segTimeStr(seg.duur_min), watt: segWattRange(seg, ftpW), bg: BLOCK_BG[zn] };
+    const cadans = seg.cadans_rpm ? `${seg.cadans_rpm.min || "?"}–${seg.cadans_rpm.max || "?"} rpm` : null;
+    return { title: label, zone: zn, rpe: segRpeRange(pct), time: segTimeStr(seg.duur_min), watt: segWattRange(seg, ftpW), bg: BLOCK_BG[zn], cadans };
   };
 
   const sigKey = (seg) => {
@@ -304,6 +305,19 @@ export default function SchemaTab({
             </button>
           </>
         )}
+        {huidigeRpe != null && sessie?.verwacht_rpe != null && (() => {
+          const delta = huidigeRpe - sessie.verwacht_rpe;
+          const tekst = delta <= -2 ? "Lichter dan verwacht — goed teken dat je herstel op orde is."
+            : delta <= -0.5 ? "Iets lichter dan gepland — dat is prima."
+            : delta <= 0.4 ? "Precies zoals verwacht."
+            : delta <= 1.9 ? "Iets zwaarder dan gepland — normaal, maar houd het in de gaten."
+            : "Duidelijk zwaarder dan verwacht — let op je herstel.";
+          return (
+            <div style={{ marginTop: 10, font: "600 12px/1.5 var(--font-nunito), sans-serif", color: delta > 1.5 ? "oklch(0.55 0.11 30)" : delta < -1 ? "oklch(0.5 0.11 165)" : T.textSec }}>
+              {tekst} (verwacht: {sessie.verwacht_rpe})
+            </div>
+          );
+        })()}
       </div>
     );
   };
@@ -503,6 +517,12 @@ export default function SchemaTab({
                             <span style={{ font: "800 9.5px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: "rgba(255,255,255,0.74)" }}>VERMOGEN</span>
                             <span style={{ font: "600 18px var(--font-fredoka), sans-serif", color: "oklch(0.99 0.01 95)", whiteSpace: "nowrap" }}>{b.watt}</span>
                           </div>
+                          {b.cadans && (
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+                              <span style={{ font: "800 9.5px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: "rgba(255,255,255,0.74)" }}>CADANS</span>
+                              <span style={{ font: "600 15px var(--font-fredoka), sans-serif", color: "oklch(0.85 0.08 200)", whiteSpace: "nowrap" }}>↓ {b.cadans}</span>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
