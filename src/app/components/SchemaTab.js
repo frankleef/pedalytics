@@ -9,6 +9,7 @@ import InfoTooltip from "./InfoTooltip";
 import ScaleInput from "./ScaleInput";
 import SharedHeader from "./SharedHeader";
 import { StatusBanner, KerngetallenTiles } from "./SessieUitkomstKaart";
+import AdaptatieScoreKaart from "./AdaptatieScoreKaart";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
 const DAG_KORT = ["ZO","MA","DI","WO","DO","VR","ZA"];
@@ -244,8 +245,8 @@ export default function SchemaTab({
   useEffect(() => { centerStrip(true); }, [selectedIdx]);
 
   // TSS rollend 7 dagen
-  const zevenDagenGeleden = new Date(nu); zevenDagenGeleden.setDate(nu.getDate() - 6); zevenDagenGeleden.setHours(0,0,0,0);
-  const rittenRollend7d = (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= zevenDagenGeleden);
+  const grensISO = datumISO(new Date(nu.getTime() - 6 * 86400000));
+  const rittenRollend7d = (voortgang?.ritten || []).filter(r => r.datum_iso && r.datum_iso >= grensISO);
   const werkelijkTss = Math.round(rittenRollend7d.reduce((s, r) => s + (r.tss || 0), 0));
   const dagenSindsStart = seizoensplan?.startdatum ? Math.max(0, (Date.now() - new Date(seizoensplan.startdatum).getTime()) / 86400000) : 0;
   const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7) || 1);
@@ -422,16 +423,8 @@ export default function SchemaTab({
               </div>
             </div>
           )}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 11 }}>
-            <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>TSS afgelopen 7 dagen</span>
-            <span style={{ font: "600 12.5px var(--font-nunito), sans-serif", color: T.textSec }}>
-              <span style={{ font: "600 19px var(--font-fredoka), sans-serif", color: T.text }}>{werkelijkTss}</span> / {doelTss}
-            </span>
-          </div>
-          <div style={{ height: 8, borderRadius: T.pillRadius, background: "oklch(0.93 0.012 84)", overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${tssPct}%`, borderRadius: T.pillRadius, background: T.gradient }} />
-          </div>
         </div>
+        <AdaptatieScoreKaart weekTss={werkelijkTss} doelTss={doelTss} />
 
         {/* ══ PLANNED ══ */}
         {mode === "planned" && sessie && (

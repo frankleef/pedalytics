@@ -1,43 +1,75 @@
-// Bouwstuk 8: Cardiac decoupling berekening.
-// Pw:Hr ratio eerste helft vs tweede helft van Z2-duurritten.
+// Cardiac decoupling: NP-gebaseerd met arbeidssplit.
 
 import { getKV } from "./kv";
 
+function berekenNP(watts) {
+  if (!watts?.length || watts.length < 30) return null;
+  const rolling = [];
+  for (let i = 29; i < watts.length; i++) {
+    let som = 0;
+    for (let j = i - 29; j <= i; j++) som += watts[j];
+    rolling.push(som / 30);
+  }
+  let som4 = 0;
+  for (const w of rolling) som4 += Math.pow(w, 4);
+  return Math.pow(som4 / rolling.length, 0.25);
+}
+
+function splitOpArbeid(watts, heartrate) {
+  const totaal = watts.reduce((a, w) => a + w, 0);
+  const helft = totaal / 2;
+  let cumulatief = 0;
+  let splitIndex = Math.floor(watts.length / 2);
+  for (let i = 0; i < watts.length; i++) {
+    cumulatief += watts[i];
+    if (cumulatief >= helft) { splitIndex = i; break; }
+  }
+  return {
+    watts_eerste: watts.slice(0, splitIndex),
+    watts_tweede: watts.slice(splitIndex),
+    hr_eerste: heartrate.slice(0, splitIndex),
+    hr_tweede: heartrate.slice(splitIndex),
+  };
+}
+
+function filterNulWatt(watts, heartrate) {
+  const wGef = [], hrGef = [];
+  for (let i = 0; i < watts.length; i++) {
+    if (watts[i] > 0 && heartrate[i] > 0) { wGef.push(watts[i]); hrGef.push(heartrate[i]); }
+  }
+  return { watts: wGef, heartrate: hrGef };
+}
+
 /**
- * Berekent cardiac decoupling voor een activiteit.
- * @param {Array} watts - Vermogen-stream
- * @param {Array} heartrate - Hartslag-stream
- * @returns {number|null} - Decoupling percentage (positief = slechter)
+ * Berekent cardiac decoupling via EF = NP / gem HR per arbeidssplit.
+ * @param {number[]} rawWatts
+ * @param {number[]} rawHr
+ * @returns {number|null} decoupling in procent (positief = drift)
  */
-export function berekenDecoupling(watts, heartrate) {
-  if (!watts || !heartrate || watts.length < 60 || heartrate.length < 60) return null;
+export function berekenDecoupling(rawWatts, rawHr) {
+  if (!rawWatts?.length || !rawHr?.length) return null;
+  const n = Math.min(rawWatts.length, rawHr.length);
+  const { watts, heartrate } = filterNulWatt(rawWatts.slice(0, n), rawHr.slice(0, n));
+  if (watts.length < 2700) return null;
 
-  const n = Math.min(watts.length, heartrate.length);
-  const helft = Math.floor(n / 2);
+  const { watts_eerste, watts_tweede, hr_eerste, hr_tweede } = splitOpArbeid(watts, heartrate);
 
-  const gemiddelde = (arr) => arr.reduce((s, v) => s + v, 0) / arr.length;
+  const np1 = berekenNP(watts_eerste);
+  const np2 = berekenNP(watts_tweede);
+  if (!np1 || !np2) return null;
 
-  const watts1 = watts.slice(0, helft).filter((w) => w > 0);
-  const hr1 = heartrate.slice(0, helft).filter((h) => h > 0);
-  const watts2 = watts.slice(helft, n).filter((w) => w > 0);
-  const hr2 = heartrate.slice(helft, n).filter((h) => h > 0);
+  const gemHr1 = hr_eerste.reduce((a, b) => a + b, 0) / hr_eerste.length;
+  const gemHr2 = hr_tweede.reduce((a, b) => a + b, 0) / hr_tweede.length;
+  if (!gemHr1 || !gemHr2) return null;
 
-  if (watts1.length < 10 || hr1.length < 10 || watts2.length < 10 || hr2.length < 10) return null;
+  const ef1 = np1 / gemHr1;
+  const ef2 = np2 / gemHr2;
 
-  const pwHr1 = gemiddelde(watts1) / gemiddelde(hr1);
-  const pwHr2 = gemiddelde(watts2) / gemiddelde(hr2);
-
-  if (pwHr1 === 0) return null;
-
-  return ((pwHr1 - pwHr2) / pwHr1) * 100;
+  return ((ef1 - ef2) / ef1) * 100;
 }
 
 /**
  * Berekent en cachet decoupling voor een activiteit.
- * @param {string} activiteitId
- * @param {Array} watts - Vermogen-stream
- * @param {Array} heartrate - Hartslag-stream
- * @returns {Promise<number|null>}
  */
 export async function berekenEnCacheDecoupling(activiteitId, watts, heartrate) {
   const kv = getKV();
@@ -56,9 +88,6 @@ export async function berekenEnCacheDecoupling(activiteitId, watts, heartrate) {
 
 /**
  * Controleert of een fase-overgang uitgesteld moet worden op basis van decoupling.
- * @param {Array} decouplingWaarden - Array van decoupling-percentages
- * @param {number} aantalVerlengingen - Hoe vaak de fase al verlengd is
- * @returns {{ uitstel: boolean, mediaan: number }}
  */
 export function checkFaseOvergang(decouplingWaarden, aantalVerlengingen = 0) {
   if (decouplingWaarden.length === 0) return { uitstel: false, mediaan: 0 };
@@ -72,4 +101,45 @@ export function checkFaseOvergang(decouplingWaarden, aantalVerlengingen = 0) {
   const uitstel = mediaan > 7 && aantalVerlengingen < 2;
 
   return { uitstel, mediaan: Math.round(mediaan * 10) / 10 };
+}
+
+/**
+ * Berekent en slaat de persoonlijke decoupling-baseline op (mediaan + trend).
+ */
+export async function bijwerkenDecouplingBaseline(userId) {
+  const kv = getKV();
+  const plan = await kv.get(`${userId}:seizoensplan`);
+  const sessies = plan?.weekSessies?.sessies || [];
+
+  const waarden = [];
+  for (const s of sessies) {
+    if (!s.datum || !s.voltooid) continue;
+    const dc = await kv.get(`decoupling:${s.intervalsEventId || s.id || s.datum}`);
+    if (dc != null) waarden.push({ waarde: dc, datum: s.datum });
+  }
+
+  if (waarden.length < 6) return null;
+
+  const gesorteerd = waarden.map(w => w.waarde).sort((a, b) => a - b);
+  const mid = Math.floor(gesorteerd.length / 2);
+  const mediaan = gesorteerd.length % 2 === 0
+    ? (gesorteerd[mid - 1] + gesorteerd[mid]) / 2
+    : gesorteerd[mid];
+
+  const opDatum = waarden.sort((a, b) => b.datum.localeCompare(a.datum));
+  const laatste3 = opDatum.slice(0, 3).map(w => w.waarde);
+  const vorige3 = opDatum.slice(3, 6).map(w => w.waarde);
+  const gemLaatste = laatste3.reduce((a, b) => a + b, 0) / laatste3.length;
+  const gemVorige = vorige3.reduce((a, b) => a + b, 0) / vorige3.length;
+  const trend = gemLaatste - gemVorige;
+
+  const baseline = {
+    mediaan: Math.round(mediaan * 10) / 10,
+    trend: Math.round(trend * 10) / 10,
+    aantalMetingen: waarden.length,
+    bijgewerkt: new Date().toISOString(),
+  };
+
+  await kv.set(`decoupling_baseline:${userId}`, baseline);
+  return baseline;
 }

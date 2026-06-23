@@ -8,7 +8,7 @@ import { verifyQStash } from "@/lib/qstash";
 import { verwerkFtpTest } from "@/lib/sessie/ftpUpdate";
 import { berekenGemiddeldeUrenPerWeek, berekenStartTss } from "@/lib/rijhistorie";
 import { berekenDistributie } from "@/lib/sessie/distributie";
-import { checkFaseOvergang, berekenEnCacheDecoupling } from "@/lib/decoupling";
+import { checkFaseOvergang, berekenEnCacheDecoupling, bijwerkenDecouplingBaseline } from "@/lib/decoupling";
 import { berekenRpeTrend, verwerkRpeTrend } from "@/lib/sessie/rpeTrend";
 import { berekenAdaptatieScore } from "@/lib/adaptatie";
 
@@ -146,7 +146,9 @@ export async function POST(request) {
               }).then(r => r.json());
               const wattsArr = (Array.isArray(streams) ? streams.find(s => s.type === "watts") : streams?.watts)?.data || [];
               const hrArr = (Array.isArray(streams) ? streams.find(s => s.type === "heartrate") : streams?.heartrate)?.data || [];
-              berekenEnCacheDecoupling(rit.id, wattsArr, hrArr).catch(e => console.warn(`[sync] Decoupling cache mislukt:`, e.message));
+              berekenEnCacheDecoupling(rit.id, wattsArr, hrArr)
+                .then(() => bijwerkenDecouplingBaseline(userId).catch(() => {}))
+                .catch(e => console.warn(`[sync] Decoupling cache mislukt:`, e.message));
             } catch (e) {
               console.warn(`[sync] Streams ophalen mislukt voor rit ${rit.id}:`, e.message);
             }

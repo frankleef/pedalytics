@@ -720,9 +720,27 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
   );
 }
 
+function npClient(watts) {
+  if (!watts?.length || watts.length < 30) return null;
+  const rolling = [];
+  for (let i = 29; i < watts.length; i++) {
+    let som = 0;
+    for (let j = i - 29; j <= i; j++) som += watts[j];
+    rolling.push(som / 30);
+  }
+  let som4 = 0;
+  for (const w of rolling) som4 += Math.pow(w, 4);
+  return Math.pow(som4 / rolling.length, 0.25);
+}
+
 function DecouplingKaart({ voortgang, ftp: propFtp }) {
   const [punten, setPunten] = useState([]);
+  const [baseline, setBaseline] = useState(null);
   const ftpVal = propFtp || 265;
+
+  useEffect(() => {
+    fetch("/api/plan/decoupling-baseline").then(r => r.json()).then(d => { if (d.success && d.data) setBaseline(d.data); }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!voortgang?.ritten) return;
@@ -731,32 +749,40 @@ function DecouplingKaart({ voortgang, ftp: propFtp }) {
       if (!r.datum_iso || !r.duur_min || r.duur_min < 45) return false;
       const np = r.np || r.wattage;
       if (!np) return false;
-      const ifVal = np / ftpVal;
-      return ifVal >= 0.55 && ifVal <= 0.75;
+      return (np / ftpVal) >= 0.55 && (np / ftpVal) <= 0.75;
     });
 
     if (z2Ritten.length < 3) { setPunten([]); return; }
 
     const decouplingPunten = [];
     const fetchStreams = async () => {
-      for (const rit of z2Ritten.slice(-10)) {
+      const gesorteerd = [...z2Ritten].sort((a, b) => a.datum_iso.localeCompare(b.datum_iso)).slice(-10);
+      for (const rit of gesorteerd) {
         try {
           const resp = await fetch(`/api/intervals/activities/${rit.id}/streams`);
           const data = await resp.json();
           if (!data.success || !data.data) continue;
-          const watts = data.data.watts?.data || [];
-          const hr = data.data.heartrate?.data || [];
-          if (watts.length < 60 || hr.length < 60) continue;
-          const n = Math.min(watts.length, hr.length);
-          const helft = Math.floor(n / 2);
-          const gem = arr => { const f = arr.filter(v => v > 0); return f.length > 0 ? f.reduce((s, v) => s + v, 0) / f.length : 1; };
-          const pwHr1 = gem(watts.slice(0, helft)) / gem(hr.slice(0, helft));
-          const pwHr2 = gem(watts.slice(helft)) / gem(hr.slice(helft));
-          if (pwHr1 > 0) {
-            const dc = ((pwHr1 - pwHr2) / pwHr1) * 100;
-            const [, m, d] = rit.datum_iso.split("-");
-            decouplingPunten.push({ datum: `${d}/${m}`, decoupling: Math.round(dc * 10) / 10 });
-          }
+          const rawW = data.data.watts?.data || [];
+          const rawHr = data.data.heartrate?.data || [];
+          const n = Math.min(rawW.length, rawHr.length);
+          // Filter nul-watt
+          const watts = [], hr = [];
+          for (let i = 0; i < n; i++) { if (rawW[i] > 0 && rawHr[i] > 0) { watts.push(rawW[i]); hr.push(rawHr[i]); } }
+          if (watts.length < 2700) continue;
+          // Arbeidssplit
+          const totaal = watts.reduce((a, w) => a + w, 0);
+          let cum = 0, si = Math.floor(watts.length / 2);
+          for (let i = 0; i < watts.length; i++) { cum += watts[i]; if (cum >= totaal / 2) { si = i; break; } }
+          const np1 = npClient(watts.slice(0, si));
+          const np2 = npClient(watts.slice(si));
+          if (!np1 || !np2) continue;
+          const hr1 = hr.slice(0, si).reduce((a, b) => a + b, 0) / si;
+          const hr2 = hr.slice(si).reduce((a, b) => a + b, 0) / (hr.length - si);
+          if (!hr1 || !hr2) continue;
+          const ef1 = np1 / hr1, ef2 = np2 / hr2;
+          const dc = ((ef1 - ef2) / ef1) * 100;
+          const [, m, d] = rit.datum_iso.split("-");
+          decouplingPunten.push({ datum: `${d}/${m}`, decoupling: Math.round(dc * 10) / 10 });
         } catch {}
       }
       setPunten(decouplingPunten);
@@ -767,6 +793,12 @@ function DecouplingKaart({ voortgang, ftp: propFtp }) {
   if (punten.length < 3) {
     return <LegeStaat titel="Aerobe efficiëntie" wekenNodig={4} wekenVerzameld={Math.max(0, punten.length)} />;
   }
+
+  const trendChip = baseline ? (
+    baseline.trend < -0.5 ? { tekst: "↓ Dalende trend — aerobe basis groeit", kleur: "oklch(0.93 0.045 168)", tekstKleur: "oklch(0.46 0.12 165)" }
+    : baseline.trend > 0.5 ? { tekst: "↑ Stijgende trend — let op", kleur: "oklch(0.96 0.05 82)", tekstKleur: "oklch(0.48 0.1 62)" }
+    : { tekst: "Stabiel", kleur: T.subtleFill, tekstKleur: T.textSec }
+  ) : null;
 
   return (
     <div style={CARD}>
@@ -783,9 +815,23 @@ function DecouplingKaart({ voortgang, ftp: propFtp }) {
           <YAxis tick={TICK} tickLine={false} axisLine={false} domain={[-2, 15]} />
           <ReferenceLine y={5} stroke="oklch(0.6 0.13 165)" strokeDasharray="4 4" label={{ value: "5%", position: "right", style: { font: "700 9px var(--font-nunito), sans-serif", fill: "oklch(0.5 0.13 165)" } }} />
           <ReferenceLine y={7} stroke="oklch(0.72 0.13 70)" strokeDasharray="4 4" label={{ value: "7%", position: "right", style: { font: "700 9px var(--font-nunito), sans-serif", fill: "oklch(0.6 0.11 70)" } }} />
+          {baseline && <ReferenceLine y={baseline.mediaan} stroke="oklch(0.64 0.14 248)" strokeDasharray="2 4" label={{ value: "Jouw gem.", position: "left", style: { font: "700 9px var(--font-nunito), sans-serif", fill: "oklch(0.55 0.10 248)" } }} />}
           <Line type="monotone" dataKey="decoupling" stroke="oklch(0.64 0.14 248)" strokeWidth={2.5} dot={{ r: 3.5, fill: "oklch(0.64 0.14 248)" }} name="Decoupling" />
         </LineChart>
       </ResponsiveContainer>
+      {trendChip && (
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 999, background: trendChip.kleur, marginTop: 10 }}>
+          <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: trendChip.tekstKleur }}>{trendChip.tekst}</span>
+        </div>
+      )}
+      {!baseline && (
+        <div style={{ font: "600 11.5px var(--font-nunito), sans-serif", color: T.textTert, marginTop: 10 }}>
+          Nog {6 - punten.length > 0 ? 6 - punten.length : "enkele"} stabiele Z2-ritten nodig voor je persoonlijke referentielijn
+        </div>
+      )}
+      <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.divider}`, font: "600 12px/1.5 var(--font-nunito), sans-serif", color: T.textSec }}>
+        Cardiac decoupling meet hoe goed je hart en vermogen gekoppeld blijven tijdens een Z2-rit. Onder 5% is uitstekend — je aerobe basis is sterk. Boven 7% wijst op ruimte voor verbetering. Dalende trend = je wordt efficiënter.
+      </div>
     </div>
   );
 }
