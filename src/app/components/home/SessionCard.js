@@ -15,7 +15,7 @@ export default function SessionCard({ sessie, ftp, onOpen }) {
   const heeftSegmenten = sessie.segmenten && sessie.segmenten.length > 0;
   const isInterval = sessie.type === "sweetspot" || sessie.type === "interval" || sessie.type === "ftp_test";
   const duurStr = sessie.duur_min ? `${Math.floor(sessie.duur_min / 60)}u ${String(sessie.duur_min % 60).padStart(2, "0")}m` : null;
-  const blokken = sessie.segmenten?.filter(s => (s.vermogenMin ?? s.vermogen_pct ?? 0) > 80 && s.type !== "warmup" && s.type !== "cooldown").length;
+  const blokken = sessie.segmenten?.filter(s => (s.vermogenMin ?? 0) > 80 && s.type !== "warmup" && s.type !== "cooldown").length;
 
   return (
     <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 20px 22px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>

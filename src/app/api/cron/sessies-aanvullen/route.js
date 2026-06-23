@@ -1,53 +1,20 @@
 import { NextResponse } from "next/server";
-import { Receiver } from "@upstash/qstash";
 import { getKV } from "@/lib/kv";
 import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet, intervalsPost } from "@/lib/intervals";
-import { vandaagISO, datumISO } from "@/lib/datum";
+import { vandaagISO, datumISO, DAGNAMEN } from "@/lib/datum";
 import { bouwSessieDagPrompt } from "@/lib/promptBuilder";
 import { segmentenNaarZwo } from "@/lib/workoutZwo";
 import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
+import { claudeCall } from "@/lib/claude";
+import { verifyQStash } from "@/lib/qstash";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-const DAGNAMEN = ["Zondag", "Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag"];
-
 export async function GET() {
   return NextResponse.json({ error: "Gebruik POST (via QStash)" }, { status: 405 });
-}
-
-async function verifyQStash(request) {
-  const currentSigningKey = process.env.QSTASH_CURRENT_SIGNING_KEY;
-  if (!currentSigningKey) return true;
-  const signature = request.headers.get("upstash-signature");
-  if (!signature) return false;
-  try {
-    const body = await request.clone().text();
-    const receiver = new Receiver({ currentSigningKey, nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY });
-    await receiver.verify({ signature, body });
-    return true;
-  } catch { return false; }
-}
-
-async function claudeCall({ prompt, system, max_tokens }) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY niet geconfigureerd");
-
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens, system, messages: [{ role: "user", content: prompt }] }),
-  });
-
-  if (!resp.ok) throw new Error(`Claude API ${resp.status}: ${await resp.text()}`);
-  const data = await resp.json();
-  const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
-  const cleaned = text.replace(/```json|```/g, "").trim();
-  if (!cleaned) throw new Error("Lege response");
-  if (data.stop_reason === "max_tokens") throw new Error("Response afgekapt");
-  return JSON.parse(cleaned);
 }
 
 export async function POST(request) {

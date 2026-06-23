@@ -1,33 +1,14 @@
 import { NextResponse } from "next/server";
-import { Receiver } from "@upstash/qstash";
 import { getKV } from "@/lib/kv";
 import { sendPush } from "@/lib/pushNotify";
 import { vandaagISO } from "@/lib/datum";
+import { verifyQStash } from "@/lib/qstash";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET() {
   return NextResponse.json({ error: "Gebruik POST (via QStash)" }, { status: 405 });
-}
-
-async function verifyQStash(request) {
-  const currentSigningKey = process.env.QSTASH_CURRENT_SIGNING_KEY;
-  const nextSigningKey = process.env.QSTASH_NEXT_SIGNING_KEY;
-
-  if (!currentSigningKey) return true;
-
-  const signature = request.headers.get("upstash-signature");
-  if (!signature) return false;
-
-  try {
-    const body = await request.clone().text();
-    const receiver = new Receiver({ currentSigningKey, nextSigningKey });
-    await receiver.verify({ signature, body });
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export async function POST(request) {

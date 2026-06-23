@@ -16,3 +16,5 @@ export function datumOffset(dagen) {
   d.setDate(d.getDate() + dagen);
   return datumISO(d);
 }
+
+export const DAGNAMEN = ["Zondag", "Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag"];

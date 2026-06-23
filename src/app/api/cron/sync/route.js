@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { Receiver } from "@upstash/qstash";
 import { getKV } from "@/lib/kv";
 import { intervalsGet } from "@/lib/intervals";
 import { decrypt } from "@/lib/crypto";
 import { datumOffset } from "@/lib/datum";
 import { sendPush } from "@/lib/pushNotify";
+import { verifyQStash } from "@/lib/qstash";
 import { verwerkFtpTest } from "@/lib/sessie/ftpUpdate";
 import { berekenDistributie } from "@/lib/sessie/distributie";
 import { checkFaseOvergang } from "@/lib/decoupling";
@@ -15,26 +15,6 @@ export const runtime = "nodejs";
 
 export async function GET() {
   return NextResponse.json({ error: "Gebruik POST (via QStash)" }, { status: 405 });
-}
-
-async function verifyQStash(request) {
-  const currentSigningKey = process.env.QSTASH_CURRENT_SIGNING_KEY;
-  const nextSigningKey = process.env.QSTASH_NEXT_SIGNING_KEY;
-
-  // In dev of als keys niet geconfigureerd: laat door
-  if (!currentSigningKey) return true;
-
-  const signature = request.headers.get("upstash-signature");
-  if (!signature) return false;
-
-  try {
-    const body = await request.clone().text();
-    const receiver = new Receiver({ currentSigningKey, nextSigningKey });
-    await receiver.verify({ signature, body });
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export async function POST(request) {

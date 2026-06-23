@@ -25,7 +25,7 @@ export function berekenGewogenGemVermogen(segmenten) {
   let totalPctMin = 0;
   let totalMin = 0;
   for (const seg of segmenten) {
-    const gemPct = ((seg.vermogenMin ?? seg.vermogenMin_pct ?? 65) + (seg.vermogenMax ?? seg.vermogenMax_pct ?? 75)) / 2;
+    const gemPct = ((seg.vermogenMin ?? 65) + (seg.vermogenMax ?? 75)) / 2;
     const min = seg.duur_min || 1;
     totalPctMin += gemPct * min;
     totalMin += min;

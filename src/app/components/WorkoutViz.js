@@ -19,7 +19,7 @@ export default function WorkoutViz({ segmenten, hoogte = 90, ftp, opacity, werke
       {segmenten.map((seg, i) => {
         const midPct = seg.vermogenMin != null && seg.vermogenMax != null
           ? (seg.vermogenMin + seg.vermogenMax) / 2
-          : seg.vermogen_pct || 50;
+          : 50;
         const hPct = Math.max(6, (midPct / maxScale) * 100);
         const kleur = zoneKleur(midPct);
         const isWarmupCooldown = seg.type === "warmup" || seg.type === "cooldown";

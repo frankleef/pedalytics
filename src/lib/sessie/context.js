@@ -2,8 +2,6 @@
 // Bouwstuk 3: elke sessie-aanroep krijgt dezelfde, complete context mee.
 
 import { kiesZ2Subtype, Z2_SUBTYPES } from "./z2subtypes";
-
-const DAGNAMEN = ["Zondag", "Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag"];
 const ZWAAR_TYPES = ["sweetspot", "interval", "drempel", "vo2max", "sweetspot_intervallen", "drempel_intervallen", "vo2max_intervallen", "over_under", "sprint_neuraal", "pyramide", "kracht_lage_cadans"];
 
 /**

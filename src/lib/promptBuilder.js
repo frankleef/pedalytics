@@ -1,7 +1,7 @@
 // Server-side prompt-bouwers voor sessiegeneratie.
 // Elke functie retourneert { prompt, system, max_tokens }.
 
-import { vandaagISO, datumISO } from "./datum";
+import { vandaagISO, datumISO, DAGNAMEN } from "./datum";
 import { bouwSessieContext } from "./sessie/context";
 
 function sessietypesVoorFase(fase, kaderWeek) {
@@ -106,7 +106,7 @@ Alleen JSON.`,
 }
 
 export function bouwWeekSessiesPrompt({ profiel, wellness, dagelijkseData, voortgang, seizoensplan, weekSessies, urenPerDag, beschikbareDagen }) {
-  const DAGNAMEN = ["Zondag", "Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag"];
+
   const ctl = wellness?.ctl || seizoensplan.huidige_ctl || 45;
   const atl = wellness?.atl || 0;
   const tsb = Math.round(ctl - atl);

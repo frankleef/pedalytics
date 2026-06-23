@@ -26,16 +26,14 @@ const DOT_KLEUREN = {
 
 function segMidPct(seg) {
   if (seg.vermogenMin != null && seg.vermogenMax != null) return (seg.vermogenMin + seg.vermogenMax) / 2;
-  return seg.vermogen_pct || 50;
+  return 50;
 }
 
 function segWattRange(seg, ftpW) {
-  const r5 = x => Math.round(x / 5) * 5;
   if (seg.vermogenMin != null && seg.vermogenMax != null) {
     return `${Math.round(seg.vermogenMin * ftpW / 100)}–${Math.round(seg.vermogenMax * ftpW / 100)} W`;
   }
-  const w = (seg.vermogen_pct || 50) * ftpW / 100;
-  return `${r5(w * 0.95)}–${r5(w * 1.05)} W`;
+  return `${Math.round(50 * ftpW / 100)} W`;
 }
 
 function segTimeStr(min) {
