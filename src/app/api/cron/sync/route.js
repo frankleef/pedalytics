@@ -52,6 +52,8 @@ export async function POST(request) {
           continue;
         }
 
+        // Sorteer op datum (nieuwste laatst) — intervals.icu volgorde is niet gegarandeerd
+        ritten.sort((a, b) => (a.start_date_local || "").localeCompare(b.start_date_local || ""));
         const nieuwste = ritten[ritten.length - 1];
 
         // Idempotent: skip als we deze al kennen
