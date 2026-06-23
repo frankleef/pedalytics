@@ -355,6 +355,12 @@ BELANGRIJK: behoud hetzelfde sessietype en dezelfde vermogenszone. Schaal de duu
     checkInContext = `\nCHECK-IN VANDAAG: ${ctx.checkInVandaag}/5`;
   }
 
+  let vo2maxContext = "";
+  if (ctx.vo2maxTogestaan) {
+    vo2maxContext = `\nVO2MAX-INTERVALLEN TOEGESTAAN: ja. Max 1x/week in drempelfase. Nooit direct na drempel/over-under. Verhouding: drempel 2x / VO2max 1x per opbouwweek. Vervangt één Z2-sessie, nooit een drempelsessie.
+Spec: 4-6x 4-5min @ 106-120% FTP, herstel 1:1, zones Z4-Z5, TSS 70-90, warm-up ≥10min progressief naar Z3.`;
+  }
+
   let rpeContext = "";
   if (ctx.rpeOverbelasting) {
     rpeContext = "\nRPE-TREND: overbelasting gedetecteerd. Genereer sessie aan de onderkant van de TSS-range en zone-bandbreedte.";
@@ -380,7 +386,7 @@ ${intentieInstructie}
 PROFIEL: FTP ${ctx.atleetProfiel.ftp}W | LT ${ctx.atleetProfiel.lt_hr} bpm | Max HR ${ctx.atleetProfiel.max_hr} bpm | ${ctx.atleetProfiel.gewicht} kg
 ${ctx.ctlAtlTsb ? `CTL: ${ctx.ctlAtlTsb.ctl} | ATL: ${ctx.ctlAtlTsb.atl} | TSB: ${ctx.ctlAtlTsb.tsb}` : "CTL/ATL/TSB: niet meegewogen (toekomstige dag — plan op basis van het weekschema, niet op dagvorm)"}
 ${ctx.isToekomst ? "" : `HRV: ${hrvInfo}`}
-RPE afgelopen week: ${rpeInfo}${checkInContext}${rpeContext}${distributieContext}
+RPE afgelopen week: ${rpeInfo}${checkInContext}${rpeContext}${distributieContext}${vo2maxContext}
 Fase: ${ctx.fase} — ${ctx.focus} (TSS-doel ${ctx.tssDoel} per 7 dagen, weektype: ${ctx.weektype}, reeds gepland afgelopen 7d: ${weekTssNu} TSS, ruimte: ${tssRuimte} TSS)
 Ervaringsniveau: ${ctx.atleetProfiel.ervaringsniveau}
 Toegestane sessietypes deze fase: ${ctx.sessietypes ? ctx.sessietypes.join(", ") : sessietypesVoorFase(ctx.fase)}

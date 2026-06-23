@@ -133,6 +133,26 @@ export async function POST(request) {
             console.warn(`[sync] RPE-trend check mislukt voor ${userId}:`, e.message);
           }
 
+          // VO2max-suggestie evaluatie (wekelijks, alleen bij doel=ftp, week>=5)
+          try {
+            const vo2maxStatus = await kv.get(`vo2max_suggestie_status:${userId}`);
+            if (!vo2maxStatus || vo2maxStatus === "geen") {
+              const doelType = plan.seizoensdoel?.type || plan.doel || "ftp";
+              const wkNr = plan.startdatum ? Math.max(1, Math.ceil((Date.now() - new Date(plan.startdatum).getTime()) / 86400000 / 7)) : 1;
+              if (doelType === "ftp" && wkNr >= 5) {
+                const { evalueerVo2maxSuggestie } = await import("@/lib/plan/vo2maxDetectie");
+                const suggestie = await evalueerVo2maxSuggestie(userId);
+                if (suggestie.suggereer) {
+                  await kv.set(`vo2max_suggestie_status:${userId}`, "getoond");
+                  await kv.set(`vo2max_suggestie_details:${userId}`, suggestie.details);
+                  console.log(`[sync] VO2max-suggestie getoond voor ${userId}`);
+                }
+              }
+            }
+          } catch (e) {
+            console.warn(`[sync] VO2max-suggestie check mislukt voor ${userId}:`, e.message);
+          }
+
           // Fase-overgang check via cardiac decoupling (bouwstuk 8b)
           if (plan.kader) {
             const dagenSindsStart = plan.startdatum ? Math.max(0, (Date.now() - new Date(plan.startdatum).getTime()) / 86400000) : 0;

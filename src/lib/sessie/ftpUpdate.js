@@ -78,5 +78,22 @@ export async function verwerkFtpTest(userId, activity) {
     console.warn("[ftpUpdate] Intervals.icu updates mislukt:", e.message);
   }
 
+  // VO2max-suggestie evalueren na FTP-test
+  try {
+    const { evalueerVo2maxSuggestie } = await import("../plan/vo2maxDetectie");
+    const suggestie = await evalueerVo2maxSuggestie(userId);
+    const huidigeStatus = await kv.get(`vo2max_suggestie_status:${userId}`);
+    if (!huidigeStatus || huidigeStatus === "geen") {
+      if (suggestie.suggereer) {
+        await kv.set(`vo2max_suggestie_status:${userId}`, "getoond");
+        await kv.set(`vo2max_suggestie_details:${userId}`, suggestie.details);
+      } else {
+        await kv.set(`vo2max_suggestie_status:${userId}`, "geen");
+      }
+    }
+  } catch (e) {
+    console.warn("[ftpUpdate] VO2max-suggestie evaluatie mislukt:", e.message);
+  }
+
   return { updated: true, oldFtp: huidigeFtp, newFtp: nieuweFtp };
 }

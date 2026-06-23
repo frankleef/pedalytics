@@ -191,6 +191,7 @@ export function bouwSessieContext({
     distributieAfwijking,
     rpeOverbelasting: false,
     rpeOnderstimulering: false,
+    vo2maxTogestaan: seizoensplan?.planOverrides?.vo2max_toegestaan ?? false,
   };
 }
 

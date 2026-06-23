@@ -78,10 +78,13 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
   const [ftpHistorie, setFtpHistorie] = useState([]);
   const [powerCurves, setPowerCurves] = useState(null);
   const [distributieAfwijking, setDistributieAfwijking] = useState(null);
+  const [vo2maxStatus, setVo2maxStatus] = useState(null);
+  const [vo2maxDetails, setVo2maxDetails] = useState(null);
 
   useEffect(() => {
     fetch("/api/ftp-historie").then(r => r.json()).then(d => { if (d.success && d.data) setFtpHistorie(d.data); }).catch(() => {});
     fetch("/api/distributie").then(r => r.json()).then(d => { if (d.success && d.data) setDistributieAfwijking(d.data); }).catch(() => {});
+    fetch("/api/plan/vo2max-status").then(r => r.json()).then(d => { if (d.success) { setVo2maxStatus(d.status); setVo2maxDetails(d.details); } }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -313,6 +316,60 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
         ) : doelIndicatorConfig ? (
           <LegeStaat titel={doelIndicatorConfig.titel} wekenNodig={4} wekenVerzameld={doelIndicatorData.length} />
         ) : null}
+
+        {/* VO2max suggestiekaart */}
+        {vo2maxStatus === "getoond" && (
+          <div style={{ background: "oklch(0.345 0.035 245)", borderRadius: T.cardRadius, padding: "22px 22px 24px", boxShadow: "0 6px 22px rgba(20,20,40,0.18)", marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <div style={{ width: 24, height: 24, borderRadius: 8, background: T.gradient, display: "flex", alignItems: "center", justifyContent: "center", font: "700 13px var(--font-fredoka), sans-serif", color: "oklch(0.2 0.03 245)" }}>P</div>
+              <span style={{ font: "800 11.5px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: "oklch(0.74 0.05 200)" }}>INZICHT</span>
+            </div>
+            <p style={{ margin: "0 0 18px", font: "600 15px/1.55 var(--font-nunito), sans-serif", color: "oklch(0.95 0.012 200)" }}>
+              Je drempeltraining zit mogelijk aan zijn plafond. Je FTP is de afgelopen weken nauwelijks gestegen, terwijl je herstel goed is en je plan goed hebt nageleefd. Dit kan betekenen dat je VO2max nu de beperkende factor is.
+            </p>
+            <p style={{ margin: "0 0 18px", font: "600 13.5px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.78 0.04 200)" }}>
+              Wil je VO2max-intervallen toevoegen aan je plan? Ze vervangen één lichte sessie per week in de drempelfase.
+            </p>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={async () => {
+                try {
+                  const resp = await fetch("/api/plan/vo2max-toevoegen", { method: "POST" });
+                  if (resp.ok) { setVo2maxStatus("geaccepteerd"); setVo2maxDetails({ vo2max_toegevoegd_op: new Date().toISOString() }); }
+                } catch {}
+              }} style={{ flex: 1, padding: 14, borderRadius: T.pillRadius, border: "none", background: T.gradient, color: "oklch(0.15 0.03 245)", font: "800 14.5px var(--font-nunito), sans-serif", cursor: "pointer" }}>
+                Ja, voeg toe
+              </button>
+              <button onClick={async () => {
+                try {
+                  await fetch("/api/plan/vo2max-afwijzen", { method: "POST" });
+                  setVo2maxStatus("afgewezen");
+                } catch {}
+              }} style={{ flex: 1, padding: 14, borderRadius: T.pillRadius, border: "1.5px solid oklch(0.5 0.03 220)", background: "transparent", color: "oklch(0.78 0.04 200)", font: "800 14.5px var(--font-nunito), sans-serif", cursor: "pointer" }}>
+                Nee, later
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Herstel-prioriteit informatiekaart */}
+        {vo2maxStatus === "getoond" && vo2maxDetails?.reden === "herstel_prioriteit" && (
+          <div style={{ background: "oklch(0.345 0.035 245)", borderRadius: T.cardRadius, padding: "22px 22px 24px", boxShadow: "0 6px 22px rgba(20,20,40,0.18)", marginBottom: 16 }}>
+            <span style={{ font: "800 11.5px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: "oklch(0.74 0.05 200)" }}>INZICHT</span>
+            <p style={{ margin: "10px 0 0", font: "600 14px/1.55 var(--font-nunito), sans-serif", color: "oklch(0.95 0.012 200)" }}>
+              Je FTP-progressie lijkt te stagneren, maar je hersteldata wijzen erop dat je lichaam nog herstelt. Focus eerst op herstel voordat je de belasting verhoogt.
+            </p>
+          </div>
+        )}
+
+        {/* VO2max actief chip */}
+        {vo2maxStatus === "geaccepteerd" && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 999, background: "oklch(0.94 0.05 200)", marginBottom: 16 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "oklch(0.6 0.13 165)" }} />
+            <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: "oklch(0.38 0.06 220)" }}>
+              VO2max-intervallen actief{vo2maxDetails?.vo2max_toegevoegd_op ? ` vanaf ${vo2maxDetails.vo2max_toegevoegd_op.slice(0, 10)}` : ""}
+            </span>
+          </div>
+        )}
 
         {/* Hero: CTL/ATL/TSB */}
         {dagPunten.length >= 3 && (
