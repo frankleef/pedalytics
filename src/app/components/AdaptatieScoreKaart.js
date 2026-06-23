@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { T } from "../designTokens";
 import { ADAPTATIE_CONFIG, DOMINANT_LABEL } from "@/lib/adaptatie";
 
-export default function AdaptatieScoreKaart({ weekTss, doelTss }) {
+export default function AdaptatieScoreKaart({ weekTss, doelTss, fase, weekNr, weektype }) {
   const [adaptatieScore, setAdaptatieScore] = useState(null);
   const [uitklap, setUitklap] = useState(false);
 
@@ -25,14 +25,22 @@ export default function AdaptatieScoreKaart({ weekTss, doelTss }) {
 
   return (
     <div style={{ background: T.cardBg, borderRadius: 24, padding: "15px 17px 16px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 18 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 11 }}>
-        <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>Adaptatie</span>
+      {fase && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid oklch(0.93 0.01 82)` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.gradient }} />
+            <span style={{ font: "700 13.5px var(--font-nunito), sans-serif", color: T.text }}>{fase}</span>
+          </div>
+          <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec, padding: "4px 10px", borderRadius: T.pillRadius, background: T.subtleFill }}>Week {weekNr} · {weektype}</span>
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: T.pillRadius, background: T.subtleFill }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: cfg.kleur }} />
           <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.4 0.02 72)" }}>{cfg.label}</span>
         </div>
       </div>
-      <div style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec, marginBottom: 10 }}>{cfg.subtekst}</div>
+      <div style={{ font: "600 12.5px var(--font-nunito), sans-serif", color: T.textSec, marginBottom: 10 }}>{cfg.subtekst}</div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
         <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textTert }}>TSS 7d</span>
