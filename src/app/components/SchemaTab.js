@@ -231,6 +231,14 @@ export default function SchemaTab({
       .finally(() => setStreamsLaden(null));
   }, [gematchteRit?.id]);
 
+  // Fetch hitte-data voor de gematchte rit
+  useEffect(() => {
+    if (!gematchteRit?.id || hitteData[gematchteRit.id]) return;
+    fetch(`/api/plan/hitte?ritId=${gematchteRit.id}`).then(r => r.json()).then(d => {
+      if (d.success && d.data) setHitteData(p => ({ ...p, [gematchteRit.id]: d.data }));
+    }).catch(() => {});
+  }, [gematchteRit?.id]);
+
   // Center strip
   const centerStrip = useCallback((smooth) => {
     const el = stripRef.current;
@@ -657,6 +665,13 @@ export default function SchemaTab({
             <StatusBanner mode="deviated" />
 
             {gematchteRit?.naam && <p style={{ margin: "0 0 12px", font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>{gematchteRit.naam}</p>}
+
+            {hitteData[gematchteRit?.id]?.hitte_gecorrigeerd && (
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "oklch(0.96 0.05 82)", marginBottom: 12 }}>
+                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.48 0.1 62)" }}>🌡️ Hitte-rit · {hitteData[gematchteRit.id].temperatuur_celsius}°C</span>
+                <InfoTooltip metricKey="hitte" />
+              </div>
+            )}
 
             <div style={{ display: "flex", gap: 10, marginBottom: 18 }}>
               <div style={{ flex: 1, borderRadius: 16, background: T.cardBg, border: "1px dashed oklch(0.85 0.014 80)", padding: "13px 14px" }}>
