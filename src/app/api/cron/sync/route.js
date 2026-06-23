@@ -8,7 +8,7 @@ import { verifyQStash } from "@/lib/qstash";
 import { verwerkFtpTest } from "@/lib/sessie/ftpUpdate";
 import { berekenGemiddeldeUrenPerWeek, berekenStartTss } from "@/lib/rijhistorie";
 import { berekenDistributie } from "@/lib/sessie/distributie";
-import { checkFaseOvergang, berekenEnCacheDecoupling, bijwerkenDecouplingBaseline } from "@/lib/decoupling";
+import { checkFaseOvergang, berekenEnCacheDecoupling, bijwerkenDecouplingBaseline, backfillDecoupling } from "@/lib/decoupling";
 import { berekenRpeTrend, verwerkRpeTrend } from "@/lib/sessie/rpeTrend";
 import { berekenAdaptatieScore } from "@/lib/adaptatie";
 
@@ -89,6 +89,13 @@ export async function POST(request) {
           } catch (e) {
             console.warn(`[sync] start_profiel migratie mislukt voor ${userId}:`, e.message);
           }
+        }
+
+        // Eenmalige decoupling backfill
+        const bfVoltooid = await kv.get(`decoupling_backfill_voltooid:${userId}`);
+        const bfGestart = await kv.get(`decoupling_backfill_gestart:${userId}`);
+        if (!bfVoltooid && !bfGestart) {
+          backfillDecoupling(userId, plan?.huidige_ftp || 265, apiKey, athleteId).catch(e => console.warn(`[sync] Backfill mislukt:`, e.message));
         }
 
         if (plan?.weekSessies?.sessies) {

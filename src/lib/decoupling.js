@@ -104,6 +104,56 @@ export function checkFaseOvergang(decouplingWaarden, aantalVerlengingen = 0) {
 }
 
 /**
+ * Eenmalige backfill: berekent en cachet decoupling voor alle historische Z2-ritten.
+ */
+export async function backfillDecoupling(userId, ftpWaarde, apiKey, athleteId) {
+  const kv = getKV();
+  await kv.set(`decoupling_backfill_gestart:${userId}`, "true");
+
+  try {
+    const tweeJaarGeleden = new Date(Date.now() - 730 * 86400000).toISOString().slice(0, 10);
+    const vandaag = new Date().toISOString().slice(0, 10);
+    const auth = "Basic " + Buffer.from("API_KEY:" + apiKey).toString("base64");
+
+    const resp = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/activities?oldest=${tweeJaarGeleden}&newest=${vandaag}&fields=id,start_date_local,type,moving_time,icu_weighted_avg_watts`, {
+      headers: { Authorization: auth },
+    });
+    const acts = await resp.json();
+    const z2Ritten = (acts || []).filter(a => {
+      if (a.type !== "Ride" && a.type !== "VirtualRide") return false;
+      if (!a.icu_weighted_avg_watts || !a.moving_time || a.moving_time < 2700) return false;
+      const ifVal = a.icu_weighted_avg_watts / ftpWaarde;
+      return ifVal >= 0.55 && ifVal <= 0.75;
+    });
+
+    let verwerkt = 0, overgeslagen = 0;
+    for (const rit of z2Ritten) {
+      const bestaand = await kv.get(`decoupling:${rit.id}`);
+      if (bestaand != null) { overgeslagen++; continue; }
+
+      try {
+        const sResp = await fetch(`https://intervals.icu/api/v1/activity/${rit.id}/streams?types=watts,heartrate`, { headers: { Authorization: auth } });
+        const streams = await sResp.json();
+        const wattsArr = (Array.isArray(streams) ? streams.find(s => s.type === "watts") : streams?.watts)?.data || [];
+        const hrArr = (Array.isArray(streams) ? streams.find(s => s.type === "heartrate") : streams?.heartrate)?.data || [];
+        await berekenEnCacheDecoupling(rit.id, wattsArr, hrArr);
+        verwerkt++;
+        await new Promise(r => setTimeout(r, 300));
+      } catch (e) {
+        console.warn(`[backfill] Rit ${rit.id} mislukt:`, e.message);
+      }
+    }
+
+    await kv.set(`decoupling_backfill_voltooid:${userId}`, { datum: new Date().toISOString(), verwerkt, overgeslagen, totaalZ2: z2Ritten.length });
+    await bijwerkenDecouplingBaseline(userId).catch(() => {});
+    console.log(`[backfill] ${userId}: ${verwerkt} verwerkt, ${overgeslagen} overgeslagen van ${z2Ritten.length} Z2-ritten`);
+  } catch (e) {
+    console.error("[backfill] Job mislukt:", e);
+    await kv.del(`decoupling_backfill_gestart:${userId}`);
+  }
+}
+
+/**
  * Berekent en slaat de persoonlijke decoupling-baseline op (mediaan + trend).
  */
 export async function bijwerkenDecouplingBaseline(userId) {
