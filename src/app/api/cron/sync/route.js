@@ -59,6 +59,24 @@ export async function POST(request) {
 
         // Idempotent: skip als we deze al kennen
         if (lastActivity?.id === nieuwste.id) {
+          // Herbereken adaptatie-score met verse wellness-data, ook zonder nieuwe rit
+          try {
+            const planKey = `${userId}:seizoensplan`;
+            const plan = await kv.get(planKey);
+            if (plan) {
+              let hrv7d = null, hrv28d = null, ctlRamp = null;
+              const wellData = await intervalsGet("/wellness", { oldest: datumOffset(-28), newest: datumOffset(0) }, { apiKey, athleteId });
+              if (wellData?.length >= 7) {
+                const hrvW = wellData.filter(w => w.hrv).map(w => w.hrv);
+                if (hrvW.length >= 7) { hrv7d = hrvW.slice(-7).reduce((a,b) => a+b, 0) / 7; hrv28d = hrvW.reduce((a,b) => a+b, 0) / hrvW.length; }
+                const ctlW = wellData.filter(w => w.ctl != null).sort((a,b) => (a.id||"").localeCompare(b.id||""));
+                if (ctlW.length >= 7) { const h = Math.floor(ctlW.length/2); ctlRamp = (ctlW.slice(h).reduce((a,w)=>a+w.ctl,0)/(ctlW.length-h) - ctlW.slice(0,h).reduce((a,w)=>a+w.ctl,0)/h) / (ctlW.length/7); }
+              }
+              const rpeTrend = await kv.get(`rpe_trend:${userId}`);
+              const adaptatie = berekenAdaptatieScore({ rpe_delta_trend: rpeTrend ?? null, hrv_3d: hrv7d, hrv_28d: hrv28d, ctl_ramp: ctlRamp, decoupling_huidig: null, decoupling_vorig: null });
+              if (adaptatie) await kv.set(`adaptatie_score:${userId}`, { ...adaptatie, berekend_op: new Date().toISOString() }, { ex: 8 * 86400 });
+            }
+          } catch (e) { console.warn(`[sync] Adaptatie-herberekening mislukt:`, e.message); }
           results.push({ userId, status: "up_to_date" });
           continue;
         }
@@ -158,13 +176,13 @@ export async function POST(request) {
             try {
               const tempResult = await haalRitTemperatuur(userId, rit.start_date_local, Math.round(duurMin));
               apparent_temp_celsius = tempResult.apparent_temp_celsius;
-              // Baseline berekenen uit bestaande entries
+              // Baseline berekenen uit bestaande entries, exclusief de huidige rit
               const alleEntries = [];
               for (const r of ritten) {
                 const entry = await kv.get(`decoupling:${r.id}`);
-                if (entry && typeof entry === "object" && entry.startTijd) alleEntries.push(entry);
+                if (entry && typeof entry === "object" && entry.startTijd) alleEntries.push({ ...entry, ritId: r.id });
               }
-              temp_baseline = berekenTempBaseline(alleEntries);
+              temp_baseline = berekenTempBaseline(alleEntries, rit.id);
               hitte_gecorrigeerd = berekenHitteVlag(apparent_temp_celsius, temp_baseline);
             } catch {}
 
@@ -220,14 +238,14 @@ export async function POST(request) {
             const rpeTrend = await kv.get(`rpe_trend:${userId}`);
 
             // HRV: 3d vs 28d uit intervals.icu wellness
-            let hrv3d = null, hrv28d = null, ctlRamp = null;
+            let hrv7d = null, hrv28d = null, ctlRamp = null;
             try {
               const wellOldest = datumOffset(-28);
               const wellData = await intervalsGet("/wellness", { oldest: wellOldest, newest: datumOffset(0) }, { apiKey, athleteId });
               if (wellData?.length >= 7) {
                 const hrvWaarden = wellData.filter(w => w.hrv).map(w => w.hrv);
-                if (hrvWaarden.length >= 3) {
-                  hrv3d = hrvWaarden.slice(-3).reduce((a, b) => a + b, 0) / 3;
+                if (hrvWaarden.length >= 7) {
+                  hrv7d = hrvWaarden.slice(-7).reduce((a, b) => a + b, 0) / 7;
                   hrv28d = hrvWaarden.reduce((a, b) => a + b, 0) / hrvWaarden.length;
                 }
                 // CTL-ramp: verschil gemiddelde CTL eerste/tweede helft gedeeld door weken
@@ -268,7 +286,7 @@ export async function POST(request) {
 
             const adaptatie = berekenAdaptatieScore({
               rpe_delta_trend: rpeTrend ?? null,
-              hrv_3d: hrv3d,
+              hrv_3d: hrv7d,
               hrv_28d: hrv28d,
               ctl_ramp: ctlRamp,
               decoupling_huidig: dcHuidig,

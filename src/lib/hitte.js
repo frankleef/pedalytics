@@ -37,10 +37,12 @@ export async function haalRitTemperatuur(userId, startTijdIso, duurMinuten) {
   }
 }
 
-export function berekenTempBaseline(decouplingEntries) {
+export function berekenTempBaseline(decouplingEntries, excludeRitId = null) {
   const zesWekenGeleden = Date.now() - 6 * 7 * 86400000;
   const relevant = decouplingEntries
-    .filter(e => e.apparent_temp_celsius != null && new Date(e.startTijd).getTime() > zesWekenGeleden)
+    .filter(e => e.apparent_temp_celsius != null
+      && new Date(e.startTijd).getTime() > zesWekenGeleden
+      && e.ritId !== excludeRitId)
     .sort((a, b) => new Date(b.startTijd) - new Date(a.startTijd))
     .slice(0, 14);
   if (!relevant.length) return null;

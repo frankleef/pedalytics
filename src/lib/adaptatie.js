@@ -2,9 +2,9 @@ export function normaliseerRpeDelta(trend) {
   return Math.max(-1, Math.min(1, trend / 3)) * -1;
 }
 
-export function normaliseerHrvTrend(hrv3d, hrv28d) {
+export function normaliseerHrvTrend(hrv7d, hrv28d) {
   if (!hrv28d) return 0;
-  const afwijking = (hrv3d - hrv28d) / hrv28d;
+  const afwijking = (hrv7d - hrv28d) / hrv28d;
   return Math.max(-1, Math.min(1, afwijking * 5));
 }
 
