@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { getSessionUser } from "@/lib/auth";
-
-const DEFAULT_LAT = 51.59;
-const DEFAULT_LON = 4.78;
-const DEFAULT_STAD = "Breda";
+import { haalGebruikersLocatie } from "@/lib/locatie";
 
 const CONDITIE_MAP = {
   0: "Helder", 1: "Overwegend helder", 2: "Half bewolkt", 3: "Bewolkt",
@@ -16,10 +13,7 @@ const CONDITIE_MAP = {
 export async function GET() {
   try {
     const user = await getSessionUser();
-    const weerKey = user?.id ? `${user.id}:weer-locatie` : "weer-locatie";
-    const locatie = await getKV().get(weerKey).catch(() => null);
-    const lat = locatie?.lat || DEFAULT_LAT;
-    const lon = locatie?.lon || DEFAULT_LON;
+    const { lat, lon, stad } = await haalGebruikersLocatie(user?.id);
 
     const resp = await fetch(
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m&hourly=precipitation_probability&timezone=Europe/Amsterdam&forecast_days=1`,
@@ -40,7 +34,7 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      data: { temp, conditie, wind, neerslagKans: maxNeerslag, neerslagMiddag, stad: locatie?.stad || DEFAULT_STAD },
+      data: { temp, conditie, wind, neerslagKans: maxNeerslag, neerslagMiddag, stad },
     });
   } catch (e) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });

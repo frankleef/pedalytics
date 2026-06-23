@@ -65,6 +65,9 @@ export default function ProfielScherm({ profiel, seizoensplan, onTerug, onUitlog
   const [pushFout, setPushFout] = useState("");
   const [doelModalOpen, setDoelModalOpen] = useState(false);
   const [niveauModalOpen, setNiveauModalOpen] = useState(false);
+  const [locatieZoek, setLocatieZoek] = useState(false);
+  const [locatieQuery, setLocatieQuery] = useState("");
+  const [locatieResultaten, setLocatieResultaten] = useState([]);
 
   useEffect(() => {
     fetch("/api/checkin").then(r => r.json()).then(d => {
@@ -333,24 +336,42 @@ export default function ProfielScherm({ profiel, seizoensplan, onTerug, onUitlog
 
         {/* Weer-locatie */}
         <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 20px 22px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
-          <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, display: "block", marginBottom: 14 }}>WEER-LOCATIE</span>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {STEDEN.map(s => (
-              <button key={s.stad} onClick={() => {
-                setWeerStad(s.stad);
-                fetch("/api/weer", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s) });
-              }}
-                style={{
-                  padding: "7px 14px", borderRadius: T.pillRadius, cursor: "pointer",
-                  font: "700 12.5px var(--font-nunito), sans-serif",
-                  ...(s.stad === weerStad
-                    ? { background: T.slate, color: "oklch(0.97 0.01 84)", border: "none" }
-                    : { background: "transparent", border: "1.5px solid oklch(0.86 0.014 80)", color: "oklch(0.42 0.02 72)" }),
-                }}>
-                {s.stad}
-              </button>
-            ))}
-          </div>
+          <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, display: "block", marginBottom: 14 }}>LOCATIE</span>
+          {!locatieZoek ? (
+            <div onClick={() => setLocatieZoek(true)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
+              <span style={{ font: "700 14.5px var(--font-nunito), sans-serif", color: T.text }}>{weerStad}</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 5l7 7-7 7" stroke={T.textSec} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+          ) : (
+            <div>
+              <input type="text" value={locatieQuery} autoFocus placeholder="Zoek stad..."
+                onChange={e => {
+                  const q = e.target.value;
+                  setLocatieQuery(q);
+                  if (q.length >= 2) {
+                    clearTimeout(window._locDebounce);
+                    window._locDebounce = setTimeout(() => {
+                      fetch(`/api/profiel/locatie?q=${encodeURIComponent(q)}`).then(r => r.json()).then(d => { if (d.success) setLocatieResultaten(d.data || []); });
+                    }, 300);
+                  } else { setLocatieResultaten([]); }
+                }}
+                style={{ width: "100%", background: T.subtleFill, border: `1px solid ${T.cardBorder}`, borderRadius: 12, padding: 12, color: T.text, font: "600 14px var(--font-nunito), sans-serif", boxSizing: "border-box", outline: "none", marginBottom: 8 }} />
+              {locatieResultaten.map((r, i) => (
+                <div key={i} onClick={async () => {
+                  await fetch("/api/profiel/locatie", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stad: r.naam, lat: r.lat, lon: r.lon }) });
+                  setWeerStad(r.naam);
+                  setLocatieZoek(false);
+                  setLocatieQuery("");
+                  setLocatieResultaten([]);
+                }}
+                  style={{ padding: "10px 12px", cursor: "pointer", borderRadius: 10, font: "600 13.5px var(--font-nunito), sans-serif", color: T.text }}>
+                  {r.naam}, {r.land}
+                </div>
+              ))}
+              <button onClick={() => { setLocatieZoek(false); setLocatieQuery(""); setLocatieResultaten([]); }}
+                style={{ marginTop: 6, background: "none", border: "none", cursor: "pointer", font: "700 12px var(--font-nunito), sans-serif", color: T.textSec, padding: 0 }}>Annuleer</button>
+            </div>
+          )}
         </div>
 
         {/* Gevoel vandaag */}

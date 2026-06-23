@@ -69,4 +69,11 @@ export const METRICS = {
     color: "oklch(0.5 0.14 70)",
     tint: "oklch(0.92 0.05 75)",
   },
+  hitte: {
+    title: "Hitte-rit",
+    tag: "≥28°C",
+    body: "Hartslag en cardiac decoupling zijn beïnvloed door de warmte. Deze rit telt niet mee in je trendanalyse om vertekening te voorkomen.",
+    color: "oklch(0.72 0.13 70)",
+    tint: "oklch(0.96 0.05 82)",
+  },
 };

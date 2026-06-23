@@ -170,6 +170,7 @@ export default function SchemaTab({
   const [streamsCache, setStreamsCache] = useState({});
   const [streamsLaden, setStreamsLaden] = useState(null);
   const [deviceTipWeg, setDeviceTipWeg] = useState(() => typeof window !== "undefined" && localStorage.getItem("deviceTipGezien") === "1");
+  const [hitteData, setHitteData] = useState({});
   const stripRef = useRef(null);
 
   const nu = new Date();
@@ -597,6 +598,13 @@ export default function SchemaTab({
                 <h1 style={{ margin: "5px 0 4px", font: "800 28px/1.18 var(--font-nunito), sans-serif", letterSpacing: -0.5, textWrap: "pretty", color: T.text }}>{sessie.titel}</h1>
                 {gematchteRit?.naam && <p style={{ margin: "0 0 18px", font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>{gematchteRit.naam}</p>}
               </>
+            )}
+
+            {hitteData[gematchteRit?.id]?.hitte_gecorrigeerd && (
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "oklch(0.96 0.05 82)", marginBottom: 12 }}>
+                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.48 0.1 62)" }}>🌡️ Hitte-rit · {hitteData[gematchteRit.id].temperatuur_celsius}°C</span>
+                <InfoTooltip metricKey="hitte" />
+              </div>
             )}
 
             {renderRitMetrics(true)}
