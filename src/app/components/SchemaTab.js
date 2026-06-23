@@ -85,7 +85,8 @@ function bouwBlockGroups(segmenten, ftp) {
   const makeBlock = (seg) => {
     const pct = segMidPct(seg);
     const zn = segZoneNr(pct);
-    const label = seg.type === "herstel" || seg.type === "rust" ? "Herstel" : (seg.label?.replace(/\s*\d+$/, "") || seg.type);
+    const zoneLabel = zn <= 2 ? "Z" + zn + " Duurrit" : zn === 3 ? "Tempo" : zn === 4 ? "Drempel" : "VO2max";
+    const label = seg.label?.replace(/\s*\d+$/, "") || seg.naam?.replace(/\s*(blok\s*)?\d+.*$/i, "").trim() || (seg.type === "herstel" || seg.type === "rust" ? "Herstel" : zoneLabel);
     const cadans = seg.cadans_rpm ? `${seg.cadans_rpm.min || "?"}–${seg.cadans_rpm.max || "?"} rpm` : null;
     return { title: label, zone: zn, rpe: segRpeRange(pct), time: segTimeStr(seg.duur_min), watt: segWattRange(seg, ftpW), bg: BLOCK_BG[zn], cadans };
   };
