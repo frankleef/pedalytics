@@ -245,15 +245,14 @@ export default function SchemaTab({
   useEffect(() => { [0, 120, 350].forEach(t => setTimeout(() => centerStrip(false), t)); }, []);
   useEffect(() => { centerStrip(true); }, [selectedIdx]);
 
-  // TSS week card
-  const vandaagDagIdx = nu.getDay() === 0 ? 6 : nu.getDay() - 1;
-  const maandag = new Date(nu); maandag.setDate(nu.getDate() - vandaagDagIdx); maandag.setHours(0,0,0,0);
-  const rittenDezeWeek = (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= maandag);
-  const werkelijkTss = Math.round(rittenDezeWeek.reduce((s, r) => s + (r.tss || 0), 0));
+  // TSS rollend 7 dagen
+  const zevenDagenGeleden = new Date(nu); zevenDagenGeleden.setDate(nu.getDate() - 6); zevenDagenGeleden.setHours(0,0,0,0);
+  const rittenRollend7d = (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= zevenDagenGeleden);
+  const werkelijkTss = Math.round(rittenRollend7d.reduce((s, r) => s + (r.tss || 0), 0));
   const dagenSindsStart = seizoensplan?.startdatum ? Math.max(0, (Date.now() - new Date(seizoensplan.startdatum).getTime()) / 86400000) : 0;
   const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7) || 1);
   const kaderWeek = seizoensplan?.kader?.find(w => w.week === weekNr) || seizoensplan?.kader?.[0];
-  const doelTss = weekSessies?.tss_totaal || kaderWeek?.tss_doel || 0;
+  const doelTss = kaderWeek?.tss_doel || 0;
   const tssPct = doelTss > 0 ? Math.min(100, Math.round((werkelijkTss / doelTss) * 100)) : 0;
 
   // Session metrics
@@ -426,7 +425,7 @@ export default function SchemaTab({
             </div>
           )}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 11 }}>
-            <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>TSS deze week</span>
+            <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>TSS afgelopen 7 dagen</span>
             <span style={{ font: "600 12.5px var(--font-nunito), sans-serif", color: T.textSec }}>
               <span style={{ font: "600 19px var(--font-fredoka), sans-serif", color: T.text }}>{werkelijkTss}</span> / {doelTss}
             </span>
