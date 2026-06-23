@@ -85,8 +85,8 @@ function bouwBlockGroups(segmenten, ftp) {
   const makeBlock = (seg) => {
     const pct = segMidPct(seg);
     const zn = segZoneNr(pct);
-    const zoneLabel = zn <= 2 ? "Z" + zn + " Duurrit" : zn === 3 ? "Tempo" : zn === 4 ? "Drempel" : "VO2max";
-    const label = seg.label?.replace(/\s*\d+$/, "") || seg.naam?.replace(/\s*(blok\s*)?\d+.*$/i, "").trim() || (seg.type === "herstel" || seg.type === "rust" ? "Herstel" : zoneLabel);
+    const zoneLabel = zn <= 2 ? "Z" + zn : zn === 3 ? "Tempo" : zn === 4 ? "Drempel" : "VO2max";
+    const label = seg.label?.replace(/\s*\d+$/, "") || zoneLabel;
     const cadans = seg.cadans_rpm ? `${seg.cadans_rpm.min || "?"}–${seg.cadans_rpm.max || "?"} rpm` : null;
     return { title: label, zone: zn, rpe: segRpeRange(pct), time: segTimeStr(seg.duur_min), watt: segWattRange(seg, ftpW), bg: BLOCK_BG[zn], cadans };
   };
@@ -502,8 +502,7 @@ export default function SchemaTab({
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                       {g.blocks.map((b, bi) => (
                         <div key={bi} style={{ position: "relative", zIndex: 2, background: b.bg, borderRadius: 20, padding: "16px 19px 15px", boxShadow: "0 4px 14px rgba(40,30,15,0.10)" }}>
-                          <span style={{ font: "600 19px var(--font-fredoka), sans-serif", color: "oklch(0.99 0.01 95)", letterSpacing: 0.2 }}>{b.title}</span>
-                          <div style={{ display: "flex", marginTop: 12 }}>
+                          <div style={{ display: "flex", marginTop: 0 }}>
                             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
                               <span style={{ font: "800 9.5px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: "rgba(255,255,255,0.74)" }}>RPE</span>
                               <span style={{ font: "600 20px var(--font-fredoka), sans-serif", lineHeight: 1, color: "oklch(0.99 0.01 95)" }}>{b.rpe}</span>
