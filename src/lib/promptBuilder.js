@@ -43,6 +43,9 @@ ${doelInstructiesAlsTekst(doelProfiel)}
 PROFIEL: FTP ${doelConfig.huidige_ftp}W | LT ${profiel.lt_hr} bpm | Max HR ${profiel.max_hr} bpm | ${profiel.gewicht} kg | CTL ~${doelConfig.huidige_ctl} | Ervaringsniveau: ${niveau}
 DOEL: ${doelConfig.doel_label}
 
+START-TSS: ${doelConfig.start_profiel?.start_tss_week || 200} TSS voor week 1.
+Na elke herstelweek begint de opbouw opnieuw vanaf deze waarde — niet cumulatief.
+
 WEEKSTRUCTUUR (verplicht):
 - 3:1-ritme: 3 opbouwweken gevolgd door 1 herstelweek, herhaald
 - Opbouwweken: TSS stijgt ~${opbouwPct} per week
@@ -383,7 +386,7 @@ Spec: 4-6x 4-5min @ 106-120% FTP, herstel 1:1, zones Z4-Z5, TSS 70-90, warm-up �
 
 ${intentieInstructie}
 
-PROFIEL: FTP ${ctx.atleetProfiel.ftp}W | LT ${ctx.atleetProfiel.lt_hr} bpm | Max HR ${ctx.atleetProfiel.max_hr} bpm | ${ctx.atleetProfiel.gewicht} kg
+PROFIEL: FTP ${ctx.atleetProfiel.ftp}W | LT ${ctx.atleetProfiel.lt_hr} bpm | Max HR ${ctx.atleetProfiel.max_hr} bpm | ${ctx.atleetProfiel.gewicht} kg${ctx.wPerKg ? ` | W/kg ${ctx.wPerKg}` : ""}
 ${ctx.ctlAtlTsb ? `CTL: ${ctx.ctlAtlTsb.ctl} | ATL: ${ctx.ctlAtlTsb.atl} | TSB: ${ctx.ctlAtlTsb.tsb}` : "CTL/ATL/TSB: niet meegewogen (toekomstige dag — plan op basis van het weekschema, niet op dagvorm)"}
 ${ctx.isToekomst ? "" : `HRV: ${hrvInfo}`}
 RPE afgelopen week: ${rpeInfo}${checkInContext}${rpeContext}${distributieContext}${vo2maxContext}

@@ -190,6 +190,11 @@ export function bouwSessieContext({
     rpeOverbelasting: false,
     rpeOnderstimulering: false,
     vo2maxTogestaan: seizoensplan?.planOverrides?.vo2max_toegestaan ?? false,
+    wPerKg: (() => {
+      const gw = seizoensplan?.start_profiel?.gewicht_kg || profiel?.gewicht;
+      return gw && ftp ? Math.round((ftp / gw) * 10) / 10 : null;
+    })(),
+    historischUrenPerWeek: seizoensplan?.start_profiel?.historisch_uren_per_week ?? null,
   };
 }
 

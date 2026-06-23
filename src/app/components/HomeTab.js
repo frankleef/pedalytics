@@ -13,6 +13,7 @@ import SharedHeader from "./SharedHeader";
 import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
 import SessieUitkomstKaart from "./SessieUitkomstKaart";
 import SeizoenSamenvattingKaart from "./SeizoenSamenvattingKaart";
+import AdaptatieScoreKaart from "./AdaptatieScoreKaart";
 import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
@@ -415,6 +416,17 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
             </div>
           </div>
         )}
+
+        {/* Adaptatie-score */}
+        {(() => {
+          const zevenDagenGeleden = new Date(Date.now() - 6 * 86400000);
+          const rittenR7d = (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= zevenDagenGeleden);
+          const weekTss = Math.round(rittenR7d.reduce((s, r) => s + (r.tss || 0), 0));
+          const start = seizoensplan?.startdatum ? new Date(seizoensplan.startdatum) : null;
+          const wkNr = start ? Math.max(1, Math.ceil((Date.now() - start.getTime()) / (7 * 86400000))) : 1;
+          const kw = seizoensplan?.kader?.find(w => w.week === wkNr);
+          return <AdaptatieScoreKaart weekTss={weekTss} doelTss={kw?.tss_doel || 0} />;
+        })()}
 
         {/* AI Insight */}
         <InsightCard

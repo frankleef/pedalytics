@@ -298,11 +298,35 @@ export default function Page() {
     try {
       const kader = bouwKader(doelConfig);
       setPlanVoortgang(1);
+
+      // Start-profiel berekenen uit rijhistorie
+      let startProfiel = null;
+      try {
+        const { berekenGemiddeldeUrenPerWeek, berekenStartTss } = require("@/lib/rijhistorie");
+        const zesWekenGeleden = new Date(Date.now() - 42 * 86400000).toISOString().slice(0, 10);
+        const [actResp, wellResp] = await Promise.all([
+          fetch(`/api/intervals/activities?oldest=${zesWekenGeleden}`).then(r => r.json()).catch(() => null),
+          fetch("/api/intervals/wellness?oldest=" + new Date(Date.now() - 86400000).toISOString().slice(0, 10)).then(r => r.json()).catch(() => null),
+        ]);
+        const activiteiten = actResp?.success ? actResp.data : null;
+        const wellnessData = wellResp?.success ? wellResp.data : null;
+        const urenPerWeek = berekenGemiddeldeUrenPerWeek(activiteiten);
+        const ctlHuidig = wellnessData?.length > 0 ? wellnessData[wellnessData.length - 1]?.ctl : null;
+        const gewichtKg = PROFIEL.gewicht || null;
+        startProfiel = {
+          historisch_uren_per_week: urenPerWeek ? Math.round(urenPerWeek * 10) / 10 : null,
+          ctl_bij_start: ctlHuidig ? Math.round(ctlHuidig) : null,
+          gewicht_kg: gewichtKg,
+          start_tss_week: berekenStartTss(urenPerWeek, ctlHuidig),
+          w_per_kg: PROFIEL.ftp && gewichtKg ? Math.round((PROFIEL.ftp / gewichtKg) * 10) / 10 : null,
+        };
+      } catch (e) { console.warn("Start-profiel berekening mislukt:", e); }
+
       setPlanVoortgang(2);
       const jobId = await startJob("seizoensplan", { profiel: PROFIEL, doelConfig, kader });
       const plan = await pollJob(jobId, { interval: 5000 });
       setPlanVoortgang(3);
-      const volledigPlan = { ...doelConfig, kader, ...plan, planStatus: undefined };
+      const volledigPlan = { ...doelConfig, kader, ...plan, ...(startProfiel ? { start_profiel: startProfiel } : {}), planStatus: undefined };
       setSeizoensplan(volledigPlan);
       fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(volledigPlan) });
       setPlanVoortgang(4);

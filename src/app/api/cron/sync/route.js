@@ -6,9 +6,11 @@ import { datumOffset } from "@/lib/datum";
 import { sendPush } from "@/lib/pushNotify";
 import { verifyQStash } from "@/lib/qstash";
 import { verwerkFtpTest } from "@/lib/sessie/ftpUpdate";
+import { berekenGemiddeldeUrenPerWeek, berekenStartTss } from "@/lib/rijhistorie";
 import { berekenDistributie } from "@/lib/sessie/distributie";
 import { checkFaseOvergang, berekenEnCacheDecoupling } from "@/lib/decoupling";
 import { berekenRpeTrend, verwerkRpeTrend } from "@/lib/sessie/rpeTrend";
+import { berekenAdaptatieScore } from "@/lib/adaptatie";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -65,7 +67,30 @@ export async function POST(request) {
         });
 
         // Check of nieuwste rit een FTP-test was
-        const plan = await kv.get(`${userId}:seizoensplan`);
+        const planKey = `${userId}:seizoensplan`;
+        const plan = await kv.get(planKey);
+
+        // Migratie: start_profiel toevoegen als het ontbreekt
+        if (plan && !plan.start_profiel) {
+          try {
+            const urenPerWeek = berekenGemiddeldeUrenPerWeek(ritten);
+            const ctlHuidig = ritten.length > 0 ? (ritten[ritten.length - 1].icu_training_load || null) : null;
+            plan.start_profiel = {
+              historisch_uren_per_week: urenPerWeek ? Math.round(urenPerWeek * 10) / 10 : null,
+              ctl_bij_start: ctlHuidig ? Math.round(ctlHuidig) : null,
+              gewicht_kg: null,
+              start_tss_week: berekenStartTss(urenPerWeek, ctlHuidig),
+              w_per_kg: null,
+              gemigreerd: true,
+              migratie_datum: new Date().toISOString(),
+            };
+            await kv.set(planKey, plan);
+            console.log(`[sync] start_profiel gemigreerd voor ${userId}: TSS ${plan.start_profiel.start_tss_week}`);
+          } catch (e) {
+            console.warn(`[sync] start_profiel migratie mislukt voor ${userId}:`, e.message);
+          }
+        }
+
         if (plan?.weekSessies?.sessies) {
           const ritDatum = nieuwste.start_date_local?.split("T")[0];
           const sessie = plan.weekSessies.sessies.find(s => s.datum === ritDatum);
@@ -153,6 +178,32 @@ export async function POST(request) {
             }
           } catch (e) {
             console.warn(`[sync] RPE-trend check mislukt voor ${userId}:`, e.message);
+          }
+
+          // Adaptatie-score berekenen
+          try {
+            const rpeTrend = await kv.get(`rpe_trend:${userId}`);
+            const dcKeys = [];
+            for (const rit of ritten) {
+              const dc = await kv.get(`decoupling:${rit.id}`);
+              if (dc != null) dcKeys.push(dc);
+            }
+            const dcHuidig = dcKeys.length >= 3 ? dcKeys.slice(-3).sort((a,b)=>a-b)[1] : null;
+            const dcVorig = dcKeys.length >= 6 ? dcKeys.slice(-6, -3).sort((a,b)=>a-b)[1] : null;
+
+            const adaptatie = berekenAdaptatieScore({
+              rpe_delta_trend: rpeTrend ?? null,
+              hrv_3d: null,
+              hrv_28d: null,
+              ctl_ramp: null,
+              decoupling_huidig: dcHuidig,
+              decoupling_vorig: dcVorig,
+            });
+            if (adaptatie) {
+              await kv.set(`adaptatie_score:${userId}`, { ...adaptatie, berekend_op: new Date().toISOString() }, { ex: 8 * 86400 });
+            }
+          } catch (e) {
+            console.warn(`[sync] Adaptatie-score mislukt voor ${userId}:`, e.message);
           }
 
           // VO2max-suggestie evaluatie (wekelijks, alleen bij doel=ftp, week>=5)
