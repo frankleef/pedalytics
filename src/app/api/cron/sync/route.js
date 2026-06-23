@@ -83,6 +83,27 @@ export async function POST(request) {
             } catch (e) {
               console.warn(`[sync] FTP-test verwerking mislukt voor ${userId}:`, e.message);
             }
+
+            // Seizoenseinde-detectie
+            if (sessie.intentie.sessietype === "ramp_test" && !plan.seizoen_afgerond) {
+              const dagenSinds = plan.startdatum ? Math.max(0, (Date.now() - new Date(plan.startdatum).getTime()) / 86400000) : 0;
+              const huidigeWeek = Math.max(1, Math.ceil(dagenSinds / 7));
+              if (huidigeWeek >= (plan.tijdshorizon_weken || 13)) {
+                if (!plan.start_ftp) {
+                  const oudsteFtp = (plan.ftp_historie || []).sort((a, b) => a.datum.localeCompare(b.datum))[0];
+                  if (oudsteFtp) plan.start_ftp = oudsteFtp.ftp;
+                  else if (plan.seizoensdoel?.doel_ftp) plan.start_ftp = plan.seizoensdoel.doel_ftp;
+                }
+                plan.seizoen_afgerond = true;
+                await kv.set(planKey, plan);
+                await sendPush(userId, {
+                  title: "Seizoen afgerond",
+                  body: "Je eindtest is binnen. Bekijk je resultaten en start een nieuw seizoen.",
+                  url: "/",
+                });
+                console.log(`[sync] Seizoen afgerond voor ${userId}`);
+              }
+            }
           }
 
           // Decoupling cachen voor Z2-duurritten (>45 min)

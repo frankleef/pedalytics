@@ -12,6 +12,7 @@ import InsightCard from "./home/InsightCard";
 import SharedHeader from "./SharedHeader";
 import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
 import SessieUitkomstKaart from "./SessieUitkomstKaart";
+import SeizoenSamenvattingKaart from "./SeizoenSamenvattingKaart";
 import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
@@ -357,8 +358,13 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
           </div>
         )}
 
+        {/* Seizoen afgerond */}
+        {seizoensplan?.seizoen_afgerond && (
+          <SeizoenSamenvattingKaart plan={seizoensplan} profiel={profiel} onNieuwSeizoeen={() => { window.location.href = "/nieuw-seizoen"; }} />
+        )}
+
         {/* Today's session — voltooide rit of vooruitblik */}
-        {weekSessiesLaden ? (
+        {!seizoensplan?.seizoen_afgerond && weekSessiesLaden ? (
           <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "28px 18px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16, textAlign: "center" }}>
             <div style={{ fontSize: 22, marginBottom: 8 }}>⏳</div>
             <div style={{ font: "600 14px var(--font-nunito), sans-serif", color: T.textSec }}>Sessies worden gegenereerd...</div>

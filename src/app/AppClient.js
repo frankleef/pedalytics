@@ -594,8 +594,14 @@ export default function Page() {
       {profielOpen && (
         <ProfielScherm
           profiel={profiel}
+          seizoensplan={seizoensplan}
           onTerug={() => setProfielOpen(false)}
           onUitloggen={() => { import("next-auth/react").then(m => m.signOut({ callbackUrl: "/login" })); }}
+          onPlanWijziging={() => {
+            fetch("/api/plan").then(r => r.json()).then(pd => {
+              if (pd.success && pd.data) { setSeizoensplan(pd.data); if (pd.data.weekSessies) setWeekSessies(pd.data.weekSessies); }
+            });
+          }}
         />
       )}
 

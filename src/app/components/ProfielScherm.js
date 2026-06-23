@@ -3,6 +3,8 @@ import { useState, useEffect } from "react";
 import { T } from "../designTokens";
 import ScaleInput from "./ScaleInput";
 import { subscribeToPush, unsubscribeFromPush, isPushSubscribed } from "../../lib/pushClient";
+import DoelWisselModal from "./DoelWisselModal";
+import NiveauWisselModal from "./NiveauWisselModal";
 
 const ZONE_KLEUREN = [
   "oklch(0.82 0.05 245)", "oklch(0.70 0.12 240)", "oklch(0.72 0.13 165)",
@@ -55,12 +57,14 @@ const STEDEN = [
   { stad: "Arnhem", lat: 51.98, lon: 5.91 },
 ];
 
-export default function ProfielScherm({ profiel, onTerug, onUitloggen }) {
+export default function ProfielScherm({ profiel, seizoensplan, onTerug, onUitloggen, onPlanWijziging }) {
   const [checkin, setCheckin] = useState(null);
   const [weerStad, setWeerStad] = useState("Breda");
   const [hulpOpen, setHulpOpen] = useState(false);
   const [pushStatus, setPushStatus] = useState(null);
   const [pushFout, setPushFout] = useState("");
+  const [doelModalOpen, setDoelModalOpen] = useState(false);
+  const [niveauModalOpen, setNiveauModalOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/checkin").then(r => r.json()).then(d => {
@@ -164,6 +168,61 @@ export default function ProfielScherm({ profiel, onTerug, onUitloggen }) {
             ))}
           </div>
         </div>
+
+        {/* Seizoensdoel */}
+        {(() => {
+          const doelLabels = { ftp: "FTP verhogen", aerobe_basis: "Betere aerobe basis", klimmen: "Klimmen & W/kg", uithoudingsvermogen: "Lange ritten", sprint: "Snelheid & sprint" };
+          const niveauLabels = { starter: "Starter — Minder dan 1 jaar regelmatig fietsen", recreatief: "Recreatief — 1–3 jaar ervaring", getraind: "Getraind — 3+ jaar gestructureerde training" };
+          const huidigDoel = seizoensplan?.seizoensdoel?.type || seizoensplan?.doel || "ftp";
+          const huidigNiveau = seizoensplan?.ervaringsniveau ?? "recreatief";
+          const eindDatum = seizoensplan?.startdatum ? new Date(new Date(seizoensplan.startdatum).getTime() + (seizoensplan.tijdshorizon_weken || 13) * 7 * 86400000) : null;
+          const wekenResterend = eindDatum ? Math.max(0, Math.ceil((eindDatum - new Date()) / (7 * 86400000))) : 0;
+
+          return (
+            <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 20px 22px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
+              <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, display: "block", marginBottom: 14 }}>SEIZOENSDOEL</span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <span style={{ font: "700 15px var(--font-nunito), sans-serif", color: T.text }}>{doelLabels[huidigDoel] || huidigDoel}</span>
+                {wekenResterend >= 4 && (
+                  <button onClick={() => setDoelModalOpen(true)} style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.5 0.14 248)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Doel wijzigen →</button>
+                )}
+              </div>
+              <div style={{ height: 1, background: T.divider, margin: "0 0 12px" }} />
+              <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, display: "block", marginBottom: 10 }}>TRAININGSNIVEAU</span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ font: "600 13.5px var(--font-nunito), sans-serif", color: T.textSec }}>{niveauLabels[huidigNiveau] || "Recreatief"}</span>
+                <button onClick={() => setNiveauModalOpen(true)} style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.5 0.14 248)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Niveau wijzigen →</button>
+              </div>
+            </div>
+          );
+        })()}
+
+        {doelModalOpen && (
+          <DoelWisselModal
+            huidigDoel={seizoensplan?.seizoensdoel?.type || "ftp"}
+            wekenResterend={(() => { const eind = seizoensplan?.startdatum ? new Date(new Date(seizoensplan.startdatum).getTime() + (seizoensplan.tijdshorizon_weken || 13) * 7 * 86400000) : null; return eind ? Math.max(0, Math.ceil((eind - new Date()) / (7 * 86400000))) : 0; })()}
+            onBevestig={async (nieuwDoel) => {
+              try {
+                const resp = await fetch("/api/plan/wijzig-doel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nieuwDoel }) });
+                if (resp.ok) { setDoelModalOpen(false); onPlanWijziging?.(); }
+              } catch {}
+            }}
+            onAnnuleer={() => setDoelModalOpen(false)}
+          />
+        )}
+
+        {niveauModalOpen && (
+          <NiveauWisselModal
+            huidigNiveau={seizoensplan?.ervaringsniveau ?? "recreatief"}
+            onBevestig={async (nieuwNiveau) => {
+              try {
+                const resp = await fetch("/api/plan/wijzig-niveau", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nieuwNiveau }) });
+                if (resp.ok) { setNiveauModalOpen(false); onPlanWijziging?.(); }
+              } catch {}
+            }}
+            onAnnuleer={() => setNiveauModalOpen(false)}
+          />
+        )}
 
         {/* Vermogenszones */}
         <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 20px 14px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
