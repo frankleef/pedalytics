@@ -5,7 +5,7 @@ import InfoTooltip from "./InfoTooltip";
 import SharedHeader from "./SharedHeader";
 import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 import { datumISO } from "@/lib/datum";
-import { ResponsiveContainer, ComposedChart, LineChart, BarChart, Line, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Cell } from "recharts";
+import { ResponsiveContainer, ComposedChart, LineChart, BarChart, Line, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ReferenceArea, Cell } from "recharts";
 
 const CARD = { background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 18px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 };
 const EYEBROW = { font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" };
@@ -733,6 +733,9 @@ function npClient(watts) {
   return Math.pow(som4 / rolling.length, 0.25);
 }
 
+function dcKleur(v) { return v >= 7 ? "oklch(0.55 0.18 25)" : v >= 5 ? "oklch(0.72 0.13 70)" : "oklch(0.45 0.13 162)"; }
+function dcLabel(v) { return v < 0 ? "Geen drift" : v < 5 ? "Uitstekend" : v < 7 ? "Acceptabel" : "Verbetering mogelijk"; }
+
 function DecouplingKaart({ voortgang, ftp: propFtp }) {
   const [punten, setPunten] = useState([]);
   const [baseline, setBaseline] = useState(null);
@@ -744,93 +747,114 @@ function DecouplingKaart({ voortgang, ftp: propFtp }) {
 
   useEffect(() => {
     if (!voortgang?.ritten) return;
-
     const z2Ritten = voortgang.ritten.filter(r => {
       if (!r.datum_iso || !r.duur_min || r.duur_min < 45) return false;
       const np = r.np || r.wattage;
-      if (!np) return false;
-      return (np / ftpVal) >= 0.55 && (np / ftpVal) <= 0.75;
+      return np && (np / ftpVal) >= 0.55 && (np / ftpVal) <= 0.75;
     });
+    if (z2Ritten.length < 2) { setPunten([]); return; }
 
-    if (z2Ritten.length < 3) { setPunten([]); return; }
-
-    const decouplingPunten = [];
     const fetchStreams = async () => {
+      const pts = [];
       const gesorteerd = [...z2Ritten].sort((a, b) => a.datum_iso.localeCompare(b.datum_iso)).slice(-10);
       for (const rit of gesorteerd) {
         try {
           const resp = await fetch(`/api/intervals/activities/${rit.id}/streams`);
           const data = await resp.json();
           if (!data.success || !data.data) continue;
-          const rawW = data.data.watts?.data || [];
-          const rawHr = data.data.heartrate?.data || [];
+          const rawW = data.data.watts?.data || [], rawHr = data.data.heartrate?.data || [];
           const n = Math.min(rawW.length, rawHr.length);
-          // Filter nul-watt
           const watts = [], hr = [];
           for (let i = 0; i < n; i++) { if (rawW[i] > 0 && rawHr[i] > 0) { watts.push(rawW[i]); hr.push(rawHr[i]); } }
           if (watts.length < 2700) continue;
-          // Arbeidssplit
           const totaal = watts.reduce((a, w) => a + w, 0);
           let cum = 0, si = Math.floor(watts.length / 2);
           for (let i = 0; i < watts.length; i++) { cum += watts[i]; if (cum >= totaal / 2) { si = i; break; } }
-          const np1 = npClient(watts.slice(0, si));
-          const np2 = npClient(watts.slice(si));
+          const np1 = npClient(watts.slice(0, si)), np2 = npClient(watts.slice(si));
           if (!np1 || !np2) continue;
-          const hr1 = hr.slice(0, si).reduce((a, b) => a + b, 0) / si;
-          const hr2 = hr.slice(si).reduce((a, b) => a + b, 0) / (hr.length - si);
-          if (!hr1 || !hr2) continue;
-          const ef1 = np1 / hr1, ef2 = np2 / hr2;
-          const dc = Math.max(0, ((ef1 - ef2) / ef1) * 100);
+          const hr1g = hr.slice(0, si).reduce((a, b) => a + b, 0) / si;
+          const hr2g = hr.slice(si).reduce((a, b) => a + b, 0) / (hr.length - si);
+          if (!hr1g || !hr2g) continue;
+          const dc = ((np1 / hr1g - np2 / hr2g) / (np1 / hr1g)) * 100;
           const [, m, d] = rit.datum_iso.split("-");
-          decouplingPunten.push({ datum: `${d}/${m}`, decoupling: Math.round(dc * 10) / 10 });
+          pts.push({ datum: `${d}/${m}`, decoupling: Math.round(dc * 10) / 10 });
         } catch {}
       }
-      setPunten(decouplingPunten);
+      setPunten(pts);
     };
     fetchStreams();
   }, [voortgang?.ritten]);
 
-  if (punten.length < 3) {
+  if (punten.length < 2) {
     return <LegeStaat titel="Aerobe efficiëntie" wekenNodig={4} wekenVerzameld={Math.max(0, punten.length)} />;
   }
 
-  const trendChip = baseline ? (
-    baseline.trend < -0.5 ? { tekst: "↓ Dalende trend — aerobe basis groeit", kleur: "oklch(0.93 0.045 168)", tekstKleur: "oklch(0.46 0.12 165)" }
-    : baseline.trend > 0.5 ? { tekst: "↑ Stijgende trend — let op", kleur: "oklch(0.96 0.05 82)", tekstKleur: "oklch(0.48 0.1 62)" }
-    : { tekst: "Stabiel", kleur: T.subtleFill, tekstKleur: T.textSec }
+  const waarden = punten.map(p => p.decoupling);
+  const mediaan = (() => { const s = [...waarden].sort((a, b) => a - b); const m = Math.floor(s.length / 2); return s.length % 2 === 0 ? (s[m-1]+s[m])/2 : s[m]; })();
+  const lijnKleur = dcKleur(mediaan);
+
+  const trend = (() => {
+    if (waarden.length < 2) return null;
+    const n = Math.min(3, Math.floor(waarden.length / 2));
+    const vroeg = waarden.slice(0, n), laat = waarden.slice(-n);
+    return (laat.reduce((a,b)=>a+b,0)/laat.length) - (vroeg.reduce((a,b)=>a+b,0)/vroeg.length);
+  })();
+
+  const trendChip = trend != null ? (
+    trend < -1 ? { tekst: "↓ Dalend", kleur: "oklch(0.93 0.045 168)", tKleur: "oklch(0.46 0.12 165)" }
+    : trend > 1 ? { tekst: "↑ Stijgend — let op", kleur: "oklch(0.96 0.05 82)", tKleur: "oklch(0.48 0.1 62)" }
+    : { tekst: "→ Stabiel", kleur: T.subtleFill, tKleur: T.textSec }
   ) : null;
+
+  const laatste = waarden[waarden.length - 1];
+  const trendVsEerste = waarden.length >= 2 ? Math.round((waarden[waarden.length-1] - waarden[0]) * 10) / 10 : null;
 
   return (
     <div style={CARD}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
         <div>
           <span style={EYEBROW}>Aerobe efficiëntie</span>
-          <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec, marginTop: 2 }}>Cardiac decoupling</div>
+          <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec, marginTop: 2 }}>Cardiac decoupling · per Z2-rit</div>
         </div>
+        {trendChip && (
+          <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 999, background: trendChip.kleur }}>
+            <span style={{ font: "700 11.5px var(--font-nunito), sans-serif", color: trendChip.tKleur }}>{trendChip.tekst}</span>
+          </div>
+        )}
       </div>
-      <ResponsiveContainer width="100%" height={120}>
-        <LineChart data={punten} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.012 82)" vertical={false} />
+      <ResponsiveContainer width="100%" height={140}>
+        <LineChart data={punten} margin={{ top: 12, right: 5, bottom: 0, left: -14 }}>
+          <ReferenceArea y1={7} y2={16} fill="oklch(0.96 0.018 25)" fillOpacity={0.5} />
+          <ReferenceArea y1={5} y2={7} fill="oklch(0.97 0.025 75)" fillOpacity={0.5} />
+          <ReferenceArea y1={-6} y2={5} fill="oklch(0.95 0.03 165)" fillOpacity={0.4} />
           <XAxis dataKey="datum" tick={TICK} tickLine={false} axisLine={false} />
-          <YAxis tick={TICK} tickLine={false} axisLine={false} domain={[0, 15]} />
-          <ReferenceLine y={5} stroke="oklch(0.6 0.13 165)" strokeDasharray="4 4" label={{ value: "5%", position: "right", style: { font: "700 9px var(--font-nunito), sans-serif", fill: "oklch(0.5 0.13 165)" } }} />
-          <ReferenceLine y={7} stroke="oklch(0.72 0.13 70)" strokeDasharray="4 4" label={{ value: "7%", position: "right", style: { font: "700 9px var(--font-nunito), sans-serif", fill: "oklch(0.6 0.11 70)" } }} />
-          {baseline && <ReferenceLine y={baseline.mediaan} stroke="oklch(0.64 0.14 248)" strokeDasharray="2 4" label={{ value: "Jouw gem.", position: "left", style: { font: "700 9px var(--font-nunito), sans-serif", fill: "oklch(0.55 0.10 248)" } }} />}
-          <Line type="monotone" dataKey="decoupling" stroke="oklch(0.64 0.14 248)" strokeWidth={2.5} dot={{ r: 3.5, fill: "oklch(0.64 0.14 248)" }} name="Decoupling" />
+          <YAxis tick={TICK} tickLine={false} axisLine={false} domain={[-6, 16]} ticks={[-5, 0, 5, 10, 15]} unit="%" />
+          <ReferenceLine y={0} stroke="oklch(0.75 0.01 75)" strokeWidth={1} />
+          <ReferenceLine y={5} stroke="oklch(0.6 0.13 165)" strokeDasharray="4 4" />
+          <ReferenceLine y={7} stroke="oklch(0.72 0.13 70)" strokeDasharray="4 4" />
+          {baseline?.aantalMetingen >= 6 && <ReferenceLine y={baseline.mediaan} stroke="oklch(0.55 0.07 215)" strokeDasharray="2 4" label={{ value: "Jouw gem.", position: "left", style: { font: "700 8px var(--font-nunito), sans-serif", fill: "oklch(0.55 0.07 215)" } }} />}
+          <Line type="monotone" dataKey="decoupling" stroke={lijnKleur} strokeWidth={2.5} dot={{ r: 4, fill: lijnKleur, stroke: "#fff", strokeWidth: 1.5 }} name="Decoupling"
+            label={({ x, y, value }) => <text x={x} y={value >= 0 ? y - 10 : y + 16} textAnchor="middle" style={{ font: "700 10px var(--font-nunito), sans-serif", fill: dcKleur(value) }}>{value < 0 ? `−${Math.abs(value)}` : value}%</text>} />
         </LineChart>
       </ResponsiveContainer>
-      {trendChip && (
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 999, background: trendChip.kleur, marginTop: 10 }}>
-          <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: trendChip.tekstKleur }}>{trendChip.tekst}</span>
+
+      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+        <div style={{ flex: 1, padding: "10px 12px", borderRadius: 14, background: T.subtleFill }}>
+          <div style={{ font: "600 20px var(--font-fredoka), sans-serif", color: dcKleur(laatste) }}>{laatste < 0 ? `−${Math.abs(laatste)}` : laatste}%</div>
+          <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textSec }}>{dcLabel(laatste)}</div>
         </div>
-      )}
-      {!baseline && (
-        <div style={{ font: "600 11.5px var(--font-nunito), sans-serif", color: T.textTert, marginTop: 10 }}>
-          Nog {6 - punten.length > 0 ? 6 - punten.length : "enkele"} stabiele Z2-ritten nodig voor je persoonlijke referentielijn
+        <div style={{ flex: 1, padding: "10px 12px", borderRadius: 14, background: T.subtleFill }}>
+          <div style={{ font: "600 20px var(--font-fredoka), sans-serif", color: dcKleur(mediaan) }}>{mediaan < 0 ? `−${Math.abs(mediaan)}` : Math.round(mediaan * 10) / 10}%</div>
+          <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textSec }}>Mediaan</div>
         </div>
-      )}
-      <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.divider}`, font: "600 12px/1.5 var(--font-nunito), sans-serif", color: T.textSec }}>
-        Cardiac decoupling meet hoe goed je hart en vermogen gekoppeld blijven tijdens een Z2-rit. Onder 5% is uitstekend — je aerobe basis is sterk. Boven 7% wijst op ruimte voor verbetering. Dalende trend = je wordt efficiënter.
+        <div style={{ flex: 1, padding: "10px 12px", borderRadius: 14, background: T.subtleFill }}>
+          <div style={{ font: "600 20px var(--font-fredoka), sans-serif", color: trendVsEerste != null && trendVsEerste <= 0 ? "oklch(0.45 0.13 162)" : "oklch(0.72 0.13 70)" }}>{trendVsEerste != null ? (trendVsEerste <= 0 ? `−${Math.abs(trendVsEerste)}` : `+${trendVsEerste}`) : "—"}%</div>
+          <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textSec }}>vs. eerste meting</div>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${T.divider}`, font: "600 12.5px/1.5 var(--font-nunito), sans-serif", color: T.textSec }}>
+        Negatieve waarden zijn goed — je hart en vermogen blijven gekoppeld, ook aan het einde van de rit. Boven 7% is er ruimte om je aerobe basis te versterken.
       </div>
     </div>
   );

@@ -185,6 +185,33 @@ export async function POST(request) {
           // Adaptatie-score berekenen
           try {
             const rpeTrend = await kv.get(`rpe_trend:${userId}`);
+
+            // HRV: 3d vs 28d uit intervals.icu wellness
+            let hrv3d = null, hrv28d = null, ctlRamp = null;
+            try {
+              const wellOldest = datumOffset(-28);
+              const wellData = await intervalsGet("/wellness", { oldest: wellOldest, newest: datumOffset(0) }, { apiKey, athleteId });
+              if (wellData?.length >= 7) {
+                const hrvWaarden = wellData.filter(w => w.hrv).map(w => w.hrv);
+                if (hrvWaarden.length >= 3) {
+                  hrv3d = hrvWaarden.slice(-3).reduce((a, b) => a + b, 0) / 3;
+                  hrv28d = hrvWaarden.reduce((a, b) => a + b, 0) / hrvWaarden.length;
+                }
+                // CTL-ramp: verschil gemiddelde CTL eerste/tweede helft gedeeld door weken
+                const ctlWaarden = wellData.filter(w => w.ctl != null).sort((a, b) => (a.id || "").localeCompare(b.id || ""));
+                if (ctlWaarden.length >= 7) {
+                  const helft = Math.floor(ctlWaarden.length / 2);
+                  const gemEerste = ctlWaarden.slice(0, helft).reduce((a, w) => a + w.ctl, 0) / helft;
+                  const gemTweede = ctlWaarden.slice(helft).reduce((a, w) => a + w.ctl, 0) / (ctlWaarden.length - helft);
+                  const weken = ctlWaarden.length / 7;
+                  ctlRamp = (gemTweede - gemEerste) / weken;
+                }
+              }
+            } catch (e) {
+              console.warn(`[sync] Wellness voor adaptatie mislukt:`, e.message);
+            }
+
+            // Decoupling medianen
             const dcKeys = [];
             for (const rit of ritten) {
               const dc = await kv.get(`decoupling:${rit.id}`);
@@ -195,9 +222,9 @@ export async function POST(request) {
 
             const adaptatie = berekenAdaptatieScore({
               rpe_delta_trend: rpeTrend ?? null,
-              hrv_3d: null,
-              hrv_28d: null,
-              ctl_ramp: null,
+              hrv_3d: hrv3d,
+              hrv_28d: hrv28d,
+              ctl_ramp: ctlRamp,
               decoupling_huidig: dcHuidig,
               decoupling_vorig: dcVorig,
             });

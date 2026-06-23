@@ -15,24 +15,13 @@ export default function AdaptatieScoreKaart({ weekTss, doelTss }) {
 
   const tssPct = doelTss > 0 ? Math.min(100, Math.round((weekTss / doelTss) * 100)) : 0;
 
-  if (!adaptatieScore) {
-    return (
-      <div style={{ background: T.cardBg, borderRadius: 24, padding: "15px 17px 16px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 18 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 11 }}>
-          <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>TSS afgelopen 7 dagen</span>
-          <span style={{ font: "600 12.5px var(--font-nunito), sans-serif", color: T.textSec }}>
-            <span style={{ font: "600 19px var(--font-fredoka), sans-serif", color: T.text }}>{weekTss}</span> / {doelTss}
-          </span>
-        </div>
-        <div style={{ height: 8, borderRadius: T.pillRadius, background: "oklch(0.93 0.012 84)", overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${tssPct}%`, borderRadius: T.pillRadius, background: T.gradient }} />
-        </div>
-      </div>
-    );
-  }
-
-  const cfg = ADAPTATIE_CONFIG[adaptatieScore.status] || ADAPTATIE_CONFIG.optimaal;
-  const dominantTekst = DOMINANT_LABEL[adaptatieScore.dominant] || null;
+  // Status bepalen: uit adaptatie-score als beschikbaar, anders uit TSS-compliance
+  const tssStatus = doelTss > 0
+    ? (tssPct > 120 ? "iets_teveel" : tssPct > 90 ? "optimaal" : tssPct > 60 ? "iets_te_weinig" : "te_weinig")
+    : "optimaal";
+  const effectieveScore = adaptatieScore || { status: tssStatus, dominant: null };
+  const cfg = ADAPTATIE_CONFIG[effectieveScore.status] || ADAPTATIE_CONFIG.optimaal;
+  const dominantTekst = adaptatieScore ? (DOMINANT_LABEL[adaptatieScore.dominant] || null) : null;
 
   return (
     <div style={{ background: T.cardBg, borderRadius: 24, padding: "15px 17px 16px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 18 }}>
