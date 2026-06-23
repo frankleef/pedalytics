@@ -33,15 +33,33 @@ export function classificeerRit(rit, ftp) {
   };
 }
 
-export function ritMatchesSessie(ritClassificatie, sessieType) {
+export function ritMatchesSessie(ritClassificatie, sessieType, rit, sessie) {
   const t = ritClassificatie.type;
   const s = sessieType;
-  if (t === s) return true;
-  if (s === "duur_lang" && (t === "duur_lang" || t === "herstel" || t === "tempo")) return true;
-  if (s === "duur_variabel" && (t === "duur_lang" || t === "tempo")) return true;
-  if (s === "sweetspot" && (t === "sweetspot" || t === "tempo" || t === "drempel")) return true;
-  if (s === "interval" && (t === "vo2max" || t === "drempel" || t === "sweetspot" || t === "anaeroob")) return true;
-  if (s === "duur_middel" && (t === "duur_lang" || t === "tempo")) return true;
-  if (s === "herstel" && (t === "herstel" || t === "duur_lang")) return true;
-  return false;
+
+  // Type-match: zit de rit in dezelfde "familie" als gepland?
+  let typeMatch = false;
+  if (t === s) typeMatch = true;
+  else if (s === "duur_lang" && (t === "duur_lang" || t === "herstel" || t === "tempo")) typeMatch = true;
+  else if (s === "duur_variabel" && (t === "duur_lang" || t === "tempo")) typeMatch = true;
+  else if (s === "sweetspot" && (t === "sweetspot" || t === "tempo" || t === "drempel")) typeMatch = true;
+  else if (s === "interval" && (t === "vo2max" || t === "drempel" || t === "sweetspot" || t === "anaeroob")) typeMatch = true;
+  else if (s === "duur_middel" && (t === "duur_lang" || t === "tempo")) typeMatch = true;
+  else if (s === "herstel" && (t === "herstel" || t === "duur_lang")) typeMatch = true;
+  else if (s === "kracht_lage_cadans" && (t === "sweetspot" || t === "tempo" || t === "duur_lang")) typeMatch = true;
+
+  if (!typeMatch) return false;
+
+  // TSS en duur moeten beide binnen ±20% van gepland
+  if (rit && sessie) {
+    const ritDuur = rit.duur_min || (rit.moving_time ? Math.round(rit.moving_time / 60) : null);
+    const ritTss = rit.tss || rit.icu_training_load;
+    const planDuur = sessie.duur_min;
+    const planTss = sessie.tss;
+
+    if (ritDuur && planDuur && Math.abs(ritDuur - planDuur) / planDuur > 0.20) return false;
+    if (ritTss && planTss && Math.abs(ritTss - planTss) / planTss > 0.20) return false;
+  }
+
+  return true;
 }

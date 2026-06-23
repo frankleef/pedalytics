@@ -377,7 +377,7 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
           if (ritVandaag) {
             const cls = classificeerRit(ritVandaag, ftp);
             let mode = "unplanned";
-            if (sessieVandaag && ritVandaag) mode = ritMatchesSessie(cls, sessieVandaag.type) ? "matched" : "deviated";
+            if (sessieVandaag && ritVandaag) mode = ritMatchesSessie(cls, sessieVandaag.type, ritVandaag, sessieVandaag) ? "matched" : "deviated";
             else if (!sessieVandaag && ritVandaag) mode = "unplanned";
             return (
               <SessieUitkomstKaart

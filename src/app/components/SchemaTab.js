@@ -147,7 +147,7 @@ function bepaalMode(offset, sessie, rit, ftp, planStartISO) {
   if (rit && planStartISO && rit.datum_iso < planStartISO && !sessie) return "buiten_planperiode";
   if (sessie && rit) {
     const cls = classificeerRit(rit, ftp);
-    return ritMatchesSessie(cls, sessie.type) ? "matched" : "deviated";
+    return ritMatchesSessie(cls, sessie.type, rit, sessie) ? "matched" : "deviated";
   }
   if (!sessie && rit) return "unplanned";
   if (sessie && !rit) {

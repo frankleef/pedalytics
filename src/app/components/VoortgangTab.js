@@ -163,7 +163,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
     const wk = datumISO(ma);
     if (!planWekenMap[wk]) planWekenMap[wk] = { matched: 0, deviated: 0, missed: 0, totaal: 0 };
     const rit = planRitten.find(r => r.datum_iso === s.datum);
-    if (rit) { const cls = classificeerRit(rit, ftp); ritMatchesSessie(cls, s.type) ? planWekenMap[wk].matched++ : planWekenMap[wk].deviated++; }
+    if (rit) { const cls = classificeerRit(rit, ftp); ritMatchesSessie(cls, s.type, rit, s) ? planWekenMap[wk].matched++ : planWekenMap[wk].deviated++; }
     else if (new Date(s.datum) < new Date()) planWekenMap[wk].missed++;
     planWekenMap[wk].totaal++;
   });
