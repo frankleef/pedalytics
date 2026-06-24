@@ -42,17 +42,26 @@ export const T = {
 
 // Herstelstatus — 4 niveaus
 export const STATUS = {
-  good: {
-    label: 'Goede balans',
-    headline: (naam) => `${naam}, je herstel is goed — tijd voor een pittige training.`,
-    headlineNaRit: (naam) => `${naam}, goed gereden — je herstel ziet er prima uit.`,
+  vol_gas: {
+    label: 'Vol gas',
+    headline: (naam) => `${naam}, je herstel is uitstekend — tijd voor een zware training.`,
+    headlineNaRit: (naam) => `${naam}, sterke sessie — je lichaam is in topvorm.`,
     color: 'oklch(0.5 0.13 162)',
-    dot: 'oklch(0.6 0.13 165)',
+    dot: 'oklch(0.5 0.13 162)',
     ringA: 'oklch(0.62 0.14 248)',
     ringB: 'oklch(0.79 0.14 168)',
   },
-  caution: {
-    label: 'Let op',
+  goed: {
+    label: 'Goed om te gaan',
+    headline: (naam) => `${naam}, je herstel is goed — tijd voor een pittige training.`,
+    headlineNaRit: (naam) => `${naam}, goed gereden — je herstel ziet er prima uit.`,
+    color: 'oklch(0.5 0.13 162)',
+    dot: 'oklch(0.5 0.13 162)',
+    ringA: 'oklch(0.62 0.14 248)',
+    ringB: 'oklch(0.79 0.14 168)',
+  },
+  rustig: {
+    label: 'Doe het rustig aan',
     headline: (naam) => `${naam}, je vorm is prima — houd het vandaag gecontroleerd.`,
     headlineNaRit: (naam) => `${naam}, sessie erop — neem het de rest van de dag rustig aan.`,
     color: 'oklch(0.55 0.11 92)',
@@ -60,8 +69,8 @@ export const STATUS = {
     ringA: 'oklch(0.79 0.14 168)',
     ringB: 'oklch(0.8 0.13 96)',
   },
-  careful: {
-    label: 'Voorzichtig',
+  herstel: {
+    label: 'Herstel eerst',
     headline: (naam) => `${naam}, je belasting loopt op — kies vandaag voor een rustige rit.`,
     headlineNaRit: (naam) => `${naam}, stevige dag — je lichaam heeft nu rust nodig.`,
     color: 'oklch(0.56 0.13 55)',
@@ -69,8 +78,8 @@ export const STATUS = {
     ringA: 'oklch(0.8 0.13 96)',
     ringB: 'oklch(0.67 0.14 52)',
   },
-  rest: {
-    label: 'Rust nodig',
+  rust: {
+    label: 'Rust vandaag',
     headline: (naam) => `${naam}, luister vandaag naar je lichaam — rust is winst.`,
     headlineNaRit: (naam) => `${naam}, je hebt gereden terwijl rust beter was — luister morgen naar je lichaam.`,
     color: 'oklch(0.52 0.1 28)',
@@ -91,10 +100,11 @@ export const SLATE = {
 };
 
 export function getStatus(score) {
-  if (score >= 75) return 'good';
-  if (score >= 50) return 'caution';
-  if (score >= 30) return 'careful';
-  return 'rest';
+  if (score >= 80) return 'vol_gas';
+  if (score >= 60) return 'goed';
+  if (score >= 40) return 'rustig';
+  if (score >= 20) return 'herstel';
+  return 'rust';
 }
 
 export function zoneKleur(pctFtp) {
