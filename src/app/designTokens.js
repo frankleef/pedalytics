@@ -44,7 +44,7 @@ export const T = {
 export const STATUS = {
   vol_gas: {
     label: 'Vol gas',
-    headline: (naam) => `${naam}, je herstel is uitstekend — tijd voor een zware training.`,
+    headline: (naam, weer) => weer?.hitte ? `${naam}, je staat er goed voor — maar het is ${weer.temp}°. Pas je tempo aan.` : `${naam}, je herstel is uitstekend — tijd voor een zware training.`,
     headlineNaRit: (naam) => `${naam}, sterke sessie — je lichaam is in topvorm.`,
     color: 'oklch(0.5 0.13 162)',
     dot: 'oklch(0.5 0.13 162)',
@@ -53,7 +53,7 @@ export const STATUS = {
   },
   goed: {
     label: 'Goed om te gaan',
-    headline: (naam) => `${naam}, je herstel is goed — tijd voor een pittige training.`,
+    headline: (naam, weer) => weer?.hitte ? `${naam}, je staat er goed voor — maar het is ${weer.temp}°. Pas je tempo aan.` : `${naam}, je herstel is goed — tijd voor een pittige training.`,
     headlineNaRit: (naam) => `${naam}, goed gereden — je herstel ziet er prima uit.`,
     color: 'oklch(0.5 0.13 162)',
     dot: 'oklch(0.5 0.13 162)',
@@ -62,7 +62,7 @@ export const STATUS = {
   },
   rustig: {
     label: 'Doe het rustig aan',
-    headline: (naam) => `${naam}, je vorm is prima — houd het vandaag gecontroleerd.`,
+    headline: (naam, weer) => weer?.hitte ? `${naam}, doe het rustig aan — zeker in deze hitte van ${weer.temp}°.` : `${naam}, je vorm is prima — houd het vandaag gecontroleerd.`,
     headlineNaRit: (naam) => `${naam}, sessie erop — neem het de rest van de dag rustig aan.`,
     color: 'oklch(0.55 0.11 92)',
     dot: 'oklch(0.74 0.13 95)',
@@ -71,7 +71,7 @@ export const STATUS = {
   },
   herstel: {
     label: 'Herstel eerst',
-    headline: (naam) => `${naam}, je belasting loopt op — kies vandaag voor een rustige rit.`,
+    headline: (naam, weer) => weer?.hitte ? `${naam}, rust vandaag en vermijd inspanning in deze ${weer.temp}°.` : `${naam}, je belasting loopt op — kies vandaag voor een rustige rit.`,
     headlineNaRit: (naam) => `${naam}, stevige dag — je lichaam heeft nu rust nodig.`,
     color: 'oklch(0.56 0.13 55)',
     dot: 'oklch(0.66 0.14 54)',
@@ -80,7 +80,7 @@ export const STATUS = {
   },
   rust: {
     label: 'Rust vandaag',
-    headline: (naam) => `${naam}, luister vandaag naar je lichaam — rust is winst.`,
+    headline: (naam, weer) => weer?.hitte ? `${naam}, rust vandaag en vermijd inspanning in deze ${weer.temp}°.` : `${naam}, luister vandaag naar je lichaam — rust is winst.`,
     headlineNaRit: (naam) => `${naam}, je hebt gereden terwijl rust beter was — luister morgen naar je lichaam.`,
     color: 'oklch(0.52 0.1 28)',
     dot: 'oklch(0.58 0.11 28)',

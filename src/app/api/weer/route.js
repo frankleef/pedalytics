@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { getSessionUser } from "@/lib/auth";
 import { haalGebruikersLocatie } from "@/lib/locatie";
+import { berekenTempBaseline, berekenHitteVlag } from "@/lib/hitte";
 
 const CONDITIE_MAP = {
   0: "Helder", 1: "Overwegend helder", 2: "Half bewolkt", 3: "Bewolkt",
@@ -16,13 +17,14 @@ export async function GET() {
     const { lat, lon, stad } = await haalGebruikersLocatie(user?.id);
 
     const resp = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,weather_code,wind_speed_10m_max&hourly=precipitation_probability&timezone=Europe/Amsterdam&forecast_days=10`,
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,weather_code,wind_speed_10m_max&hourly=precipitation_probability&timezone=Europe/Amsterdam&forecast_days=10`,
       { next: { revalidate: 1800 } }
     );
     if (!resp.ok) throw new Error(`Open-Meteo ${resp.status}`);
     const data = await resp.json();
 
     const temp = Math.round(data.current?.temperature_2m ?? 0);
+    const apparentTemp = data.current?.apparent_temperature ?? null;
     const code = data.current?.weather_code ?? 0;
     const wind = Math.round(data.current?.wind_speed_10m ?? 0);
     const conditie = CONDITIE_MAP[code] || "Onbekend";
@@ -44,9 +46,30 @@ export async function GET() {
       };
     });
 
+    // Hitte-detectie
+    let hitte = false;
+    if (apparentTemp != null) {
+      try {
+        const kv = getKV();
+        const userId = user?.id;
+        if (userId) {
+          const dcKeys = await kv.keys(`decoupling:*`);
+          const dcEntries = [];
+          for (const key of (dcKeys || []).slice(-20)) {
+            const entry = await kv.get(key);
+            if (entry?.userId === userId && entry?.apparent_temp_celsius != null) dcEntries.push(entry);
+          }
+          const baseline = berekenTempBaseline(dcEntries);
+          hitte = baseline != null ? berekenHitteVlag(apparentTemp, baseline) : apparentTemp >= 32;
+        } else {
+          hitte = apparentTemp >= 32;
+        }
+      } catch { hitte = apparentTemp >= 32; }
+    }
+
     return NextResponse.json({
       success: true,
-      data: { temp, conditie, wind, neerslagKans: maxNeerslag, neerslagMiddag, stad, forecast },
+      data: { temp, apparentTemp: apparentTemp != null ? Math.round(apparentTemp) : null, conditie, wind, neerslagKans: maxNeerslag, neerslagMiddag, stad, forecast, hitte },
     });
   } catch (e) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });

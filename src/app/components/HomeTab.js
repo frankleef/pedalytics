@@ -153,9 +153,10 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
         {(() => {
           const ritVandaag = (voortgang?.ritten || []).find(r => r.datum_iso === vandaagISO);
           const headlineFn = ritVandaag && st.headlineNaRit ? st.headlineNaRit : st.headline;
+          const hitteCtx = weer?.hitte ? { hitte: true, temp: weer.apparentTemp ?? weer.temp } : null;
           return (
             <h1 style={{ margin: "0 0 20px", font: "800 27px/1.22 var(--font-nunito), sans-serif", letterSpacing: -0.4, textWrap: "pretty", color: st.color }}>
-              {headlineFn("Frank")}
+              {headlineFn("Frank", hitteCtx)}
             </h1>
           );
         })()}

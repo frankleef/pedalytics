@@ -79,6 +79,7 @@ export function berekenBlok(blokDef, zones, ftpW, piekSprintW) {
     eenheid: "watts",
     cadansMin: cadans.min,
     cadansMax: cadans.max,
+    cadans_rpm: blokDef.cadans_rpm || { min: cadans.min, max: cadans.max },
   };
 }
 

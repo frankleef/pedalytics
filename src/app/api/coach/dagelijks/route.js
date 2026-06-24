@@ -13,7 +13,32 @@ export async function GET() {
     const kv = getKV();
 
     const vandaag = new Date().toISOString().slice(0, 10);
-    const cacheKey = `coach-bericht:${userId}:${vandaag}`;
+
+    // Hitte-vlag ophalen voor cache-key differentiatie
+    let weerData = null;
+    try {
+      const { haalGebruikersLocatie } = await import("@/lib/locatie");
+      const { lat, lon } = await haalGebruikersLocatie(userId);
+      const weerResp = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=apparent_temperature&timezone=Europe/Amsterdam`, { next: { revalidate: 1800 } });
+      if (weerResp.ok) {
+        const wd = await weerResp.json();
+        const apparentTemp = wd.current?.apparent_temperature ?? null;
+        if (apparentTemp != null) {
+          const { berekenTempBaseline, berekenHitteVlag } = await import("@/lib/hitte");
+          const dcKeys = await kv.keys("decoupling:*");
+          const dcEntries = [];
+          for (const key of (dcKeys || []).slice(-20)) {
+            const entry = await kv.get(key);
+            if (entry?.userId === userId && entry?.apparent_temp_celsius != null) dcEntries.push(entry);
+          }
+          const baseline = berekenTempBaseline(dcEntries);
+          const hitte = baseline != null ? berekenHitteVlag(apparentTemp, baseline) : apparentTemp >= 32;
+          weerData = { apparentTemp: Math.round(apparentTemp), hitte, delta: baseline != null ? Math.round(apparentTemp - baseline) : null };
+        }
+      }
+    } catch {}
+
+    const cacheKey = `coach-bericht:${userId}:${vandaag}:${weerData?.hitte ? "hitte" : "normaal"}`;
 
     const cached = await kv.get(cacheKey);
     if (cached) return NextResponse.json({ success: true, data: cached, cached: true });
@@ -70,6 +95,13 @@ export async function GET() {
 
     const datumStr = new Date().toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "long" });
 
+    const weerPrompt = weerData
+      ? `- Gevoelstemperatuur: ${weerData.apparentTemp}°C${weerData.hitte ? ` (${weerData.delta != null ? weerData.delta + "°C warmer dan normaal — " : ""}hitte-omstandigheden)` : ""}\n`
+      : "";
+    const hitteInstructie = weerData?.hitte
+      ? "\nLET OP: Het is vandaag aanzienlijk warmer dan normaal. Verwerk dit expliciet: adviseer vroeg of laat rijden, waarschuw dat hartslag hoger zal zijn bij hetzelfde vermogen, en stel lagere intensiteit of kortere duur voor als er een sessie gepland staat.\n"
+      : "";
+
     const prompt = `Je bent een persoonlijke fietstrainer. Schrijf een coaching-bericht voor vandaag.
 Schrijf in de tweede persoon (je/jij), direct en concreet. Geen algemeenheden.
 Combineer de signalen tot één coherent beeld — geen opsomming van data.
@@ -81,11 +113,11 @@ CONTEXT:
   TSB: ${tsb ?? "?"} | HRV: ${hrvStatus} | Check-in: ${checkinScore ?? "niet ingevuld"}
 - Conditie: ${conditieData?.conditie ?? "?"} (score: ${conditieData?.score?.toFixed?.(2) ?? "?"})
 - Belasting: ${conditieData?.belasting ?? "?"}
-- Sessie vandaag: ${sessieVandaag
+${weerPrompt}- Sessie vandaag: ${sessieVandaag
   ? `${sessieVandaag.titel} — ${sessieVandaag.tss} TSS, ${sessieVandaag.duur_min || sessieVandaag.duur_minuten} min`
   : "rustdag"}
 - RPE-delta trend: ${rpeTrend != null ? Number(rpeTrend).toFixed(2) : "onvoldoende data (<5 ritten)"}
-
+${hitteInstructie}
 SCHRIJF als JSON (geen markdown, geen preamble):
 {
   "dagelijks_bericht": "2-4 zinnen. Interpreteer de combinatie van signalen. Verwijs naar wat je echt ziet.",

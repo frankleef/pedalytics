@@ -65,6 +65,25 @@ export async function POST(request) {
           } catch (e) { console.warn(`[tss-migratie] mislukt voor ${userId}:`, e.message); }
         }
 
+        // FTP-sync: detecteer wijzigingen vanuit intervals.icu
+        try {
+          const athleteResp = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}`, {
+            headers: { Authorization: `Basic ${Buffer.from("API_KEY:" + apiKey).toString("base64")}` },
+          });
+          if (athleteResp.ok) {
+            const athlete = await athleteResp.json();
+            const rideSport = (athlete.sportSettings || []).find(s => s.types?.includes("Ride"));
+            const ftpVanIntervals = rideSport?.ftp ?? null;
+            const planKey = `${userId}:seizoensplan`;
+            const planVoorFtp = await kv.get(planKey);
+            const ftpInPlan = planVoorFtp?.huidige_ftp ?? null;
+            if (ftpVanIntervals && ftpInPlan && Math.abs(ftpVanIntervals - ftpInPlan) > 1) {
+              console.log(`[ftp-sync] ${userId}: ${ftpInPlan}W → ${ftpVanIntervals}W`);
+              await verwerkFtpTest(userId, { icu_ftp: ftpVanIntervals });
+            }
+          }
+        } catch (e) { console.warn(`[ftp-sync] Check mislukt voor ${userId}:`, e.message); }
+
         const lastActivity = await kv.get(`user:${userId}:last_activity`);
         const oldest = lastActivity?.datum_iso || datumOffset(-3);
 
