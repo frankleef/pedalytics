@@ -6,6 +6,7 @@ import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
 import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
 import { claudeCall } from "@/lib/claude";
 import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
+import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
 
 function genId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -63,6 +64,15 @@ export async function POST(request) {
       } else {
         result = raw;
         (result.detail_weken || []).forEach(w => (w.sessies || []).forEach(s => { normaliseerSessieSegmenten(s); voegVerwachtRpeToe(s); }));
+      }
+
+      // TSS-validatie: corrigeer fysisch onmogelijke TSS-waarden
+      if (type === "sessieDag") {
+        corrigeerSessieTss(result);
+      } else if (type === "weekSessies") {
+        (result.sessies || []).forEach(s => corrigeerSessieTss(s));
+      } else {
+        (result.detail_weken || []).forEach(w => (w.sessies || []).forEach(s => corrigeerSessieTss(s)));
       }
 
       // Valideer seizoensplan en weekSessies output

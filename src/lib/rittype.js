@@ -50,7 +50,8 @@ export function ritMatchesSessie(ritClassificatie, sessieType, rit, sessie) {
 
   if (!typeMatch) return false;
 
-  // TSS en duur moeten beide binnen ±20% van gepland
+  // Duur: ±20%. TSS: asymmetrisch — overshoot tot 35%, undershoot tot 20%.
+  // Meer TSS bij hetzelfde type en duur = harder gereden, niet afgeweken.
   if (rit && sessie) {
     const ritDuur = rit.duur_min || (rit.moving_time ? Math.round(rit.moving_time / 60) : null);
     const ritTss = rit.tss || rit.icu_training_load;
@@ -58,7 +59,11 @@ export function ritMatchesSessie(ritClassificatie, sessieType, rit, sessie) {
     const planTss = sessie.tss;
 
     if (ritDuur && planDuur && Math.abs(ritDuur - planDuur) / planDuur > 0.20) return false;
-    if (ritTss && planTss && Math.abs(ritTss - planTss) / planTss > 0.20) return false;
+    if (ritTss && planTss) {
+      const delta = (ritTss - planTss) / planTss;
+      if (delta > 0.35) return false;
+      if (delta < -0.20) return false;
+    }
   }
 
   return true;
