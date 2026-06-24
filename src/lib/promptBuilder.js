@@ -263,7 +263,7 @@ Elke sessie moet een "intentie"-object bevatten met:
 
 SEGMENTEN-FORMAAT:
 - GEEN warmup of cooldown segmenten genereren
-- Gebruik vermogenMin en vermogenMax (in %FTP) per segment
+- Per segment: geef zone (Z1-Z7), positie (onder/midden/boven, alleen Z1-Z4), blokDuurSeconden, isSpecifiek (boolean), sessietype. Geef GEEN vermogenMin/vermogenMax — die berekent de code
 - Bij intervallen: afwisselende werk/herstel-blokken
 
 Geef JSON:
@@ -361,7 +361,14 @@ BELANGRIJK: behoud hetzelfde sessietype en dezelfde vermogenszone. Schaal de duu
   let vo2maxContext = "";
   if (ctx.vo2maxTogestaan) {
     vo2maxContext = `\nVO2MAX-INTERVALLEN TOEGESTAAN: ja. Max 1x/week in drempelfase. Nooit direct na drempel/over-under. Verhouding: drempel 2x / VO2max 1x per opbouwweek. Vervangt één Z2-sessie, nooit een drempelsessie.
-Spec: 4-6x 4-5min @ 106-120% FTP, herstel 1:1, zones Z4-Z5, TSS 70-90, warm-up ≥10min progressief naar Z3.`;
+Spec: 4-6x 4-5min @ zone Z5, herstel 1:1, TSS 70-90, warm-up ≥10min progressief naar Z3.`;
+  }
+
+  let z6Context = "";
+  if (ctx.doelType === "sprint" || ctx.doelType === "klimmen") {
+    z6Context = "\nZ6 ANAEROBE BLOKKEN: toegestaan voor dit doel.";
+  } else {
+    z6Context = "\nZ6 ANAEROBE BLOKKEN: niet toegestaan — gebruik maximaal Z5.";
   }
 
   let rpeContext = "";
@@ -389,7 +396,7 @@ ${intentieInstructie}
 PROFIEL: FTP ${ctx.atleetProfiel.ftp}W | LT ${ctx.atleetProfiel.lt_hr} bpm | Max HR ${ctx.atleetProfiel.max_hr} bpm | ${ctx.atleetProfiel.gewicht} kg${ctx.wPerKg ? ` | W/kg ${ctx.wPerKg}` : ""}
 ${ctx.ctlAtlTsb ? `CTL: ${ctx.ctlAtlTsb.ctl} | ATL: ${ctx.ctlAtlTsb.atl} | TSB: ${ctx.ctlAtlTsb.tsb}` : "CTL/ATL/TSB: niet meegewogen (toekomstige dag — plan op basis van het weekschema, niet op dagvorm)"}
 ${ctx.isToekomst ? "" : `HRV: ${hrvInfo}`}
-RPE afgelopen week: ${rpeInfo}${checkInContext}${rpeContext}${distributieContext}${vo2maxContext}
+RPE afgelopen week: ${rpeInfo}${checkInContext}${rpeContext}${distributieContext}${vo2maxContext}${z6Context}
 Fase: ${ctx.fase} — ${ctx.focus} (TSS-doel ${ctx.tssDoel} per 7 dagen, weektype: ${ctx.weektype}, reeds gepland afgelopen 7d: ${weekTssNu} TSS, ruimte: ${tssRuimte} TSS)
 Ervaringsniveau: ${ctx.atleetProfiel.ervaringsniveau}
 Toegestane sessietypes deze fase: ${ctx.sessietypes ? ctx.sessietypes.join(", ") : sessietypesVoorFase(ctx.fase)}
@@ -406,7 +413,7 @@ ${ctx.dagIntentie ? "- Intentie is leidend — pas alleen duur/vermogen/TSS aan 
 - Min 1 rustdag tussen harde sessies${ctx.isToekomst ? "" : ". Als TSB < -20 of HRV dalend: alleen Z2 of herstel"}
 - Houd week-TSS onder ${ctx.tssDoel} totaal
 - GEEN warmup/cooldown segmenten, hoofdinspanning vult hele duur
-- Gebruik vermogenMin/vermogenMax in %FTP per segment
+- Per segment: geef zone (Z1-Z7), positie (onder/midden/boven), blokDuurSeconden, isSpecifiek, sessietype. GEEN vermogenMin/vermogenMax
 - Geef een concrete, data-gedreven reden
 - Z1-Z2 doel-aandeel: ${ctx.z1z2Doel ? Math.round(ctx.z1z2Doel * 100) + "%" : z1z2Doel(ctx.atleetProfiel.ervaringsniveau)}
 - Max intensiteitssessies deze week: ${ctx.maxIntensiteit}

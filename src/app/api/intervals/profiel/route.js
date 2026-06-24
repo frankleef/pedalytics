@@ -50,6 +50,27 @@ export async function GET() {
           historie.push({ datum: vandaag, ftp: profiel.ftp });
           await kv.set(ftpKey, historie);
         }
+
+        // Pieksprintvermogen ophalen uit power curve
+        try {
+          const pcData = await intervalsGet("/power-curves.json", { type: "Ride", curves: "42d" }, creds);
+          const curve = pcData?.list?.[0];
+          let piekSprint = null;
+          if (curve?.secs && curve?.watts) {
+            const idx5 = curve.secs.indexOf(5);
+            if (idx5 >= 0 && curve.watts[idx5] > 0) piekSprint = curve.watts[idx5];
+          }
+          if (piekSprint) {
+            await kv.set(`piek_sprint_vermogen:${creds.userId}`, piekSprint);
+            profiel.piek_sprint_vermogen = piekSprint;
+          } else {
+            profiel.piek_sprint_vermogen = Math.round(profiel.ftp * 1.8);
+            profiel.piek_sprint_geschat = true;
+          }
+        } catch {
+          profiel.piek_sprint_vermogen = Math.round(profiel.ftp * 1.8);
+          profiel.piek_sprint_geschat = true;
+        }
       } catch {}
     }
 

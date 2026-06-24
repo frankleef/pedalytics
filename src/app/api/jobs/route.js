@@ -5,6 +5,7 @@ import { valideerSeizoensPlan } from "@/lib/seizoen/valideer";
 import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
 import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
 import { claudeCall } from "@/lib/claude";
+import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
 
 function genId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -73,6 +74,24 @@ export async function POST(request) {
         if (!geldig) {
           console.warn(`[Job ${jobId}] Validatiefouten:`, fouten);
         }
+      }
+
+      // Vermogensbereik berekenen als zones beschikbaar zijn
+      if ((type === "sessieDag" || type === "weekSessies") && params.profiel?.power_zones && params.profiel?.ftp) {
+        try {
+          const zones = bouwZonesUitProfiel(params.profiel.ftp, params.profiel.power_zones);
+          const piekSprint = await kv.get(`piek_sprint_vermogen:${params.userId || ""}`) || Math.round(params.profiel.ftp * 1.8);
+          const verwerkSegmenten = (segs) => (segs || []).map(seg => {
+            if (seg.zone && !seg.vermogenMin) return berekenBlok(seg, zones, params.profiel.ftp, piekSprint);
+            return seg;
+          });
+          if (type === "sessieDag" && result.segmenten) {
+            result.segmenten = verwerkSegmenten(result.segmenten);
+          }
+          if (type === "weekSessies" && result.sessies) {
+            result.sessies = result.sessies.map(s => ({ ...s, segmenten: verwerkSegmenten(s.segmenten) }));
+          }
+        } catch (e) { console.warn(`[Job ${jobId}] Vermogensbereik mislukt:`, e.message); }
       }
 
       await kv.set(`genjob:${jobId}`, { status: "done", type, result }, { ex: 300 });

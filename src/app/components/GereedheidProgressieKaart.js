@@ -5,7 +5,7 @@ import InfoTooltip from "./InfoTooltip";
 
 const PROGRESSIE_STATUS = {
   groeit: { label: "Conditie groeit", kleur: "oklch(0.5 0.13 162)" },
-  stabiel: { label: "Stabiel", kleur: "oklch(0.55 0.11 92)" },
+  optimaal: { label: "Optimale belasting", kleur: "oklch(0.6 0.13 165)" },
   letop: { label: "Let op herstel", kleur: "oklch(0.56 0.13 55)" },
   overbelasting: { label: "Overbelasting", kleur: "oklch(0.52 0.1 28)" },
 };
@@ -13,7 +13,7 @@ const PROGRESSIE_STATUS = {
 function progStatus(adaptatieScore) {
   if (adaptatieScore == null) return null;
   if (adaptatieScore > 0.15) return "groeit";
-  if (adaptatieScore >= -0.15) return "stabiel";
+  if (adaptatieScore >= -0.15) return "optimaal";
   if (adaptatieScore >= -0.5) return "letop";
   return "overbelasting";
 }
