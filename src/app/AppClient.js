@@ -704,7 +704,6 @@ export default function Page() {
                 }
                 setTab(1);
               }}
-              onEditBeschikbaarheid={() => setBeschikbaarheidSchermOpen(true)}
               onOpenProfiel={() => setProfielOpen(true)}
             />
           )}
@@ -723,6 +722,7 @@ export default function Page() {
               initialDagOffset={schemaDagOffset}
               onRpeSaved={handleRpeSaved}
               onOpenProfiel={() => setProfielOpen(true)}
+              onEditBeschikbaarheid={() => setBeschikbaarheidSchermOpen(true)}
               onPlanWijziging={() => {
                 fetch("/api/plan").then(r => r.json()).then(pd => {
                   if (pd.success && pd.data) {
