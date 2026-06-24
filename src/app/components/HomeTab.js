@@ -11,7 +11,7 @@ import SharedHeader from "./SharedHeader";
 import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
 import SessieUitkomstKaart from "./SessieUitkomstKaart";
 import SeizoenSamenvattingKaart from "./SeizoenSamenvattingKaart";
-import GereedheidProgressieKaart from "./GereedheidProgressieKaart";
+import GereedheidConditieKaart from "./GereedheidConditieKaart";
 import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
@@ -209,7 +209,7 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
         )}
 
         {/* Gereedheid & Progressie */}
-        <GereedheidProgressieKaart
+        <GereedheidConditieKaart
           balansScore={score}
           ctl={wellenessHuidig ? Math.round(wellenessHuidig.ctl || 0) : null}
           atl={wellenessHuidig ? Math.round(wellenessHuidig.atl || 0) : null}

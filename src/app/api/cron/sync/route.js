@@ -10,7 +10,7 @@ import { berekenGemiddeldeUrenPerWeek, berekenStartTss } from "@/lib/rijhistorie
 import { berekenDistributie } from "@/lib/sessie/distributie";
 import { checkFaseOvergang, berekenEnCacheDecoupling, bijwerkenDecouplingBaseline, backfillDecoupling } from "@/lib/decoupling";
 import { berekenRpeTrend, verwerkRpeTrend } from "@/lib/sessie/rpeTrend";
-import { berekenAdaptatieScore } from "@/lib/adaptatie";
+import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus, ctlRampRegressie } from "@/lib/conditie";
 import { haalRitTemperatuur, berekenTempBaseline, berekenHitteVlag, migreerHitteTemperatuur } from "@/lib/hitte";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +43,7 @@ export async function POST(request) {
           oldest,
           newest: datumOffset(0),
           limit: "10",
-          fields: "id,start_date_local,type,icu_training_load,moving_time,icu_weighted_avg_watts",
+          fields: "id,start_date_local,type,icu_training_load,moving_time,icu_weighted_avg_watts,icu_rpe",
         }, { apiKey, athleteId });
 
         const ritten = (activities || []).filter(a => a.type === "Ride" || a.type === "VirtualRide");
@@ -59,24 +59,42 @@ export async function POST(request) {
 
         // Idempotent: skip als we deze al kennen
         if (lastActivity?.id === nieuwste.id) {
-          // Herbereken adaptatie-score met verse wellness-data, ook zonder nieuwe rit
+          // Herbereken conditiescore met verse wellness-data, ook zonder nieuwe rit
           try {
             const planKey = `${userId}:seizoensplan`;
             const plan = await kv.get(planKey);
             if (plan) {
-              let hrv7d = null, hrv28d = null, ctlRamp = null;
               const wellData = await intervalsGet("/wellness", { oldest: datumOffset(-28), newest: datumOffset(0) }, { apiKey, athleteId });
+              let ctlNu = null, ctl4wGeleden = null, ctlRamp = null;
               if (wellData?.length >= 7) {
-                const hrvW = wellData.filter(w => w.hrv).map(w => w.hrv);
-                if (hrvW.length >= 7) { hrv7d = hrvW.slice(-7).reduce((a,b) => a+b, 0) / 7; hrv28d = hrvW.reduce((a,b) => a+b, 0) / hrvW.length; }
                 const ctlW = wellData.filter(w => w.ctl != null).sort((a,b) => (a.id||"").localeCompare(b.id||""));
-                if (ctlW.length >= 7) { const h = Math.floor(ctlW.length/2); ctlRamp = (ctlW.slice(h).reduce((a,w)=>a+w.ctl,0)/(ctlW.length-h) - ctlW.slice(0,h).reduce((a,w)=>a+w.ctl,0)/h) / (ctlW.length/7); }
+                ctlNu = ctlW.length > 0 ? ctlW[ctlW.length - 1].ctl : null;
+                ctl4wGeleden = ctlW.length > 0 ? ctlW[0].ctl : null;
+                ctlRamp = ctlRampRegressie(ctlW.map(w => w.ctl));
               }
               const rpeTrend = await kv.get(`rpe_trend:${userId}`);
-              const adaptatie = berekenAdaptatieScore({ rpe_delta_trend: rpeTrend ?? null, hrv_3d: hrv7d, hrv_28d: hrv28d, ctl_ramp: ctlRamp, decoupling_huidig: null, decoupling_vorig: null });
-              if (adaptatie) await kv.set(`adaptatie_score:${userId}`, { ...adaptatie, berekend_op: new Date().toISOString() }, { ex: 8 * 86400 });
+              const gereedheidsscore = 50;
+              // Decoupling medianen voor conditiescore: GEEN filter (ruwe waarden)
+              let dcHuidigUp = null, dcVorigUp = null;
+              try {
+                const actResp = await intervalsGet("/activities", { oldest: datumOffset(-60), newest: datumOffset(0), limit: "30", fields: "id,type" }, { apiKey, athleteId });
+                const dcAlleWaarden = [];
+                for (const a of (actResp || []).filter(a => a.type === "Ride" || a.type === "VirtualRide")) {
+                  const dc = await kv.get(`decoupling:${a.id}`);
+                  if (dc == null) continue;
+                  const w = typeof dc === "number" ? dc : dc?.decoupling;
+                  if (w != null) dcAlleWaarden.push(w);
+                }
+                if (dcAlleWaarden.length >= 3) dcHuidigUp = dcAlleWaarden.slice(-3).sort((a,b)=>a-b)[1];
+                if (dcAlleWaarden.length >= 6) dcVorigUp = dcAlleWaarden.slice(-6, -3).sort((a,b)=>a-b)[1];
+              } catch {}
+              const score = berekenConditieScore({ ctl_nu: ctlNu, ctl_4w_geleden: ctl4wGeleden, rpe_delta_trend: rpeTrend ?? null, decoupling_huidig: dcHuidigUp, decoupling_vorig: dcVorigUp });
+              const belasting = belastingsStatus(ctlRamp ?? 0, gereedheidsscore);
+              const conditie = conditieStatus(score);
+              const pill = conditiePillStatus(belasting, conditie);
+              await kv.set(`conditie_score:${userId}`, { score, belasting, conditie, pill, ctl_nu: ctlNu, ctl_4w_geleden: ctl4wGeleden, ctl_ramp: ctlRamp, rpe_delta_trend: rpeTrend, bijgewerkt_op: new Date().toISOString() }, { ex: 8 * 86400 });
             }
-          } catch (e) { console.warn(`[sync] Adaptatie-herberekening mislukt:`, e.message); }
+          } catch (e) { console.warn(`[sync] Conditiescore mislukt:`, e.message); }
           results.push({ userId, status: "up_to_date" });
           continue;
         }
@@ -122,6 +140,12 @@ export async function POST(request) {
         if (plan?.weekSessies?.sessies) {
           const ritDatum = nieuwste.start_date_local?.split("T")[0];
           const sessie = plan.weekSessies.sessies.find(s => s.datum === ritDatum);
+
+          // Markeer sessie als voltooid (RPE-delta wordt berekend bij RPE-invoer)
+          if (sessie && !sessie.voltooid) {
+            sessie.voltooid = true;
+            await kv.set(planKey, plan);
+          }
           if (sessie?.intentie?.rol === "ftp_test") {
             try {
               const fullActivity = await intervalsGet(`/activities/${nieuwste.id}`, {}, { apiKey, athleteId });
@@ -248,55 +272,51 @@ export async function POST(request) {
                   hrv7d = hrvWaarden.slice(-7).reduce((a, b) => a + b, 0) / 7;
                   hrv28d = hrvWaarden.reduce((a, b) => a + b, 0) / hrvWaarden.length;
                 }
-                // CTL-ramp: verschil gemiddelde CTL eerste/tweede helft gedeeld door weken
                 const ctlWaarden = wellData.filter(w => w.ctl != null).sort((a, b) => (a.id || "").localeCompare(b.id || ""));
-                if (ctlWaarden.length >= 7) {
-                  const helft = Math.floor(ctlWaarden.length / 2);
-                  const gemEerste = ctlWaarden.slice(0, helft).reduce((a, w) => a + w.ctl, 0) / helft;
-                  const gemTweede = ctlWaarden.slice(helft).reduce((a, w) => a + w.ctl, 0) / (ctlWaarden.length - helft);
-                  const weken = ctlWaarden.length / 7;
-                  ctlRamp = (gemTweede - gemEerste) / weken;
-                }
+                ctlRamp = ctlRampRegressie(ctlWaarden.map(w => w.ctl));
               }
             } catch (e) {
               console.warn(`[sync] Wellness voor adaptatie mislukt:`, e.message);
             }
 
-            // Decoupling medianen — alle ritten (incl. hitte) voor adaptatie-score
-            const dcAllEntries = [];
+            // Decoupling medianen voor conditiescore: GEEN filter (ruwe waarden, spec 32-F)
+            const dcAlleEntries = [];
             for (const rit of ritten) {
               const dc = await kv.get(`decoupling:${rit.id}`);
               if (dc == null) continue;
               const waarde = typeof dc === "number" ? dc : dc?.decoupling;
               const isHitte = typeof dc === "object" && (dc?.hitte_gecorrigeerd ?? false);
-              if (waarde != null) dcAllEntries.push({ waarde, isHitte });
+              if (waarde != null) dcAlleEntries.push({ waarde, isHitte });
             }
-            // Fallback als >50% van laatste 6 ritten hitte-gecorrigeerd zijn
-            const laatste6 = dcAllEntries.slice(-6);
+            const dcAlleWaarden = dcAlleEntries.map(e => e.waarde);
+            const dcHuidig = dcAlleWaarden.length >= 3 ? dcAlleWaarden.slice(-3).sort((a,b)=>a-b)[1] : null;
+            const dcVorig = dcAlleWaarden.length >= 6 ? dcAlleWaarden.slice(-6, -3).sort((a,b)=>a-b)[1] : null;
+
+            // >50% hitte-fallback (spec 32-F): informatiemelding als decoupling-trend onbetrouwbaar
+            const laatste6 = dcAlleEntries.slice(-6);
             const hitteAandeel = laatste6.length > 0 ? laatste6.filter(e => e.isHitte).length / laatste6.length : 0;
-            const dcBeschikbaar = dcAllEntries.length >= 6 && hitteAandeel <= 0.5;
-            const dcWaarden = dcAllEntries.map(e => e.waarde);
-            const dcHuidig = dcBeschikbaar && dcWaarden.length >= 3 ? dcWaarden.slice(-3).sort((a,b)=>a-b)[1] : null;
-            const dcVorig = dcBeschikbaar && dcWaarden.length >= 6 ? dcWaarden.slice(-6, -3).sort((a,b)=>a-b)[1] : null;
-            if (!dcBeschikbaar && dcAllEntries.length >= 6) {
-              await kv.set(`adaptatie-hitte-melding:${userId}`, true, { ex: 14 * 86400 });
+            if (laatste6.length >= 6 && hitteAandeel > 0.5) {
+              await kv.set(`conditie-hitte-melding:${userId}`, true, { ex: 14 * 86400 });
             } else {
-              await kv.del(`adaptatie-hitte-melding:${userId}`).catch(() => {});
+              await kv.del(`conditie-hitte-melding:${userId}`).catch(() => {});
             }
 
-            const adaptatie = berekenAdaptatieScore({
-              rpe_delta_trend: rpeTrend ?? null,
-              hrv_3d: hrv7d,
-              hrv_28d: hrv28d,
-              ctl_ramp: ctlRamp,
-              decoupling_huidig: dcHuidig,
-              decoupling_vorig: dcVorig,
-            });
-            if (adaptatie) {
-              await kv.set(`adaptatie_score:${userId}`, { ...adaptatie, berekend_op: new Date().toISOString() }, { ex: 8 * 86400 });
-            }
+            // CTL 4 weken geleden
+            let ctlNu = null, ctl4wGeleden = null;
+            try {
+              const wellAll = await intervalsGet("/wellness", { oldest: datumOffset(-28), newest: datumOffset(0) }, { apiKey, athleteId });
+              const ctlAll = (wellAll || []).filter(w => w.ctl != null).sort((a,b) => (a.id||"").localeCompare(b.id||""));
+              if (ctlAll.length > 0) { ctlNu = ctlAll[ctlAll.length - 1].ctl; ctl4wGeleden = ctlAll[0].ctl; }
+            } catch {}
+
+            const gereedheidsscore = 50; // TODO: lezen uit KV als beschikbaar
+            const condScore = berekenConditieScore({ ctl_nu: ctlNu, ctl_4w_geleden: ctl4wGeleden, rpe_delta_trend: rpeTrend ?? null, decoupling_huidig: dcHuidig, decoupling_vorig: dcVorig });
+            const belasting = belastingsStatus(ctlRamp ?? 0, gereedheidsscore);
+            const conditie = conditieStatus(condScore);
+            const pill = conditiePillStatus(belasting, conditie);
+            await kv.set(`conditie_score:${userId}`, { score: condScore, belasting, conditie, pill, ctl_nu: ctlNu, ctl_4w_geleden: ctl4wGeleden, ctl_ramp: ctlRamp, rpe_delta_trend: rpeTrend, bijgewerkt_op: new Date().toISOString() }, { ex: 8 * 86400 });
           } catch (e) {
-            console.warn(`[sync] Adaptatie-score mislukt voor ${userId}:`, e.message);
+            console.warn(`[sync] Conditiescore mislukt voor ${userId}:`, e.message);
           }
 
           // VO2max-suggestie evaluatie (wekelijks, alleen bij doel=ftp, week>=5)
@@ -336,13 +356,20 @@ export async function POST(request) {
                     const d = r.start_date_local?.split("T")[0] || "";
                     return d >= drieWekenGeleden;
                   });
-                  // Gebruik decoupling-waarden uit KV cache, filter hitte-ritten
+                  // Gebruik decoupling-waarden uit KV cache
+                  // 1. Filter hitte-ritten (spec 32-F)
+                  // 2. Filter uitschieters als extra laag (>12% of IQR)
+                  const { isDecouplingUitschieter } = await import("@/lib/conditie");
+                  const dcFaseAlleWaarden = [];
                   for (const rit of z2Ritten) {
                     const dc = await kv.get(`decoupling:${rit.id}`);
                     if (dc == null) continue;
                     const waarde = typeof dc === "number" ? dc : dc?.decoupling;
                     const isHitte = typeof dc === "object" && (dc?.hitte_gecorrigeerd ?? false);
-                    if (waarde != null && !isHitte) decouplingWaarden.push(waarde);
+                    if (waarde != null && !isHitte) dcFaseAlleWaarden.push(waarde);
+                  }
+                  for (const w of dcFaseAlleWaarden) {
+                    if (!isDecouplingUitschieter(w, dcFaseAlleWaarden)) decouplingWaarden.push(w);
                   }
 
                   if (decouplingWaarden.length >= 2) {

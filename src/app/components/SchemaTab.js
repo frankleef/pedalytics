@@ -9,7 +9,7 @@ import InfoTooltip from "./InfoTooltip";
 import ScaleInput from "./ScaleInput";
 import SharedHeader from "./SharedHeader";
 import { StatusBanner, KerngetallenTiles } from "./SessieUitkomstKaart";
-import AdaptatieScoreKaart from "./AdaptatieScoreKaart";
+import AdaptatieScoreKaart from "./AdaptatieScoreKaart"; // TSS+fase kaart op Schema
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
 const DAG_KORT = ["ZO","MA","DI","WO","DO","VR","ZA"];
