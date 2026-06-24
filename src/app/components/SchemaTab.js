@@ -422,7 +422,7 @@ export default function SchemaTab({
 
         <div style={{ padding: `0 ${T.pad}px` }}>
 
-        <AdaptatieScoreKaart weekTss={werkelijkTss} doelTss={doelTss} fase={kaderWeek?.fase} weekNr={weekNr} weektype={kaderWeek?.weektype} />
+        <AdaptatieScoreKaart weekTss={werkelijkTss} doelTss={doelTss} fase={kaderWeek?.fase} weekNr={weekNr} weektype={kaderWeek?.weektype} onEditBeschikbaarheid={onEditBeschikbaarheid} />
 
         {/* ══ PLANNED ══ */}
         {mode === "planned" && sessie && (
