@@ -332,16 +332,21 @@ Gebruik de segmentstructuur die bij dit subtype hoort.`;
   // Intentie-sectie: leidend als aanwezig, anders laten bepalen
   let intentieInstructie;
   if (ctx.dagIntentie) {
-    intentieInstructie = `DAG-INTENTIE (leidend — niet ter discussie):
+    const isVerplaatsing = ctx.aanleiding === "beschikbaarheid_verplaatsing";
+    intentieInstructie = `DAG-INTENTIE (${isVerplaatsing ? "voorkeur — behoud als het past" : "leidend — niet ter discussie"}):
 Rol: ${ctx.dagIntentie.rol}
 Sessietype: ${ctx.dagIntentie.sessietype}
 Toegestane zones: ${(ctx.dagIntentie.toegestane_zones || []).join(", ")}
 TSS-range: ${ctx.dagIntentie.tss_range?.min || "?"}–${ctx.dagIntentie.tss_range?.max || "?"}
 Achtergrond: ${ctx.dagIntentie.toelichting || ""}${z2SubtypeContext}
-
+${isVerplaatsing ? `
+Deze sessie is VERPLAATST van een andere dag. Behoud het sessietype en de intentie,
+tenzij er een conflict is met de overige geplande sessies deze week (bv. twee zware
+sessies binnen 24u). Als je moet afwijken, geef dan een "intentie_afwijking" veld
+in je response met de reden.` : `
 Jouw taak: genereer een sessie die PAST BINNEN deze intentie.
 Pas UITSLUITEND aan: duur, exact vermogensbereik binnen de toegestane zones, TSS binnen de opgegeven range.
-Verander NOOIT: sessietype, zone-bandbreedte, of de intentie zelf.
+Verander NOOIT: sessietype, zone-bandbreedte, of de intentie zelf.`}
 Aanleiding voor deze aanroep: ${ctx.aanleiding}`;
   } else {
     intentieInstructie = `DAG-INTENTIE (verplicht — bepaal zelf):

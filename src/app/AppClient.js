@@ -556,6 +556,7 @@ export default function Page() {
     let lokaalSessies = [...(weekSessies?.sessies || [])];
     const teVerwijderenEventIds = [];
     const gewijzigdeDatums = [];
+    const verwijderdeSessies = [];
 
     const ritDatums = new Set((voortgang?.ritten || []).map(r => r.datum_iso).filter(Boolean));
 
@@ -568,6 +569,7 @@ export default function Page() {
           const sessie = lokaalSessies.find(s => s.datum === datum && !s.voltooid);
           if (sessie) {
             if (sessie.intervalsEventId) teVerwijderenEventIds.push(sessie.intervalsEventId);
+            verwijderdeSessies.push(sessie);
             lokaalSessies = lokaalSessies.filter(s => s.datum !== datum);
           }
           gewijzigdeDatums.push(datum);
@@ -581,7 +583,11 @@ export default function Page() {
       fetch(`/api/intervals/events/${id}`, { method: "DELETE" }).catch(() => {});
     });
 
-    console.log("[Beschikbaarheid] Diff:", { verwijderd, toegevoegd, urenGewijzigd });
+    // Verplaatsingsdetectie: koppel verwijderde sessies aan nieuwe dagen
+    const isVerplaatsing = verwijderdeSessies.length > 0 && toegevoegd.length > 0;
+    const verplaatsIntentiePool = isVerplaatsing ? [...verwijderdeSessies] : [];
+
+    console.log("[Beschikbaarheid] Diff:", { verwijderd, toegevoegd, urenGewijzigd, verplaatsing: isVerplaatsing ? verwijderdeSessies.map(s => s.type) : "nee" });
     const toeTeVoegen = [...toegevoegd, ...urenGewijzigd];
     for (const dag of toeTeVoegen) {
       for (let i = 0; i <= 10; i++) {
@@ -590,12 +596,22 @@ export default function Page() {
           const datum = datumISO(d);
           if (ritDatums.has(datum)) continue;
           const uren = nieuwUren[dag] || 1.5;
-          const oudeSessie = lokaalSessies.find(s => s.datum === datum && !s.voltooid);
+          const bestaandeSessie = lokaalSessies.find(s => s.datum === datum && !s.voltooid);
           const overigeSessies = lokaalSessies.filter(s => s.datum !== datum && !s.voltooid);
           gewijzigdeDatums.push(datum);
-          console.log("[Beschikbaarheid] Genereer sessie voor:", datum, dag, uren, "uur", oudeSessie ? `(vervangt ${oudeSessie.type})` : "(nieuw)");
 
-          const beschAanleiding = oudeSessie ? "beschikbaarheid_uren" : "beschikbaarheid_nieuw";
+          let oudeSessie = bestaandeSessie;
+          let beschAanleiding = bestaandeSessie ? "beschikbaarheid_uren" : "beschikbaarheid_nieuw";
+
+          // Bij verplaatsing: gebruik de intentie van de verwijderde sessie
+          if (!bestaandeSessie && verplaatsIntentiePool.length > 0) {
+            oudeSessie = verplaatsIntentiePool.shift();
+            beschAanleiding = "beschikbaarheid_verplaatsing";
+            console.log("[Beschikbaarheid] Verplaatsing:", oudeSessie.type, "→", dag, "(intentie:", oudeSessie.intentie?.sessietype || oudeSessie.type, ")");
+          } else {
+            console.log("[Beschikbaarheid] Genereer sessie voor:", datum, dag, uren, "uur", bestaandeSessie ? `(vervangt ${bestaandeSessie.type})` : "(nieuw)");
+          }
+
           const sessie = await genereerSessieDagViaJob(datum, dag, uren, { overigeSessies, oudeSessie, aanleiding: beschAanleiding });
           if (sessie) {
             lokaalSessies = [...lokaalSessies.filter(s => s.datum !== datum), sessie];
