@@ -3,7 +3,7 @@ import { useState } from "react";
 import { T } from "../../designTokens";
 import WorkoutViz from "../WorkoutViz";
 
-export default function SessionCard({ sessie, ftp, onOpen, beschikbaar, weer }) {
+export default function SessionCard({ sessie, ftp, onOpen, beschikbaar, weer, weerForecast }) {
   const [waaromOpen, setWaaromOpen] = useState(false);
   if (!sessie) return null;
 
@@ -44,16 +44,20 @@ export default function SessionCard({ sessie, ftp, onOpen, beschikbaar, weer }) 
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>{dagLabel} · Sessie</span>
-        {weer && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>
-              {weer.temp <= 5 ? "🥶" : weer.temp >= 28 ? "🔥" : weer.conditie?.includes("Regen") || weer.conditie?.includes("regen") || weer.conditie?.includes("buien") || weer.conditie?.includes("Buien") ? "🌧️" : weer.conditie?.includes("Bewolkt") || weer.conditie?.includes("bewolkt") ? "☁️" : weer.conditie?.includes("Mistig") ? "🌫️" : weer.conditie?.includes("Onweer") ? "⛈️" : weer.conditie?.includes("Sneeuw") || weer.conditie?.includes("sneeuw") ? "❄️" : "☀️"}{" "}{weer.temp}°
-            </span>
-            <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textTert }}>
-              💨 {weer.wind} km/u
-            </span>
-          </div>
-        )}
+        {(() => {
+          const dagWeer = sessie.datum && weerForecast?.[sessie.datum] ? weerForecast[sessie.datum] : weer;
+          if (!dagWeer) return null;
+          const t = dagWeer.temp;
+          const c = dagWeer.conditie || "";
+          const w = dagWeer.wind;
+          const icoon = t <= 5 ? "🥶" : t >= 28 ? "🔥" : /regen|buien|motregen/i.test(c) ? "🌧️" : /bewolkt/i.test(c) ? "☁️" : /mistig|rijp/i.test(c) ? "🌫️" : /onweer/i.test(c) ? "⛈️" : /sneeuw/i.test(c) ? "❄️" : /helder/i.test(c) ? "☀️" : "⛅";
+          return (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>{icoon} {t}°</span>
+              <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textTert }}>💨 {w} km/u</span>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Klikbare titel */}

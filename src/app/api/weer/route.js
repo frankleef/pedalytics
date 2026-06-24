@@ -16,7 +16,7 @@ export async function GET() {
     const { lat, lon, stad } = await haalGebruikersLocatie(user?.id);
 
     const resp = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m&hourly=precipitation_probability&timezone=Europe/Amsterdam&forecast_days=1`,
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,weather_code,wind_speed_10m_max&hourly=precipitation_probability&timezone=Europe/Amsterdam&forecast_days=10`,
       { next: { revalidate: 1800 } }
     );
     if (!resp.ok) throw new Error(`Open-Meteo ${resp.status}`);
@@ -28,13 +28,25 @@ export async function GET() {
     const conditie = CONDITIE_MAP[code] || "Onbekend";
 
     const uurlijks = data.hourly?.precipitation_probability || [];
-    const maxNeerslag = Math.max(...uurlijks, 0);
+    const maxNeerslag = Math.max(...uurlijks.slice(0, 24), 0);
     const middag = uurlijks.slice(12, 18);
     const neerslagMiddag = middag.length > 0 ? Math.max(...middag) : 0;
 
+    // Meerdaagse forecast per datum
+    const forecast = {};
+    const dagDatums = data.daily?.time || [];
+    dagDatums.forEach((datum, i) => {
+      forecast[datum] = {
+        temp: Math.round(data.daily.temperature_2m_max?.[i] ?? 0),
+        tempMin: Math.round(data.daily.temperature_2m_min?.[i] ?? 0),
+        wind: Math.round(data.daily.wind_speed_10m_max?.[i] ?? 0),
+        conditie: CONDITIE_MAP[data.daily.weather_code?.[i]] || "Onbekend",
+      };
+    });
+
     return NextResponse.json({
       success: true,
-      data: { temp, conditie, wind, neerslagKans: maxNeerslag, neerslagMiddag, stad },
+      data: { temp, conditie, wind, neerslagKans: maxNeerslag, neerslagMiddag, stad, forecast },
     });
   } catch (e) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });

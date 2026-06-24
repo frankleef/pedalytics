@@ -191,7 +191,7 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
           if (eerstvolgende) {
             return (
               <>
-                <SessionCard sessie={eerstvolgende} ftp={ftp} onOpen={onOpenWorkout} beschikbaar={beschikbaar} weer={weer} />
+                <SessionCard sessie={eerstvolgende} ftp={ftp} onOpen={onOpenWorkout} beschikbaar={beschikbaar} weer={weer} weerForecast={weer?.forecast} />
                 {eerstvolgende?.intervalsEventId && (
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: -10, marginBottom: 16, padding: "0 4px" }}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="oklch(0.5 0.13 162)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/></svg>

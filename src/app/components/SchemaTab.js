@@ -179,6 +179,13 @@ export default function SchemaTab({
 }) {
   const [selectedIdx, setSelectedIdx] = useState(10 + (initialDagOffset || 0));
   const [rpeWaarde, setRpeWaarde] = useState(6);
+  const [weerForecast, setWeerForecast] = useState({});
+
+  useEffect(() => {
+    fetch("/api/weer").then(r => r.json()).then(d => {
+      if (d.success && d.data?.forecast) setWeerForecast(d.data.forecast);
+    }).catch(() => {});
+  }, []);
   const [rpeOpslaan, setRpeOpslaan] = useState(false);
   const [rpeOpgeslagen, setRpeOpgeslagen] = useState({});
   const [streamsCache, setStreamsCache] = useState({});
@@ -441,7 +448,16 @@ export default function SchemaTab({
         {/* ══ PLANNED ══ */}
         {mode === "planned" && sessie && (
           <div>
-            <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.6, color: T.textTert, textTransform: "uppercase" }}>{sessieLabel.toUpperCase()}</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.6, color: T.textTert, textTransform: "uppercase" }}>{sessieLabel.toUpperCase()}</span>
+              {(() => {
+                const dw = cur?.iso && weerForecast[cur.iso];
+                if (!dw) return null;
+                const c = dw.conditie || "";
+                const icoon = dw.temp <= 5 ? "🥶" : dw.temp >= 28 ? "🔥" : /regen|buien|motregen/i.test(c) ? "🌧️" : /bewolkt/i.test(c) ? "☁️" : /mistig/i.test(c) ? "🌫️" : /onweer/i.test(c) ? "⛈️" : /sneeuw/i.test(c) ? "❄️" : /helder/i.test(c) ? "☀️" : "⛅";
+                return <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec }}>{icoon} {dw.temp}° · 💨 {dw.wind} km/u</span>;
+              })()}
+            </div>
             <h1 style={{ margin: "5px 0 18px", font: "800 28px/1.18 var(--font-nunito), sans-serif", letterSpacing: -0.5, textWrap: "pretty", color: T.text }}>{sessie.titel}</h1>
 
             <div style={{ display: "flex", gap: 10, marginBottom: 18 }}>
