@@ -12,6 +12,8 @@ function genId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+export const maxDuration = 120;
+
 export async function POST(request) {
   const { type, params } = await request.json();
   const jobId = genId();

@@ -576,11 +576,7 @@ export default function Page() {
       }
     }
 
-    const tussenWeekSessies = { ...weekSessies, sessies: lokaalSessies };
-    setWeekSessies(tussenWeekSessies);
-    const tussenPlan = { ...seizoensplan, beschikbaarheid: nieuwBeschikbaar, urenPerDag: nieuwUren, weekSessies: tussenWeekSessies };
-    setSeizoensplan(tussenPlan);
-    fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(tussenPlan) });
+    setWeekSessies({ ...weekSessies, sessies: lokaalSessies });
 
     teVerwijderenEventIds.forEach(id => {
       fetch(`/api/intervals/events/${id}`, { method: "DELETE" }).catch(() => {});

@@ -1,5 +1,5 @@
-export function middelpuntVoorPositie(zone, positie) {
-  const effectiefMin = Math.max(zone.minW, zone.maxW * 0.40);
+export function middelpuntVoorPositie(zone, positie, ftpW = 265) {
+  const effectiefMin = Math.max(zone.minW, ftpW * 0.38);
   const breedte = zone.maxW - effectiefMin;
   const onder = effectiefMin + breedte * 0.10;
   const boven = zone.maxW - breedte * 0.10;
@@ -13,7 +13,7 @@ export function berekenSpread(middelpunt, isSpecifiek) {
 }
 
 export function berekenRangeZ1Z4(zone, positie, isSpecifiek, ftpW) {
-  const mid = middelpuntVoorPositie(zone, positie);
+  const mid = middelpuntVoorPositie(zone, positie, ftpW);
   const spread = berekenSpread(mid, isSpecifiek);
   const ondergrens = Math.max(zone.minW, Math.round(mid - spread / 2));
   const capBoven = zone.maxW + ftpW * 0.05;
