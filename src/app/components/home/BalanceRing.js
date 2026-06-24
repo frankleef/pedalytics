@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { T, STATUS, getStatus } from "../../designTokens";
 import { berekenHerstelScore } from "../HerstelStatus";
 import InfoTooltip from "../InfoTooltip";
@@ -60,23 +61,37 @@ export default function BalanceRing({ vandaagInvoer, tsb, slaapScore, wellenessH
         </div>
       </div>
 
-      {/* CTL / ATL / TSB triplet */}
-      <div style={{ display: "flex", alignItems: "stretch", gap: 10 }}>
-        {[
-          { label: "Fitheid", sub: "CTL", value: ctl ?? "—", color: T.text, key: "ctl" },
-          { label: "Vermoeidheid", sub: "ATL", value: atl ?? "—", color: T.text, key: "atl" },
-          { label: "Vorm", sub: "TSB", value: tsbVal != null ? (tsbVal > 0 ? `+${tsbVal}` : tsbVal) : "—", color: st.dot, key: "vorm" },
-        ].map((m, i) => (
-          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "12px 4px", borderRadius: T.tileRadius, background: T.subtleFill }}>
-            <span style={{ font: "600 30px var(--font-fredoka), 'Fredoka', sans-serif", lineHeight: 1, color: m.color }}>{m.value}</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ font: "700 12px var(--font-nunito), 'Nunito', sans-serif", color: "oklch(0.4 0.02 72)" }}>{m.label}</span>
-              <InfoTooltip metricKey={m.key} />
-            </div>
-            <span style={{ font: "700 10px var(--font-nunito), 'Nunito', sans-serif", letterSpacing: 0.5, color: T.textTert }}>{m.sub}</span>
-          </div>
-        ))}
-      </div>
+      {/* Details toggle */}
+      <CtlAtlDetails ctl={ctl} atl={atl} tsbVal={tsbVal} st={st} />
     </div>
+  );
+}
+
+function CtlAtlDetails({ ctl, atl, tsbVal, st }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button onClick={() => setOpen(!open)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 4, font: "700 12px var(--font-nunito), sans-serif", color: T.textSec }}>
+        {open ? "Verberg ▲" : "▾ Details"}
+      </button>
+      {open && (
+        <div style={{ display: "flex", alignItems: "stretch", gap: 10, marginTop: 10 }}>
+          {[
+            { label: "Fitheid", sub: "CTL", value: ctl ?? "—", color: T.text, key: "ctl" },
+            { label: "Vermoeidheid", sub: "ATL", value: atl ?? "—", color: T.text, key: "atl" },
+            { label: "Vorm", sub: "TSB", value: tsbVal != null ? (tsbVal > 0 ? `+${tsbVal}` : tsbVal) : "—", color: st.dot, key: "vorm" },
+          ].map((m, i) => (
+            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "12px 4px", borderRadius: T.tileRadius, background: T.subtleFill }}>
+              <span style={{ font: "600 30px var(--font-fredoka), 'Fredoka', sans-serif", lineHeight: 1, color: m.color }}>{m.value}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ font: "700 12px var(--font-nunito), 'Nunito', sans-serif", color: "oklch(0.4 0.02 72)" }}>{m.label}</span>
+                <InfoTooltip metricKey={m.key} />
+              </div>
+              <span style={{ font: "700 10px var(--font-nunito), 'Nunito', sans-serif", letterSpacing: 0.5, color: T.textTert }}>{m.sub}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   );
 }

@@ -2,10 +2,11 @@
 import { T } from "../../designTokens";
 import WorkoutViz from "../WorkoutViz";
 
-export default function SessionCard({ sessie, ftp, onOpen }) {
+export default function SessionCard({ sessie, ftp, onOpen, beschikbaar }) {
   if (!sessie) return null;
 
   const dagVolgorde = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
+  const dagKort = ["M","D","W","D","V","Z","Z"];
   const vandaagIdx = new Date().getDay();
   const vandaagDagIdx = vandaagIdx === 0 ? 6 : vandaagIdx - 1;
   const sessieDagIdx = dagVolgorde.indexOf(sessie.dag);
@@ -19,6 +20,26 @@ export default function SessionCard({ sessie, ftp, onOpen }) {
 
   return (
     <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 20px 22px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
+      {/* Weekdots */}
+      {beschikbaar && (
+        <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 14 }}>
+          {dagVolgorde.map((dag, i) => {
+            const isTrain = !!beschikbaar[dag];
+            const isHuidig = i === vandaagDagIdx;
+            return (
+              <div key={dag} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                <span style={{ font: "700 9px var(--font-nunito), sans-serif", color: T.textTert }}>{dagKort[i]}</span>
+                <div style={{
+                  width: 18, height: 18, borderRadius: "50%",
+                  background: isTrain ? T.gradient : "transparent",
+                  border: isTrain ? "none" : `1.5px solid oklch(0.86 0.014 80)`,
+                  boxShadow: isHuidig ? `0 0 0 2px ${T.slate}` : "none",
+                }} />
+              </div>
+            );
+          })}
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>{dagLabel} · Sessie</span>
         {ftp && <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>FTP {ftp}W</span>}

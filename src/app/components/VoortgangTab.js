@@ -3,6 +3,8 @@ import { useState, useEffect } from "react";
 import { T } from "../designTokens";
 import InfoTooltip from "./InfoTooltip";
 import SharedHeader from "./SharedHeader";
+import TrainingsCheckKaart from "./TrainingsCheckKaart";
+import HerstelSignalenKaart from "./HerstelSignalenKaart";
 import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 import { datumISO } from "@/lib/datum";
 import { ResponsiveContainer, ComposedChart, LineChart, BarChart, Line, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ReferenceArea, Cell } from "recharts";
@@ -448,6 +450,13 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
           );
         })()}
 
+        {/* Laag 2: Trainingscheck */}
+        <TrainingsCheckKaart polGem={polGem} planGem={planGem} planWeken={planWeken} seizoensplan={seizoensplan} voortgang={voortgang} />
+
+        {/* Laag 2b: Herstel & signalen */}
+        <HerstelSignalenKaart dagelijkseData={wellnessData} decouplingPunten={[]} />
+
+        {/* Laag 3: Verdieping */}
         {/* Power curve */}
         {pcData.length >= 2 && (
           <div style={CARD}>
@@ -512,7 +521,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
           <div style={CARD}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                <span style={EYEBROW}>Polarisatie</span>
+                <span style={{ ...EYEBROW, fontSize: 10 }}>Polarisatie — details</span>
                 <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>80% rustig, 20% pittig</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: T.subtleFill }}>
@@ -565,7 +574,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
         {planWeken.length >= 2 && (
           <div style={CARD}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <span style={EYEBROW}>Plan-naleving</span>
+              <span style={{ ...EYEBROW, fontSize: 10 }}>Plan-naleving — details</span>
               <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: planGem >= 70 ? "oklch(0.5 0.13 162)" : "oklch(0.55 0.11 92)" }}>gem. {planGem}%</span>
             </div>
             <ResponsiveContainer width="100%" height={80}>
@@ -633,24 +642,6 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
           </div>
         )}
 
-        {/* Weekuren-trend */}
-        {weekUren.length < 2 && <LegeStaat titel="Trainingsuren" wekenNodig={4} wekenVerzameld={weekUren.length} />}
-        {weekUren.length >= 2 && (
-          <div style={CARD}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <span style={EYEBROW}>Trainingsuren per week</span>
-              <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>gem. {weekUren.length > 0 ? (weekUren.reduce((s, w) => s + w.uren, 0) / weekUren.length).toFixed(1) : 0}u</span>
-            </div>
-            <ResponsiveContainer width="100%" height={80}>
-              <BarChart data={weekUren} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
-                <XAxis dataKey="week" tick={TICK} tickLine={false} axisLine={false} />
-                <YAxis tick={TICK} tickLine={false} axisLine={false} />
-                <Tooltip content={<ChartTooltipContent suffix="u" />} />
-                <Bar dataKey="uren" name="Uren" radius={[4, 4, 0, 0]} fill="oklch(0.70 0.12 240)" barSize={20} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
 
         {/* Trainingsconsistentie */}
         {consWeken.length < 2 && <LegeStaat titel="Consistentie" wekenNodig={4} wekenVerzameld={consWeken.length} />}

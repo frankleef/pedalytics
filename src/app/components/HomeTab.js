@@ -6,7 +6,6 @@ import { berekenDagAdvies } from "./DagAdvies";
 import InfoTooltip from "./InfoTooltip";
 import ScaleInput from "./ScaleInput";
 import BalanceRing from "./home/BalanceRing";
-import WeekStrip from "./home/WeekStrip";
 import SessionCard from "./home/SessionCard";
 import InsightCard from "./home/InsightCard";
 import SharedHeader from "./SharedHeader";
@@ -17,10 +16,8 @@ import AdaptatieScoreKaart from "./AdaptatieScoreKaart";
 import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
-const FILTERS = ["Vandaag", "Deze week", "Herstel", "Belasting"];
 
 export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagelijkseData, voortgang, seizoensplan, weekSessies, weekSessiesLaden, beschikbaar, onOpenWorkout, onEditBeschikbaarheid, onOpenProfiel }) {
-  const [filter, setFilter] = useState(0);
   const [checkin, setCheckin] = useState(null);
   const [checkinLaden, setCheckinLaden] = useState(true);
   const [weer, setWeer] = useState(null);
@@ -212,132 +209,16 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
           </div>
         )}
 
-        {/* Filter pills */}
-        <div style={{ display: "flex", gap: 9, overflowX: "auto", margin: `0 -${T.pad}px 22px`, padding: `2px ${T.pad}px 6px` }}>
-          {FILTERS.map((label, i) => (
-            <div key={label} onClick={() => setFilter(i)} style={{
-              flex: "none", padding: "9px 17px", borderRadius: T.pillRadius, cursor: "pointer",
-              font: "700 13.5px var(--font-nunito), sans-serif",
-              ...(i === filter
-                ? { background: T.slate, color: "oklch(0.97 0.01 84)" }
-                : { background: "transparent", border: "1.5px solid oklch(0.86 0.014 80)", color: "oklch(0.42 0.02 72)" }),
-            }}>
-              {label}
-            </div>
-          ))}
-        </div>
-
-        {/* Balance card — wisselt per filter */}
-        {filter === 0 && (
-          <BalanceRing
-            vandaagInvoer={vandaagInvoer}
-            tsb={tsb}
-            slaapScore={vandaagInvoer?.slaapScore}
-            wellenessHuidig={wellenessHuidig}
-            hrvBasislijn={hrvBasislijn}
-            hrBasislijn={hrBasislijn}
-            checkin={checkin}
-          />
-        )}
-
-        {filter === 1 && (() => {
-          const week = (dagelijkseData || []).slice(-7);
-          const weekTsbArr = week.filter(d => d.tsb != null);
-          const weekTsb = weekTsbArr.length > 0 ? Math.round(weekTsbArr.reduce((s, d) => s + d.tsb, 0) / weekTsbArr.length) : null;
-          const weekCtl = week.filter(d => d.ctl != null);
-          const gemCtl = weekCtl.length > 0 ? Math.round(weekCtl.reduce((s, d) => s + d.ctl, 0) / weekCtl.length) : null;
-          const weekAtl = week.filter(d => d.atl != null);
-          const gemAtl = weekAtl.length > 0 ? Math.round(weekAtl.reduce((s, d) => s + d.atl, 0) / weekAtl.length) : null;
-          const weekHrv = week.filter(d => d.hrv);
-          const gemHrv = weekHrv.length > 0 ? Math.round(weekHrv.reduce((s, d) => s + d.hrv, 0) / weekHrv.length) : null;
-          const weekHr = week.filter(d => d.rusthartslag);
-          const gemHr = weekHr.length > 0 ? Math.round(weekHr.reduce((s, d) => s + d.rusthartslag, 0) / weekHr.length) : null;
-          const weekSlaap = week.filter(d => d.slaapScore);
-          const gemSlaap = weekSlaap.length > 0 ? Math.round(weekSlaap.reduce((s, d) => s + d.slaapScore, 0) / weekSlaap.length) : null;
-
-          const { score: weekScore } = berekenHerstelScore({ hrv: gemHrv, hrvBasislijn, rusthartslag: gemHr, rusthartslagBasislijn: hrBasislijn, tsb: weekTsb, slaapScore: gemSlaap });
-          const weekStatusKey = getStatus(weekScore);
-          const weekSt = STATUS[weekStatusKey];
-
-          return (
-            <BalanceRing
-              vandaagInvoer={{ hrv: gemHrv, rusthartslag: gemHr, slaapScore: gemSlaap }}
-              tsb={weekTsb}
-              slaapScore={gemSlaap}
-              wellenessHuidig={gemCtl != null ? { ctl: gemCtl, atl: gemAtl } : wellenessHuidig}
-              hrvBasislijn={hrvBasislijn}
-              hrBasislijn={hrBasislijn}
-              label="Weekgemiddelde"
-            />
-          );
-        })()}
-
-        {filter === 2 && (() => {
-          const hrv = vandaagInvoer?.hrv;
-          const hr = vandaagInvoer?.rusthartslag;
-          const slaap = vandaagInvoer?.slaapScore;
-          const slaapUren = vandaagInvoer?.slaapUren;
-          const hrvDelta = hrv ? hrv - hrvBasislijn : null;
-          const hrDelta = hr ? hr - hrBasislijn : null;
-
-          return (
-            <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "22px 20px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
-              <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>Hersteldata</span>
-              <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-                {[
-                  { label: "HRV", value: hrv ?? "—", unit: hrv ? "ms" : "", sub: `basislijn ${hrvBasislijn}`, delta: hrvDelta, good: hrvDelta != null && hrvDelta >= 0 },
-                  { label: "Rusthartslag", value: hr ?? "—", unit: hr ? "bpm" : "", sub: `basislijn ${hrBasislijn}`, delta: hrDelta, good: hrDelta != null && hrDelta <= 0 },
-                  { label: "Slaap", value: slaap ?? "—", unit: slaap ? "" : "", sub: slaapUren ? `${slaapUren}u` : "", delta: null, good: null },
-                ].map((m, i) => (
-                  <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3, padding: "14px 10px", borderRadius: T.tileRadius, background: T.subtleFill, alignItems: "center" }}>
-                    <span style={{ font: "600 28px var(--font-fredoka), sans-serif", lineHeight: 1, color: T.text }}>{m.value}<span style={{ font: "700 13px var(--font-nunito), sans-serif", color: T.textSec }}>{m.unit}</span></span>
-                    <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.4 0.02 72)" }}>{m.label}</span>
-                    {m.delta != null && (
-                      <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: m.good ? "oklch(0.5 0.13 162)" : "oklch(0.56 0.13 55)" }}>
-                        {m.delta > 0 ? "+" : ""}{Math.round(m.delta)}
-                      </span>
-                    )}
-                    {m.sub && <span style={{ font: "600 10px var(--font-nunito), sans-serif", color: T.textTert }}>{m.sub}</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
-
-        {filter === 3 && (() => {
-          const ctl = wellenessHuidig ? Math.round(wellenessHuidig.ctl || 0) : null;
-          const atl = wellenessHuidig ? Math.round(wellenessHuidig.atl || 0) : null;
-          const tsbVal = ctl != null && atl != null ? ctl - atl : null;
-          const stKey = getStatus(score);
-          const stObj = STATUS[stKey];
-
-          return (
-            <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "22px 20px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
-              <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>Trainingsbelasting</span>
-              <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-                {[
-                  { label: "Fitheid", sub: "CTL", value: ctl ?? "—", desc: "Langetermijn belasting", color: T.text, key: "ctl" },
-                  { label: "Vermoeidheid", sub: "ATL", value: atl ?? "—", desc: "Kortetermijn belasting", color: T.text, key: "atl" },
-                  { label: "Vorm", sub: "TSB", value: tsbVal != null ? (tsbVal > 0 ? `+${tsbVal}` : tsbVal) : "—", desc: tsbVal != null ? (tsbVal > 5 ? "Uitgerust" : tsbVal >= -10 ? "In balans" : tsbVal >= -20 ? "Vermoeid" : "Overbelast") : "", color: stObj?.dot || T.text, key: "vorm" },
-                ].map((m, i) => (
-                  <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3, padding: "14px 10px", borderRadius: T.tileRadius, background: T.subtleFill, alignItems: "center" }}>
-                    <span style={{ font: "600 28px var(--font-fredoka), sans-serif", lineHeight: 1, color: m.color }}>{m.value}</span>
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.4 0.02 72)" }}>{m.label}</span>
-                      <InfoTooltip metricKey={m.key} />
-                    </div>
-                    <span style={{ font: "700 10px var(--font-nunito), sans-serif", letterSpacing: 0.5, color: T.textTert }}>{m.sub}</span>
-                    {m.desc && <span style={{ font: "600 10px var(--font-nunito), sans-serif", color: T.textTert }}>{m.desc}</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Week strip */}
-        <WeekStrip beschikbaar={beschikbaar} weekSessies={weekSessies} weekSessiesLaden={weekSessiesLaden} onEdit={onEditBeschikbaarheid} />
+        {/* Balance card */}
+        <BalanceRing
+          vandaagInvoer={vandaagInvoer}
+          tsb={tsb}
+          slaapScore={vandaagInvoer?.slaapScore}
+          wellenessHuidig={wellenessHuidig}
+          hrvBasislijn={hrvBasislijn}
+          hrBasislijn={hrBasislijn}
+          checkin={checkin}
+        />
 
         {/* PR teaser */}
         {prTeaser && (
@@ -388,7 +269,7 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
           }
           return (
             <>
-              <SessionCard sessie={eerstvolgende} ftp={ftp} onOpen={onOpenWorkout} />
+              <SessionCard sessie={eerstvolgende} ftp={ftp} onOpen={onOpenWorkout} beschikbaar={beschikbaar} />
               {eerstvolgende?.intervalsEventId && (
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: -10, marginBottom: 16, padding: "0 4px" }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="oklch(0.5 0.13 162)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
