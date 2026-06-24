@@ -624,6 +624,47 @@ export default function Page() {
       }
     }
 
+    // Weekpatroon-validatie: check of elke geraakte week nog variëteit heeft
+    if (gewijzigdeDatums.length > 0 && seizoensplan?.kader) {
+      try {
+        const { valideerWeekpatroon, kiesBesteDagVoorRol, bepaalIntentieVoorRol } = await import("@/lib/sessie/weekpatroon");
+        const seizoenStart = seizoensplan.startdatum ? new Date(seizoensplan.startdatum) : null;
+        const geraakteWeken = new Set();
+        gewijzigdeDatums.forEach(d => {
+          const dt = new Date(d); dt.setDate(dt.getDate() - ((dt.getDay() + 6) % 7));
+          geraakteWeken.add(datumISO(dt));
+        });
+
+        for (const weekStart of geraakteWeken) {
+          const weekEind = new Date(new Date(weekStart).getTime() + 7 * 86400000);
+          const weekSessiesLijst = lokaalSessies.filter(s => s.datum >= weekStart && s.datum < datumISO(weekEind));
+          const dagenSinds = seizoenStart ? (new Date(weekStart) - seizoenStart) / 86400000 : 0;
+          const weekNr = Math.max(1, Math.ceil(dagenSinds / 7) + 1);
+          const kaderWeek = seizoensplan.kader.find(w => w.week === weekNr) || seizoensplan.kader[0];
+
+          const validatie = valideerWeekpatroon(weekSessiesLijst, kaderWeek);
+          if (!validatie.geldig && validatie.ontbrekendeRollen.length > 0) {
+            console.log("[Weekpatroon] Week", weekStart, "mist:", validatie.ontbrekendeRollen);
+            const kandidaat = kiesBesteDagVoorRol(weekSessiesLijst, validatie.ontbrekendeRollen[0], nieuwUren);
+            if (kandidaat) {
+              const nieuweIntentie = bepaalIntentieVoorRol(validatie.ontbrekendeRollen[0], kaderWeek.fase);
+              const oudeSessieMetIntentie = { ...kandidaat, intentie: nieuweIntentie };
+              console.log("[Weekpatroon] Corrigeer", kandidaat.datum, "→", nieuweIntentie.sessietype);
+              const uren = nieuwUren[kandidaat.dag || DAGNAMEN[new Date(kandidaat.datum).getDay()]] || 1.5;
+              const overige = lokaalSessies.filter(s => s.datum !== kandidaat.datum && !s.voltooid);
+              const gecorrigeerd = await genereerSessieDagViaJob(kandidaat.datum, kandidaat.dag || DAGNAMEN[new Date(kandidaat.datum).getDay()], uren, {
+                overigeSessies: overige, oudeSessie: oudeSessieMetIntentie, aanleiding: "weekpatroon_correctie",
+              });
+              if (gecorrigeerd) {
+                lokaalSessies = [...lokaalSessies.filter(s => s.datum !== kandidaat.datum), gecorrigeerd];
+                console.log("[Weekpatroon] Gecorrigeerd:", gecorrigeerd.type, gecorrigeerd.titel);
+              }
+            }
+          }
+        }
+      } catch (e) { console.error("[Weekpatroon] Validatie mislukt:", e); }
+    }
+
     const eindWeekSessies = { ...weekSessies, sessies: lokaalSessies };
     setWeekSessies(eindWeekSessies);
     const eindPlan = { ...seizoensplan, beschikbaarheid: nieuwBeschikbaar, urenPerDag: nieuwUren, weekSessies: eindWeekSessies };

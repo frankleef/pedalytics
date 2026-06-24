@@ -100,7 +100,7 @@ function bouwBlockGroups(segmenten, ftp) {
     const zn = segZoneNr(pct);
     const zoneLabel = zn <= 2 ? "Z" + zn : zn === 3 ? "Tempo" : zn === 4 ? "Drempel" : "VO2max";
     const label = seg.label?.replace(/\s*\d+$/, "") || zoneLabel;
-    const cadans = seg.cadans_rpm && typeof seg.cadans_rpm === "object" && seg.cadans_rpm.max && seg.cadans_rpm.max < 70 ? `${seg.cadans_rpm.min || "?"}–${seg.cadans_rpm.max} rpm` : null;
+    const cadans = seg.cadans_rpm && typeof seg.cadans_rpm === "object" && seg.cadans_rpm.max ? `${seg.cadans_rpm.min || "?"}–${seg.cadans_rpm.max} rpm` : null;
     const duurMin = seg.duur_min || (seg.blokDuurSeconden ? seg.blokDuurSeconden / 60 : 0);
     return { title: label, zone: zn, rpe: segRpeRange(pct), time: segTimeStr(duurMin), watt: segWattRange(seg, ftpW), bg: BLOCK_BG[zn], cadans };
   };

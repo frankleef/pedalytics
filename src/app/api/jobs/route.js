@@ -94,7 +94,7 @@ export async function POST(request) {
         const zones = bouwZonesUitProfiel(params.profiel.ftp, params.profiel.power_zones);
         const piekSprint = await kv.get(`piek_sprint_vermogen:${params.userId || ""}`) || Math.round(params.profiel.ftp * 1.8);
         const verwerkSegmenten = (segs) => (segs || []).map(seg => {
-          if (seg.zone && !seg.vermogenMin) return berekenBlok(seg, zones, params.profiel.ftp, piekSprint);
+          if (seg.zone) return berekenBlok(seg, zones, params.profiel.ftp, piekSprint);
           return seg;
         });
         if (type === "sessieDag" && result.segmenten) {
