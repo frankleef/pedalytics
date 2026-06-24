@@ -1,5 +1,5 @@
 // Service Worker — Pedalytics
-const CACHE_NAME = "pedalytics-v1";
+const CACHE_NAME = "pedalytics-v2";
 const STATIC_ASSETS = ["/", "/manifest.json"];
 
 // Installeren — cache statische assets

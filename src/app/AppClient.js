@@ -76,7 +76,7 @@ export default function Page() {
       }
     };
     navigator.serviceWorker?.addEventListener("message", swHandler);
-    return () => navigator.serviceWorker?.removeEventListener("message", swHandler);
+
     fetch("/api/intervals/profiel").then(r => r.json()).then(d => {
       if (d.success && d.data) {
         setProfiel(p => ({ ...p, ...d.data }));
@@ -105,6 +105,8 @@ export default function Page() {
     }).catch(() => {});
     laadDagelijkseData();
     laadRecenteRitten();
+
+    return () => navigator.serviceWorker?.removeEventListener("message", swHandler);
   }, []);
 
   useEffect(() => {
