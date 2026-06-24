@@ -28,6 +28,9 @@ export async function POST(request) {
 
   console.log(`[Job ${jobId}] Start: type=${type}${type === "sessieDag" ? ` datum=${params.datum} aanleiding=${params.aanleiding || "?"}` : ""}`);
 
+  const laatsteKey = `laatstejob:${type}:${params.datum || "all"}`;
+  await kv.set(laatsteKey, jobId, { ex: 600 });
+
   try {
     // 1. Prompt bouwen
     let promptData;

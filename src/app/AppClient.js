@@ -10,7 +10,7 @@ import SchemaTab from "./components/SchemaTab";
 import PlanGenereren from "./components/PlanGenereren";
 import SeizoensplanOverzicht from "./components/SeizoensplanOverzicht";
 import ProfielScherm from "./components/ProfielScherm";
-import { startJob, pollJob } from "@/lib/jobClient";
+import { startJob, startJobRobuust, pollJob } from "@/lib/jobClient";
 import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
 import LegeKoppelStaat from "./components/LegeKoppelStaat";
 import { demoProfiel, demoSeizoensplan, demoWellness, demoRitten } from "@/lib/demoData";
@@ -458,11 +458,10 @@ export default function Page() {
       const trimDagelijks = (dagelijkseData || []).slice(-7);
       const zevenDagenGeleden = new Date(Date.now() - 7 * 86400000);
       const trimVoortgang = voortgang ? { ritten: (voortgang.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= zevenDagenGeleden) } : null;
-      const job = await startJob("sessieDag", {
+      const sessie = await startJobRobuust("sessieDag", {
         profiel: PROFIEL, wellness: wellenessHuidig, dagelijkseData: trimDagelijks, voortgang: trimVoortgang,
         seizoensplan: { ...seizoensplan, weekSessies: undefined }, overigeSessies: oSessies, datum, dagNaam, uren, oudeSessie: oudeSessie || null, aanleiding,
       });
-      const sessie = job.result || await pollJob(job.jobId, { interval: 5000, timeout: 60000 });
 
       if (oudeSessie?.intervalsEventId) sessie.intervalsEventId = oudeSessie.intervalsEventId;
       try {
