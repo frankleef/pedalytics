@@ -76,7 +76,18 @@ export async function POST(request) {
       }
 
       bestaandeEvents[datumDag] = result.id;
-      resultaten.push({ id: result.id, datum: sessie.datum });
+
+      // TSS ophalen van intervals.icu (berekend op basis van ZWO)
+      let icuTss = result.icu_training_load ?? null;
+      if (icuTss == null && result.id && zwo) {
+        try {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          const evt = await intervalsGet(`/events/${result.id}`, {}, creds);
+          icuTss = evt?.icu_training_load ?? null;
+        } catch {}
+      }
+
+      resultaten.push({ id: result.id, datum: sessie.datum, icu_training_load: icuTss });
     }
 
     return NextResponse.json({

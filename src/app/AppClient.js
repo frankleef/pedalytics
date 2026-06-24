@@ -420,7 +420,7 @@ export default function Page() {
         try {
           const syncResp = await fetch("/api/intervals/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessies: nieuweSessies, ftp: PROFIEL.ftp }) });
           const syncData = await syncResp.json();
-          if (syncData.success && syncData.data) syncData.data.forEach(evt => { const s = nieuweSessies.find(s => s.datum === evt.datum); if (s) s.intervalsEventId = evt.id; });
+          if (syncData.success && syncData.data) syncData.data.forEach(evt => { const s = nieuweSessies.find(s => s.datum === evt.datum); if (s) { s.intervalsEventId = evt.id; if (evt.icu_training_load) { s.tss = evt.icu_training_load; s.tss_bron = "intervals_icu"; } } });
         } catch (e) { console.error("Intervals.icu sync:", e); }
       }
 
@@ -468,7 +468,7 @@ export default function Page() {
       try {
         const syncResp = await fetch("/api/intervals/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessies: [sessie], ftp: PROFIEL.ftp }) });
         const syncData = await syncResp.json();
-        if (syncData.success && syncData.data?.[0]) sessie.intervalsEventId = syncData.data[0].id;
+        if (syncData.success && syncData.data?.[0]) { sessie.intervalsEventId = syncData.data[0].id; if (syncData.data[0].icu_training_load) { sessie.tss = syncData.data[0].icu_training_load; sessie.tss_bron = "intervals_icu"; } }
       } catch {}
 
       return sessie;

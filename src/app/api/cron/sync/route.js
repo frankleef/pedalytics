@@ -36,6 +36,35 @@ export async function POST(request) {
         if (!encKey || !athleteId) continue;
 
         const apiKey = decrypt(encKey);
+
+        // Eenmalige TSS-migratie: ophalen van icu_training_load voor bestaande events
+        const tssMigratieKey = `migratie:tss-bron:${userId}`;
+        if (!(await kv.get(tssMigratieKey))) {
+          try {
+            const planKey = `${userId}:seizoensplan`;
+            const plan = await kv.get(planKey);
+            const sessies = plan?.weekSessies?.sessies || [];
+            let bijgewerkt = 0;
+            for (const s of sessies) {
+              if (!s.intervalsEventId || s.tss_bron === "intervals_icu" || s.voltooid) continue;
+              try {
+                const evt = await intervalsGet(`/events/${s.intervalsEventId}`, {}, { apiKey, athleteId });
+                if (evt?.icu_training_load) {
+                  s.tss = evt.icu_training_load;
+                  s.tss_bron = "intervals_icu";
+                  bijgewerkt++;
+                }
+                await new Promise(r => setTimeout(r, 100));
+              } catch {}
+            }
+            if (bijgewerkt > 0) {
+              await kv.set(planKey, plan);
+              console.log(`[tss-migratie] ${bijgewerkt} sessies bijgewerkt voor ${userId}`);
+            }
+            await kv.set(tssMigratieKey, true, { ex: 365 * 86400 });
+          } catch (e) { console.warn(`[tss-migratie] mislukt voor ${userId}:`, e.message); }
+        }
+
         const lastActivity = await kv.get(`user:${userId}:last_activity`);
         const oldest = lastActivity?.datum_iso || datumOffset(-3);
 

@@ -123,7 +123,13 @@ export async function POST(request) {
               ...(zwo ? { file_contents: zwo, file_type: "zwo" } : {}),
             };
             const result = await intervalsPost("/events", eventBody, creds);
-            if (result.id) sessie.intervalsEventId = result.id;
+            if (result.id) {
+              sessie.intervalsEventId = result.id;
+              if (result.icu_training_load) {
+                sessie.tss = result.icu_training_load;
+                sessie.tss_bron = "intervals_icu";
+              }
+            }
           } catch (e) {
             console.warn(`[sessies-aanvullen] Intervals sync mislukt voor ${datum}:`, e.message);
           }
