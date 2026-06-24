@@ -1,69 +1,15 @@
 "use client";
 import { useState, useEffect } from "react";
 import { T } from "../designTokens";
-import InfoTooltip from "./InfoTooltip";
 import SharedHeader from "./SharedHeader";
-import TrainingsCheckKaart from "./TrainingsCheckKaart";
-import HerstelSignalenKaart from "./HerstelSignalenKaart";
+import InfoTooltip from "./InfoTooltip";
 import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 import { datumISO } from "@/lib/datum";
-import { ResponsiveContainer, ComposedChart, LineChart, BarChart, Line, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ReferenceArea, Cell } from "recharts";
+import { ResponsiveContainer, ComposedChart, LineChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ReferenceArea } from "recharts";
 
 const CARD = { background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 18px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 };
-const EYEBROW = { font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" };
+const EYEBROW = { font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.3, color: "oklch(0.62 0.015 75)", textTransform: "uppercase" };
 const TICK = { fontSize: 9, fontFamily: "var(--font-nunito), sans-serif", fill: T.textTert };
-
-function LegeStaat({ titel, wekenNodig = 8, wekenVerzameld = 0 }) {
-  const pct = wekenNodig > 0 ? Math.min(100, Math.round((wekenVerzameld / wekenNodig) * 100)) : 0;
-  return (
-    <div style={{ ...CARD, minHeight: 200, display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <span style={EYEBROW}>{titel}</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 999, background: "oklch(0.94 0.02 230)" }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "oklch(0.6 0.06 230)" }} />
-          <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.45 0.04 230)" }}>In opbouw</span>
-        </div>
-      </div>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: "10px 0 16px" }}>
-        <div style={{ width: 48, height: 48, borderRadius: 16, background: "oklch(0.94 0.03 230)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 14.5l4-7 3.5 4.5L15 6l5 8.5" stroke="oklch(0.6 0.06 230)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        </div>
-        <span style={{ font: "700 16px var(--font-nunito), sans-serif", color: T.text }}>Nog te weinig data</span>
-        <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec, textAlign: "center", maxWidth: 260 }}>
-          Nog {wekenNodig - wekenVerzameld} {wekenNodig - wekenVerzameld === 1 ? "week" : "weken"} trainingsdata nodig voor een betrouwbare trend.
-        </span>
-      </div>
-      <div>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-          <span style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textTert }}>{wekenVerzameld} van de {wekenNodig} weken verzameld</span>
-          <span style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textTert }}>{pct}%</span>
-        </div>
-        <div style={{ height: 6, borderRadius: 999, background: "oklch(0.93 0.012 84)", overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${pct}%`, borderRadius: 999, background: T.gradient }} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// CP-model: P(t) = CP + W'/t. Fit via lineaire regressie op P = CP + W' * (1/t).
-function fitCPModel(punten) {
-  const geldig = punten.filter(p => p.watt > 0 && p.sec >= 120);
-  if (geldig.length < 3) return null;
-  const n = geldig.length;
-  const xs = geldig.map(p => 1 / p.sec);
-  const ys = geldig.map(p => p.watt);
-  const sumX = xs.reduce((s, x) => s + x, 0);
-  const sumY = ys.reduce((s, y) => s + y, 0);
-  const sumXY = xs.reduce((s, x, i) => s + x * ys[i], 0);
-  const sumX2 = xs.reduce((s, x) => s + x * x, 0);
-  const denom = n * sumX2 - sumX * sumX;
-  if (Math.abs(denom) < 1e-10) return null;
-  const wPrime = (n * sumXY - sumX * sumY) / denom;
-  const cp = (sumY - wPrime * sumX) / n;
-  if (cp < 100 || cp > 500 || wPrime < 5000 || wPrime > 50000) return null;
-  return { cp: Math.round(cp), wPrime: Math.round(wPrime), wPrimeKj: +(wPrime / 1000).toFixed(1) };
-}
 
 function ChartTooltipContent({ active, payload, label, suffix = "" }) {
   if (!active || !payload?.length) return null;
@@ -75,640 +21,62 @@ function ChartTooltipContent({ active, payload, label, suffix = "" }) {
   );
 }
 
-export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voortgang, seizoensplan, onOpenProfiel, weekSessies }) {
-  const [periode, setPeriode] = useState(8);
-  const [ftpHistorie, setFtpHistorie] = useState([]);
-  const [powerCurves, setPowerCurves] = useState(null);
-  const [distributieAfwijking, setDistributieAfwijking] = useState(null);
-  const [vo2maxStatus, setVo2maxStatus] = useState(null);
-  const [vo2maxDetails, setVo2maxDetails] = useState(null);
+function seizoensdoelContextlijn({ huidigeFtp, doelFtp, startFtp, weekNr, tijdshorizon, rampRate }) {
+  if (!doelFtp || !startFtp) return null;
+  const restWeken = tijdshorizon - weekNr;
+  const deltaNaarDoel = doelFtp - huidigeFtp;
 
-  useEffect(() => {
-    fetch("/api/ftp-historie").then(r => r.json()).then(d => { if (d.success && d.data) setFtpHistorie(d.data); }).catch(() => {});
-    fetch("/api/distributie").then(r => r.json()).then(d => { if (d.success && d.data) setDistributieAfwijking(d.data); }).catch(() => {});
-    fetch("/api/plan/vo2max-status").then(r => r.json()).then(d => { if (d.success) { setVo2maxStatus(d.status); setVo2maxDetails(d.details); } }).catch(() => {});
-  }, []);
+  if (deltaNaarDoel <= 0) return `Doel bereikt — je bent ${Math.abs(deltaNaarDoel)}W voorbij je doelstelling.`;
+  if (restWeken <= 2) return `Laatste ${restWeken} ${restWeken === 1 ? "week" : "weken"} — je seizoenstest nadert.`;
 
-  useEffect(() => {
-    const dagPeriode = periode * 7;
-    const cur = `${dagPeriode}d`;
-    const prev = `${dagPeriode * 2}d`;
-    fetch(`/api/intervals/power-curves?periode=${cur}&vorige=${prev}`)
-      .then(r => r.json()).then(d => { if (d.success) setPowerCurves(d); }).catch(() => {});
-  }, [periode]);
+  const verwachteFtpWinst = restWeken * (rampRate ?? 0) * 0.8;
+  const verwachtEindresultaat = huidigeFtp + verwachteFtpWinst;
 
-  const ftp = profiel?.ftp || 265;
-  const gewicht = profiel?.gewicht || 87;
-  const wkg = (ftp / gewicht).toFixed(1);
-  const doelType = seizoensplan?.seizoensdoel?.type || "ftp";
-  const grens = new Date(Date.now() - periode * 7 * 86400000);
-  const vorigeGrens = new Date(grens - periode * 7 * 86400000);
+  if (verwachtEindresultaat >= doelFtp) return `Als de huidige trend aanhoudt, kom je uit op ~${Math.round(verwachtEindresultaat)}W — op schema.`;
+  return `Op de huidige koers eindig je rond ${Math.round(verwachtEindresultaat)}W. Nog ${deltaNaarDoel}W te gaan.`;
+}
 
-  const wellnessData = (wellness || []).slice(-periode * 7);
-  const dagPunten = wellnessData.filter(d => d.ctl != null && d.atl != null).map(d => ({
-    datum: (() => { const s = d.id?.split("T")[0] || ""; const [,m,dd] = s.split("-"); return m && dd ? `${dd}/${m}` : s; })(),
-    ctl: Math.round(d.ctl), atl: Math.round(d.atl), tsb: Math.round((d.ctl || 0) - (d.atl || 0)),
-  }));
+function ftpContextlijn({ huidigeFtp, startFtp }) {
+  if (!startFtp) return null;
+  const delta = huidigeFtp - startFtp;
+  const pct = Math.round((delta / startFtp) * 100);
+  if (delta <= 0) return "Je FTP is nog ongewijzigd dit seizoen.";
+  if (delta < 5) return `Kleine stijging van ${delta}W — de basis wordt gelegd.`;
+  return `${pct}% sterker dan bij de start van dit seizoen.`;
+}
 
-  const huidigCtl = wellenessHuidig ? Math.round(wellenessHuidig.ctl || 0) : null;
-  const eersteCtl = dagPunten.length > 0 ? dagPunten[0].ctl : null;
-  const ctlDelta = huidigCtl != null && eersteCtl != null ? huidigCtl - eersteCtl : null;
+function conditieTrendContextlijn({ conditie, ctlDelta4w, aantalWeken }) {
+  const weken = aantalWeken === 1 ? "week" : "weken";
+  if (conditie === "groeit" && ctlDelta4w >= 8) return `Je fitheid stijgt sterk — ${ctlDelta4w} punten in 4 weken. Houd dit vast.`;
+  if (conditie === "groeit") return `Je fitheid stijgt gestaag. ${aantalWeken} ${weken} op rij in de goede richting.`;
+  if (conditie === "lichte_groei") return "Lichte groei — het gaat de goede kant op, maar er is ruimte voor meer stimulus.";
+  if (conditie === "stabiel") return "Je fitheid houdt stand. Meer volume of intensiteit zou de groei aanzwengelen.";
+  if (conditie === "lichte_daling") return "Kleine daling — normaal na een zware periode. Herstel goed en het keert terug.";
+  return "Je fitheid daalt. Controleer je belasting en herstel de komende weken.";
+}
 
-  const pcHuidig = powerCurves?.huidig || [];
-  const pcVorig = powerCurves?.vorig || [];
-  const cpModel = fitCPModel(pcHuidig);
-  const pcData = pcHuidig.map((p, i) => {
-    const d = { label: p.label, sec: p.sec, nu: p.watt || null, vorig: pcVorig[i]?.watt || null };
-    if (cpModel && p.sec >= 60) d.cpModel = Math.round(cpModel.cp + cpModel.wPrime / p.sec);
-    return d;
-  }).filter(d => d.nu || d.vorig);
+function aerobeEfficiëntieContextlijn({ mediaan, trend }) {
+  if (mediaan === null) return "Rijd meer Z2-ritten van >45 min om je aerobe efficiëntie te meten.";
+  if (mediaan < 3) return "Uitstekende aerobe efficiëntie — je hart doet minimale extra moeite naarmate de rit vordert.";
+  if (mediaan < 5 && trend === "dalend") return "Goede efficiëntie en nog aan het verbeteren — je Z2-basis wordt sterker.";
+  if (mediaan < 5) return "Goede aerobe efficiëntie. Consistent Z2 rijden houdt dit op peil.";
+  if (mediaan < 7 && trend === "dalend") return "Nog ruimte voor verbetering, maar de trend is goed — je lichaam past zich aan.";
+  if (mediaan >= 7) return "Verhoogde decoupling — meer Z2-volume helpt de aerobe basis te versterken.";
+  return `Je aerobe efficiëntie is ${trend === "dalend" ? "aan het verbeteren" : trend === "stijgend" ? "aan het verslechteren" : "stabiel"}.`;
+}
 
-  const highlights = [
-    { sec: 5, titel: "Sprint", fallback: 15 },
-    { sec: 60, titel: "Kort", fallback: 180 },
-    { sec: 300, titel: "Duur", fallback: 600 },
-  ].map(h => {
-    const punt = pcHuidig.find(p => p.sec === h.sec && p.watt > 0) || pcHuidig.find(p => p.sec === h.fallback && p.watt > 0);
-    return punt ? { ...punt, titel: h.titel } : { titel: h.titel, label: "", watt: 0 };
-  });
+function planNalevingContextlijn(pct) {
+  if (pct >= 90) return "Uitstekende discipline — je mist bijna geen sessies.";
+  if (pct >= 80) return "Goed. Minder dan één sessie per week gemist dit seizoen.";
+  if (pct >= 65) return "Redelijk — meer consistentie zou de groei versnellen.";
+  return "Veel gemiste sessies. Consistentie is de grootste hefboom voor verbetering.";
+}
 
-  const hrvPunten = wellnessData.filter(d => d.hrv).map(d => ({ datum: (() => { const s = d.id?.split("T")[0] || ""; const [,m,dd] = s.split("-"); return m && dd ? `${dd}/${m}` : s; })(), hrv: d.hrv }));
-  const hrvBasislijn = profiel?.hrv_basislijn || (hrvPunten.length > 0 ? Math.round(hrvPunten.reduce((s, p) => s + p.hrv, 0) / hrvPunten.length) : 58);
-
-  // Polarisatie
-  const polWekenMap = {};
-  (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens).forEach(r => {
-    const zt = r.zoneTijden;
-    if (!zt || !Array.isArray(zt) || zt.length === 0) return;
-    const d = new Date(r.datum_iso); const ma = new Date(d); ma.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-    const wk = datumISO(ma);
-    if (!polWekenMap[wk]) polWekenMap[wk] = { z12secs: 0, z35secs: 0 };
-    zt.forEach(z => {
-      if (z.id === "Z1" || z.id === "Z2") polWekenMap[wk].z12secs += z.secs || 0;
-      else polWekenMap[wk].z35secs += z.secs || 0;
-    });
-  });
-  const polWeken = Object.entries(polWekenMap).sort(([a], [b]) => a.localeCompare(b)).slice(-10).map(([w, d]) => {
-    const [,m,dd] = w.split("-");
-    const totaal = d.z12secs + d.z35secs;
-    return { week: `${dd}/${m}`, z2: totaal > 0 ? Math.round((d.z12secs / totaal) * 100) : 0, z35: totaal > 0 ? Math.round((d.z35secs / totaal) * 100) : 0 };
-  });
-  const polGem = polWeken.length > 0 ? Math.round(polWeken.reduce((s, w) => s + w.z2, 0) / polWeken.length) : 0;
-
-  // Plan-naleving
-  const planWekenMap = {};
-  const startDatum = seizoensplan?.startdatum;
-  const planSessies = (weekSessies?.sessies || []).filter(s => s.datum && new Date(s.datum) >= grens && !s.voltooid && (!startDatum || s.datum >= startDatum));
-  const planRitten = (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens);
-  planSessies.forEach(s => {
-    const d = new Date(s.datum); const ma = new Date(d); ma.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-    const wk = datumISO(ma);
-    if (!planWekenMap[wk]) planWekenMap[wk] = { matched: 0, deviated: 0, missed: 0, totaal: 0 };
-    const rit = planRitten.find(r => r.datum_iso === s.datum);
-    if (rit) { const cls = classificeerRit(rit, ftp); ritMatchesSessie(cls, s.type, rit, s) ? planWekenMap[wk].matched++ : planWekenMap[wk].deviated++; }
-    else if (new Date(s.datum) < new Date()) planWekenMap[wk].missed++;
-    planWekenMap[wk].totaal++;
-  });
-  const planWeken = Object.entries(planWekenMap).sort(([a], [b]) => a.localeCompare(b)).slice(-10).map(([w, d]) => ({ week: (() => { const [,m,d] = w.split("-"); return `${d}/${m}`; })(), ...d, pct: d.totaal > 0 ? Math.round((d.matched / d.totaal) * 100) : 0 }));
-  const planGem = planWeken.length > 0 ? Math.round(planWeken.reduce((s, w) => s + w.pct, 0) / planWeken.length) : 0;
-
-  // Seizoensdoel-perspectief
-  const kader = seizoensplan?.kader || [];
-  const seizoenWeken = seizoensplan?.tijdshorizon_weken || kader.length || 12;
-  const seizoenStart = seizoensplan?.startdatum ? new Date(seizoensplan.startdatum) : null;
-  const wekenVerstreken = seizoenStart ? Math.max(0, Math.floor((Date.now() - seizoenStart.getTime()) / (7 * 86400000))) : 0;
-  const wekenOver = Math.max(0, seizoenWeken - wekenVerstreken);
-  const totaalTssDoel = kader.reduce((s, w) => s + (w.tss_doel || 0), 0);
-  const totaalTssWerkelijk = (voortgang?.ritten || []).filter(r => r.datum_iso && seizoenStart && new Date(r.datum_iso) >= seizoenStart).reduce((s, r) => s + (r.tss || 0), 0);
-  const tssPct = totaalTssDoel > 0 ? Math.min(100, Math.round((totaalTssWerkelijk / totaalTssDoel) * 100)) : 0;
-
-  // Primaire doel-indicator data
-  const doelIndicatorData = (() => {
-    const ritten = (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens);
-    const weekMap = {};
-    ritten.forEach(r => {
-      const d = new Date(r.datum_iso); const ma = new Date(d); ma.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-      const wk = datumISO(ma);
-      if (!weekMap[wk]) weekMap[wk] = { ritten: [] };
-      weekMap[wk].ritten.push(r);
-    });
-    const weken = Object.entries(weekMap).sort(([a],[b]) => a.localeCompare(b));
-
-    if (doelType === "ftp") {
-      return ftpHistorie.slice(-periode).map(h => {
-        const [,m,d] = h.datum.split("-");
-        return { datum: `${d}/${m}`, waarde: h.ftp };
-      });
-    }
-    if (doelType === "klimmen") {
-      return ftpHistorie.slice(-periode).map(h => {
-        const [,m,d] = h.datum.split("-");
-        return { datum: `${d}/${m}`, waarde: Math.round((h.ftp / gewicht) * 10) / 10 };
-      });
-    }
-    if (doelType === "uithoudingsvermogen") {
-      return weken.map(([wk, d]) => {
-        const [,m,dd] = wk.split("-");
-        const langste = Math.max(...d.ritten.map(r => r.duur_min || 0));
-        return { datum: `${dd}/${m}`, waarde: Math.round(langste / 6) / 10 };
-      });
-    }
-    if (doelType === "sprint") {
-      return weken.map(([wk, d]) => {
-        const [,m,dd] = wk.split("-");
-        const piek = Math.max(...d.ritten.map(r => r.max_watt || 0));
-        return { datum: `${dd}/${m}`, waarde: piek > 0 ? piek : null };
-      }).filter(d => d.waarde);
-    }
-    return [];
-  })();
-
-  const doelIndicatorConfig = {
-    ftp: { titel: "FTP-progressie", eenheid: "W", doelLijn: seizoensplan?.seizoensdoel?.doel_ftp, doelLabel: "Doel", leegTekst: "Nog te weinig FTP-metingen voor een trend." },
-    aerobe_basis: null,
-    klimmen: { titel: "W/kg-progressie", eenheid: "W/kg", doelLijn: seizoensplan?.seizoensdoel?.doel_wkg, doelLabel: "Doel", leegTekst: "Nog te weinig data voor een W/kg-trend." },
-    uithoudingsvermogen: { titel: "Langste rit per week", eenheid: "uur", doelLijn: null, doelLabel: null, leegTekst: "Nog te weinig data — je langste rit per week verschijnt hier zodra er ritten beschikbaar zijn." },
-    sprint: { titel: "Piek-sprintvermogen", eenheid: "W", doelLijn: null, doelLabel: null, leegTekst: "Nog te weinig data — je piek-sprintvermogen verschijnt hier zodra je 3+ ritten met volledige sprint-inspanningen hebt gereden." },
-  }[doelType];
-
-  // Weekuren-trend
-  const weekUrenMap = {};
-  (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens && r.duur_min).forEach(r => {
-    const d = new Date(r.datum_iso); const ma = new Date(d); ma.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-    const wk = datumISO(ma);
-    weekUrenMap[wk] = (weekUrenMap[wk] || 0) + r.duur_min;
-  });
-  const weekUren = Object.entries(weekUrenMap).sort(([a], [b]) => a.localeCompare(b)).slice(-10).map(([w, min]) => {
-    const [,m,dd] = w.split("-"); return { week: `${dd}/${m}`, uren: +(min / 60).toFixed(1) };
-  });
-
-  // Trainingsconsistentie: dagen per week getraind
-  const consWekenMap = {};
-  (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens).forEach(r => {
-    const d = new Date(r.datum_iso); const ma = new Date(d); ma.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-    const wk = datumISO(ma);
-    if (!consWekenMap[wk]) consWekenMap[wk] = new Set();
-    consWekenMap[wk].add(r.datum_iso);
-  });
-  const consWeken = Object.entries(consWekenMap).sort(([a], [b]) => a.localeCompare(b)).slice(-10).map(([w, dagen]) => {
-    const [,m,dd] = w.split("-"); return { week: `${dd}/${m}`, dagen: dagen.size };
-  });
-  const consGem = consWeken.length > 0 ? +(consWeken.reduce((s, w) => s + w.dagen, 0) / consWeken.length).toFixed(1) : 0;
-
-  // RHR-trend
-  const rhrPunten = wellnessData.filter(d => d.restingHR).map(d => ({ datum: (() => { const s = d.id?.split("T")[0] || ""; const [,m,dd] = s.split("-"); return m && dd ? `${dd}/${m}` : s; })(), rhr: Math.round(d.restingHR) }));
-  const rhrBasislijn = profiel?.hr_basislijn ? Math.round(profiel.hr_basislijn) : (rhrPunten.length > 0 ? Math.round(rhrPunten.reduce((s, p) => s + p.rhr, 0) / rhrPunten.length) : 49);
-
-  // Slaap-trend
-  const slaapPunten = wellnessData.filter(d => d.sleepScore).map(d => ({ datum: (() => { const s = d.id?.split("T")[0] || ""; const [,m,dd] = s.split("-"); return m && dd ? `${dd}/${m}` : s; })(), score: d.sleepScore }));
-
-  // PR feed — uit echte power curve data
-  const prs = [{ sec: 5, label: "5s sprint" }, { sec: 60, label: "1 min" }, { sec: 300, label: "5 min" }, { sec: 1200, label: "20 min" }]
-    .map(d => {
-      const nu = pcHuidig.find(p => p.sec === d.sec)?.watt || 0;
-      const was = pcVorig.find(p => p.sec === d.sec)?.watt || 0;
-      if (!nu) return null;
-      const delta = was > 0 ? nu - was : null;
-      return { ...d, watt: nu, delta, isPR: delta != null && delta > 0 };
-    }).filter(Boolean);
-
-  return (
-    <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: T.font, paddingBottom: T.navH + 20 }}>
-      <div style={{ maxWidth: 540, margin: "0 auto", padding: `16px ${T.pad}px 28px` }}>
-        <SharedHeader onAvatarClick={onOpenProfiel} />
-
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <div>
-            <span style={EYEBROW}>Jouw ontwikkeling</span>
-            <h1 style={{ margin: "4px 0 0", font: "800 24px var(--font-nunito), sans-serif", color: T.text }}>Voortgang</h1>
-          </div>
-          <button onClick={() => setPeriode(p => p === 8 ? 6 : p === 6 ? 12 : 8)}
-            style={{ padding: "7px 14px", borderRadius: T.pillRadius, background: T.cardBg, border: `1px solid ${T.cardBorder}`, font: "700 13px var(--font-nunito), sans-serif", color: T.textSec, cursor: "pointer" }}>
-            {periode} weken ▾
-          </button>
-        </div>
-
-        {/* Primaire doel-indicator */}
-        {doelIndicatorConfig && doelIndicatorData.length >= 3 ? (
-          <div style={CARD}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
-              <div>
-                <span style={EYEBROW}>{doelIndicatorConfig.titel}</span>
-                {doelIndicatorData.length > 0 && (
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 4 }}>
-                    <span style={{ font: "600 38px var(--font-fredoka), sans-serif", color: T.text }}>{doelIndicatorData[doelIndicatorData.length - 1]?.waarde}</span>
-                    <span style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.textSec }}>{doelIndicatorConfig.eenheid}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-            <ResponsiveContainer width="100%" height={100}>
-              <LineChart data={doelIndicatorData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.012 82)" vertical={false} />
-                <XAxis dataKey="datum" tick={TICK} tickLine={false} axisLine={false} />
-                <YAxis tick={TICK} tickLine={false} axisLine={false} domain={["auto", "auto"]} />
-                {doelIndicatorConfig.doelLijn && (
-                  <ReferenceLine y={doelIndicatorConfig.doelLijn} stroke="oklch(0.6 0.13 165)" strokeDasharray="4 4"
-                    label={{ value: `${doelIndicatorConfig.doelLabel} ${doelIndicatorConfig.doelLijn}`, position: "right", style: { font: "700 9px var(--font-nunito), sans-serif", fill: "oklch(0.5 0.13 165)" } }} />
-                )}
-                <Line type="monotone" dataKey="waarde" stroke="oklch(0.64 0.14 248)" strokeWidth={3} dot={{ r: 4, fill: "oklch(0.64 0.14 248)" }} name={doelIndicatorConfig.titel} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        ) : doelIndicatorConfig ? (
-          <LegeStaat titel={doelIndicatorConfig.titel} wekenNodig={4} wekenVerzameld={doelIndicatorData.length} />
-        ) : null}
-
-        {/* VO2max suggestiekaart */}
-        {vo2maxStatus === "getoond" && (
-          <div style={{ background: "oklch(0.345 0.035 245)", borderRadius: T.cardRadius, padding: "22px 22px 24px", boxShadow: "0 6px 22px rgba(20,20,40,0.18)", marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-              <div style={{ width: 24, height: 24, borderRadius: 8, background: T.gradient, display: "flex", alignItems: "center", justifyContent: "center", font: "700 13px var(--font-fredoka), sans-serif", color: "oklch(0.2 0.03 245)" }}>P</div>
-              <span style={{ font: "800 11.5px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: "oklch(0.74 0.05 200)" }}>INZICHT</span>
-            </div>
-            <p style={{ margin: "0 0 18px", font: "600 15px/1.55 var(--font-nunito), sans-serif", color: "oklch(0.95 0.012 200)" }}>
-              Je drempeltraining zit mogelijk aan zijn plafond. Je FTP is de afgelopen weken nauwelijks gestegen, terwijl je herstel goed is en je plan goed hebt nageleefd. Dit kan betekenen dat je VO2max nu de beperkende factor is.
-            </p>
-            <p style={{ margin: "0 0 18px", font: "600 13.5px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.78 0.04 200)" }}>
-              Wil je VO2max-intervallen toevoegen aan je plan? Ze vervangen één lichte sessie per week in de drempelfase.
-            </p>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={async () => {
-                try {
-                  const resp = await fetch("/api/plan/vo2max-toevoegen", { method: "POST" });
-                  if (resp.ok) { setVo2maxStatus("geaccepteerd"); setVo2maxDetails({ vo2max_toegevoegd_op: new Date().toISOString() }); }
-                } catch {}
-              }} style={{ flex: 1, padding: 14, borderRadius: T.pillRadius, border: "none", background: T.gradient, color: "oklch(0.15 0.03 245)", font: "800 14.5px var(--font-nunito), sans-serif", cursor: "pointer" }}>
-                Ja, voeg toe
-              </button>
-              <button onClick={async () => {
-                try {
-                  await fetch("/api/plan/vo2max-afwijzen", { method: "POST" });
-                  setVo2maxStatus("afgewezen");
-                } catch {}
-              }} style={{ flex: 1, padding: 14, borderRadius: T.pillRadius, border: "1.5px solid oklch(0.5 0.03 220)", background: "transparent", color: "oklch(0.78 0.04 200)", font: "800 14.5px var(--font-nunito), sans-serif", cursor: "pointer" }}>
-                Nee, later
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Herstel-prioriteit informatiekaart */}
-        {vo2maxStatus === "getoond" && vo2maxDetails?.reden === "herstel_prioriteit" && (
-          <div style={{ background: "oklch(0.345 0.035 245)", borderRadius: T.cardRadius, padding: "22px 22px 24px", boxShadow: "0 6px 22px rgba(20,20,40,0.18)", marginBottom: 16 }}>
-            <span style={{ font: "800 11.5px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: "oklch(0.74 0.05 200)" }}>INZICHT</span>
-            <p style={{ margin: "10px 0 0", font: "600 14px/1.55 var(--font-nunito), sans-serif", color: "oklch(0.95 0.012 200)" }}>
-              Je FTP-progressie lijkt te stagneren, maar je hersteldata wijzen erop dat je lichaam nog herstelt. Focus eerst op herstel voordat je de belasting verhoogt.
-            </p>
-          </div>
-        )}
-
-        {/* VO2max actief chip */}
-        {vo2maxStatus === "geaccepteerd" && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 999, background: "oklch(0.94 0.05 200)", marginBottom: 16 }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "oklch(0.6 0.13 165)" }} />
-            <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: "oklch(0.38 0.06 220)" }}>
-              VO2max-intervallen actief{vo2maxDetails?.vo2max_toegevoegd_op ? ` vanaf ${vo2maxDetails.vo2max_toegevoegd_op.slice(0, 10)}` : ""}
-            </span>
-          </div>
-        )}
-
-        {/* Hero: CTL/ATL/TSB */}
-        {dagPunten.length >= 3 && (
-          <div style={CARD}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
-              <div>
-                <span style={EYEBROW}>Fitheid & vermoeidheid</span>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 4 }}>
-                  {huidigCtl != null && <span style={{ font: "600 38px var(--font-fredoka), sans-serif", color: T.text }}>{huidigCtl}</span>}
-                  {ctlDelta != null && <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: ctlDelta >= 0 ? "#2F9468" : "#9C5848" }}>CTL {ctlDelta >= 0 ? "+" : ""}{ctlDelta} / {periode}wk</span>}
-                </div>
-              </div>
-            </div>
-            <ResponsiveContainer width="100%" height={130}>
-              <ComposedChart data={dagPunten} margin={{ top: 5, right: 0, bottom: 0, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.012 82)" vertical={false} />
-                <XAxis dataKey="datum" tick={TICK} tickLine={false} axisLine={false} interval={Math.max(1, Math.floor(dagPunten.length / 6))} />
-                <YAxis tick={TICK} tickLine={false} axisLine={false} domain={["auto", "auto"]} />
-                <Tooltip content={<ChartTooltipContent />} />
-                <Area dataKey="ctl" stroke="none" fill="oklch(0.79 0.14 168)" fillOpacity={0.15} />
-                <Line dataKey="ctl" stroke="oklch(0.64 0.14 248)" strokeWidth={5} dot={false} name="CTL" />
-                <Line dataKey="atl" stroke="oklch(0.58 0.02 75)" strokeWidth={2} dot={false} name="ATL" />
-              </ComposedChart>
-            </ResponsiveContainer>
-            <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 18, height: 5, borderRadius: 3, background: "oklch(0.64 0.14 248)" }} /><span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>CTL</span><InfoTooltip metricKey="ctl" /></div>
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 18, height: 2, background: "oklch(0.58 0.02 75)" }} /><span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>ATL</span><InfoTooltip metricKey="atl" /></div>
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 12, height: 12, borderRadius: 3, background: "oklch(0.79 0.14 168)", opacity: 0.3 }} /><span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>Vorm</span><InfoTooltip metricKey="vorm" /></div>
-            </div>
-          </div>
-        )}
-
-        {/* FTP card */}
-        <div style={{ ...CARD, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 22px" }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={EYEBROW}>Huidige FTP</span><InfoTooltip metricKey="ftp" /></div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 4 }}>
-              <span style={{ font: "600 56px var(--font-fredoka), sans-serif", lineHeight: 1, color: T.text }}>{ftp}</span>
-              <span style={{ font: "600 20px var(--font-fredoka), sans-serif", color: T.textSec }}>W</span>
-            </div>
-          </div>
-          <span style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.textSec }}>{wkg} W/kg</span>
-        </div>
-
-        {/* FTP-progressie */}
-        {ftpHistorie.length >= 2 && (() => {
-          const grensD = new Date(Date.now() - periode * 7 * 86400000);
-          const punten = ftpHistorie.filter(h => new Date(h.datum) >= grensD).map(h => {
-            const [,m,d] = h.datum.split("-"); return { datum: `${d}/${m}`, ftp: h.ftp };
-          });
-          if (punten.length < 2) return null;
-          const doelFtp = seizoensplan?.streefwaarde ? (() => {
-            const m = seizoensplan.streefwaarde.match(/(\d+)\s*[-–]\s*(\d+)\s*W/i);
-            return m ? Math.max(Number(m[1]), Number(m[2])) : null;
-          })() : null;
-          const startFtp = punten[0].ftp;
-          const delta = punten[punten.length - 1].ftp - startFtp;
-
-          return (
-            <div style={CARD}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={EYEBROW}>FTP progressie</span><InfoTooltip metricKey="ftp" /></div>
-                <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: delta >= 0 ? "#2F9468" : "#9C5848" }}>{delta >= 0 ? "+" : ""}{delta}W</span>
-              </div>
-              <ResponsiveContainer width="100%" height={100}>
-                <LineChart data={punten} margin={{ top: 5, right: 0, bottom: 0, left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.012 82)" vertical={false} />
-                  <XAxis dataKey="datum" tick={TICK} tickLine={false} axisLine={false} />
-                  <YAxis tick={TICK} tickLine={false} axisLine={false} domain={["auto", "auto"]} />
-                  <Tooltip content={<ChartTooltipContent suffix="W" />} />
-                  {doelFtp && <ReferenceLine y={doelFtp} stroke="oklch(0.6 0.13 165)" strokeDasharray="4 4" strokeOpacity={0.5} label={{ value: `Doel ${doelFtp}W`, position: "right", style: { font: "600 8px var(--font-nunito), sans-serif", fill: "oklch(0.6 0.13 165)" } }} />}
-                  <Line dataKey="ftp" stroke="oklch(0.64 0.14 248)" strokeWidth={3.5} dot={{ fill: "oklch(0.64 0.14 248)", r: 4 }} name="FTP" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          );
-        })()}
-
-        {/* Laag 2: Trainingscheck */}
-        <TrainingsCheckKaart polGem={polGem} planGem={planGem} planWeken={planWeken} seizoensplan={seizoensplan} voortgang={voortgang} />
-
-        {/* Laag 2b: Herstel & signalen */}
-        <HerstelSignalenKaart dagelijkseData={wellnessData} decouplingPunten={[]} />
-
-        {/* Laag 3: Verdieping */}
-        {/* Power curve */}
-        {pcData.length >= 2 && (
-          <div style={CARD}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <div><span style={EYEBROW}>Power curve</span><div style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec, marginTop: 2 }}>{periode * 7} dagen</div></div>
-            </div>
-            <ResponsiveContainer width="100%" height={120}>
-              <LineChart data={pcData} margin={{ top: 5, right: 0, bottom: 0, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.012 82)" vertical={false} />
-                <XAxis dataKey="label" tick={TICK} tickLine={false} axisLine={false} />
-                <YAxis tick={TICK} tickLine={false} axisLine={false} domain={["auto", "auto"]} />
-                <Tooltip content={<ChartTooltipContent suffix="W" />} />
-                {cpModel && <Line dataKey="cpModel" stroke="oklch(0.56 0.12 285)" strokeWidth={1.6} strokeDasharray="1.5 5" dot={false} name="CP-model" connectNulls />}
-                <Line dataKey="vorig" stroke="oklch(0.58 0.02 75)" strokeWidth={2} strokeDasharray="4 4" dot={false} name="Vorig" connectNulls />
-                <Line dataKey="nu" stroke="oklch(0.64 0.14 248)" strokeWidth={4} dot={false} name="Nu" connectNulls />
-              </LineChart>
-            </ResponsiveContainer>
-            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-              {highlights.map((p, i) => (
-                <div key={i} style={{ flex: 1, background: T.subtleFill, borderRadius: 14, padding: "10px 12px", textAlign: "center" }}>
-                  <div style={{ font: "600 22px var(--font-fredoka), sans-serif", color: p.watt > 0 ? T.text : T.textTert }}>{p.watt > 0 ? <>{p.watt}<span style={{ font: "600 12px var(--font-fredoka), sans-serif", color: T.textSec }}>w</span></> : "—"}</div>
-                  <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textSec }}>{p.titel}{p.label ? ` · ${p.label}` : ""}</div>
-                </div>
-              ))}
-            </div>
-            {cpModel && (
-              <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.divider}` }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <div style={{ width: 14, height: 0, borderTop: "1.6px dashed oklch(0.56 0.12 285)" }} />
-                  <span style={{ font: "800 10px var(--font-nunito), sans-serif", letterSpacing: 0.8, color: T.textTert }}>CP-MODEL</span>
-                </div>
-                <span style={{ font: "600 14px var(--font-fredoka), sans-serif", color: T.text }}>{cpModel.cp}<span style={{ font: "700 10px var(--font-nunito), sans-serif", color: T.textSec }}>W CP</span></span>
-                <span style={{ font: "600 14px var(--font-fredoka), sans-serif", color: T.text }}>{cpModel.wPrimeKj}<span style={{ font: "700 10px var(--font-nunito), sans-serif", color: T.textSec }}>kJ W′</span></span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* HRV trend */}
-        {hrvPunten.length < 5 && <LegeStaat titel="HRV trend" wekenNodig={4} wekenVerzameld={Math.floor(hrvPunten.length / 7)} />}
-        {hrvPunten.length >= 5 && (
-          <div style={CARD}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <span style={EYEBROW}>HRV trend</span>
-              <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>basislijn {hrvBasislijn}ms</span>
-            </div>
-            <ResponsiveContainer width="100%" height={100}>
-              <LineChart data={hrvPunten} margin={{ top: 5, right: 0, bottom: 0, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.012 82)" vertical={false} />
-                <XAxis dataKey="datum" tick={TICK} tickLine={false} axisLine={false} interval={Math.max(1, Math.floor(hrvPunten.length / 6))} />
-                <YAxis tick={TICK} tickLine={false} axisLine={false} domain={["auto", "auto"]} />
-                <Tooltip content={<ChartTooltipContent suffix="ms" />} />
-                <ReferenceLine y={hrvBasislijn} stroke="oklch(0.64 0.14 248)" strokeDasharray="4 4" strokeOpacity={0.5} />
-                <Line dataKey="hrv" stroke="oklch(0.64 0.12 280)" strokeWidth={2.5} dot={false} name="HRV" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-
-        {/* Polarisatie */}
-        {polWeken.length >= 2 && (
-          <div style={CARD}>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                <span style={{ ...EYEBROW, fontSize: 10 }}>Polarisatie — details</span>
-                <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>80% rustig, 20% pittig</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: T.subtleFill }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: polGem >= 75 ? "oklch(0.6 0.13 165)" : "oklch(0.72 0.13 70)" }} />
-                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.4 0.02 72)" }}>{polGem >= 75 ? "Op koers" : "Let op"}</span>
-              </div>
-            </div>
-            <ResponsiveContainer width="100%" height={polWeken.length * 21 + 10}>
-              <BarChart data={polWeken} layout="vertical" margin={{ top: 0, right: 4, bottom: 0, left: 0 }} barSize={12}>
-                <XAxis type="number" domain={[0, 100]} hide />
-                <YAxis type="category" dataKey="week" tick={TICK} tickLine={false} axisLine={false} width={36} />
-                <Tooltip content={<ChartTooltipContent suffix="%" />} />
-                <ReferenceLine x={80} stroke="oklch(0.45 0.02 70)" strokeWidth={1.5} strokeDasharray="3 3" label={{ value: "80%", position: "top", style: { font: "800 9px var(--font-nunito), sans-serif", fill: "oklch(0.45 0.02 70)" } }} />
-                <Bar dataKey="z2" stackId="pol" name="Z1–Z2" fill="oklch(0.8 0.07 232)" radius={[6, 0, 0, 6]} />
-                <Bar dataKey="z35" stackId="pol" name="Z3–Z5" fill="oklch(0.74 0.13 52)" radius={[0, 6, 6, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-            <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${T.divider}` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <div style={{ width: 14, height: 10, borderRadius: 3, background: "oklch(0.8 0.07 232)" }} />
-                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.42 0.02 72)" }}>Z1–Z2 · rustig</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <div style={{ width: 14, height: 10, borderRadius: 3, background: "oklch(0.74 0.13 52)" }} />
-                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.42 0.02 72)" }}>Z3–Z5 · pittig</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <div style={{ width: 14, height: 0, borderTop: "2px dashed oklch(0.45 0.02 70)" }} />
-                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.42 0.02 72)" }}>doel 80%</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Distributie-correctie chip */}
-        {distributieAfwijking && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 999, background: distributieAfwijking.richting === "te_intensief" ? "oklch(0.94 0.05 82)" : "oklch(0.94 0.05 200)", marginBottom: 16 }}>
-            <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: distributieAfwijking.richting === "te_intensief" ? "oklch(0.42 0.06 70)" : "oklch(0.38 0.06 220)" }}>
-              {distributieAfwijking.richting === "te_intensief"
-                ? "↓ We sturen deze week bij: iets meer Z2"
-                : "↑ We sturen deze week bij: iets meer intensiteit"}
-            </span>
-          </div>
-        )}
-
-        {/* Cardiac decoupling */}
-        <DecouplingKaart voortgang={voortgang} ftp={ftp} />
-
-        {/* Plan-naleving */}
-        {planWeken.length >= 2 && (
-          <div style={CARD}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <span style={{ ...EYEBROW, fontSize: 10 }}>Plan-naleving — details</span>
-              <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: planGem >= 70 ? "oklch(0.5 0.13 162)" : "oklch(0.55 0.11 92)" }}>gem. {planGem}%</span>
-            </div>
-            <ResponsiveContainer width="100%" height={80}>
-              <BarChart data={planWeken} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
-                <XAxis dataKey="week" tick={TICK} tickLine={false} axisLine={false} />
-                <YAxis domain={[0, 100]} tick={TICK} tickLine={false} axisLine={false} />
-                <Tooltip content={<ChartTooltipContent suffix="%" />} />
-                <Bar dataKey="pct" radius={[4, 4, 0, 0]} name="Naleving" barSize={20}>
-                  {planWeken.map((w, i) => <Cell key={i} fill={w.matched > 0 ? "oklch(0.6 0.13 165)" : w.deviated > 0 ? "oklch(0.72 0.13 70)" : "oklch(0.72 0.015 75)"} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-            <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-              {[{ label: "Gematcht", color: "oklch(0.6 0.13 165)" }, { label: "Afgeweken", color: "oklch(0.72 0.13 70)" }, { label: "Gemist", color: "oklch(0.72 0.015 75)" }].map((l, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 8, height: 8, borderRadius: 2, background: l.color }} /><span style={{ font: "600 10px var(--font-nunito), sans-serif", color: T.textSec }}>{l.label}</span></div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* PR feed */}
-        {prs.length > 0 && (
-          <div style={CARD}>
-            <span style={{ ...EYEBROW, display: "block", marginBottom: 14 }}>Best efforts</span>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {prs.map((p, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 10, background: p.isPR ? "oklch(0.93 0.05 70)" : T.subtleFill, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <span style={{ fontSize: 16 }}>{p.isPR ? "⭐" : "⚡"}</span>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.text }}>{p.label}</div>
-                    <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec }}>{p.isPR ? "Nieuw PR" : `Beste ${periode} wk`}</div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                    <span style={{ font: "600 20px var(--font-fredoka), sans-serif", color: T.text }}>{p.watt}<span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>w</span></span>
-                    {p.delta != null && (
-                      <span style={{ padding: "3px 8px", borderRadius: 999, font: "800 11px var(--font-nunito), sans-serif",
-                        background: p.delta > 0 ? "oklch(0.93 0.05 162)" : p.delta < 0 ? "oklch(0.95 0.03 35)" : T.subtleFill,
-                        color: p.delta > 0 ? "oklch(0.4 0.13 162)" : p.delta < 0 ? "oklch(0.5 0.12 35)" : T.textSec,
-                      }}>{p.delta > 0 ? "+" : ""}{p.delta}W</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Seizoensdoel-perspectief */}
-        {seizoenStart && kader.length > 0 && (
-          <div style={CARD}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-              <div><span style={EYEBROW}>Seizoensdoel</span><div style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec, marginTop: 3 }}>{seizoensplan?.doel_label || "FTP verhogen"}</div></div>
-              <span style={{ font: "600 15px var(--font-fredoka), sans-serif", color: T.text }}>{wekenOver} <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: T.textSec }}>wk over</span></span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-              <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: T.textSec }}>TSS-voortgang</span>
-              <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}><span style={{ font: "600 19px var(--font-fredoka), sans-serif", color: T.text }}>{Math.round(totaalTssWerkelijk)}</span> / {Math.round(totaalTssDoel)}</span>
-            </div>
-            <div style={{ height: 8, borderRadius: T.pillRadius, background: "oklch(0.93 0.012 84)", overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${tssPct}%`, borderRadius: T.pillRadius, background: T.gradient }} />
-            </div>
-            <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textTert, marginTop: 6, textAlign: "right" }}>{tssPct}% voltooid · week {wekenVerstreken} van {seizoenWeken}</div>
-          </div>
-        )}
-
-
-        {/* Trainingsconsistentie */}
-        {consWeken.length < 2 && <LegeStaat titel="Consistentie" wekenNodig={4} wekenVerzameld={consWeken.length} />}
-        {consWeken.length >= 2 && (
-          <div style={CARD}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <span style={EYEBROW}>Consistentie</span>
-              <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>gem. {consGem} dagen/wk</span>
-            </div>
-            <ResponsiveContainer width="100%" height={80}>
-              <BarChart data={consWeken} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
-                <XAxis dataKey="week" tick={TICK} tickLine={false} axisLine={false} />
-                <YAxis tick={TICK} tickLine={false} axisLine={false} domain={[0, 7]} />
-                <Tooltip content={<ChartTooltipContent suffix=" dagen" />} />
-                <Bar dataKey="dagen" name="Dagen" radius={[4, 4, 0, 0]} barSize={20}>
-                  {consWeken.map((w, i) => <Cell key={i} fill={w.dagen >= 3 ? "oklch(0.6 0.13 165)" : w.dagen >= 2 ? "oklch(0.72 0.13 70)" : "oklch(0.72 0.015 75)"} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-
-        {/* RHR-trend */}
-        {rhrPunten.length < 5 && <LegeStaat titel="Rusthartslag trend" wekenNodig={4} wekenVerzameld={Math.floor(rhrPunten.length / 7)} />}
-        {rhrPunten.length >= 5 && (
-          <div style={CARD}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <span style={EYEBROW}>Rusthartslag trend</span>
-              <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>basislijn {rhrBasislijn} bpm</span>
-            </div>
-            <ResponsiveContainer width="100%" height={100}>
-              <LineChart data={rhrPunten} margin={{ top: 5, right: 0, bottom: 0, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.012 82)" vertical={false} />
-                <XAxis dataKey="datum" tick={TICK} tickLine={false} axisLine={false} interval={Math.max(1, Math.floor(rhrPunten.length / 6))} />
-                <YAxis tick={TICK} tickLine={false} axisLine={false} domain={["auto", "auto"]} />
-                <Tooltip content={<ChartTooltipContent suffix=" bpm" />} />
-                <ReferenceLine y={rhrBasislijn} stroke="oklch(0.55 0.12 35)" strokeDasharray="4 4" strokeOpacity={0.5} />
-                <Line dataKey="rhr" stroke="oklch(0.55 0.12 35)" strokeWidth={2.5} dot={false} name="RHR" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-
-        {/* Slaap-trend */}
-        {slaapPunten.length < 5 && <LegeStaat titel="Slaapscore trend" wekenNodig={4} wekenVerzameld={Math.floor(slaapPunten.length / 7)} />}
-        {slaapPunten.length >= 5 && (
-          <div style={CARD}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <span style={EYEBROW}>Slaapscore trend</span>
-              <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>gem. {Math.round(slaapPunten.reduce((s, p) => s + p.score, 0) / slaapPunten.length)}</span>
-            </div>
-            <ResponsiveContainer width="100%" height={100}>
-              <LineChart data={slaapPunten} margin={{ top: 5, right: 0, bottom: 0, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.012 82)" vertical={false} />
-                <XAxis dataKey="datum" tick={TICK} tickLine={false} axisLine={false} interval={Math.max(1, Math.floor(slaapPunten.length / 6))} />
-                <YAxis tick={TICK} tickLine={false} axisLine={false} domain={[0, 100]} />
-                <Tooltip content={<ChartTooltipContent />} />
-                <ReferenceLine y={70} stroke="oklch(0.64 0.14 248)" strokeDasharray="4 4" strokeOpacity={0.4} label={{ value: "Goed", position: "right", style: { font: "600 8px var(--font-nunito), sans-serif", fill: T.textTert } }} />
-                <Line dataKey="score" stroke="oklch(0.64 0.12 280)" strokeWidth={2.5} dot={false} name="Slaap" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-
-      </div>
-    </div>
-  );
+function polarisatieContextlijn(z1z2Pct) {
+  if (z1z2Pct >= 83) return "Perfect gepolariseerd — je beschermt je aerobe basis goed.";
+  if (z1z2Pct >= 75) return "Goed. Iets meer Z1–Z2 zou de aerobe basis verder versterken.";
+  if (z1z2Pct >= 65) return "Te veel tijd in het midden — meer rustig of meer echt pittig.";
+  return "Te veel intensiteit. Vervang middel-zone ritten door rustig Z2-werk.";
 }
 
 function npClient(watts) {
@@ -725,25 +93,74 @@ function npClient(watts) {
 }
 
 function dcKleur(v) { return v >= 7 ? "oklch(0.55 0.18 25)" : v >= 5 ? "oklch(0.72 0.13 70)" : "oklch(0.45 0.13 162)"; }
-function dcLabel(v) { return v < 0 ? "Geen drift" : v < 5 ? "Uitstekend" : v < 7 ? "Acceptabel" : "Verbetering mogelijk"; }
 
-function DecouplingKaart({ voortgang, ftp: propFtp }) {
-  const [punten, setPunten] = useState([]);
-  const [baseline, setBaseline] = useState(null);
-  const ftpVal = propFtp || 265;
+export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voortgang, seizoensplan, onOpenProfiel, weekSessies }) {
+  const [ftpHistorie, setFtpHistorie] = useState([]);
+  const [conditieData, setConditieData] = useState(null);
+  const [dcPunten, setDcPunten] = useState([]);
 
   useEffect(() => {
-    fetch("/api/plan/decoupling-baseline").then(r => r.json()).then(d => { if (d.success && d.data) setBaseline(d.data); }).catch(() => {});
+    fetch("/api/ftp-historie").then(r => r.json()).then(d => { if (d.success && d.data) setFtpHistorie(d.data); }).catch(() => {});
+    fetch("/api/plan/conditie-score").then(r => r.json()).then(d => { if (d.success && d.data) setConditieData(d.data); }).catch(() => {});
   }, []);
 
+  const ftp = profiel?.ftp || 265;
+  const seizoenStart = seizoensplan?.startdatum ? new Date(seizoensplan.startdatum) : null;
+  const seizoenWeken = seizoensplan?.tijdshorizon_weken || seizoensplan?.kader?.length || 13;
+  const weekNr = seizoenStart ? Math.max(1, Math.ceil((Date.now() - seizoenStart.getTime()) / (7 * 86400000)) || 1) : null;
+
+  const startFtp = (() => {
+    if (seizoensplan?.start_ftp) return seizoensplan.start_ftp;
+    if (ftpHistorie.length > 0 && seizoenStart) {
+      const eersteNaStart = ftpHistorie.find(h => new Date(h.datum) >= seizoenStart);
+      if (eersteNaStart) return eersteNaStart.ftp;
+      return ftpHistorie[0]?.ftp || ftp;
+    }
+    return ftp;
+  })();
+  const doelFtp = seizoensplan?.seizoensdoel?.doel_ftp || null;
+  const rampRate = conditieData?.ctl_ramp ?? null;
+
+  // CTL-grafiek data — seizoenslang, alleen CTL
+  const wellnessData = wellness || [];
+  const dagPunten = wellnessData.filter(d => d.ctl != null).map(d => ({
+    datum: (() => { const s = d.id?.split("T")[0] || ""; const [,m,dd] = s.split("-"); return m && dd ? `${dd}/${m}` : s; })(),
+    ctl: Math.round(d.ctl),
+    tsb: d.atl != null ? Math.round((d.ctl || 0) - (d.atl || 0)) : null,
+  }));
+  const huidigCtl = wellenessHuidig ? Math.round(wellenessHuidig.ctl || 0) : null;
+  const ctlDelta4w = (() => {
+    if (dagPunten.length < 28) return null;
+    const vierWekenGeleden = dagPunten[dagPunten.length - 28]?.ctl;
+    return huidigCtl != null && vierWekenGeleden != null ? huidigCtl - vierWekenGeleden : null;
+  })();
+
+  const conditieLabel = conditieData?.conditie || "onbekend";
+  const aantalWekenGroei = (() => {
+    if (!dagPunten.length || dagPunten.length < 14) return 1;
+    let weken = 0;
+    for (let w = 0; w < 12; w++) {
+      const start = dagPunten.length - (w + 1) * 7;
+      const eind = dagPunten.length - w * 7;
+      if (start < 0) break;
+      const weekStart = dagPunten[start]?.ctl;
+      const weekEind = dagPunten[Math.min(eind, dagPunten.length) - 1]?.ctl;
+      if (weekStart != null && weekEind != null && weekEind >= weekStart) weken++;
+      else break;
+    }
+    return Math.max(1, weken);
+  })();
+
+  // Decoupling
   useEffect(() => {
     if (!voortgang?.ritten) return;
+    const ftpVal = ftp;
     const z2Ritten = voortgang.ritten.filter(r => {
       if (!r.datum_iso || !r.duur_min || r.duur_min < 45) return false;
       const np = r.np || r.wattage;
       return np && (np / ftpVal) >= 0.55 && (np / ftpVal) <= 0.75;
     });
-    if (z2Ritten.length < 2) { setPunten([]); return; }
+    if (z2Ritten.length < 2) { setDcPunten([]); return; }
 
     const fetchStreams = async () => {
       const pts = [];
@@ -771,81 +188,217 @@ function DecouplingKaart({ voortgang, ftp: propFtp }) {
           pts.push({ datum: `${d}/${m}`, decoupling: Math.round(dc * 10) / 10 });
         } catch {}
       }
-      setPunten(pts);
+      setDcPunten(pts);
     };
     fetchStreams();
   }, [voortgang?.ritten]);
 
-  if (punten.length < 2) {
-    return <LegeStaat titel="Aerobe efficiëntie" wekenNodig={4} wekenVerzameld={Math.max(0, punten.length)} />;
-  }
-
-  const waarden = punten.map(p => p.decoupling);
-  const mediaan = (() => { const s = [...waarden].sort((a, b) => a - b); const m = Math.floor(s.length / 2); return s.length % 2 === 0 ? (s[m-1]+s[m])/2 : s[m]; })();
-  const lijnKleur = dcKleur(mediaan);
-
-  const trend = (() => {
-    if (waarden.length < 2) return null;
-    const n = Math.min(3, Math.floor(waarden.length / 2));
-    const vroeg = waarden.slice(0, n), laat = waarden.slice(-n);
-    return (laat.reduce((a,b)=>a+b,0)/laat.length) - (vroeg.reduce((a,b)=>a+b,0)/vroeg.length);
+  const dcWaarden = dcPunten.map(p => p.decoupling);
+  const dcMediaan = dcWaarden.length >= 2 ? (() => { const s = [...dcWaarden].sort((a, b) => a - b); const m = Math.floor(s.length / 2); return s.length % 2 === 0 ? (s[m-1]+s[m])/2 : s[m]; })() : null;
+  const dcTrend = (() => {
+    if (dcWaarden.length < 4) return "stabiel";
+    const n = Math.min(3, Math.floor(dcWaarden.length / 2));
+    const vroeg = dcWaarden.slice(0, n), laat = dcWaarden.slice(-n);
+    const delta = (laat.reduce((a,b)=>a+b,0)/laat.length) - (vroeg.reduce((a,b)=>a+b,0)/vroeg.length);
+    return delta < -1 ? "dalend" : delta > 1 ? "stijgend" : "stabiel";
   })();
 
-  const trendChip = trend != null ? (
-    trend < -1 ? { tekst: "↓ Dalend", kleur: "oklch(0.93 0.045 168)", tKleur: "oklch(0.46 0.12 165)" }
-    : trend > 1 ? { tekst: "↑ Stijgend — let op", kleur: "oklch(0.96 0.05 82)", tKleur: "oklch(0.48 0.1 62)" }
-    : { tekst: "→ Stabiel", kleur: T.subtleFill, tKleur: T.textSec }
-  ) : null;
+  // Plan-naleving
+  const grens = seizoenStart || new Date(Date.now() - 8 * 7 * 86400000);
+  const planSessies = (weekSessies?.sessies || []).filter(s => s.datum && new Date(s.datum) >= grens);
+  const planRitten = (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens);
+  let matched = 0, totaalPlan = 0;
+  planSessies.forEach(s => {
+    if (new Date(s.datum) > new Date()) return;
+    totaalPlan++;
+    const rit = planRitten.find(r => r.datum_iso === s.datum);
+    if (rit) {
+      const cls = classificeerRit(rit, ftp);
+      if (ritMatchesSessie(cls, s.type, rit, s)) matched++;
+    }
+  });
+  const planNaleving = totaalPlan > 0 ? Math.round((matched / totaalPlan) * 100) : 0;
 
-  const laatste = waarden[waarden.length - 1];
-  const trendVsEerste = waarden.length >= 2 ? Math.round((waarden[waarden.length-1] - waarden[0]) * 10) / 10 : null;
+  // Polarisatie
+  const polData = { z12secs: 0, z35secs: 0 };
+  (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens).forEach(r => {
+    const zt = r.zoneTijden;
+    if (!zt || !Array.isArray(zt)) return;
+    zt.forEach(z => {
+      if (z.id === "Z1" || z.id === "Z2") polData.z12secs += z.secs || 0;
+      else polData.z35secs += z.secs || 0;
+    });
+  });
+  const polTotaal = polData.z12secs + polData.z35secs;
+  const z1z2Pct = polTotaal > 0 ? Math.round((polData.z12secs / polTotaal) * 100) : 0;
 
   return (
-    <div style={CARD}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-        <div>
-          <span style={EYEBROW}>Aerobe efficiëntie</span>
-          <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec, marginTop: 2 }}>Cardiac decoupling · per Z2-rit</div>
-        </div>
-        {trendChip && (
-          <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 999, background: trendChip.kleur }}>
-            <span style={{ font: "700 11.5px var(--font-nunito), sans-serif", color: trendChip.tKleur }}>{trendChip.tekst}</span>
+    <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: T.font, paddingBottom: T.navH + 20 }}>
+      <div style={{ maxWidth: 540, margin: "0 auto", padding: `16px ${T.pad}px 28px` }}>
+        <SharedHeader onAvatarClick={onOpenProfiel} />
+
+        {/* Element 1 — Seizoensdoel hero */}
+        {doelFtp && weekNr && (
+          <div style={{ background: "oklch(0.99 0.006 84)", borderRadius: 28, padding: "20px 22px", marginBottom: 16 }}>
+            <span style={EYEBROW}>
+              SEIZOENSDOEL · WEEK {weekNr} VAN {seizoenWeken}
+            </span>
+
+            <div style={{ margin: "12px 0 8px", height: 8, borderRadius: 4, background: "oklch(0.93 0.012 82)" }}>
+              <div style={{
+                height: "100%", borderRadius: 4,
+                width: `${Math.min(100, Math.max(0, ((ftp - startFtp) / (doelFtp - startFtp)) * 100))}%`,
+                background: "linear-gradient(140deg, oklch(0.64 0.14 248), oklch(0.79 0.14 168))",
+              }} />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
+              <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.6 0.02 75)" }}>
+                {startFtp}W start
+              </span>
+              <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: "oklch(0.27 0.02 70)" }}>
+                {ftp}W nu
+              </span>
+              <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.6 0.02 75)" }}>
+                {doelFtp}W doel
+              </span>
+            </div>
+
+            <p style={{ font: "600 13px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.5 0.02 74)", margin: 0 }}>
+              {seizoensdoelContextlijn({ huidigeFtp: ftp, doelFtp, startFtp, weekNr, tijdshorizon: seizoenWeken, rampRate })}
+            </p>
           </div>
         )}
-      </div>
-      <ResponsiveContainer width="100%" height={140}>
-        <LineChart data={punten} margin={{ top: 12, right: 5, bottom: 0, left: -14 }}>
-          <ReferenceArea y1={7} y2={16} fill="oklch(0.96 0.018 25)" fillOpacity={0.5} />
-          <ReferenceArea y1={5} y2={7} fill="oklch(0.97 0.025 75)" fillOpacity={0.5} />
-          <ReferenceArea y1={-6} y2={5} fill="oklch(0.95 0.03 165)" fillOpacity={0.4} />
-          <XAxis dataKey="datum" tick={TICK} tickLine={false} axisLine={false} />
-          <YAxis tick={TICK} tickLine={false} axisLine={false} domain={[-6, 16]} ticks={[-5, 0, 5, 10, 15]} unit="%" />
-          <ReferenceLine y={0} stroke="oklch(0.75 0.01 75)" strokeWidth={1} />
-          <ReferenceLine y={5} stroke="oklch(0.6 0.13 165)" strokeDasharray="4 4" />
-          <ReferenceLine y={7} stroke="oklch(0.72 0.13 70)" strokeDasharray="4 4" />
-          {baseline?.aantalMetingen >= 6 && <ReferenceLine y={baseline.mediaan} stroke="oklch(0.55 0.07 215)" strokeDasharray="2 4" label={{ value: "Jouw gem.", position: "left", style: { font: "700 8px var(--font-nunito), sans-serif", fill: "oklch(0.55 0.07 215)" } }} />}
-          <Line type="monotone" dataKey="decoupling" stroke={lijnKleur} strokeWidth={2.5} dot={{ r: 4, fill: lijnKleur, stroke: "#fff", strokeWidth: 1.5 }} name="Decoupling"
-            label={({ x, y, value }) => <text x={x} y={value >= 0 ? y - 10 : y + 16} textAnchor="middle" style={{ font: "700 10px var(--font-nunito), sans-serif", fill: dcKleur(value) }}>{value < 0 ? `−${Math.abs(value)}` : value}%</text>} />
-        </LineChart>
-      </ResponsiveContainer>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-        <div style={{ flex: 1, padding: "10px 12px", borderRadius: 14, background: T.subtleFill }}>
-          <div style={{ font: "600 20px var(--font-fredoka), sans-serif", color: dcKleur(laatste) }}>{laatste < 0 ? `−${Math.abs(laatste)}` : laatste}%</div>
-          <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textSec }}>{dcLabel(laatste)}</div>
+        {/* Element 2 — FTP-kaart (vereenvoudigd) */}
+        <div style={{ ...CARD, padding: "20px 22px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={EYEBROW}>Huidige FTP</span>
+            <InfoTooltip metricKey="ftp" />
+          </div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 4 }}>
+            <span style={{ font: "600 56px var(--font-fredoka), sans-serif", lineHeight: 1, color: T.text }}>{ftp}</span>
+            <span style={{ font: "600 20px var(--font-fredoka), sans-serif", color: T.textSec }}>W</span>
+          </div>
+          <p style={{ font: "600 13px/1.4 var(--font-nunito), sans-serif", color: "oklch(0.5 0.02 74)", margin: "8px 0 0" }}>
+            {ftpContextlijn({ huidigeFtp: ftp, startFtp })}
+          </p>
         </div>
-        <div style={{ flex: 1, padding: "10px 12px", borderRadius: 14, background: T.subtleFill }}>
-          <div style={{ font: "600 20px var(--font-fredoka), sans-serif", color: dcKleur(mediaan) }}>{mediaan < 0 ? `−${Math.abs(mediaan)}` : Math.round(mediaan * 10) / 10}%</div>
-          <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textSec }}>Mediaan</div>
-        </div>
-        <div style={{ flex: 1, padding: "10px 12px", borderRadius: 14, background: T.subtleFill }}>
-          <div style={{ font: "600 20px var(--font-fredoka), sans-serif", color: trendVsEerste != null && trendVsEerste <= 0 ? "oklch(0.45 0.13 162)" : "oklch(0.72 0.13 70)" }}>{trendVsEerste != null ? (trendVsEerste <= 0 ? `−${Math.abs(trendVsEerste)}` : `+${trendVsEerste}`) : "—"}%</div>
-          <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textSec }}>vs. eerste meting</div>
-        </div>
-      </div>
 
-      <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${T.divider}`, font: "600 12.5px/1.5 var(--font-nunito), sans-serif", color: T.textSec }}>
-        Negatieve waarden zijn goed — je hart en vermogen blijven gekoppeld, ook aan het einde van de rit. Boven 7% is er ruimte om je aerobe basis te versterken.
+        {/* Element 3 — Conditietrend (CTL only) */}
+        {dagPunten.length >= 7 ? (
+          <div style={CARD}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+              <div>
+                <span style={EYEBROW}>Conditietrend</span>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 4 }}>
+                  {huidigCtl != null && <span style={{ font: "600 32px var(--font-fredoka), sans-serif", color: T.text }}>{huidigCtl}</span>}
+                  {ctlDelta4w != null && <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: ctlDelta4w >= 0 ? "#2F9468" : "#9C5848" }}>CTL {ctlDelta4w >= 0 ? "+" : ""}{ctlDelta4w} / 4wk</span>}
+                </div>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={140}>
+              <ComposedChart data={dagPunten} margin={{ top: 5, right: 0, bottom: 0, left: -20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.012 82)" vertical={false} />
+                <XAxis dataKey="datum" tick={TICK} tickLine={false} axisLine={false} interval={Math.max(1, Math.floor(dagPunten.length / 6))} />
+                <YAxis tick={TICK} tickLine={false} axisLine={false} domain={["auto", "auto"]} />
+                <Tooltip content={<ChartTooltipContent />} />
+                <Area dataKey="ctl" stroke="none" fill="oklch(0.79 0.14 168)" fillOpacity={0.15} />
+                <Line dataKey="ctl" stroke="oklch(0.64 0.14 248)" strokeWidth={4} dot={false} name="CTL" />
+              </ComposedChart>
+            </ResponsiveContainer>
+            <div style={{ display: "flex", gap: 16, marginTop: 6 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <div style={{ width: 18, height: 5, borderRadius: 3, background: "oklch(0.64 0.14 248)" }} />
+                <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>CTL (fitheid)</span>
+                <InfoTooltip metricKey="ctl" />
+              </div>
+            </div>
+            <p style={{ font: "600 13px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.5 0.02 74)", margin: "10px 0 0" }}>
+              {conditieTrendContextlijn({ conditie: conditieLabel, ctlDelta4w: ctlDelta4w ?? 0, aantalWeken: aantalWekenGroei })}
+            </p>
+          </div>
+        ) : (
+          <div style={{ ...CARD, padding: "20px 22px" }}>
+            <span style={EYEBROW}>Conditietrend</span>
+            <p style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec, margin: "8px 0 0" }}>
+              Nog te weinig data voor een betrouwbare conditietrend.
+            </p>
+          </div>
+        )}
+
+        {/* Element 4 — Aerobe efficiëntie (decoupling) */}
+        <div style={CARD}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+            <div>
+              <span style={EYEBROW}>Aerobe efficiëntie</span>
+              <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec, marginTop: 2 }}>Cardiac decoupling · Z2-ritten</div>
+            </div>
+            {dcMediaan != null && (
+              <span style={{ font: "600 22px var(--font-fredoka), sans-serif", color: dcKleur(dcMediaan) }}>
+                {dcMediaan < 0 ? `−${Math.abs(dcMediaan)}` : Math.round(dcMediaan * 10) / 10}%
+              </span>
+            )}
+          </div>
+
+          {dcPunten.length >= 2 ? (
+            <>
+              <ResponsiveContainer width="100%" height={80}>
+                <LineChart data={dcPunten} margin={{ top: 8, right: 5, bottom: 0, left: -14 }}>
+                  <ReferenceArea y1={5} y2={16} fill="oklch(0.97 0.025 75)" fillOpacity={0.4} />
+                  <ReferenceArea y1={-6} y2={5} fill="oklch(0.95 0.03 165)" fillOpacity={0.3} />
+                  <XAxis dataKey="datum" tick={TICK} tickLine={false} axisLine={false} />
+                  <YAxis tick={TICK} tickLine={false} axisLine={false} domain={["auto", "auto"]} unit="%" />
+                  <ReferenceLine y={5} stroke="oklch(0.6 0.13 165)" strokeDasharray="4 4" />
+                  <Line type="monotone" dataKey="decoupling" stroke={dcKleur(dcMediaan)} strokeWidth={2.5} dot={{ r: 3, fill: dcKleur(dcMediaan), stroke: "#fff", strokeWidth: 1.5 }} name="Decoupling" />
+                </LineChart>
+              </ResponsiveContainer>
+              <p style={{ font: "600 13px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.5 0.02 74)", margin: "10px 0 0" }}>
+                {aerobeEfficiëntieContextlijn({ mediaan: dcMediaan, trend: dcTrend })}
+              </p>
+            </>
+          ) : (
+            <p style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec, margin: "4px 0 0" }}>
+              Rijd meer Z2-ritten van &gt;45 min om je aerobe efficiëntie te meten.
+            </p>
+          )}
+        </div>
+
+        {/* Element 5 — Trainingsgedrag (plan-naleving + polarisatie) */}
+        <div style={{ background: "oklch(0.99 0.006 84)", borderRadius: 28, padding: "20px 22px", marginBottom: 16 }}>
+          <span style={EYEBROW}>TRAININGSGEDRAG</span>
+
+          {/* Plan-naleving */}
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: "oklch(0.4 0.02 70)" }}>Plan gevolgd</span>
+              <span style={{ font: "600 22px var(--font-fredoka), sans-serif", color: "oklch(0.27 0.02 70)" }}>
+                {totaalPlan > 0 ? `${planNaleving}%` : "–"}
+              </span>
+            </div>
+            <p style={{ font: "600 12.5px/1.4 var(--font-nunito), sans-serif", color: "oklch(0.55 0.02 74)", margin: "4px 0 0" }}>
+              {totaalPlan > 0 ? planNalevingContextlijn(planNaleving) : "Nog geen voltooide sessies om te vergelijken."}
+            </p>
+          </div>
+
+          <div style={{ height: 1, background: "oklch(0.91 0.012 82)", margin: "14px 0" }} />
+
+          {/* Polarisatie */}
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: "oklch(0.4 0.02 70)" }}>Rustig vs. pittig</span>
+              <span style={{ font: "600 22px var(--font-fredoka), sans-serif", color: "oklch(0.27 0.02 70)" }}>
+                {polTotaal > 0 ? (
+                  <>{z1z2Pct}%<span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.6 0.02 75)", marginLeft: 4 }}>Z1–Z2</span></>
+                ) : "–"}
+              </span>
+            </div>
+            <p style={{ font: "600 12.5px/1.4 var(--font-nunito), sans-serif", color: "oklch(0.55 0.02 74)", margin: "4px 0 0" }}>
+              {polTotaal > 0 ? polarisatieContextlijn(z1z2Pct) : "Nog geen zonetijden beschikbaar."}
+            </p>
+          </div>
+        </div>
+
       </div>
     </div>
   );
