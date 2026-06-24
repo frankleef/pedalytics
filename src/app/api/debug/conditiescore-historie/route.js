@@ -9,6 +9,7 @@ import { getKV } from "@/lib/kv";
 export async function GET() {
   try {
     const user = await getSessionUser();
+    if (user?.id !== "u_frank_001") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     const creds = await getIntervalsCredentials(user?.id);
     if (!creds) return NextResponse.json({ error: "Niet gekoppeld" }, { status: 400 });
 
