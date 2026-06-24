@@ -25,13 +25,19 @@ const DOT_KLEUREN = {
   buiten_planperiode: "oklch(0.55 0.07 215)",
 };
 
+function isWatts(val) { return val != null && val > 10; }
+
 function segMidPct(seg) {
-  if (seg.vermogenMin != null && seg.vermogenMax != null) return (seg.vermogenMin + seg.vermogenMax) / 2;
+  if (seg.vermogenMin != null && seg.vermogenMax != null) {
+    if (isWatts(seg.vermogenMin)) return ((seg.vermogenMin + seg.vermogenMax) / 2 / (seg._ftpRef || 265)) * 100;
+    return (seg.vermogenMin + seg.vermogenMax) / 2;
+  }
   return 50;
 }
 
 function segWattRange(seg, ftpW) {
   if (seg.vermogenMin != null && seg.vermogenMax != null) {
+    if (isWatts(seg.vermogenMin)) return `${seg.vermogenMin}–${seg.vermogenMax} W`;
     return `${Math.round(seg.vermogenMin * ftpW / 100)}–${Math.round(seg.vermogenMax * ftpW / 100)} W`;
   }
   return `${Math.round(50 * ftpW / 100)} W`;

@@ -17,14 +17,15 @@ export default function WorkoutViz({ segmenten, hoogte = 90, ftp, opacity, werke
       </div>
 
       {segmenten.map((seg, i) => {
+        const inWatts = seg.vermogenMin != null && seg.vermogenMin > 10;
         const midPct = seg.vermogenMin != null && seg.vermogenMax != null
-          ? (seg.vermogenMin + seg.vermogenMax) / 2
+          ? (inWatts ? ((seg.vermogenMin + seg.vermogenMax) / 2 / ftpW) * 100 : (seg.vermogenMin + seg.vermogenMax) / 2)
           : 50;
         const hPct = Math.max(6, (midPct / maxScale) * 100);
         const kleur = zoneKleur(midPct);
         const isWarmupCooldown = seg.type === "warmup" || seg.type === "cooldown";
         const wattLabel = seg.vermogenMin != null && seg.vermogenMax != null
-          ? `${Math.round(seg.vermogenMin * ftpW / 100)}-${Math.round(seg.vermogenMax * ftpW / 100)}W`
+          ? (inWatts ? `${seg.vermogenMin}-${seg.vermogenMax}W` : `${Math.round(seg.vermogenMin * ftpW / 100)}-${Math.round(seg.vermogenMax * ftpW / 100)}W`)
           : `${Math.round(midPct * ftpW / 100)}W`;
 
         return (
