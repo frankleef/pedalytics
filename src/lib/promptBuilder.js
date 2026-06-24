@@ -242,16 +242,26 @@ REGELS:
 
 SESSIETYPES:
 - duur_lang: vlakke Z2 duurrit (68-76% FTP constant)
-- duur_variabel: afwisselende Z2/Z3 blokken (Z2 = 68-76% FTP, Z3 = 76-85% FTP, NOOIT hoger)
-- sweetspot: 88-93% FTP blokken met herstel ertussen
-- interval: 95-120% FTP blokken met herstel ertussen
+- duur_variabel: afwisselende Z2/Z3 blokken (Z2 = 68-76% FTP, Z3 = 76-85% FTP, NOOIT hoger). Herstelblokken in Z2
+- sweetspot: 88-93% FTP blokken met Z2-herstel ertussen
+- interval: 95-120% FTP blokken met Z2-herstel ertussen
 - herstel: laag vermogen (50-60% FTP)
-- over_under: sets van 2m @ 86-90% FTP (under) + 1m @ 103-107% FTP (over), 5m Z1 herstel tussen sets. TSS 70-90
+- over_under: sets van 2m @ 86-90% FTP (under) + 1m @ 103-107% FTP (over), 5m Z2 herstel tussen sets. TSS 70-90
 - sprint_neuraal: 6-8x sprint 10-15s @ max (>150% FTP), 3-5m Z1 herstel. TSS 30-45. Nooit naast intensiteitsdag
-- pyramide: oplopend+aflopend rondom drempel: 2m→4m→6m→4m→2m @ 95-105% FTP, 1m herstel. TSS 75-100
-- kracht_lage_cadans: 4-6x 5min @ 88-100% FTP met cadans_rpm {min:48, max:58}, 3min Z1 herstel ertussen. TSS 55-80. Voeg cadans_rpm toe aan de segmenten
+- pyramide: oplopend+aflopend rondom drempel: 2m→4m→6m→4m→2m @ 95-105% FTP, Z2 herstel. TSS 75-100
+- kracht_lage_cadans: 4-6x 5min @ 88-100% FTP met cadans_rpm {min:48, max:58}, 3min Z2 herstel ertussen (cadans terug naar 85-95 rpm). TSS 55-80. Voeg cadans_rpm toe aan de segmenten
 - z2_embedded_sprint: Z2 duurrit met 4-6 ingebedde max sprints (10-15s), 5min Z1 herstel na elke sprint. TSS 50-70
 - sprint_peak_test: 3x max sprint 10s, 5min Z1 rust ertussen. Eindtest voor sprint-doel
+
+ZONE-RESTRICTIE — Z1 HERSTELBLOKKEN:
+Z1 (<55% FTP) is ALLEEN toegestaan als herstelblok in: sprint_neuraal, vo2max_intervallen, z2_embedded_sprint, sprint_peak_test.
+In ALLE andere sessietypes gebruik je Z2 voor herstelblokken:
+- kracht_lage_cadans: herstel → Z2 (positie "onder"), cadans terug naar 85-95 rpm
+- sweetspot/drempel: herstel → Z2 (positie "midden")
+- over_under: under-fase → Z3 (positie "onder"), herstel tussen sets → Z2
+- pyramide: herstel → Z2 (positie "midden")
+- duur_variabel: herstel → Z2 (positie "onder")
+Z2-herstel houdt de aerobe stimulus actief. Z1 is uitsluitend voor volledig herstel na maximale inspanningen.
 
 DAG-INTENTIE (verplicht voor elke trainingsdag):
 Elke sessie moet een "intentie"-object bevatten met:
@@ -417,6 +427,7 @@ ${ctx.dagIntentie ? "- Intentie is leidend — pas alleen duur/vermogen/TSS aan 
 - Geef een concrete, data-gedreven reden
 - Z1-Z2 doel-aandeel: ${ctx.z1z2Doel ? Math.round(ctx.z1z2Doel * 100) + "%" : z1z2Doel(ctx.atleetProfiel.ervaringsniveau)}
 - Max intensiteitssessies deze week: ${ctx.maxIntensiteit}
+- Z1-RESTRICTIE: Z1 herstelblokken ALLEEN in sprint_neuraal, vo2max_intervallen, z2_embedded_sprint. In alle andere sessietypes: gebruik Z2 voor herstelblokken (positie "onder" bij licht herstel, "midden" bij normaal herstel)
 
 SESSIETYPES: duur_lang | duur_variabel | sweetspot | interval | herstel
 

@@ -50,6 +50,19 @@ export function normaliseerSegmenten(segmenten) {
   });
 }
 
+const Z1_TOEGESTAAN_IN = ["sprint_neuraal", "vo2max_intervallen", "z2_embedded_sprint", "sprint_peak_test"];
+
+export function normaliseerZ1Blokken(segmenten, sessietype) {
+  if (!segmenten || !Array.isArray(segmenten)) return segmenten;
+  if (Z1_TOEGESTAAN_IN.includes(sessietype)) return segmenten;
+
+  return segmenten.map(seg => {
+    if (seg.zone !== "Z1") return seg;
+    console.warn(`[normaliseer] Z1→Z2 in '${sessietype}': blokduur=${seg.blokDuurSeconden || seg.duur_min}s`);
+    return { ...seg, zone: "Z2", positie: "onder" };
+  });
+}
+
 /**
  * Normaliseert segmenten op een sessie-object (in-place).
  */
@@ -57,6 +70,8 @@ export function normaliseerSessieSegmenten(sessie) {
   if (!sessie) return sessie;
   if (sessie.segmenten) {
     sessie.segmenten = normaliseerSegmenten(sessie.segmenten);
+    const sessietype = sessie.intentie?.sessietype || sessie.type;
+    sessie.segmenten = normaliseerZ1Blokken(sessie.segmenten, sessietype);
   }
   return sessie;
 }
