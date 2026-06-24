@@ -67,7 +67,7 @@ export async function POST(request) {
 
       if (result.id && zwo) {
         try {
-          const segDuur = (sessie.segmenten || []).reduce((s, seg) => s + (seg.duur_min || 0), 0) * 60;
+          const segDuur = (sessie.segmenten || []).reduce((s, seg) => s + (seg.blokDuurSeconden || (seg.duur_min || 0) * 60), 0);
           const resolvedDuur = result.moving_time || result.workout_doc?.duration;
           if (resolvedDuur && Math.abs(resolvedDuur - segDuur) > 60) {
             console.warn(`[Events] Duur-mismatch voor ${datumDag}: app=${segDuur}s, intervals.icu=${resolvedDuur}s`);
