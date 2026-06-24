@@ -41,7 +41,7 @@ export async function POST(request) {
 
     const resultaten = [];
     for (const sessie of sessies) {
-      const zwo = segmentenNaarZwo(sessie.segmenten, sessie.titel);
+      const zwo = segmentenNaarZwo(sessie.segmenten, sessie.titel, ftp || 265);
       const datum = sessie.datum?.includes("T") ? sessie.datum : `${sessie.datum}T08:00:00`;
       const datumDag = sessie.datum?.split("T")[0] || sessie.datum;
       const eventBody = {

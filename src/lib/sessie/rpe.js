@@ -36,7 +36,7 @@ export function berekenGewogenGemVermogen(segmenten, ftpW = 265) {
     // Legacy fallback: geen eenheid-veld → >100 = watts
     const inWatts = seg.eenheid === "watts" || (!seg.eenheid && vMin > 100);
     const gemPct = inWatts ? ((vMin + vMax) / 2 / ftpW) * 100 : (vMin + vMax) / 2;
-    const min = seg.duur_min || 1;
+    const min = seg.duur_min || (seg.blokDuurSeconden ? seg.blokDuurSeconden / 60 : 1);
     totalPctMin += gemPct * min;
     totalMin += min;
   }

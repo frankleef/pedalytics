@@ -113,7 +113,7 @@ export async function POST(request) {
 
           // Sync naar intervals.icu
           try {
-            const zwo = segmentenNaarZwo(sessie.segmenten, sessie.titel);
+            const zwo = segmentenNaarZwo(sessie.segmenten, sessie.titel, profiel.ftp || 265);
             const eventBody = {
               category: "WORKOUT",
               start_date_local: `${datum}T08:00:00`,

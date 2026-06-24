@@ -101,7 +101,8 @@ function bouwBlockGroups(segmenten, ftp) {
     const zoneLabel = zn <= 2 ? "Z" + zn : zn === 3 ? "Tempo" : zn === 4 ? "Drempel" : "VO2max";
     const label = seg.label?.replace(/\s*\d+$/, "") || zoneLabel;
     const cadans = seg.cadans_rpm && typeof seg.cadans_rpm === "object" && seg.cadans_rpm.max && seg.cadans_rpm.max < 70 ? `${seg.cadans_rpm.min || "?"}–${seg.cadans_rpm.max} rpm` : null;
-    return { title: label, zone: zn, rpe: segRpeRange(pct), time: segTimeStr(seg.duur_min), watt: segWattRange(seg, ftpW), bg: BLOCK_BG[zn], cadans };
+    const duurMin = seg.duur_min || (seg.blokDuurSeconden ? seg.blokDuurSeconden / 60 : 0);
+    return { title: label, zone: zn, rpe: segRpeRange(pct), time: segTimeStr(duurMin), watt: segWattRange(seg, ftpW), bg: BLOCK_BG[zn], cadans };
   };
 
   const sigKey = (seg) => {
@@ -286,10 +287,11 @@ export default function SchemaTab({
 
   // Session metrics
   const duurStr = sessie?.duur_min ? `${Math.floor(sessie.duur_min / 60)}u ${String(sessie.duur_min % 60).padStart(2, "0")}m` : null;
+  const segDuur = (seg) => seg.duur_min || (seg.blokDuurSeconden ? seg.blokDuurSeconden / 60 : 0);
   const gemVermogen = sessie?.segmenten?.length > 0
-    ? Math.round(sessie.segmenten.reduce((s, seg) => s + segMidPct(seg) * (seg.duur_min || 0), 0) / sessie.segmenten.reduce((s, seg) => s + (seg.duur_min || 0), 0) * ftp / 100)
+    ? Math.round(sessie.segmenten.reduce((s, seg) => s + segMidPct(seg) * segDuur(seg), 0) / sessie.segmenten.reduce((s, seg) => s + segDuur(seg), 0) * ftp / 100)
     : null;
-  const totaalMin = sessie?.segmenten?.reduce((s, seg) => s + (seg.duur_min || 0), 0) || sessie?.duur_min || 0;
+  const totaalMin = sessie?.segmenten?.reduce((s, seg) => s + segDuur(seg), 0) || sessie?.duur_min || 0;
   const tijdMarkers = totaalMin > 0 ? [0, 0.25, 0.5, 0.75, 1].map(p => { const min = Math.round(totaalMin * p); return `${Math.floor(min / 60)}:${String(min % 60).padStart(2, "0")}`; }) : [];
   const blockGroups = bouwBlockGroups(sessie?.segmenten, ftp);
   const sessieLabel = sessie ? (SESSIE_LABELS[sessie.type] || sessie.type) : "";

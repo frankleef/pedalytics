@@ -2,14 +2,14 @@
 // SteadyState krijgt PowerLow/PowerHigh (onze ±5% range).
 // IntervalsT (herhaalde sets) krijgt OnPower/OffPower (midpoint, range niet ondersteund in ZWO repeats).
 
-export function segmentenNaarZwo(segmenten, naam) {
+export function segmentenNaarZwo(segmenten, naam, ftpW = 265) {
   if (!segmenten || segmenten.length === 0) return null;
 
   const main = segmenten.filter(s => s.type !== "warmup" && s.type !== "cooldown");
   if (main.length === 0) return null;
 
   const groups = detecteerRepeats(main);
-  const stappen = groups.map(groepNaarZwo).join("\n    ");
+  const stappen = groups.map(g => groepNaarZwo(g, ftpW)).join("\n    ");
 
   return `<workout_file>
   <author>Pedalytics</author>
@@ -22,7 +22,7 @@ export function segmentenNaarZwo(segmenten, naam) {
 }
 
 function detecteerRepeats(segs) {
-  const sigKey = (s) => `${s.type}:${s.vermogenMin}:${s.vermogenMax}:${s.duur_min}`;
+  const sigKey = (s) => `${s.type}:${s.vermogenMin}:${s.vermogenMax}:${s.blokDuurSeconden || s.duur_min}`;
   const patSig = (arr, start, len) => arr.slice(start, start + len).map(sigKey).join("|");
 
   const groups = [];
@@ -48,36 +48,43 @@ function detecteerRepeats(segs) {
   return groups;
 }
 
-function groepNaarZwo(group) {
+function groepNaarZwo(group, ftpW) {
   if (group.reps > 1 && group.segments.length === 2) {
     const on = group.segments[0];
     const off = group.segments[1];
-    const onPower = midpoint(on);
-    const offPower = midpoint(off);
-    return `<IntervalsT Repeat="${group.reps}" OnDuration="${on.duur_min * 60}" OnPower="${onPower}" OffDuration="${off.duur_min * 60}" OffPower="${offPower}" />`;
+    const onDur = on.blokDuurSeconden || (on.duur_min || 1) * 60;
+    const offDur = off.blokDuurSeconden || (off.duur_min || 1) * 60;
+    const onPower = midpoint(on, ftpW);
+    const offPower = midpoint(off, ftpW);
+    return `<IntervalsT Repeat="${group.reps}" OnDuration="${onDur}" OnPower="${onPower}" OffDuration="${offDur}" OffPower="${offPower}" />`;
   }
 
   if (group.reps > 1) {
-    const steps = group.segments.map(s => `      ${steadyState(s)}`).join("\n");
+    const steps = group.segments.map(s => `      ${steadyState(s, ftpW)}`).join("\n");
     return `<!-- ${group.reps}x herhaald -->\n${Array(group.reps).fill(steps).join("\n")}`;
   }
 
-  return steadyState(group.segments[0]);
+  return steadyState(group.segments[0], ftpW);
 }
 
-function steadyState(seg) {
-  const dur = (seg.duur_min || 1) * 60;
-  const low = (seg.vermogenMin ?? 50) / 100;
-  const high = (seg.vermogenMax ?? 75) / 100;
+function steadyState(seg, ftpW) {
+  const dur = seg.blokDuurSeconden || (seg.duur_min || 1) * 60;
+  const low = toFtpFractie(seg.vermogenMin ?? 50, seg.eenheid, ftpW);
+  const high = toFtpFractie(seg.vermogenMax ?? 75, seg.eenheid, ftpW);
   const cadansAttr = seg.cadans_rpm
     ? ` cadence="${Math.round((seg.cadans_rpm.min + seg.cadans_rpm.max) / 2 || seg.cadans_rpm.max || 53)}"`
-    : "";
+    : (seg.cadansMin ? ` cadence="${Math.round((seg.cadansMin + seg.cadansMax) / 2)}"` : "");
   return `<SteadyState Duration="${dur}" PowerLow="${low}" PowerHigh="${high}"${cadansAttr} />`;
 }
 
-function midpoint(seg) {
-  const min = (seg.vermogenMin || 50) / 100;
-  const max = (seg.vermogenMax || 75) / 100;
+function toFtpFractie(waarde, eenheid, ftpW = 265) {
+  if (eenheid === "watts") return +(waarde / ftpW).toFixed(3);
+  return waarde / 100;
+}
+
+function midpoint(seg, ftpW) {
+  const min = toFtpFractie(seg.vermogenMin || 50, seg.eenheid, ftpW);
+  const max = toFtpFractie(seg.vermogenMax || 75, seg.eenheid, ftpW);
   return ((min + max) / 2).toFixed(3);
 }
 

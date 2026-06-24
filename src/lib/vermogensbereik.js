@@ -1,6 +1,7 @@
 export function middelpuntVoorPositie(zone, positie) {
-  const breedte = zone.maxW - zone.minW;
-  const onder = zone.minW + breedte * 0.10;
+  const effectiefMin = Math.max(zone.minW, zone.maxW * 0.40);
+  const breedte = zone.maxW - effectiefMin;
+  const onder = effectiefMin + breedte * 0.10;
   const boven = zone.maxW - breedte * 0.10;
   const midden = (onder + boven) / 2;
   return { onder, midden, boven }[positie] ?? midden;

@@ -8,7 +8,7 @@ export default function WorkoutViz({ segmenten, hoogte = 90, ftp, opacity, werke
   const maxScale = 130;
   const ftpLineBottom = (100 / maxScale) * 100;
 
-  const totaalMin = segmenten.reduce((s, seg) => s + (seg.duur_min || 0), 0);
+  const totaalMin = segmenten.reduce((s, seg) => s + (seg.duur_min || (seg.blokDuurSeconden ? seg.blokDuurSeconden / 60 : 0)), 0);
 
   return (
     <div style={{ position: "relative", display: "flex", alignItems: "flex-end", height: hoogte, gap: 1.5, borderRadius: 6, overflow: "hidden", opacity: opacity ?? 1 }}>
@@ -30,8 +30,8 @@ export default function WorkoutViz({ segmenten, hoogte = 90, ftp, opacity, werke
           : `${Math.round(midPct * ftpW / 100)}W`;
 
         return (
-          <div key={i} style={{ flexGrow: seg.duur_min || 1, flexBasis: 0, display: "flex", flexDirection: "column", justifyContent: "flex-end", height: "100%" }}
-            title={`${seg.label || seg.type} · ${seg.duur_min}min · ${wattLabel}`}>
+          <div key={i} style={{ flexGrow: seg.duur_min || (seg.blokDuurSeconden ? seg.blokDuurSeconden / 60 : 1), flexBasis: 0, display: "flex", flexDirection: "column", justifyContent: "flex-end", height: "100%" }}
+            title={`${seg.label || seg.type} · ${seg.duur_min || (seg.blokDuurSeconden ? Math.round(seg.blokDuurSeconden / 60) : "?")}min · ${wattLabel}`}>
             <div style={{
               height: `${hPct}%`,
               background: isWarmupCooldown
