@@ -478,8 +478,8 @@ export default function Page() {
     }
   }, [seizoensplan, weekSessies, wellenessHuidig, dagelijkseData, voortgang]);
 
-  const checkImpact = useCallback(async (gewijzigdeDatums) => {
-    const sessies = weekSessies?.sessies || [];
+  const checkImpact = useCallback(async (gewijzigdeDatums, actueleSessies) => {
+    const sessies = actueleSessies || weekSessies?.sessies || [];
     if (sessies.length < 2) return;
 
     const dagenSindsStart = Math.max(0, (Date.now() - new Date(seizoensplan.startdatum).getTime()) / 86400000);
@@ -509,15 +509,16 @@ export default function Page() {
       if (laatstGepland) conflicten.add(laatstGepland.datum);
     }
 
+    let huidigeSessies = [...sessies];
     for (const datum of conflicten) {
-      const sessie = sessies.find(s => s.datum === datum);
+      const sessie = huidigeSessies.find(s => s.datum === datum);
       if (sessie && !sessie.voltooid) {
         const dagNaam = DAGNAMEN[new Date(datum).getDay()];
         const uren = urenPerDag[dagNaam] || 1.5;
         const nieuweSessie = await genereerSessieDagViaJob(datum, dagNaam, uren, { oudeSessie: sessie, aanleiding: "fase_2_conflict" });
         if (nieuweSessie) {
-          const alleSessies = [...(weekSessies?.sessies || []).filter(s => s.datum !== datum), nieuweSessie];
-          const nieuweWeekSessies = { ...weekSessies, sessies: alleSessies };
+          huidigeSessies = [...huidigeSessies.filter(s => s.datum !== datum), nieuweSessie];
+          const nieuweWeekSessies = { ...weekSessies, sessies: huidigeSessies };
           setWeekSessies(nieuweWeekSessies);
           const bijgewerkt = { ...seizoensplan, weekSessies: nieuweWeekSessies };
           setSeizoensplan(bijgewerkt);
@@ -619,7 +620,7 @@ export default function Page() {
     fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(eindPlan) });
 
     if (gewijzigdeDatums.length > 0) {
-      checkImpact(gewijzigdeDatums).catch(e => console.error("Impact check:", e));
+      checkImpact(gewijzigdeDatums, lokaalSessies).catch(e => console.error("Impact check:", e));
     }
   }, [beschikbaar, urenPerDag, seizoensplan, weekSessies, genereerSessieDagViaJob, checkImpact]);
 
