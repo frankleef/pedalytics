@@ -45,7 +45,14 @@ export default function SessionCard({ sessie, ftp, onOpen, beschikbaar, weer }) 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>{dagLabel} · Sessie</span>
         {weer && (
-          <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec }}>{weer.temp}° · {weer.conditie}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>
+              {weer.temp <= 5 ? "🥶" : weer.temp >= 28 ? "🔥" : weer.conditie?.includes("Regen") || weer.conditie?.includes("regen") || weer.conditie?.includes("buien") || weer.conditie?.includes("Buien") ? "🌧️" : weer.conditie?.includes("Bewolkt") || weer.conditie?.includes("bewolkt") ? "☁️" : weer.conditie?.includes("Mistig") ? "🌫️" : weer.conditie?.includes("Onweer") ? "⛈️" : weer.conditie?.includes("Sneeuw") || weer.conditie?.includes("sneeuw") ? "❄️" : "☀️"}{" "}{weer.temp}°
+            </span>
+            <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textTert }}>
+              💨 {weer.wind} km/u
+            </span>
+          </div>
         )}
       </div>
 
