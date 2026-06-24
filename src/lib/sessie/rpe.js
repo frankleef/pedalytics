@@ -1,31 +1,40 @@
 /**
- * Berekent de verwachte RPE op basis van sessie-IF en duur.
- * @param {number} gewogenGemVermogen - gewogen gem. vermogen van alle segmenten (%FTP)
+ * Berekent de verwachte RPE op basis van Intensity Factor en duur.
+ * S-curve (IF^1.8): Z2 → ~4, sweetspot → ~7.5, drempel → ~10.
+ *
+ * @param {number} ifWaarde - Intensity Factor (NP/FTP) of gewogen gem. vermogen als %FTP (wordt gedeeld door 100)
  * @param {number} duurMinuten - totale sessieduur
  * @returns {number} verwacht_rpe - afgerond op 0.5, bereik 1-10
  */
-export function berekenVerwachtRpe(gewogenGemVermogen, duurMinuten) {
-  const IF = gewogenGemVermogen / 100;
-  // Niet-lineaire mapping: Z1/Z2 = lage RPE, sweetspot/drempel = steil oplopend
-  // Gebaseerd op Borg RPE vs IF relatie (Foster et al.)
-  const basis_rpe = IF <= 0.55 ? IF * 4
-    : IF <= 0.75 ? 2 + (IF - 0.55) * 10
-    : IF <= 0.90 ? 4 + (IF - 0.75) * 20
-    : 7 + (IF - 0.90) * 30;
-  const duur_correctie = (duurMinuten - 60) * 0.005;
-  const rpe = basis_rpe + duur_correctie;
-  return Math.round(Math.min(10, Math.max(1, rpe)) * 2) / 2;
+export function berekenVerwachtRpe(ifWaarde, duurMinuten) {
+  const IF = ifWaarde > 2 ? ifWaarde / 100 : ifWaarde;
+  const basis_rpe = 10 * Math.pow(IF, 2.5);
+  const duur_correctie = (duurMinuten - 60) * 0.015;
+  return Math.round(Math.min(10, Math.max(1, basis_rpe + duur_correctie)) * 2) / 2;
+}
+
+/**
+ * Range voor UI: ±1 punt, geclampd op [1, 10].
+ */
+export function verwachtRpeRange(verwacht_rpe) {
+  return {
+    min: Math.max(1, verwacht_rpe - 1),
+    max: Math.min(10, verwacht_rpe + 1),
+  };
 }
 
 /**
  * Berekent het gewogen gemiddeld vermogen van segmenten (in %FTP).
  */
-export function berekenGewogenGemVermogen(segmenten) {
+export function berekenGewogenGemVermogen(segmenten, ftpW = 265) {
   if (!segmenten || segmenten.length === 0) return 65;
   let totalPctMin = 0;
   let totalMin = 0;
   for (const seg of segmenten) {
-    const gemPct = ((seg.vermogenMin ?? 65) + (seg.vermogenMax ?? 75)) / 2;
+    const vMin = seg.vermogenMin ?? 65;
+    const vMax = seg.vermogenMax ?? 75;
+    const isWatts = vMin > 100;
+    const gemPct = isWatts ? ((vMin + vMax) / 2 / ftpW) * 100 : (vMin + vMax) / 2;
     const min = seg.duur_min || 1;
     totalPctMin += gemPct * min;
     totalMin += min;

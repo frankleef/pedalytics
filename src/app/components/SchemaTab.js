@@ -440,7 +440,7 @@ export default function SchemaTab({
               {[
                 { label: "Duur", value: duurStr || "—" },
                 { label: "TSS", value: sessie.tss || "—", infoKey: "tss" },
-                sessie.verwacht_rpe ? { label: "Verwacht RPE", value: sessie.verwacht_rpe } : { label: "Gem. vermogen", value: gemVermogen ? `${gemVermogen}` : "—", unit: "w", infoKey: "vermogen" },
+                sessie.verwacht_rpe ? { label: "Verwacht gevoel", value: `${Math.max(1, sessie.verwacht_rpe - 1)}–${Math.min(10, sessie.verwacht_rpe + 1)}` } : { label: "Gem. vermogen", value: gemVermogen ? `${gemVermogen}` : "—", unit: "w", infoKey: "vermogen" },
               ].map((m, i) => (
                 <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2, padding: "15px 14px", borderRadius: 18, background: T.cardBg, border: `1px solid ${T.cardBorder}`, boxShadow: "0 2px 10px rgba(60,45,20,0.04)" }}>
                   <span style={{ font: "600 27px var(--font-fredoka), sans-serif", lineHeight: 1, color: T.text }}>{m.value}{m.unit && <span style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.textSec }}>{m.unit}</span>}</span>

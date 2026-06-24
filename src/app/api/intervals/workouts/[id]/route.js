@@ -3,6 +3,7 @@ import { intervalsActivityGet, intervalsActivityPut } from "@/lib/intervals";
 import { getUserIntervalsConfig } from "@/lib/auth";
 import { getKV } from "@/lib/kv";
 import { vandaagISO } from "@/lib/datum";
+import { berekenVerwachtRpe } from "@/lib/sessie/rpe";
 
 export async function GET(request, { params }) {
   try {
@@ -38,12 +39,19 @@ export async function PUT(request, { params }) {
           const activity = await intervalsActivityGet(id, creds);
           const ritDatum = activity?.start_date_local?.split("T")[0];
 
-          // Zoek de geplande sessie voor die datum
+          // Delta berekenen op basis van de gereden rit, niet de geplande sessie
           const sessie = ritDatum ? plan.weekSessies.sessies.find(s => s.datum === ritDatum) : null;
-          if (sessie?.verwacht_rpe) {
-            const delta = rpe - sessie.verwacht_rpe;
-            sessie.rpe_delta = Math.round(delta * 10) / 10;
-            sessie.voltooid = true;
+          const npWatts = activity.icu_weighted_avg_watts || activity.average_watts;
+          const ftp = plan.huidige_ftp || 265;
+          const duurMin = activity.moving_time ? Math.round(activity.moving_time / 60) : 60;
+          if (npWatts && ftp) {
+            const ifGereden = npWatts / ftp;
+            const verwachtGereden = berekenVerwachtRpe(ifGereden, duurMin);
+            const delta = rpe - verwachtGereden;
+            if (sessie) {
+              sessie.rpe_delta = Math.round(delta * 10) / 10;
+              sessie.voltooid = true;
+            }
 
             // Opslaan in KV voor trend-berekening, maar hitte-ritten overslaan (spec 32-F)
             const dcEntry = await kv.get(`decoupling:${id}`);

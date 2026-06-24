@@ -1,4 +1,7 @@
 // Cardiac decoupling: NP-gebaseerd met arbeidssplit.
+// NB: berekenNP() wordt hier per halve rit aangeroepen (na arbeidssplit).
+// icu_weighted_avg_watts van intervals.icu is de NP van de hele rit en is
+// niet bruikbaar als vervanging — per-helft NP moet uit de streams berekend worden.
 
 import { getKV } from "./kv";
 
