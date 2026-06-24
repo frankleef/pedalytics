@@ -6,6 +6,9 @@ import { vandaagISO, datumISO, DAGNAMEN } from "@/lib/datum";
 import { bouwSessieDagPrompt } from "@/lib/promptBuilder";
 import { segmentenNaarZwo } from "@/lib/workoutZwo";
 import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
+import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
+import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
+import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
 import { claudeCall } from "@/lib/claude";
 import { verifyQStash } from "@/lib/qstash";
 
@@ -65,16 +68,18 @@ export async function POST(request) {
       let profiel;
       try {
         const athlete = await intervalsGet("/", {}, creds);
+        const rideSport = (athlete.sportSettings || []).find(s => s.types?.includes("Ride")) || {};
         profiel = {
-          ftp: athlete.icu_ftp || plan.huidige_ftp || 265,
-          lt_hr: athlete.icu_lthr || 184,
-          max_hr: athlete.max_hr || 200,
+          ftp: rideSport.ftp || plan.huidige_ftp || 265,
+          lt_hr: rideSport.lthr || 184,
+          max_hr: rideSport.max_hr || 200,
           gewicht: athlete.icu_weight || 90,
           hrv_basislijn: plan.profiel?.hrv_basislijn || 58,
           hr_basislijn: plan.profiel?.hr_basislijn || 49,
+          power_zones: rideSport.power_zones || null,
         };
       } catch {
-        profiel = { ftp: plan.huidige_ftp || 265, lt_hr: 184, max_hr: 200, gewicht: 90, hrv_basislijn: 58, hr_basislijn: 49 };
+        profiel = { ftp: plan.huidige_ftp || 265, lt_hr: 184, max_hr: 200, gewicht: 90, hrv_basislijn: 58, hr_basislijn: 49, power_zones: null };
       }
 
       // Wellness ophalen
@@ -110,6 +115,19 @@ export async function POST(request) {
           if (!sessie.datum) sessie.datum = datum;
           if (!sessie.dag) sessie.dag = dagNaam;
           normaliseerSessieSegmenten(sessie);
+          voegVerwachtRpeToe(sessie);
+          corrigeerSessieTss(sessie);
+
+          // Vermogensbereik berekenen
+          if (profiel.power_zones && profiel.ftp) {
+            try {
+              const zones = bouwZonesUitProfiel(profiel.ftp, profiel.power_zones);
+              const piekSprint = await kv.get(`piek_sprint_vermogen:${userId}`) || Math.round(profiel.ftp * 1.8);
+              sessie.segmenten = (sessie.segmenten || []).map(seg =>
+                seg.zone ? berekenBlok(seg, zones, profiel.ftp, piekSprint) : seg
+              );
+            } catch (e) { console.warn(`[sessies-aanvullen] Vermogensbereik mislukt voor ${datum}:`, e.message); }
+          }
 
           // Sync naar intervals.icu
           try {
