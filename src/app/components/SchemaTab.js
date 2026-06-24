@@ -25,11 +25,19 @@ const DOT_KLEUREN = {
   buiten_planperiode: "oklch(0.55 0.07 215)",
 };
 
-function isWatts(val) { return val != null && val > 10; }
+// Legacy fallback: sessies gegenereerd vóór 24 juni 2026 hebben geen eenheid-veld.
+// De >100-heuristiek werkt voor alle bestaande data (FTP-gebaseerde %waarden
+// liggen altijd onder 100, wattages altijd boven).
+// TODO: retroactieve migratie overwegen als legacy sessies <5% van totaal zijn.
+function segIsWatts(seg) {
+  if (seg.eenheid === "watts") return true;
+  if (seg.eenheid === "pctFTP") return false;
+  return seg.vermogenMin != null && seg.vermogenMin > 100;
+}
 
 function segMidPct(seg) {
   if (seg.vermogenMin != null && seg.vermogenMax != null) {
-    if (isWatts(seg.vermogenMin)) return ((seg.vermogenMin + seg.vermogenMax) / 2 / (seg._ftpRef || 265)) * 100;
+    if (segIsWatts(seg)) return ((seg.vermogenMin + seg.vermogenMax) / 2 / (seg._ftpRef || 265)) * 100;
     return (seg.vermogenMin + seg.vermogenMax) / 2;
   }
   return 50;
@@ -37,7 +45,7 @@ function segMidPct(seg) {
 
 function segWattRange(seg, ftpW) {
   if (seg.vermogenMin != null && seg.vermogenMax != null) {
-    if (isWatts(seg.vermogenMin)) return `${seg.vermogenMin}–${seg.vermogenMax} W`;
+    if (segIsWatts(seg)) return `${seg.vermogenMin}–${seg.vermogenMax} W`;
     return `${Math.round(seg.vermogenMin * ftpW / 100)}–${Math.round(seg.vermogenMax * ftpW / 100)} W`;
   }
   return `${Math.round(50 * ftpW / 100)} W`;

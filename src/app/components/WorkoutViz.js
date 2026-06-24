@@ -17,7 +17,8 @@ export default function WorkoutViz({ segmenten, hoogte = 90, ftp, opacity, werke
       </div>
 
       {segmenten.map((seg, i) => {
-        const inWatts = seg.vermogenMin != null && seg.vermogenMin > 10;
+        // Legacy fallback: geen eenheid-veld → >100 = watts
+        const inWatts = seg.eenheid === "watts" || (!seg.eenheid && seg.vermogenMin != null && seg.vermogenMin > 100);
         const midPct = seg.vermogenMin != null && seg.vermogenMax != null
           ? (inWatts ? ((seg.vermogenMin + seg.vermogenMax) / 2 / ftpW) * 100 : (seg.vermogenMin + seg.vermogenMax) / 2)
           : 50;

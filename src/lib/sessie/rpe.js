@@ -18,8 +18,8 @@ export function berekenVerwachtRpe(ifWaarde, duurMinuten) {
  */
 export function verwachtRpeRange(verwacht_rpe) {
   return {
-    min: Math.max(1, verwacht_rpe - 1),
-    max: Math.min(10, verwacht_rpe + 1),
+    min: Math.max(1, Math.floor(verwacht_rpe - 1)),
+    max: Math.min(10, Math.ceil(verwacht_rpe + 1)),
   };
 }
 
@@ -33,8 +33,9 @@ export function berekenGewogenGemVermogen(segmenten, ftpW = 265) {
   for (const seg of segmenten) {
     const vMin = seg.vermogenMin ?? 65;
     const vMax = seg.vermogenMax ?? 75;
-    const isWatts = vMin > 100;
-    const gemPct = isWatts ? ((vMin + vMax) / 2 / ftpW) * 100 : (vMin + vMax) / 2;
+    // Legacy fallback: geen eenheid-veld → >100 = watts
+    const inWatts = seg.eenheid === "watts" || (!seg.eenheid && vMin > 100);
+    const gemPct = inWatts ? ((vMin + vMax) / 2 / ftpW) * 100 : (vMin + vMax) / 2;
     const min = seg.duur_min || 1;
     totalPctMin += gemPct * min;
     totalMin += min;

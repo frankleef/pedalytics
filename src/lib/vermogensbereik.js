@@ -75,6 +75,7 @@ export function berekenBlok(blokDef, zones, ftpW, piekSprintW) {
     ...blokDef,
     vermogenMin: range.ondergrens,
     vermogenMax: range.bovengrens,
+    eenheid: "watts",
     cadansMin: cadans.min,
     cadansMax: cadans.max,
   };

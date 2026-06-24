@@ -41,11 +41,7 @@ export function belastingsStatus(ctl_ramp_per_week, gereedheidsscore) {
 export function normaliseerCtlRichting(ctl_nu, ctl_4w_geleden) {
   if (ctl_4w_geleden == null) return 0;
   const delta = ctl_nu - ctl_4w_geleden;
-  if (delta > 5) return 1.0;
-  if (delta > 2) return 0.5;
-  if (delta > -2) return 0.0;
-  if (delta > -5) return -0.5;
-  return -1.0;
+  return Math.max(-1, Math.min(1, delta / 10));
 }
 
 export function normaliseerRpeDelta(rpe_delta_trend) {
