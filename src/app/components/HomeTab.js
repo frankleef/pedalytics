@@ -191,7 +191,7 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
           if (eerstvolgende) {
             return (
               <>
-                <SessionCard sessie={eerstvolgende} ftp={ftp} onOpen={onOpenWorkout} beschikbaar={beschikbaar} />
+                <SessionCard sessie={eerstvolgende} ftp={ftp} onOpen={onOpenWorkout} beschikbaar={beschikbaar} weer={weer} />
                 {eerstvolgende?.intervalsEventId && (
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: -10, marginBottom: 16, padding: "0 4px" }}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="oklch(0.5 0.13 162)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -210,23 +210,6 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
           );
         })()}
 
-        {/* Morgen-teaser */}
-        {sessieMorgen && !(voortgang?.ritten || []).find(r => r.datum_iso === vandaagISO) && (
-          <div onClick={() => onOpenWorkout?.({ datum: morgenISO })}
-            style={{ background: T.cardBg, borderRadius: 20, padding: "14px 16px", boxShadow: "0 1px 8px rgba(60,45,20,0.03)", border: `1px solid ${T.cardBorder}`, marginBottom: 16, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 12, background: T.subtleFill, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 5l7 7-7 7" stroke={T.textSec} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ font: "700 13px var(--font-nunito), sans-serif", color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                Morgen: {sessieMorgen.titel}
-              </div>
-              <div style={{ font: "600 11.5px var(--font-nunito), sans-serif", color: T.textSec }}>
-                {sessieMorgen.duur_min ? `${Math.round(sessieMorgen.duur_min)}min` : ""}{sessieMorgen.vermogen ? ` · ${sessieMorgen.vermogen}` : ""}
-              </div>
-            </div>
-          </div>
-        )}
 
 
         {/* Ochtend check-in */}
@@ -244,49 +227,6 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
           atl={wellenessHuidig ? Math.round(wellenessHuidig.atl || 0) : null}
           tsb={tsb}
         />
-
-        {/* Weer-widget */}
-        {weer && (
-          <div style={{ background: T.cardBg, borderRadius: 20, padding: "14px 18px", boxShadow: "0 1px 8px rgba(60,45,20,0.03)", border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ font: "600 28px var(--font-fredoka), sans-serif", color: T.text }}>{weer.temp}°</span>
-                <div>
-                  <div style={{ font: "700 13px var(--font-nunito), sans-serif", color: T.text }}>{weer.conditie}</div>
-                  <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textSec }}>💧 {weer.neerslagKans}% · 💨 {weer.wind} km/u</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* PR teaser */}
-        {prTeaser && (
-          <div style={{ display: "flex", alignItems: "center", gap: 12, borderRadius: 22, padding: "13px 16px", background: T.cardBg, border: `1px solid ${T.cardBorder}`, boxShadow: T.cardShadow, marginBottom: 16 }}>
-            <div style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 12, background: "oklch(0.95 0.035 80)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="oklch(0.72 0.12 68)"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-            </div>
-            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
-              <span style={{ font: "800 10.5px var(--font-nunito), sans-serif", letterSpacing: 0.8, color: T.textTert }}>NIEUW RECORD</span>
-              <span style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{prTeaser.label}</span>
-            </div>
-            <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 9 }}>
-              <span style={{ font: "600 21px var(--font-fredoka), sans-serif", lineHeight: 1, color: T.text }}>{prTeaser.watt}<span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec, marginLeft: 1 }}>W</span></span>
-              <div style={{ display: "flex", alignItems: "center", gap: 3, padding: "4px 9px", borderRadius: 999, background: "oklch(0.93 0.045 168)" }}>
-                <svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M12 19V5M12 5l-6 6M12 5l6 6" stroke="oklch(0.46 0.12 165)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                <span style={{ font: "800 11px var(--font-nunito), sans-serif", color: "oklch(0.46 0.12 165)" }}>+{prTeaser.delta}W</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Streak badge */}
-        {streakWeeks >= 2 && (
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px 8px 11px", borderRadius: 999, background: "linear-gradient(135deg, oklch(0.95 0.035 70), oklch(0.93 0.045 45))", border: "1px solid oklch(0.88 0.05 60)", marginBottom: 16 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2c1.5 3.5-1 5-2 7-1.2 2.4.3 4 2 4 1.8 0 3-1.4 2.4-3.4C17 12 18 14.5 18 16.5 18 20 15.3 22 12 22S6 20 6 16.5C6 12 9.5 9 12 2z" fill="oklch(0.66 0.16 45)"/><path d="M12 22c-1.8 0-3-1.3-3-3 0-1.7 1.3-2.6 2-3.8.7 1.2 1.2 1.6 1.6 2.6.5 1.3-.2 2.2 1.4 2.2-.5 1.2-1.2 2-2 2z" fill="oklch(0.82 0.13 75)"/></svg>
-            <span style={{ font: "800 13px var(--font-nunito), sans-serif", color: "oklch(0.45 0.1 45)" }}>{streakWeeks} weken op rij getraind</span>
-          </div>
-        )}
 
         {/* Sync health banner — onderaan, laagste prioriteit */}
         {syncGap && !syncBannerWeg && (

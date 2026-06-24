@@ -1,8 +1,10 @@
 "use client";
+import { useState } from "react";
 import { T } from "../../designTokens";
 import WorkoutViz from "../WorkoutViz";
 
-export default function SessionCard({ sessie, ftp, onOpen, beschikbaar }) {
+export default function SessionCard({ sessie, ftp, onOpen, beschikbaar, weer }) {
+  const [waaromOpen, setWaaromOpen] = useState(false);
   if (!sessie) return null;
 
   const dagVolgorde = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
@@ -14,9 +16,8 @@ export default function SessionCard({ sessie, ftp, onOpen, beschikbaar }) {
   const dagLabel = isVandaag ? "Vandaag" : sessie.dag;
 
   const heeftSegmenten = sessie.segmenten && sessie.segmenten.length > 0;
-  const isInterval = sessie.type === "sweetspot" || sessie.type === "interval" || sessie.type === "ftp_test";
   const duurStr = sessie.duur_min ? `${Math.floor(sessie.duur_min / 60)}u ${String(sessie.duur_min % 60).padStart(2, "0")}m` : null;
-  const blokken = sessie.segmenten?.filter(s => (s.vermogenMin ?? 0) > 80 && s.type !== "warmup" && s.type !== "cooldown").length;
+  const waaromTekst = sessie.waarom_vandaag || sessie.reden;
 
   return (
     <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 20px 22px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
@@ -40,12 +41,19 @@ export default function SessionCard({ sessie, ftp, onOpen, beschikbaar }) {
           })}
         </div>
       )}
+
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>{dagLabel} · Sessie</span>
-        {ftp && <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>FTP {ftp}W</span>}
+        {weer && (
+          <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec }}>{weer.temp}° · {weer.conditie}</span>
+        )}
       </div>
 
-      <h2 style={{ margin: "2px 0 12px", font: "700 21px var(--font-nunito), sans-serif", letterSpacing: -0.2, color: T.text }}>{sessie.titel}</h2>
+      {/* Klikbare titel */}
+      <h2 onClick={() => onOpen?.(sessie)}
+        style={{ margin: "2px 0 12px", font: "700 21px var(--font-nunito), sans-serif", letterSpacing: -0.2, color: T.text, cursor: "pointer" }}>
+        {sessie.titel}
+      </h2>
 
       {/* Metrics */}
       <div style={{ display: "flex", gap: 18, marginBottom: 18 }}>
@@ -59,12 +67,6 @@ export default function SessionCard({ sessie, ftp, onOpen, beschikbaar }) {
           <div style={{ display: "flex", flexDirection: "column" }}>
             <span style={{ font: "600 19px var(--font-fredoka), sans-serif", color: T.text }}>{sessie.tss}</span>
             <span style={{ font: "600 11.5px var(--font-nunito), sans-serif", color: T.textSec }}>TSS</span>
-          </div>
-        )}
-        {isInterval && blokken > 0 && (
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <span style={{ font: "600 19px var(--font-fredoka), sans-serif", color: T.text }}>{blokken}</span>
-            <span style={{ font: "600 11.5px var(--font-nunito), sans-serif", color: T.textSec }}>Blokken</span>
           </div>
         )}
       </div>
@@ -91,17 +93,18 @@ export default function SessionCard({ sessie, ftp, onOpen, beschikbaar }) {
         </div>
       )}
 
-      {(sessie.reden || sessie.waarom_vandaag) && (
+      {/* Waarom vandaag — uitklapbaar */}
+      {waaromTekst && (
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid oklch(0.91 0.012 82)` }}>
-          <span style={{ font: "800 10px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>Waarom vandaag</span>
-          <p style={{ font: "600 13px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.5 0.02 74)", margin: "4px 0 0" }}>{sessie.waarom_vandaag || sessie.reden}</p>
+          <button onClick={() => setWaaromOpen(!waaromOpen)}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 0, font: "700 12px var(--font-nunito), sans-serif", color: T.textSec }}>
+            {waaromOpen ? "Waarom vandaag ▲" : "Waarom vandaag ▼"}
+          </button>
+          {waaromOpen && (
+            <p style={{ font: "600 13px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.5 0.02 74)", margin: "6px 0 0" }}>{waaromTekst}</p>
+          )}
         </div>
       )}
-
-      <button onClick={() => onOpen?.(sessie)}
-        style={{ marginTop: 16, width: "100%", border: "none", cursor: "pointer", padding: 15, borderRadius: T.pillRadius, background: T.slate, color: "oklch(0.97 0.01 84)", font: "800 15px var(--font-nunito), sans-serif", letterSpacing: 0.2 }}>
-        Start sessie
-      </button>
     </div>
   );
 }
