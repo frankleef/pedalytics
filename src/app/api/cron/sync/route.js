@@ -421,11 +421,12 @@ export async function POST(request) {
           }
         }
 
-        // Push-notificatie bij nieuwe rit
+        // Push-notificatie bij nieuwe rit met deep link naar RPE-invoer
+        const ritDatumPush = nieuwste.start_date_local?.split("T")[0];
         await sendPush(userId, {
-          title: "Nieuwe rit gedetecteerd",
-          body: `Je rit van ${nieuwste.start_date_local?.split("T")[0]} is verwerkt`,
-          url: "/",
+          title: "Rit gesynchroniseerd ✓",
+          body: "Hoe voelde het? Vul je RPE in.",
+          url: `/?tab=schema&datum=${ritDatumPush}&rpe=1`,
         });
 
         results.push({ userId, status: "new_activity", id: nieuwste.id });

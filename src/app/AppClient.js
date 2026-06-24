@@ -46,6 +46,37 @@ export default function Page() {
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("tab") === "ochtend") setTab(0);
+    if (params.get("tab") === "schema") {
+      setTab(1);
+      const datumParam = params.get("datum");
+      if (datumParam) {
+        const nu = new Date();
+        const vandaagIdx = nu.getDay() === 0 ? 6 : nu.getDay() - 1;
+        const datumDag = new Date(datumParam);
+        const datumIdx = datumDag.getDay() === 0 ? 6 : datumDag.getDay() - 1;
+        setSchemaDagOffset(datumIdx - vandaagIdx);
+      }
+    }
+
+    // Service worker navigatie via postMessage (deep links vanuit push-notificaties)
+    const swHandler = (event) => {
+      if (event.data?.type === "NAVIGATE" && event.data.url) {
+        const url = new URL(event.data.url, window.location.origin);
+        const p = url.searchParams;
+        if (p.get("tab") === "schema") {
+          setTab(1);
+          const d = p.get("datum");
+          if (d) {
+            const nu2 = new Date();
+            const vi = nu2.getDay() === 0 ? 6 : nu2.getDay() - 1;
+            const di = new Date(d).getDay() === 0 ? 6 : new Date(d).getDay() - 1;
+            setSchemaDagOffset(di - vi);
+          }
+        }
+      }
+    };
+    navigator.serviceWorker?.addEventListener("message", swHandler);
+    return () => navigator.serviceWorker?.removeEventListener("message", swHandler);
     fetch("/api/intervals/profiel").then(r => r.json()).then(d => {
       if (d.success && d.data) {
         setProfiel(p => ({ ...p, ...d.data }));

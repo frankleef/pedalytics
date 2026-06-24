@@ -271,7 +271,7 @@ Geef JSON:
   "weekdoel": "...",
   "sessies": [{
     "datum": "...", "dag": "...", "type": "...", "titel": "...", "tss": ..., "duur_min": ...,
-    "vermogen": "...", "reden": "...", "segmenten": [...],
+    "vermogen": "...", "reden": "...", "waarom_vandaag": "1-2 zinnen waarom deze sessie op deze dag past in het plan (fase, weekpositie, doel)", "segmenten": [...],
     "intentie": { "rol": "...", "sessietype": "...", "toegestane_zones": [...], "tss_range": { "min": ..., "max": ... }, "toelichting": "..." }
   }],
   "tss_totaal": ...
@@ -423,7 +423,7 @@ SESSIETYPES: duur_lang | duur_variabel | sweetspot | interval | herstel
 Geef JSON (alleen het sessie-object, geen array):
 {
   "datum": "${ctx.datum}", "dag": "${ctx.dagVanDeWeek}", "type": "...", "titel": "...", "tss": ..., "duur_min": ...,
-  "vermogen": "...", "reden": "...", "segmenten": [...],
+  "vermogen": "...", "reden": "...", "waarom_vandaag": "1-2 zinnen waarom deze sessie op deze dag past in het plan (fase, weekpositie, doel)", "segmenten": [...],
   "intentie": { "rol": "...", "sessietype": "...", "toegestane_zones": [...], "tss_range": { "min": ..., "max": ... }, "toelichting": "..." }
 }
 Alleen JSON.`,

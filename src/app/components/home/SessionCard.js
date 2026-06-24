@@ -91,6 +91,13 @@ export default function SessionCard({ sessie, ftp, onOpen, beschikbaar }) {
         </div>
       )}
 
+      {(sessie.reden || sessie.waarom_vandaag) && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid oklch(0.91 0.012 82)` }}>
+          <span style={{ font: "800 10px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>Waarom vandaag</span>
+          <p style={{ font: "600 13px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.5 0.02 74)", margin: "4px 0 0" }}>{sessie.waarom_vandaag || sessie.reden}</p>
+        </div>
+      )}
+
       <button onClick={() => onOpen?.(sessie)}
         style={{ marginTop: 16, width: "100%", border: "none", cursor: "pointer", padding: 15, borderRadius: T.pillRadius, background: T.slate, color: "oklch(0.97 0.01 84)", font: "800 15px var(--font-nunito), sans-serif", letterSpacing: 0.2 }}>
         Start sessie

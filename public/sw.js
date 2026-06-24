@@ -50,14 +50,19 @@ self.addEventListener("push", event => {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// Notificatie klik — open de app
+// Notificatie klik — open of focus de app op de deep link URL
 self.addEventListener("notificationclick", event => {
   event.notification.close();
   const url = event.notification.data?.url || "/";
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then(windowClients => {
-      const existing = windowClients.find(c => c.url === url && "focus" in c);
-      if (existing) return existing.focus();
+      for (const client of windowClients) {
+        if ("focus" in client) {
+          client.focus();
+          client.postMessage({ type: "NAVIGATE", url });
+          return;
+        }
+      }
       return clients.openWindow(url);
     })
   );
