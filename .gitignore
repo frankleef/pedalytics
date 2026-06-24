@@ -22,3 +22,4 @@ build/
 *.apk
 *.aab
 *.idsig
+_android_app/
