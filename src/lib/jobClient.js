@@ -6,7 +6,9 @@ export async function startJob(type, params) {
   });
   const data = await resp.json();
   if (!data.success) throw new Error(data.error || "Job starten mislukt");
-  return data.jobId;
+  if (data.status === "failed") throw new Error(data.error || "Job mislukt");
+  if (data.status === "done" && data.result) return { jobId: data.jobId, result: data.result };
+  return { jobId: data.jobId, result: null };
 }
 
 export function pollJob(jobId, { interval = 5000, timeout = 120000 } = {}) {

@@ -359,8 +359,8 @@ export default function Page() {
       } catch (e) { console.warn("Start-profiel berekening mislukt:", e); }
 
       setPlanVoortgang(2);
-      const jobId = await startJob("seizoensplan", { profiel: PROFIEL, doelConfig, kader });
-      const plan = await pollJob(jobId, { interval: 5000 });
+      const job = await startJob("seizoensplan", { profiel: PROFIEL, doelConfig, kader });
+      const plan = job.result || await pollJob(job.jobId, { interval: 5000 });
       setPlanVoortgang(3);
       const volledigPlan = { ...doelConfig, kader, ...plan, ...(startProfiel ? { start_profiel: startProfiel } : {}), planStatus: undefined };
       setSeizoensplan(volledigPlan);
@@ -393,11 +393,11 @@ export default function Page() {
       const veertienDagenGeleden = new Date(Date.now() - 14 * 86400000);
       const trimVoortgang = voortgang ? { ritten: (voortgang.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= veertienDagenGeleden) } : null;
       const trimDagelijks = (dagelijkseData || []).slice(-14);
-      const jobId = await startJob("weekSessies", {
+      const job = await startJob("weekSessies", {
         profiel: PROFIEL, wellness: wellenessHuidig, dagelijkseData: trimDagelijks, voortgang: trimVoortgang,
         seizoensplan: { ...seizoensplan, weekSessies: undefined }, weekSessies, urenPerDag, beschikbareDagen,
       });
-      const result = await pollJob(jobId, { interval: 5000, timeout: 180000 });
+      const result = job.result || await pollJob(job.jobId, { interval: 5000, timeout: 180000 });
 
       if (!result.sessies || result.sessies.length === 0) {
         setWeekSessies({ sessies: bewaardeSessies, tss_totaal: 0 });
@@ -458,11 +458,11 @@ export default function Page() {
       const trimDagelijks = (dagelijkseData || []).slice(-7);
       const zevenDagenGeleden = new Date(Date.now() - 7 * 86400000);
       const trimVoortgang = voortgang ? { ritten: (voortgang.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= zevenDagenGeleden) } : null;
-      const jobId = await startJob("sessieDag", {
+      const job = await startJob("sessieDag", {
         profiel: PROFIEL, wellness: wellenessHuidig, dagelijkseData: trimDagelijks, voortgang: trimVoortgang,
         seizoensplan: { ...seizoensplan, weekSessies: undefined }, overigeSessies: oSessies, datum, dagNaam, uren, oudeSessie: oudeSessie || null, aanleiding,
       });
-      const sessie = await pollJob(jobId, { interval: 5000, timeout: 60000 });
+      const sessie = job.result || await pollJob(job.jobId, { interval: 5000, timeout: 60000 });
 
       if (oudeSessie?.intervalsEventId) sessie.intervalsEventId = oudeSessie.intervalsEventId;
       try {
