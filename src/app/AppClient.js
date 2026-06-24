@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import SeizoenWizard from "./components/SeizoenWizard";
 import HomeTab from "./components/HomeTab";
 import VoortgangTab from "./components/VoortgangTab";
+import CoachTab from "./components/CoachTab";
 import BottomNav from "./components/BottomNav";
 import BeschikbaarheidScherm from "./components/BeschikbaarheidScherm";
 import SchemaTab from "./components/SchemaTab";
@@ -45,8 +46,10 @@ export default function Page() {
     if (typeof window === "undefined") return;
 
     const params = new URLSearchParams(window.location.search);
-    if (params.get("tab") === "ochtend") setTab(0);
-    if (params.get("tab") === "schema") {
+    if (params.get("tab") === "ochtend" || params.get("tab") === "vandaag") setTab(0);
+    if (params.get("tab") === "coach") setTab(3);
+    if (params.get("tab") === "voortgang" || params.get("tab") === "vorm") setTab(2);
+    if (params.get("tab") === "schema" || params.get("tab") === "sessie") {
       setTab(1);
       const datumParam = params.get("datum");
       if (datumParam) {
@@ -775,6 +778,13 @@ export default function Page() {
               voortgang={voortgang}
               seizoensplan={seizoensplan}
               weekSessies={weekSessies}
+              onOpenProfiel={() => setProfielOpen(true)}
+            />
+          )}
+
+          {tab === 3 && (
+            <CoachTab
+              seizoensplan={seizoensplan}
               onOpenProfiel={() => setProfielOpen(true)}
             />
           )}

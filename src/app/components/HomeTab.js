@@ -5,7 +5,6 @@ import { berekenHerstelScore } from "./HerstelStatus";
 import { berekenDagAdvies } from "./DagAdvies";
 import InfoTooltip from "./InfoTooltip";
 import ScaleInput from "./ScaleInput";
-import SessionCard from "./home/SessionCard";
 import InsightCard from "./home/InsightCard";
 import SharedHeader from "./SharedHeader";
 import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
@@ -166,11 +165,10 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
           <SeizoenSamenvattingKaart plan={seizoensplan} profiel={profiel} onNieuwSeizoeen={() => { window.location.href = "/nieuw-seizoen"; }} />
         )}
 
-        {/* Today's session — primaire positie, direct onder headline */}
+        {/* Sessie-preview — compact, linkt naar Sessie-tab */}
         {!seizoensplan?.seizoen_afgerond && weekSessiesLaden ? (
-          <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "28px 18px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16, textAlign: "center" }}>
-            <div style={{ fontSize: 22, marginBottom: 8 }}>⏳</div>
-            <div style={{ font: "600 14px var(--font-nunito), sans-serif", color: T.textSec }}>Sessies worden gegenereerd...</div>
+          <div style={{ background: "oklch(0.99 0.006 84)", border: "1.5px solid oklch(0.91 0.012 82)", borderRadius: 20, padding: "12px 16px", marginBottom: 16, textAlign: "center" }}>
+            <div style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>Sessies laden...</div>
           </div>
         ) : (() => {
           const ftp = profiel?.ftp || 265;
@@ -189,23 +187,54 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
             );
           }
           if (eerstvolgende) {
+            const dagWeer = eerstvolgende.datum && weer?.forecast?.[eerstvolgende.datum] ? weer.forecast[eerstvolgende.datum] : weer;
+            const weerIcoon = dagWeer ? (() => {
+              const t = dagWeer.temp;
+              const c = dagWeer.conditie || "";
+              return t <= 5 ? "🥶" : t >= 28 ? "🔥" : /regen|buien|motregen/i.test(c) ? "🌧️" : /bewolkt/i.test(c) ? "☁️" : /mistig|rijp/i.test(c) ? "🌫️" : /onweer/i.test(c) ? "⛈️" : /sneeuw/i.test(c) ? "❄️" : /helder/i.test(c) ? "☀️" : "⛅";
+            })() : null;
+            const isVandaag = eerstvolgende.datum === vandaagISO;
             return (
-              <>
-                <SessionCard sessie={eerstvolgende} ftp={ftp} onOpen={onOpenWorkout} beschikbaar={beschikbaar} weer={weer} weerForecast={weer?.forecast} />
-                {eerstvolgende?.intervalsEventId && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: -10, marginBottom: 16, padding: "0 4px" }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="oklch(0.5 0.13 162)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    <span style={{ font: "600 11.5px var(--font-nunito), sans-serif", color: "oklch(0.5 0.13 162)" }}>Gesynchroniseerd naar je fietscomputer</span>
-                  </div>
-                )}
-              </>
+              <button
+                onClick={() => onOpenWorkout?.(eerstvolgende)}
+                style={{
+                  width: "100%", background: "oklch(0.99 0.006 84)",
+                  border: "1.5px solid oklch(0.91 0.012 82)", borderRadius: 20,
+                  padding: "12px 16px", display: "flex", alignItems: "center",
+                  justifyContent: "space-between", cursor: "pointer", textAlign: "left",
+                  marginBottom: 16,
+                }}
+              >
+                <div>
+                  <span style={{
+                    font: "800 11px/1 var(--font-nunito), sans-serif", letterSpacing: "1.2px",
+                    color: "oklch(0.62 0.015 75)", textTransform: "uppercase",
+                    display: "block", marginBottom: 4,
+                  }}>
+                    {isVandaag ? "VANDAAG" : eerstvolgende.dag?.toUpperCase() || "SESSIE"} · SESSIE
+                  </span>
+                  <span style={{ font: "700 14px/1.3 var(--font-nunito), sans-serif", color: "oklch(0.27 0.02 70)", display: "block" }}>
+                    {eerstvolgende.titel}
+                  </span>
+                  <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.55 0.02 74)", display: "block", marginTop: 2 }}>
+                    {eerstvolgende.duur_min ? `${Math.floor(eerstvolgende.duur_min / 60)}u${String(eerstvolgende.duur_min % 60).padStart(2, "0")}` : ""}{eerstvolgende.tss ? ` · ${eerstvolgende.tss} TSS` : ""}
+                    {dagWeer ? ` · ${weerIcoon} ${dagWeer.temp}°` : ""}
+                  </span>
+                </div>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+                  <path d="M9 5l7 7-7 7" stroke="oklch(0.66 0.02 75)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
             );
           }
           return (
-            <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "22px 20px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
-              <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: T.textTert, textTransform: "uppercase" }}>Vandaag · rust</span>
-              <h2 style={{ margin: "6px 0 8px", font: "700 20px var(--font-nunito), sans-serif", color: T.text }}>Rustdag — herstel is training.</h2>
-              <p style={{ margin: 0, font: "600 13px/1.5 var(--font-nunito), sans-serif", color: T.textSec }}>Je lichaam past zich aan tijdens rust, niet tijdens de inspanning zelf. Vandaag geen training is de juiste keuze.</p>
+            <div style={{ background: "oklch(0.99 0.006 84)", border: "1.5px solid oklch(0.91 0.012 82)", borderRadius: 20, padding: "12px 16px", marginBottom: 16 }}>
+              <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: "1.2px", color: "oklch(0.62 0.015 75)", textTransform: "uppercase" }}>
+                VANDAAG · RUST
+              </span>
+              <p style={{ font: "700 14px/1.3 var(--font-nunito), sans-serif", color: "oklch(0.27 0.02 70)", margin: "4px 0 0" }}>
+                Rustdag — herstel is training.
+              </p>
             </div>
           );
         })()}

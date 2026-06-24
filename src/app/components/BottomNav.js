@@ -3,7 +3,7 @@ import { T } from "../designTokens";
 
 const TABS = [
   {
-    label: "Dashboard",
+    label: "Vandaag",
     icon: (active) => (
       <svg width="23" height="23" viewBox="0 0 24 24" fill="none">
         <rect x="3" y="3" width="8" height="8" rx="2.5" fill="currentColor" />
@@ -14,7 +14,7 @@ const TABS = [
     ),
   },
   {
-    label: "Schema",
+    label: "Sessie",
     icon: () => (
       <svg width="23" height="23" viewBox="0 0 24 24" fill="none">
         <rect x="3.5" y="4.5" width="17" height="16" rx="3.5" stroke="currentColor" strokeWidth="2" />
@@ -25,12 +25,20 @@ const TABS = [
     ),
   },
   {
-    label: "Voortgang",
+    label: "Vorm",
     icon: () => (
       <svg width="23" height="23" viewBox="0 0 24 24" fill="none">
         <rect x="3" y="14" width="4" height="7" rx="1.5" fill="currentColor" />
         <rect x="10" y="8" width="4" height="13" rx="1.5" fill="currentColor" opacity="0.6" />
         <rect x="17" y="3" width="4" height="18" rx="1.5" fill="currentColor" />
+      </svg>
+    ),
+  },
+  {
+    label: "Coach",
+    icon: () => (
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
       </svg>
     ),
   },
@@ -42,7 +50,7 @@ export default function BottomNav({ activeTab, onTabChange }) {
       position: "fixed", bottom: 0, left: 0, right: 0, height: T.navH,
       background: T.cardBg, borderTop: `1px solid ${T.divider}`,
       display: "flex", alignItems: "flex-start", justifyContent: "space-around",
-      padding: "11px 24px 0", zIndex: 40,
+      padding: "11px 16px 0", zIndex: 40,
     }}>
       {TABS.map((tab, i) => {
         const active = activeTab === i;
@@ -51,10 +59,10 @@ export default function BottomNav({ activeTab, onTabChange }) {
             style={{
               display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
               background: "none", border: "none", cursor: "pointer", padding: 0,
-              color: active ? T.text : "#9E988C",
+              color: active ? T.text : "#9E988C", flex: 1,
             }}>
             {tab.icon(active)}
-            <span style={{ font: `${active ? 800 : 700} 11px var(--font-nunito), sans-serif` }}>{tab.label}</span>
+            <span style={{ font: `${active ? 800 : 700} 10.5px var(--font-nunito), sans-serif` }}>{tab.label}</span>
           </button>
         );
       })}
