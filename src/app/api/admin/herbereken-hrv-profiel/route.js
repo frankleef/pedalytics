@@ -60,25 +60,45 @@ export async function POST(request) {
     };
   }
 
-  // RPE-correlatie
-  const observatiesMetRpe = [];
-  for (const s of voltooide) {
-    if (!s.datum) continue;
-    const wellnessDag = genormaliseerd.find(w => w.datum === s.datum);
-    if (!wellnessDag?.hrv || s.verwacht_rpe == null) continue;
+  // RPE-correlatie: haal alle ritten met icu_rpe rechtstreeks uit intervals.icu
+  const wellnessByDatum = {};
+  for (const w of genormaliseerd) { if (w.datum) wellnessByDatum[w.datum] = w; }
 
-    // Zoek de werkelijke RPE uit intervals.icu
-    try {
-      const acts = await intervalsGet("/activities", { oldest: s.datum, newest: s.datum, limit: "5", fields: "id,start_date_local,icu_rpe" }, creds);
-      const rit = (acts || []).find(a => a.start_date_local?.startsWith(s.datum));
-      if (rit?.icu_rpe) {
-        observatiesMetRpe.push({ hrv: wellnessDag.hrv, rpe_delta: rit.icu_rpe - s.verwacht_rpe });
-      }
-    } catch {}
-    await new Promise(r => setTimeout(r, 100));
+  const alleActiviteiten = await intervalsGet("/activities", {
+    oldest: datumOffset(-365), newest: datumOffset(0), limit: "500",
+    fields: "id,name,start_date_local,icu_rpe,icu_training_load,moving_time,type",
+  }, creds);
+
+  const rittenMetRpe = (alleActiviteiten || [])
+    .filter(a => (a.type === "Ride" || a.type === "VirtualRide") && a.icu_rpe != null);
+
+  function berekenVerwachtRpe(rit) {
+    if (!rit.icu_training_load || !rit.moving_time) return null;
+    const duurInUren = rit.moving_time / 3600;
+    if (duurInUren < 0.25) return null;
+    const ifWaarde = Math.sqrt(rit.icu_training_load / (duurInUren * 100));
+    return Math.min(10, 10 * Math.pow(ifWaarde, 2.5));
   }
 
-  const correlatie = berekenHrvRpeCorrelatie(observatiesMetRpe, profiel);
+  const observatiesVoorCorrelatie = rittenMetRpe
+    .map(rit => {
+      const datum = rit.start_date_local?.slice(0, 10);
+      const w = wellnessByDatum[datum];
+      if (!w?.hrv) return null;
+      const verwachtRpe = berekenVerwachtRpe(rit);
+      const rpeDelta = verwachtRpe != null ? rit.icu_rpe - verwachtRpe : null;
+      return { datum, hrv: w.hrv, icu_rpe: rit.icu_rpe, verwacht_rpe: verwachtRpe, rpe_delta: rpeDelta };
+    })
+    .filter(Boolean);
+
+  const metDelta = observatiesVoorCorrelatie.filter(o => o.rpe_delta != null);
+  const correlatie = berekenHrvRpeCorrelatie(metDelta, profiel);
+
+  // Sla observaties op voor leerlaag
+  await kv.set(`hrv-observaties:${userId}`, metDelta.map(o => ({
+    datum: o.datum, hrv: o.hrv, rpe_delta: o.rpe_delta,
+    keuze: null, sessietype: null, override: false, timestamp: new Date().toISOString(),
+  })).slice(-365));
 
   const volledigProfiel = {
     ...profiel,
@@ -97,5 +117,7 @@ export async function POST(request) {
     voltooide_sessies: voltooide.length,
     observaties_herstelsnelheid: Object.values(herstelsnelheidGemiddeld).reduce((s, d) => s + d.observaties, 0),
     observaties_correlatie: correlatie.observaties,
+    ritten_met_rpe: rittenMetRpe.length,
+    ritten_met_hrv_en_rpe: metDelta.length,
   });
 }
