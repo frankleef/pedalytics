@@ -7,6 +7,7 @@ import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 import { datumISO } from "@/lib/datum";
 import InfoTooltip from "./InfoTooltip";
 import ScaleInput from "./ScaleInput";
+import { isRpeAanpasbaar } from "@/lib/sessie/rpe";
 import SharedHeader from "./SharedHeader";
 import { StatusBanner, KerngetallenTiles } from "./SessieUitkomstKaart";
 import AdaptatieScoreKaart from "./AdaptatieScoreKaart"; // TSS+fase kaart op Schema
@@ -191,6 +192,7 @@ export default function SchemaTab({
   }, []);
   const [rpeOpslaan, setRpeOpslaan] = useState(false);
   const [rpeOpgeslagen, setRpeOpgeslagen] = useState({});
+  const [rpeBewerken, setRpeBewerken] = useState(false);
   const [streamsCache, setStreamsCache] = useState({});
   const [streamsLaden, setStreamsLaden] = useState(null);
   const [deviceTipWeg, setDeviceTipWeg] = useState(() => typeof window !== "undefined" && localStorage.getItem("deviceTipGezien") === "1");
@@ -306,16 +308,71 @@ export default function SchemaTab({
   // Reusable RPE component
   const renderRpe = () => {
     if (!gematchteRit) return null;
-    const waarde = huidigeRpe ?? rpeWaarde;
+    const aanpasbaar = isRpeAanpasbaar(gematchteRit.start_date_local);
+
+    const handleRpeSave = async (waarde) => {
+      setRpeOpslaan(true);
+      try {
+        const resp = await fetch(`/api/intervals/workouts/${gematchteRit.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rpe: waarde }) });
+        const data = await resp.json();
+        if (data.success) {
+          setRpeOpgeslagen(p => ({ ...p, [gematchteRit.id]: waarde }));
+          onRpeSaved?.(gematchteRit.id, waarde);
+          setRpeBewerken(false);
+        }
+      } catch (e) { console.error("RPE opslaan:", e); }
+      setRpeOpslaan(false);
+    };
+
     return (
       <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "18px 20px 20px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
-        {huidigeRpe != null ? (
+        {huidigeRpe != null && !rpeBewerken ? (
           <>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>RPE</span>
-              <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.5 0.13 162)" }}>Opgeslagen</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.5 0.13 162)" }}>Opgeslagen</span>
+                {aanpasbaar && (
+                  <button
+                    onClick={() => { setRpeWaarde(huidigeRpe); setRpeBewerken(true); }}
+                    style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 999, border: `1.5px solid ${T.cardBorder}`, background: T.cardBg, color: T.textSec, font: "700 11px var(--font-nunito), sans-serif", cursor: "pointer" }}
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                    Aanpassen
+                  </button>
+                )}
+              </div>
             </div>
-            <ScaleInput value={waarde} max={10} onChange={() => {}} leftLabel="Heel licht" rightLabel="Maximaal" />
+            <ScaleInput value={huidigeRpe} max={10} onChange={() => {}} leftLabel="Heel licht" rightLabel="Maximaal" />
+          </>
+        ) : huidigeRpe != null && rpeBewerken ? (
+          <>
+            <ScaleInput
+              value={rpeWaarde}
+              max={10}
+              question="Pas je RPE aan"
+              leftLabel="Heel licht"
+              rightLabel="Maximaal"
+              onChange={setRpeWaarde}
+            />
+            <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+              <button
+                onClick={() => setRpeBewerken(false)}
+                style={{ flex: 1, padding: 14, borderRadius: T.pillRadius, border: `1.5px solid ${T.cardBorder}`, background: T.cardBg, color: T.textSec, font: "700 14px var(--font-nunito), sans-serif", cursor: "pointer" }}
+              >
+                Annuleren
+              </button>
+              <button
+                disabled={rpeOpslaan}
+                onClick={() => handleRpeSave(rpeWaarde)}
+                style={{ flex: 1, border: "none", cursor: "pointer", padding: 14, borderRadius: T.pillRadius, background: T.slate, color: "oklch(0.97 0.01 84)", font: "700 14px var(--font-nunito), sans-serif", opacity: rpeOpslaan ? 0.6 : 1 }}
+              >
+                {rpeOpslaan ? "Opslaan..." : "RPE opslaan"}
+              </button>
+            </div>
           </>
         ) : (
           <>
@@ -327,20 +384,12 @@ export default function SchemaTab({
               rightLabel="Maximaal"
               onChange={setRpeWaarde}
             />
-            <button disabled={rpeOpslaan} onClick={async () => {
-              setRpeOpslaan(true);
-              try {
-                const resp = await fetch(`/api/intervals/workouts/${gematchteRit.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rpe: rpeWaarde }) });
-                const data = await resp.json();
-                if (data.success) { setRpeOpgeslagen(p => ({ ...p, [gematchteRit.id]: rpeWaarde })); onRpeSaved?.(gematchteRit.id, rpeWaarde); }
-              } catch (e) { console.error("RPE opslaan:", e); }
-              setRpeOpslaan(false);
-            }} style={{ width: "100%", marginTop: 14, border: "none", cursor: "pointer", padding: 14, borderRadius: T.pillRadius, background: T.slate, color: "oklch(0.97 0.01 84)", font: "700 14px var(--font-nunito), sans-serif", opacity: rpeOpslaan ? 0.6 : 1 }}>
+            <button disabled={rpeOpslaan} onClick={() => handleRpeSave(rpeWaarde)} style={{ width: "100%", marginTop: 14, border: "none", cursor: "pointer", padding: 14, borderRadius: T.pillRadius, background: T.slate, color: "oklch(0.97 0.01 84)", font: "700 14px var(--font-nunito), sans-serif", opacity: rpeOpslaan ? 0.6 : 1 }}>
               {rpeOpslaan ? "Opslaan..." : "RPE opslaan"}
             </button>
           </>
         )}
-        {huidigeRpe != null && sessie?.verwacht_rpe != null && (() => {
+        {huidigeRpe != null && !rpeBewerken && sessie?.verwacht_rpe != null && (() => {
           const delta = huidigeRpe - sessie.verwacht_rpe;
           const tekst = delta <= -2 ? "Lichter dan verwacht — goed teken dat je herstel op orde is."
             : delta <= -0.5 ? "Iets lichter dan gepland — dat is prima."

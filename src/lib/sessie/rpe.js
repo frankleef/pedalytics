@@ -54,6 +54,18 @@ export function voegVerwachtRpeToe(sessie) {
 }
 
 /**
+ * Bepaalt of de RPE van een rit nog aanpasbaar is.
+ * Window: 24 uur na het starttijdstip van de rit.
+ * @param {string|Date} ritStarttijd - start_date_local van de activiteit (intervals.icu)
+ * @returns {boolean}
+ */
+export function isRpeAanpasbaar(ritStarttijd) {
+  if (!ritStarttijd) return false;
+  const grens = new Date(ritStarttijd).getTime() + 24 * 60 * 60 * 1000;
+  return Date.now() < grens;
+}
+
+/**
  * RPE delta feedbacktekst.
  */
 export function rpeDeltaFeedback(delta) {
