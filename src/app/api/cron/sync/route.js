@@ -151,9 +151,10 @@ export async function POST(request) {
               // Decoupling medianen voor conditiescore: GEEN filter (ruwe waarden)
               let dcHuidigUp = null, dcVorigUp = null;
               try {
-                const actResp = await intervalsGet("/activities", { oldest: datumOffset(-60), newest: datumOffset(0), limit: "30", fields: "id,type" }, { apiKey, athleteId });
+                const actResp = await intervalsGet("/activities", { oldest: datumOffset(-60), newest: datumOffset(0), limit: "30", fields: "id,type,start_date_local" }, { apiKey, athleteId });
                 const dcAlleWaarden = [];
-                for (const a of (actResp || []).filter(a => a.type === "Ride" || a.type === "VirtualRide")) {
+                const rittenGesorteerd = (actResp || []).filter(a => a.type === "Ride" || a.type === "VirtualRide").sort((a, b) => (a.start_date_local || "").localeCompare(b.start_date_local || ""));
+                for (const a of rittenGesorteerd) {
                   const dc = await kv.get(`decoupling:${a.id}`);
                   if (dc == null) continue;
                   const w = typeof dc === "number" ? dc : dc?.decoupling;
