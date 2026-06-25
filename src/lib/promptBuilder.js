@@ -281,7 +281,9 @@ Geef JSON:
   "weekdoel": "...",
   "sessies": [{
     "datum": "...", "dag": "...", "type": "...", "titel": "...", "tss": ..., "duur_min": ...,
-    "vermogen": "...", "reden": "...", "waarom_vandaag": "1-2 zinnen waarom deze sessie op deze dag past in het plan (fase, weekpositie, doel)", "segmenten": [...],
+    "vermogen": "...",
+    "waarom_vandaag": "2-3 zinnen, max 60 woorden, coachende toon, tweede persoon. Waarom DEZE sessie op DEZE dag? Gebruik relatieve dagaanduidingen (gisteren, morgen), nooit vaste dagnamen. Benoem intensiteitsreden.",
+    "segmenten": [...],
     "intentie": { "rol": "...", "sessietype": "...", "toegestane_zones": [...], "tss_range": { "min": ..., "max": ... }, "toelichting": "..." }
   }],
   "tss_totaal": ...
@@ -439,7 +441,9 @@ SESSIETYPES: duur_lang | duur_variabel | sweetspot | interval | herstel
 Geef JSON (alleen het sessie-object, geen array):
 {
   "datum": "${ctx.datum}", "dag": "${ctx.dagVanDeWeek}", "type": "...", "titel": "...", "tss": ..., "duur_min": ...,
-  "vermogen": "...", "reden": "...", "waarom_vandaag": "1-2 zinnen waarom deze sessie op deze dag past in het plan (fase, weekpositie, doel)", "segmenten": [...],
+  "vermogen": "...",
+  "waarom_vandaag": "2-3 zinnen, max 60 woorden, coachende toon, tweede persoon. Leg uit waarom DEZE sessie op DEZE dag past. Refereer aan de positie in de week met relatieve aanduidingen (gisteren, morgen, eerder deze week) — nooit vaste dagnamen. Benoem de reden voor de gekozen intensiteit (herstel, faseopbouw, supercompensatie). Optioneel: coachende opmerking bij hoge intensiteit.",
+  "segmenten": [...],
   "intentie": { "rol": "...", "sessietype": "...", "toegestane_zones": [...], "tss_range": { "min": ..., "max": ... }, "toelichting": "..." }
 }
 Alleen JSON.`,

@@ -587,13 +587,13 @@ export default function SchemaTab({
               </div>
             )}
 
-            {sessie.reden && (
+            {(sessie.waarom_vandaag || sessie.reden) && (
               <div style={{ background: SLATE.bg, borderRadius: T.cardRadius, padding: "22px 22px 24px", boxShadow: SLATE.shadow, marginBottom: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 13 }}>
                   <div style={{ width: 24, height: 24, borderRadius: 8, background: T.gradient, display: "flex", alignItems: "center", justifyContent: "center", font: "700 13px var(--font-fredoka), sans-serif", color: "oklch(0.2 0.03 245)" }}>P</div>
                   <span style={{ font: "800 11.5px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: SLATE.label }}>{dayOffset === 0 ? "WAAROM VANDAAG" : `WAAROM ${bekekeDagNaam.toUpperCase()}`}</span>
                 </div>
-                <p style={{ margin: "0 0 16px", font: "600 15px/1.5 var(--font-nunito), sans-serif", color: SLATE.text, textWrap: "pretty" }}>{sessie.reden}</p>
+                <p style={{ margin: "0 0 16px", font: "600 15px/1.5 var(--font-nunito), sans-serif", color: SLATE.text, textWrap: "pretty" }}>{sessie.waarom_vandaag || sessie.reden}</p>
                 {sessie.check_in_aangepast && sessie.check_in_modulatie && (
                   <p style={{ margin: "0 0 16px", font: "600 13px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.75 0.06 168)" }}>
                     We hebben je sessie {sessie.check_in_modulatie} gemaakt op basis van je hersteldata van vanochtend.

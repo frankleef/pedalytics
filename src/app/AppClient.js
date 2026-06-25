@@ -663,6 +663,13 @@ export default function Page() {
           }
         }
       } catch (e) { console.error("[Weekpatroon] Validatie mislukt:", e); }
+
+      // Waarom-teksten van buurdagen vernieuwen
+      try {
+        const { vernieuwWaaromTekstenWeek } = await import("@/lib/sessie/waaromTekst");
+        const bijgewerkt = await vernieuwWaaromTekstenWeek(lokaalSessies, gewijzigdeDatums);
+        if (bijgewerkt.length > 0) console.log("[WaaromTekst] Vernieuwd voor:", bijgewerkt.join(", "));
+      } catch (e) { console.error("[WaaromTekst] Vernieuwing mislukt:", e); }
     }
 
     const eindWeekSessies = { ...weekSessies, sessies: lokaalSessies };
