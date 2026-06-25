@@ -57,7 +57,7 @@ export function normaliseerDecoupling(mediaan_huidig, mediaan_vorig) {
 export function berekenConditieScore({ ctl_nu, ctl_4w_geleden, rpe_delta_trend, decoupling_huidig, decoupling_vorig }) {
   const bijdragen = [];
   if (ctl_nu != null && ctl_4w_geleden != null) bijdragen.push({ score: normaliseerCtlRichting(ctl_nu, ctl_4w_geleden), gewicht: 0.50 });
-  if (rpe_delta_trend != null) bijdragen.push({ score: normaliseerRpeDelta(rpe_delta_trend), gewicht: 0.35 });
+  if (rpe_delta_trend != null && rpe_delta_trend !== 0) bijdragen.push({ score: normaliseerRpeDelta(rpe_delta_trend), gewicht: 0.35 });
   if (decoupling_huidig != null && decoupling_vorig != null) bijdragen.push({ score: normaliseerDecoupling(decoupling_huidig, decoupling_vorig), gewicht: 0.15 });
   if (!bijdragen.length) return null;
   const totaalGewicht = bijdragen.reduce((s, b) => s + b.gewicht, 0);
