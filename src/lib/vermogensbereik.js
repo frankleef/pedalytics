@@ -44,7 +44,7 @@ export function berekenRangeZ7(piekSprintW, isSpecifiek) {
   return { ondergrens: Math.round(mid - spread / 2), bovengrens: Math.round(mid + spread / 2) };
 }
 
-export function cadansVoorBlok(sessietype, blokDuurSeconden, zone) {
+export function cadansVoorBlok(sessietype, blokDuurSeconden, zone, positie) {
   if (sessietype === "kracht_lage_cadans") {
     if (zone && ["Z1", "Z2"].includes(zone)) return { min: 85, max: 95 };
     return { min: 45, max: 60 };
@@ -57,6 +57,15 @@ export function cadansVoorBlok(sessietype, blokDuurSeconden, zone) {
   if (sessietype === "z6_anaeroob") return { min: 95, max: 105 };
   if (["drempel_intervallen", "over_under", "pyramide", "sweetspot_intervallen", "sweetspot_lang"].includes(sessietype)) {
     return { min: 88, max: 95 };
+  }
+  if (sessietype === "z2_cadans") {
+    return positie === "boven" ? { min: 95, max: 105 } : { min: 70, max: 80 };
+  }
+  if (sessietype === "z2_heuvel") {
+    return positie === "boven" ? { min: 70, max: 80 } : { min: 90, max: 100 };
+  }
+  if (sessietype === "z2_tempo_teugjes") {
+    return positie === "boven" ? { min: 85, max: 95 } : { min: 80, max: 90 };
   }
   return { min: 85, max: 95 };
 }
@@ -75,7 +84,7 @@ export function berekenBlok(blokDef, zones, ftpW, piekSprintW, sessietype) {
   }
 
   const effectiefType = blokDef.sessietype || sessietype;
-  const cadans = cadansVoorBlok(effectiefType, blokDef.blokDuurSeconden || 240, blokDef.zone);
+  const cadans = cadansVoorBlok(effectiefType, blokDef.blokDuurSeconden || 240, blokDef.zone, blokDef.positie);
 
   return {
     ...blokDef,
