@@ -1,16 +1,13 @@
 "use client";
 
-// Samengestelde heuristiek, geen wetenschappelijk gestandaardiseerde formule.
-// TSB, HRV-afwijking, RHR-afwijking en subjectieve check-in zijn elk individueel
-// gevalideerde signalen, maar de combinatie tot één 0-100 score met onderstaande
-// gewichten is een eigen keuze — vergelijkbaar met Whoop/Garmin/Oura readiness scores.
-// Met check-in: TSB 40%, HRV 25%, RHR 10%, check-in 25%.
-// Zonder check-in: TSB 50%, HRV 35%, RHR 15% (hernormalisatie).
+// Samengestelde heuristiek, vergelijkbaar met Whoop/Garmin/Oura readiness scores.
+// Met check-in: TSB 40%, HRV 25%, check-in 35%.
+// Zonder check-in: TSB 62%, HRV 38% (hernormalisatie).
+// RHR is informatief maar weegt niet meer mee (overlapt met HRV).
 
 const GEWICHT_TSB = 0.40;
 const GEWICHT_HRV = 0.25;
-const GEWICHT_RHR = 0.10;
-const GEWICHT_CHECKIN = 0.25;
+const GEWICHT_CHECKIN = 0.35;
 
 const TSB_MIN = -30;
 const TSB_MAX = 15;
@@ -67,11 +64,6 @@ export function berekenHerstelScore({ hrv, hrvBasislijn, rusthartslag, rustharts
   }
 
   if (rusthartslag && rusthartslagBasislijn) {
-    const sub = rhrSubscore(rusthartslag, rusthartslagBasislijn);
-    subscores.push({ label: "RHR", sub, gewicht: GEWICHT_RHR });
-    gewogenSom += sub * GEWICHT_RHR;
-    gewichtTotaal += GEWICHT_RHR;
-
     const diff = rusthartslag - rusthartslagBasislijn;
     const rhrLabel = diff <= 2 ? "Rusthartslag normaal" : diff <= 5 ? "Rusthartslag licht verhoogd" : "Rusthartslag verhoogd";
     const rhrK = diff <= 2 ? "#4ade80" : diff <= 5 ? "#fbbf24" : "#ef4444";
@@ -95,7 +87,6 @@ export function berekenHerstelScore({ hrv, hrvBasislijn, rusthartslag, rustharts
   const ALLE_GEWICHTEN = [
     { aanwezig: tsb != null, gewicht: GEWICHT_TSB },
     { aanwezig: !!(hrv && hrvBasislijn), gewicht: GEWICHT_HRV },
-    { aanwezig: !!(rusthartslag && rusthartslagBasislijn), gewicht: GEWICHT_RHR },
     { aanwezig: !!(checkin && checkin >= 1 && checkin <= 5), gewicht: GEWICHT_CHECKIN },
   ];
   let totaalSom = gewogenSom;

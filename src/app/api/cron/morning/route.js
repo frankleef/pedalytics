@@ -3,12 +3,85 @@ import { getKV } from "@/lib/kv";
 import { sendPush } from "@/lib/pushNotify";
 import { vandaagISO } from "@/lib/datum";
 import { verifyQStash } from "@/lib/qstash";
+import { bepaalHrvZone } from "@/lib/hrv/zone";
+import { bepaalNotificatie, checkNotificatieLimiet, verhoogNotificatieTeller, bouwNotificatieTekst } from "@/lib/hrv/notificatie";
+import { bepaalOpportunistischeTraining } from "@/lib/hrv/opportunistisch";
+import { getIntervalsCredentials } from "@/lib/users";
+import { intervalsGet } from "@/lib/intervals";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET() {
   return NextResponse.json({ error: "Gebruik POST (via QStash)" }, { status: 405 });
+}
+
+async function verwerkHrvNotificatie(userId, kv, vandaag) {
+  const hrvProfielRaw = await kv.get(`hrv-profiel:${userId}`);
+  const hrvProfiel = typeof hrvProfielRaw === "string" ? JSON.parse(hrvProfielRaw) : hrvProfielRaw;
+  if (!hrvProfiel?.betrouwbaar) return null;
+
+  let huidigHrv = null;
+  try {
+    const creds = await getIntervalsCredentials(userId);
+    if (creds) {
+      const wData = await intervalsGet("/wellness", { oldest: vandaag, newest: vandaag }, creds);
+      huidigHrv = wData?.[0]?.hrv ?? null;
+    }
+  } catch {}
+
+  const hrvZone = bepaalHrvZone(huidigHrv, hrvProfiel);
+
+  // Sla HRV-zone op in seizoensplan
+  const planKey = `${userId}:seizoensplan`;
+  const plan = await kv.get(planKey);
+  if (plan?.weekSessies?.sessies) {
+    const sessie = plan.weekSessies.sessies.find(s => s.datum === vandaag && !s.voltooid);
+    if (sessie) {
+      sessie.hrv_zone = hrvZone;
+      sessie.hrv_vandaag = huidigHrv;
+      await kv.set(planKey, plan);
+    }
+
+    const notificatie = bepaalNotificatie({ hrvZone, geplandeSessie: sessie });
+
+    if (!notificatie.sturen) {
+      // Check opportunistische training
+      if (hrvZone === "hoog" && !sessie) {
+        const beschikbaar = plan.beschikbaarheid || {};
+        const dagNaam = ["Zondag","Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag"][new Date(vandaag).getDay()];
+        const dagenSinds = plan.startdatum ? Math.max(0, (new Date(vandaag) - new Date(plan.startdatum)) / 86400000) : 0;
+        const weekNr = Math.max(1, Math.ceil(dagenSinds / 7));
+        const kaderWeek = plan.kader?.find(w => w.week === weekNr) || plan.kader?.[0];
+        const weekTss = plan.weekSessies.sessies.filter(s => {
+          if (!s.datum) return false;
+          const ws = new Date(vandaag); ws.setDate(ws.getDate() - ((ws.getDay() + 6) % 7));
+          const we = new Date(ws); we.setDate(ws.getDate() + 7);
+          return s.datum >= ws.toISOString().slice(0, 10) && s.datum < we.toISOString().slice(0, 10);
+        }).reduce((s, x) => s + (x.tss || 0), 0);
+        const tssBudget = (kaderWeek?.tss_doel || 300) - weekTss;
+
+        const opp = bepaalOpportunistischeTraining({
+          hrvZone, geplandeSessie: sessie, beschikbaar: !!beschikbaar[dagNaam],
+          tssBudgetResterend: tssBudget, weektype: kaderWeek?.weektype,
+        });
+        if (opp) {
+          await sendPush(userId, { title: opp.notificatie.titel, body: opp.notificatie.body, url: "/", tag: "hrv-opportunistisch" });
+          return "opportunistisch_gestuurd";
+        }
+      }
+      return "hrv_ok";
+    }
+
+    const magSturen = await checkNotificatieLimiet(userId);
+    if (!magSturen) return "limiet_bereikt";
+
+    const tekst = bouwNotificatieTekst(notificatie.type, sessie, hrvProfiel, huidigHrv);
+    await sendPush(userId, { title: tekst.titel, body: tekst.body, url: "/", tag: "hrv-advies" });
+    await verhoogNotificatieTeller(userId);
+    return "hrv_notificatie_gestuurd";
+  }
+  return "geen_sessies";
 }
 
 export async function POST(request) {
@@ -22,17 +95,20 @@ export async function POST(request) {
 
   for (const userId of userIds) {
     try {
-      // Skip als vandaag al ingevuld
+      // Check-in push
       const checkin = await kv.get(`${userId}:checkin:${vandaag}`);
-      if (checkin) { results.push({ userId, status: "al_ingevuld" }); continue; }
+      if (!checkin) {
+        await sendPush(userId, {
+          title: "Goedemorgen!",
+          body: "Hoe voel je je vandaag? Vul je ochtend-check-in in.",
+          url: "/",
+          tag: "morning-checkin",
+        });
+      }
 
-      await sendPush(userId, {
-        title: "Goedemorgen! ☀️",
-        body: "Hoe voel je je vandaag? Vul je ochtend-check-in in.",
-        url: "/",
-        tag: "morning-checkin",
-      });
-      results.push({ userId, status: "sent" });
+      // HRV-notificatie
+      const hrvResult = await verwerkHrvNotificatie(userId, kv, vandaag);
+      results.push({ userId, status: checkin ? "al_ingevuld" : "sent", hrv: hrvResult });
     } catch (e) {
       results.push({ userId, status: "error", error: e.message });
     }

@@ -12,6 +12,7 @@ import { checkFaseOvergang, berekenEnCacheDecoupling, bijwerkenDecouplingBaselin
 import { berekenRpeTrend, verwerkRpeTrend } from "@/lib/sessie/rpeTrend";
 import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus, ctlRampRegressie } from "@/lib/conditie";
 import { haalRitTemperatuur, berekenTempBaseline, berekenHitteVlag, migreerHitteTemperatuur } from "@/lib/hitte";
+import { herberekenHrvProfiel, checkDataStatus } from "@/lib/hrv/profiel";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -83,6 +84,31 @@ export async function POST(request) {
             }
           }
         } catch (e) { console.warn(`[ftp-sync] Check mislukt voor ${userId}:`, e.message); }
+
+        // Wekelijkse HRV-profielherberekening (maandag)
+        if (new Date().getDay() === 1) {
+          try {
+            const wellOldest90 = datumOffset(-90);
+            const wellData90 = await intervalsGet("/wellness", { oldest: wellOldest90, newest: datumOffset(0) }, { apiKey, athleteId });
+            if (wellData90?.length >= 14) {
+              const genormaliseerd = wellData90.map(w => ({ ...w, datum: w.id || w.datum }));
+              const huidigProfiel = await kv.get(`hrv-profiel:${userId}`);
+              const bestaand = typeof huidigProfiel === "string" ? JSON.parse(huidigProfiel) : huidigProfiel;
+              const nieuwProfiel = herberekenHrvProfiel(genormaliseerd, bestaand);
+              const statusCheck = checkDataStatus(genormaliseerd, bestaand);
+              await kv.set(`hrv-profiel:${userId}`, { ...(bestaand || {}), ...nieuwProfiel, ...statusCheck });
+
+              if (statusCheck.modus_overgang) {
+                const notKey = `hrv-profiel-modus-notificatie-gestuurd:${userId}`;
+                if (!(await kv.get(notKey))) {
+                  await sendPush(userId, { title: "Je HRV-profiel is gepersonaliseerd", body: "Adviezen worden voortaan afgestemd op jouw persoonlijke herstelpatroon.", url: "/" });
+                  await kv.set(notKey, "1");
+                }
+              }
+              console.log(`[sync] HRV-profiel bijgewerkt voor ${userId}: modus=${nieuwProfiel.modus}, basislijn=${nieuwProfiel.basislijn_28d}`);
+            }
+          } catch (e) { console.warn(`[sync] HRV-profiel herberekening mislukt voor ${userId}:`, e.message); }
+        }
 
         const lastActivity = await kv.get(`user:${userId}:last_activity`);
         const oldest = lastActivity?.datum_iso || datumOffset(-3);

@@ -20,8 +20,7 @@ function berekenBalansscore({ tsb, hrv, hrvBasislijn, rhr, rhrBasislijn, checkin
   const componenten = [
     { aanwezig: tsb != null, gewicht: 0.40, sub: tsb != null ? clamp01((tsb - TSB_MIN) / (TSB_MAX - TSB_MIN)) : 0.5 },
     { aanwezig: !!(hrv && hrvBasislijn), gewicht: 0.25, sub: hrv && hrvBasislijn ? clamp01((((hrv - hrvBasislijn) / hrvBasislijn) * 100 - HRV_AFWIJKING_MIN) / (0 - HRV_AFWIJKING_MIN)) : 0.5 },
-    { aanwezig: !!(rhr && rhrBasislijn), gewicht: 0.10, sub: rhr && rhrBasislijn ? clamp01(1 - (rhr - rhrBasislijn) / RHR_AFWIJKING_MAX) : 0.5 },
-    { aanwezig: !!(checkin >= 1 && checkin <= 5), gewicht: 0.25, sub: checkin >= 1 ? clamp01((checkin - 1) / 4) : 0.5 },
+    { aanwezig: !!(checkin >= 1 && checkin <= 5), gewicht: 0.35, sub: checkin >= 1 ? clamp01((checkin - 1) / 4) : 0.5 },
   ];
 
   for (const c of componenten) {

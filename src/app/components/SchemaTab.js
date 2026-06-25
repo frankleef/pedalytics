@@ -11,6 +11,7 @@ import SharedHeader from "./SharedHeader";
 import { StatusBanner, KerngetallenTiles } from "./SessieUitkomstKaart";
 import AdaptatieScoreKaart from "./AdaptatieScoreKaart"; // TSS+fase kaart op Schema
 import AlternatiefSessiePopup from "./AlternatiefSessiePopup";
+import HrvAdviesKaart, { bepaalKeuzes } from "./HrvAdviesKaart";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
 const DAG_KORT = ["ZO","MA","DI","WO","DO","VR","ZA"];
@@ -453,6 +454,18 @@ export default function SchemaTab({
         {/* ══ PLANNED ══ */}
         {mode === "planned" && sessie && (
           <div>
+            {sessie.hrv_zone && ["rood", "geel"].includes(sessie.hrv_zone) && !sessie.hrv_keuze_gemaakt && dayOffset === 0 && (
+              <HrvAdviesKaart
+                zone={sessie.hrv_zone}
+                keuzes={bepaalKeuzes(sessie.hrv_zone, sessie.hrv_zone === "rood" ? (["drempel_intervallen","sweetspot_intervallen","sweetspot_lang","over_under","pyramide","vo2max_intervallen","vo2max_lang","vo2max_kort","microbursts","sprint_neuraal","kracht_lage_cadans","race_simulatie"].includes(sessie.intentie?.sessietype) ? "rood_intensiteit" : "rood_aeroob") : "geel_intensiteit")}
+                onKeuze={async (keuze) => {
+                  await fetch("/api/hrv/keuze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ datum: cur.iso, keuze }) });
+                  onPlanWijziging?.();
+                }}
+                rpeVoorspelling={null}
+                isVerwerkt={false}
+              />
+            )}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.6, color: T.textTert, textTransform: "uppercase" }}>{sessieLabel.toUpperCase()}</span>
               {(() => {
