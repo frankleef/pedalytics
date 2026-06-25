@@ -157,6 +157,22 @@ export function bouwSessieContext({
   })();
   const historischUrenPerWeek = seizoensplan?.start_profiel?.historisch_uren_per_week ?? null;
 
+  // HRV-zone: gebruik opgeslagen waarde van morning-cron, of bereken live
+  const hrvZone = oudeSessie?.hrv_zone ?? (
+    !isToekomst && hrvWaarde && profiel?.hrv_basislijn
+      ? (() => {
+          const { bepaalHrvZone } = require("../hrv/zone");
+          const sd = profiel?.hrv_sd || 8;
+          return bepaalHrvZone(hrvWaarde, {
+            basislijn_28d: profiel.hrv_basislijn, sd_90d: sd,
+            rood_drempel: profiel.hrv_basislijn - 2 * sd,
+            geel_drempel: profiel.hrv_basislijn - sd,
+            betrouwbaar: true,
+          });
+        })()
+      : "onbekend"
+  );
+
   const trainingsmethode = bepaalTrainingsmethode({
     dagRol: dagIntentie?.rol ?? "aerobe_dag",
     fase: kaderWeek.fase,
@@ -208,7 +224,12 @@ export function bouwSessieContext({
     distributieAfwijking,
     rpeOverbelasting: rpeTrendRichting === "hoog",
     rpeOnderstimulering: rpeTrendRichting === "laag",
-    trainingsmethode,
+    trainingsmethode: hrvZone === "rood"
+      ? { ...trainingsmethode, instructie: trainingsmethode.instructie + "\n\nLET OP HRV: De HRV van vandaag is significant lager dan het persoonlijk gemiddelde (rode zone). Kies het MINIMUM van de TSS-range. Verkort alle blokken met 20%. Geen extra herhalingen." }
+      : hrvZone === "geel"
+      ? { ...trainingsmethode, instructie: trainingsmethode.instructie + "\n\nLET OP HRV: De HRV van vandaag is iets lager dan het persoonlijk gemiddelde (gele zone). Kies het lagere deel van de TSS-range. Houd blokken aan de kortere kant." }
+      : trainingsmethode,
+    hrvZone,
     vo2maxTogestaan: seizoensplan?.planOverrides?.vo2max_toegestaan ?? false,
     wPerKg,
     historischUrenPerWeek,

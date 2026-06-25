@@ -38,7 +38,7 @@ export async function verwerkVerlichten(userId, datum, dag, seizoensplan) {
 
   if (sessie) {
     const { bepaalNieuweIntentie } = await import("../sessie/alternatief");
-    const nieuweIntentie = bepaalNieuweIntentie(sessie.intentie, "vermoeid", dag?.fase || "basis");
+    const nieuweIntentie = bepaalNieuweIntentie(sessie.intentie, "vermoeid", dag?.fase || "basis", "rood");
 
     if (nieuweIntentie) {
       sessie.intentie = nieuweIntentie;

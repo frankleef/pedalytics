@@ -29,10 +29,12 @@ function kiesAlternatiefSessietype(origineelType, rol, fase) {
   return opties[0] ?? "z2_variabel";
 }
 
-export function bepaalNieuweIntentie(origineleIntentie, reden, fase) {
+export function bepaalNieuweIntentie(origineleIntentie, reden, fase, hrvZone) {
   if (!origineleIntentie) return null;
 
-  if (HERSTELGERELATEERDE_REDENEN.includes(reden) && origineleIntentie.rol === "intensiteitsdag") {
+  const effectieveReden = reden ?? (hrvZone === "rood" ? "vermoeid" : null);
+
+  if (HERSTELGERELATEERDE_REDENEN.includes(effectieveReden) && origineleIntentie.rol === "intensiteitsdag") {
     return {
       rol: "aerobe_dag",
       sessietype: "z2_variabel",
@@ -41,7 +43,9 @@ export function bepaalNieuweIntentie(origineleIntentie, reden, fase) {
         min: Math.round((origineleIntentie.tss_range?.min ?? 60) * 0.6),
         max: Math.round((origineleIntentie.tss_range?.max ?? 90) * 0.7),
       },
-      toelichting: `Alternatief vanwege ${reden}: intensiteitsdag vervangen door herstelgerichte Z2`,
+      toelichting: reden
+        ? `Alternatief vanwege ${reden}: intensiteitsdag vervangen door herstelgerichte Z2`
+        : "Alternatief: HRV rood — intensiteitsdag automatisch verlaagd naar Z2",
     };
   }
 
@@ -54,6 +58,10 @@ export function bepaalNieuweIntentie(origineleIntentie, reden, fase) {
   return {
     ...origineleIntentie,
     sessietype: alternatief,
-    toelichting: `Alternatief op verzoek${reden ? ` (${reden})` : ""}: sessietype gewisseld van ${origineleIntentie.sessietype} naar ${alternatief}`,
+    toelichting: reden
+      ? `Alternatief op verzoek (${reden}): sessietype gewisseld van ${origineleIntentie.sessietype} naar ${alternatief}`
+      : hrvZone === "geel"
+      ? "Alternatief: HRV geel — lichtere variant gekozen"
+      : `Alternatief op verzoek: sessietype gewisseld van ${origineleIntentie.sessietype} naar ${alternatief}`,
   };
 }

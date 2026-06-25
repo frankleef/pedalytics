@@ -711,7 +711,7 @@ export default function Page() {
     const kaderWeek = seizoensplan?.kader?.find(w => w.week === weekNr) || seizoensplan?.kader?.[0];
     const fase = kaderWeek?.fase || "basis";
 
-    const nieuweIntentie = bepaalNieuweIntentie(sessie.intentie, reden, fase);
+    const nieuweIntentie = bepaalNieuweIntentie(sessie.intentie, reden, fase, sessie.hrv_zone ?? null);
     if (!nieuweIntentie) return;
 
     const DAGNAMEN_LOC = ["Zondag", "Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag"];

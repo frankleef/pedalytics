@@ -850,6 +850,7 @@ export default function SchemaTab({
 
       {toontAlternatiefPopup && (
         <AlternatiefSessiePopup
+          hrvZone={sessie?.hrv_zone}
           onBevestig={async ({ reden }) => {
             setToontAlternatiefPopup(false);
             setAlternatiefLaden(true);

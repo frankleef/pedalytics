@@ -9,7 +9,7 @@ const REDENEN = [
   { id: "motivatie", label: "Geen zin in dit type" },
 ];
 
-export default function AlternatiefSessiePopup({ onBevestig, onAnnuleer }) {
+export default function AlternatiefSessiePopup({ onBevestig, onAnnuleer, hrvZone }) {
   const [gekozenReden, setGekozenReden] = useState(null);
   const [isLaden, setIsLaden] = useState(false);
 
@@ -38,6 +38,17 @@ export default function AlternatiefSessiePopup({ onBevestig, onAnnuleer }) {
         <p style={{ margin: "0 0 20px", font: "600 14px/1.5 var(--font-nunito), sans-serif", color: T.textSec }}>
           Je sessie wordt vervangen door een alternatief dat past bij je weekdoelen.
         </p>
+
+        {hrvZone === "rood" && (
+          <p style={{ margin: "0 0 16px", padding: "10px 14px", borderRadius: 14, background: "oklch(0.95 0.02 25)", font: "600 13px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.5 0.15 25)" }}>
+            Je HRV is vandaag significant lager dan normaal. We raden een lichtere sessie aan of adviseren rust.
+          </p>
+        )}
+        {hrvZone === "geel" && (
+          <p style={{ margin: "0 0 16px", padding: "10px 14px", borderRadius: 14, background: "oklch(0.96 0.03 70)", font: "600 13px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.5 0.1 70)" }}>
+            Je HRV is iets lager dan normaal. We kiezen automatisch de lichtere variant van je sessie.
+          </p>
+        )}
 
         <p style={{ margin: "0 0 10px", font: "700 12px var(--font-nunito), sans-serif", color: T.textTert, letterSpacing: 0.5 }}>
           Waarom wil je iets anders? (optioneel)
