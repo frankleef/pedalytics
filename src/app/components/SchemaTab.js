@@ -7,7 +7,7 @@ import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 import { datumISO } from "@/lib/datum";
 import InfoTooltip from "./InfoTooltip";
 import ScaleInput from "./ScaleInput";
-import { isRpeAanpasbaar } from "@/lib/sessie/rpe";
+import { isRpeAanpasbaar, berekenVerwachtRpe } from "@/lib/sessie/rpe";
 import SharedHeader from "./SharedHeader";
 import { StatusBanner, KerngetallenTiles } from "./SessieUitkomstKaart";
 import AdaptatieScoreKaart from "./AdaptatieScoreKaart"; // TSS+fase kaart op Schema
@@ -309,6 +309,10 @@ export default function SchemaTab({
   const renderRpe = () => {
     if (!gematchteRit) return null;
     const aanpasbaar = isRpeAanpasbaar(gematchteRit.start_date_local);
+    const verwachtRpeWerkelijk = (gematchteRit.wattage && gematchteRit.duur_min)
+      ? berekenVerwachtRpe(gematchteRit.wattage / ftp, gematchteRit.duur_min)
+      : null;
+    const verwachtRpeDisplay = verwachtRpeWerkelijk ?? sessie?.verwacht_rpe ?? null;
 
     const handleRpeSave = async (waarde) => {
       setRpeOpslaan(true);
@@ -389,8 +393,8 @@ export default function SchemaTab({
             </button>
           </>
         )}
-        {huidigeRpe != null && !rpeBewerken && sessie?.verwacht_rpe != null && (() => {
-          const delta = huidigeRpe - sessie.verwacht_rpe;
+        {huidigeRpe != null && !rpeBewerken && verwachtRpeDisplay != null && (() => {
+          const delta = huidigeRpe - verwachtRpeDisplay;
           const tekst = delta <= -2 ? "Lichter dan verwacht — goed teken dat je herstel op orde is."
             : delta <= -0.5 ? "Iets lichter dan gepland — dat is prima."
             : delta <= 0.4 ? "Precies zoals verwacht."
@@ -398,7 +402,7 @@ export default function SchemaTab({
             : "Duidelijk zwaarder dan verwacht — let op je herstel.";
           return (
             <div style={{ marginTop: 10, font: "600 12px/1.5 var(--font-nunito), sans-serif", color: delta > 1.5 ? "oklch(0.55 0.11 30)" : delta < -1 ? "oklch(0.5 0.11 165)" : T.textSec }}>
-              {tekst} (verwacht: {sessie.verwacht_rpe})
+              {tekst} (verwacht: {verwachtRpeDisplay})
             </div>
           );
         })()}

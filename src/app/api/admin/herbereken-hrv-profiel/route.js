@@ -6,6 +6,7 @@ import { herberekenHrvProfiel, checkDataStatus } from "@/lib/hrv/profiel";
 import { berekenHerstelDagen } from "@/lib/hrv/herstelsnelheid";
 import { berekenHrvRpeCorrelatie } from "@/lib/hrv/correlatie";
 import { datumOffset } from "@/lib/datum";
+import { berekenVerwachtRpe as berekenVerwachtRpeLib } from "@/lib/sessie/rpe";
 
 export const maxDuration = 120;
 
@@ -66,26 +67,23 @@ export async function POST(request) {
 
   const alleActiviteiten = await intervalsGet("/activities", {
     oldest: datumOffset(-365), newest: datumOffset(0), limit: "500",
-    fields: "id,name,start_date_local,icu_rpe,icu_training_load,moving_time,type",
+    fields: "id,name,start_date_local,icu_rpe,icu_training_load,moving_time,type,icu_weighted_avg_watts,average_watts",
   }, creds);
 
   const rittenMetRpe = (alleActiviteiten || [])
     .filter(a => (a.type === "Ride" || a.type === "VirtualRide") && a.icu_rpe != null);
-
-  function berekenVerwachtRpe(rit) {
-    if (!rit.icu_training_load || !rit.moving_time) return null;
-    const duurInUren = rit.moving_time / 3600;
-    if (duurInUren < 0.25) return null;
-    const ifWaarde = Math.sqrt(rit.icu_training_load / (duurInUren * 100));
-    return Math.min(10, 10 * Math.pow(ifWaarde, 2.5));
-  }
 
   const observatiesVoorCorrelatie = rittenMetRpe
     .map(rit => {
       const datum = rit.start_date_local?.slice(0, 10);
       const w = wellnessByDatum[datum];
       if (!w?.hrv) return null;
-      const verwachtRpe = berekenVerwachtRpe(rit);
+      if (!rit.icu_weighted_avg_watts && !rit.average_watts) return null;
+      const npWatts = rit.icu_weighted_avg_watts || rit.average_watts;
+      const ftpVoorRit = plan?.huidige_ftp || 265;
+      const ifGereden = npWatts / ftpVoorRit;
+      const duurMin = rit.moving_time ? Math.round(rit.moving_time / 60) : null;
+      const verwachtRpe = (ifGereden && duurMin) ? berekenVerwachtRpeLib(ifGereden, duurMin) : null;
       const rpeDelta = verwachtRpe != null ? rit.icu_rpe - verwachtRpe : null;
       return { datum, hrv: w.hrv, icu_rpe: rit.icu_rpe, verwacht_rpe: verwachtRpe, rpe_delta: rpeDelta };
     })
