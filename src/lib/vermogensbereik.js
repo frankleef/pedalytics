@@ -50,11 +50,12 @@ export function cadansVoorBlok(sessietype, blokDuurSeconden, zone) {
     return { min: 45, max: 60 };
   }
   if (sessietype === "sprint_neuraal") return { min: 100, max: 120 };
-  if (["z5_vo2max", "vo2max_intervallen"].includes(sessietype)) {
-    return blokDuurSeconden <= 120 ? { min: 95, max: 105 } : { min: 90, max: 100 };
+  if (["z5_vo2max", "vo2max_intervallen", "vo2max_lang"].includes(sessietype)) {
+    return blokDuurSeconden <= 120 ? { min: 95, max: 105 } : { min: 88, max: 95 };
   }
+  if (["vo2max_kort", "microbursts"].includes(sessietype)) return { min: 90, max: 110 };
   if (sessietype === "z6_anaeroob") return { min: 95, max: 105 };
-  if (["drempel_intervallen", "over_under", "pyramide", "sweetspot_intervallen"].includes(sessietype)) {
+  if (["drempel_intervallen", "over_under", "pyramide", "sweetspot_intervallen", "sweetspot_lang"].includes(sessietype)) {
     return { min: 88, max: 95 };
   }
   return { min: 85, max: 95 };

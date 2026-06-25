@@ -7,10 +7,10 @@ import { bouwSessieContext } from "./sessie/context";
 function sessietypesVoorFase(fase, kaderWeek) {
   if (kaderWeek?.sessietypes?.length > 0) return kaderWeek.sessietypes.join(", ");
   const tabel = {
-    basis: "z2_vlak, z2_variabel, z1_herstel — GEEN intensiteitssessies",
-    sweetspot: "sweetspot_intervallen, z2_vlak, z2_variabel, z1_herstel",
-    drempel: "drempel_intervallen, over_under, pyramide, z2_vlak, z1_herstel",
-    consolidatie: "z2_variabel, drempel_intervallen, z1_herstel",
+    basis: "z2_vlak, z2_variabel, z2_cadans, z2_heuvel, progressief, z1_herstel, herstel_mobiliteit — GEEN intensiteitssessies",
+    sweetspot: "sweetspot_intervallen, sweetspot_lang, over_under, microbursts, z2_vlak, z2_variabel, z2_cadans, progressief, z1_herstel, herstel_mobiliteit",
+    drempel: "drempel_intervallen, over_under, pyramide, vo2max_lang, vo2max_kort, z2_vlak, z2_variabel, progressief, z1_herstel, herstel_mobiliteit",
+    consolidatie: "race_simulatie, drempel_intervallen, over_under, z2_variabel, z1_herstel, herstel_mobiliteit",
     test: "z2_vlak, ramp_test",
   };
   return tabel[fase] || tabel.basis;
@@ -64,7 +64,7 @@ SESSIETYPES VOOR DEZE FASE:
 DAG-INTENTIE (verplicht voor elke trainingsdag):
 Elke sessie bevat een "intentie"-object met:
 - rol: één van [intensiteitsdag, aerobe_dag, hersteldag, variabele_dag, ftp_test]
-- sessietype: één van [sweetspot_intervallen, drempel_intervallen, vo2max_intervallen, over_under, sprint_neuraal, pyramide, z2_vlak, z2_variabel, z1_herstel, ramp_test, kracht_lage_cadans, z2_embedded_sprint, sprint_peak_test]
+- sessietype: één van [sweetspot_intervallen, sweetspot_lang, drempel_intervallen, over_under, pyramide, vo2max_intervallen, vo2max_lang, vo2max_kort, microbursts, race_simulatie, progressief, sprint_neuraal, kracht_lage_cadans, z2_vlak, z2_variabel, z2_cadans, z2_heuvel, z2_tempo_teugjes, z2_steady, z2_lang, z2_embedded_sprint, sprint_peak_test, z1_herstel, herstel_actief, herstel_mobiliteit, ramp_test]
 - toegestane_zones: array van zones die deze dag gebruikt mogen worden (bv. ["Z1", "Z2"])
 - tss_range: { min, max } waarbinnen de TSS moet vallen
 - toelichting: één zin over de rol van deze dag in het weekpatroon
@@ -253,8 +253,17 @@ SESSIETYPES:
 - z2_embedded_sprint: Z2 duurrit met 4-6 ingebedde max sprints (10-15s), 5min Z1 herstel na elke sprint. TSS 50-70
 - sprint_peak_test: 3x max sprint 10s, 5min Z1 rust ertussen. Eindtest voor sprint-doel
 
+UITGEBREIDE SESSIETYPES (gebruik alleen op de aangegeven posities en fasen):
+- sweetspot_lang: 2×20 of 3×15 min @ 88–93% FTP, 5 min herstel. Traint drempeluithoudingsvermogen. Sweetspot-fase, max 1× per 2 weken. Niet voor starters
+- vo2max_lang: 3–4× 8–12 min @ 100–108% FTP, gelijke rusttijd (1:1). Seiler Long Intervals. Drempel-fase, klimmen-doel weken 9–11. Niet voor starters
+- vo2max_kort: 40/20's of 30/15's: 20–40 sec @ 110–130% FTP + 10–20 sec Z1, herhaald 10–15× per serie, 2–4 series. Drempel-fase. Starters: alleen 30/15, max 2 series
+- microbursts: 15/15's: 15 sec @ 110–120% FTP + 15 sec Z1, 15–20× per serie, 2–3 series. Klimmen/sprint-doel, na week 5. Niet voor starters
+- race_simulatie: 30–40 min Z2 + 4–6× aanvallen (30–60 sec @ 130–150% FTP, 3–5 min herstel) + 15–20 min Z2 uitrijden. Consolidatie-fase. Alle niveaus
+- progressief: oplopend per kwartier: Z1 → Z2 → Z3 → Z4 → Z1 uitrijden. Variabele dag in opbouwfase. Alle niveaus
+- herstel_mobiliteit: 20–30 min Z1 + mobiliteitswerk-reminder. Herstelweken of na zware dag. Alle niveaus
+
 ZONE-RESTRICTIE — Z1 HERSTELBLOKKEN:
-Z1 (<55% FTP) is ALLEEN toegestaan als herstelblok in: sprint_neuraal, vo2max_intervallen, z2_embedded_sprint, sprint_peak_test.
+Z1 (<55% FTP) is ALLEEN toegestaan als herstelblok in: sprint_neuraal, vo2max_intervallen, vo2max_kort, microbursts, z2_embedded_sprint, sprint_peak_test.
 In ALLE andere sessietypes gebruik je Z2 voor herstelblokken:
 - kracht_lage_cadans: herstel → Z2 (positie "onder"), cadans terug naar 85-95 rpm
 - sweetspot/drempel: herstel → Z2 (positie "midden")
@@ -266,7 +275,7 @@ Z2-herstel houdt de aerobe stimulus actief. Z1 is uitsluitend voor volledig hers
 DAG-INTENTIE (verplicht voor elke trainingsdag):
 Elke sessie moet een "intentie"-object bevatten met:
 - rol: één van [intensiteitsdag, aerobe_dag, hersteldag, variabele_dag, ftp_test]
-- sessietype: één van [sweetspot_intervallen, drempel_intervallen, vo2max_intervallen, over_under, sprint_neuraal, pyramide, z2_vlak, z2_variabel, z1_herstel, ramp_test, kracht_lage_cadans, z2_embedded_sprint, sprint_peak_test]
+- sessietype: één van [sweetspot_intervallen, sweetspot_lang, drempel_intervallen, over_under, pyramide, vo2max_intervallen, vo2max_lang, vo2max_kort, microbursts, race_simulatie, progressief, sprint_neuraal, kracht_lage_cadans, z2_vlak, z2_variabel, z2_cadans, z2_heuvel, z2_tempo_teugjes, z2_steady, z2_lang, z2_embedded_sprint, sprint_peak_test, z1_herstel, herstel_actief, herstel_mobiliteit, ramp_test]
 - toegestane_zones: array van zones (bv. ["Z1", "Z2"])
 - tss_range: { min, max }
 - toelichting: één zin over de rol van deze dag
@@ -354,7 +363,7 @@ Aanleiding voor deze aanroep: ${ctx.aanleiding}`;
     intentieInstructie = `DAG-INTENTIE (verplicht — bepaal zelf):
 Voeg een "intentie"-object toe met:
 - rol: één van [intensiteitsdag, aerobe_dag, hersteldag, variabele_dag, ftp_test]
-- sessietype: één van [sweetspot_intervallen, drempel_intervallen, vo2max_intervallen, over_under, sprint_neuraal, pyramide, z2_vlak, z2_variabel, z1_herstel, ramp_test, kracht_lage_cadans, z2_embedded_sprint, sprint_peak_test]
+- sessietype: één van [sweetspot_intervallen, sweetspot_lang, drempel_intervallen, over_under, pyramide, vo2max_intervallen, vo2max_lang, vo2max_kort, microbursts, race_simulatie, progressief, sprint_neuraal, kracht_lage_cadans, z2_vlak, z2_variabel, z2_cadans, z2_heuvel, z2_tempo_teugjes, z2_steady, z2_lang, z2_embedded_sprint, sprint_peak_test, z1_herstel, herstel_actief, herstel_mobiliteit, ramp_test]
 - toegestane_zones: array van zones (bv. ["Z1", "Z2"])
 - tss_range: { min, max }
 - toelichting: één zin over de rol van deze dag
@@ -405,11 +414,15 @@ Spec: 4-6x 4-5min @ zone Z5, herstel 1:1, TSS 70-90, warm-up ≥10min progressie
     }
   }
 
+  const methodeSectie = ctx.trainingsmethode
+    ? `\n## Trainingsmethode\n\n${ctx.trainingsmethode.instructie}\n\nReden: ${ctx.trainingsmethode.reden}\n\nDe trainingsmethode stuurt HOE je de blokken opbouwt (herstelratio, blokduur, intensiteitsniveau binnen de zone). De dag-intentie hierboven stuurt WAT voor sessie het is (sessietype, zones, TSS). De methode verfijnt de intentie — de intentie overschrijft de methode nooit.\n`
+    : "";
+
   return {
     prompt: `Maak één trainingssessie voor ${ctx.datum} (${ctx.dagVanDeWeek}), ${ctx.uren} uur beschikbaar.
 
 ${intentieInstructie}
-
+${methodeSectie}
 PROFIEL: FTP ${ctx.atleetProfiel.ftp}W | LT ${ctx.atleetProfiel.lt_hr} bpm | Max HR ${ctx.atleetProfiel.max_hr} bpm | ${ctx.atleetProfiel.gewicht} kg${ctx.wPerKg ? ` | W/kg ${ctx.wPerKg}` : ""}
 ${ctx.ctlAtlTsb ? `CTL: ${ctx.ctlAtlTsb.ctl} | ATL: ${ctx.ctlAtlTsb.atl} | TSB: ${ctx.ctlAtlTsb.tsb}` : "CTL/ATL/TSB: niet meegewogen (toekomstige dag — plan op basis van het weekschema, niet op dagvorm)"}
 ${ctx.isToekomst ? "" : `HRV: ${hrvInfo}`}
@@ -434,7 +447,7 @@ ${ctx.dagIntentie ? "- Intentie is leidend — pas alleen duur/vermogen/TSS aan 
 - Geef een concrete, data-gedreven reden
 - Z1-Z2 doel-aandeel: ${ctx.z1z2Doel ? Math.round(ctx.z1z2Doel * 100) + "%" : z1z2Doel(ctx.atleetProfiel.ervaringsniveau)}
 - Max intensiteitssessies deze week: ${ctx.maxIntensiteit}
-- Z1-RESTRICTIE: Z1 herstelblokken ALLEEN in sprint_neuraal, vo2max_intervallen, z2_embedded_sprint. In alle andere sessietypes: gebruik Z2 voor herstelblokken (positie "onder" bij licht herstel, "midden" bij normaal herstel)
+- Z1-RESTRICTIE: Z1 herstelblokken ALLEEN in sprint_neuraal, vo2max_intervallen, vo2max_kort, microbursts, z2_embedded_sprint. In alle andere sessietypes: gebruik Z2 voor herstelblokken (positie "onder" bij licht herstel, "midden" bij normaal herstel)
 
 SESSIETYPES: duur_lang | duur_variabel | sweetspot | interval | herstel
 

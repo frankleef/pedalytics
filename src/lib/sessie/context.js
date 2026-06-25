@@ -2,6 +2,7 @@
 // Bouwstuk 3: elke sessie-aanroep krijgt dezelfde, complete context mee.
 
 import { kiesZ2Subtype, Z2_SUBTYPES } from "./z2subtypes";
+import { bepaalTrainingsmethode } from "./trainingsmethode";
 const ZWAAR_TYPES = ["sweetspot", "interval", "drempel", "vo2max", "sweetspot_intervallen", "drempel_intervallen", "vo2max_intervallen", "over_under", "sprint_neuraal", "pyramide", "kracht_lage_cadans"];
 
 /**
@@ -149,6 +150,24 @@ export function bouwSessieContext({
     })
     .reduce((sum, s) => sum + (s.tss || 0), 0);
 
+  const ervaringsniveau = seizoensplan?.ervaringsniveau || "recreatief";
+  const wPerKg = (() => {
+    const gw = seizoensplan?.start_profiel?.gewicht_kg || profiel?.gewicht;
+    return gw && ftp ? Math.round((ftp / gw) * 10) / 10 : null;
+  })();
+  const historischUrenPerWeek = seizoensplan?.start_profiel?.historisch_uren_per_week ?? null;
+
+  const trainingsmethode = bepaalTrainingsmethode({
+    dagRol: dagIntentie?.rol ?? "aerobe_dag",
+    fase: kaderWeek.fase,
+    seizoensDoel: seizoensplan?.seizoensdoel?.type || "ftp",
+    beschikbareUren: historischUrenPerWeek ?? 8,
+    rpeOverbelasting: rpeTrendRichting === "hoog",
+    rpeOnderstimulering: rpeTrendRichting === "laag",
+    ervaringsniveau,
+    wPerKg,
+  });
+
   return {
     datum,
     dagVanDeWeek: dagNaam,
@@ -184,17 +203,15 @@ export function bouwSessieContext({
       lt_hr: profiel?.lt_hr,
       max_hr: profiel?.max_hr,
       gewicht: profiel?.gewicht,
-      ervaringsniveau: seizoensplan?.ervaringsniveau || "recreatief",
+      ervaringsniveau,
     },
     distributieAfwijking,
-    rpeOverbelasting: false,
-    rpeOnderstimulering: false,
+    rpeOverbelasting: rpeTrendRichting === "hoog",
+    rpeOnderstimulering: rpeTrendRichting === "laag",
+    trainingsmethode,
     vo2maxTogestaan: seizoensplan?.planOverrides?.vo2max_toegestaan ?? false,
-    wPerKg: (() => {
-      const gw = seizoensplan?.start_profiel?.gewicht_kg || profiel?.gewicht;
-      return gw && ftp ? Math.round((ftp / gw) * 10) / 10 : null;
-    })(),
-    historischUrenPerWeek: seizoensplan?.start_profiel?.historisch_uren_per_week ?? null,
+    wPerKg,
+    historischUrenPerWeek,
   };
 }
 

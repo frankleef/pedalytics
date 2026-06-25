@@ -634,6 +634,18 @@ export default function SchemaTab({
               </div>
             )}
 
+            {(sessie.intentie?.sessietype === "herstel_mobiliteit" || sessie.sessietype === "herstel_mobiliteit") && (
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12, background: "oklch(0.96 0.04 168)", border: "1px solid oklch(0.88 0.06 168)", borderRadius: T.cardRadius, padding: "18px 20px", marginBottom: 16 }}>
+                <span style={{ fontSize: 24, lineHeight: 1.2, flexShrink: 0 }}>&#x1F9D8;</span>
+                <div>
+                  <div style={{ font: "700 14px var(--font-nunito), sans-serif", color: "oklch(0.35 0.06 168)", marginBottom: 5 }}>Na je rit: mobiliteitswerk</div>
+                  <p style={{ margin: 0, font: "600 13px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.45 0.04 168)" }}>
+                    10–15 minuten stretching of schuimrollen helpt je herstel versnellen. Focus op heupen, hamstrings en kuiten.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {sessie.intervalsEventId && !deviceTipWeg && (
               <div style={{ background: "oklch(0.955 0.03 220)", border: "1px solid oklch(0.85 0.06 220)", borderRadius: 18, padding: "14px 16px", marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 10 }}>
                 <span style={{ fontSize: 16, lineHeight: 1.3, flexShrink: 0 }}>&#x2139;&#xFE0F;</span>

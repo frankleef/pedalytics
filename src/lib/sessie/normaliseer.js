@@ -50,7 +50,7 @@ export function normaliseerSegmenten(segmenten) {
   });
 }
 
-const Z1_TOEGESTAAN_IN = ["sprint_neuraal", "vo2max_intervallen", "z2_embedded_sprint", "sprint_peak_test"];
+const Z1_TOEGESTAAN_IN = ["sprint_neuraal", "vo2max_intervallen", "vo2max_kort", "microbursts", "z2_embedded_sprint", "sprint_peak_test"];
 
 export function normaliseerZ1Blokken(segmenten, sessietype) {
   if (!segmenten || !Array.isArray(segmenten)) return segmenten;
