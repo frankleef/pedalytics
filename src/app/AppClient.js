@@ -699,6 +699,87 @@ export default function Page() {
     }
   }, [voortgang, beschikbaar, genereerWeekSessies]);
 
+  const handleAlternatiefSessie = useCallback(async (datum, reden) => {
+    const sessies = weekSessies?.sessies || [];
+    const sessie = sessies.find(s => s.datum === datum && !s.voltooid);
+    if (!sessie?.intentie) return;
+
+    const { bepaalNieuweIntentie } = await import("@/lib/sessie/alternatief");
+    const dagenSindsStart = seizoensplan?.startdatum ? Math.max(0, (new Date(datum).getTime() - new Date(seizoensplan.startdatum).getTime()) / 86400000) : 0;
+    const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7) || 1);
+    const kaderWeek = seizoensplan?.kader?.find(w => w.week === weekNr) || seizoensplan?.kader?.[0];
+    const fase = kaderWeek?.fase || "basis";
+
+    const nieuweIntentie = bepaalNieuweIntentie(sessie.intentie, reden, fase);
+    if (!nieuweIntentie) return;
+
+    const DAGNAMEN_LOC = ["Zondag", "Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag"];
+    const dagNaam = DAGNAMEN_LOC[new Date(datum).getDay()];
+    const uren = urenPerDag[dagNaam] || 1.5;
+    const overigeSessies = sessies.filter(s => s.datum !== datum && !s.voltooid);
+    const oudeSessieMetIntentie = { ...sessie, intentie: nieuweIntentie };
+
+    console.log("[Alternatief] Start:", datum, sessie.intentie.sessietype, "→", nieuweIntentie.sessietype, "reden:", reden);
+
+    const nieuweSessie = await genereerSessieDagViaJob(datum, dagNaam, uren, {
+      overigeSessies, oudeSessie: oudeSessieMetIntentie, aanleiding: "alternatief_verzoek",
+    });
+
+    if (!nieuweSessie) {
+      setFout("Alternatieve sessie genereren mislukt");
+      return;
+    }
+
+    let lokaalSessies = [...sessies.filter(s => s.datum !== datum), nieuweSessie];
+    setWeekSessies({ ...weekSessies, sessies: lokaalSessies });
+    console.log("[Alternatief] Nieuwe sessie:", nieuweSessie.type, nieuweSessie.titel);
+
+    // Weekpatroon-validatie (hergebruik logica van beschikbaarheidswijziging)
+    if (seizoensplan?.kader) {
+      try {
+        const { valideerWeekpatroon, kiesBesteDagVoorRol, bepaalIntentieVoorRol } = await import("@/lib/sessie/weekpatroon");
+        const weekStart = new Date(datum);
+        weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+        const weekStartISO = datumISO(weekStart);
+        const weekEind = new Date(weekStart.getTime() + 7 * 86400000);
+        const weekSessiesLijst = lokaalSessies.filter(s => s.datum >= weekStartISO && s.datum < datumISO(weekEind));
+
+        const validatie = valideerWeekpatroon(weekSessiesLijst, kaderWeek);
+        if (!validatie.geldig && validatie.ontbrekendeRollen.length > 0) {
+          console.log("[Alternatief] Weekpatroon mist:", validatie.ontbrekendeRollen);
+          const kandidaat = kiesBesteDagVoorRol(weekSessiesLijst, validatie.ontbrekendeRollen[0], urenPerDag);
+          if (kandidaat) {
+            const rolIntentie = bepaalIntentieVoorRol(validatie.ontbrekendeRollen[0], fase);
+            const kandidaatDag = DAGNAMEN_LOC[new Date(kandidaat.datum).getDay()];
+            const kandidaatUren = urenPerDag[kandidaatDag] || 1.5;
+            const overige = lokaalSessies.filter(s => s.datum !== kandidaat.datum && !s.voltooid);
+            console.log("[Alternatief] Weekpatroon-correctie:", kandidaat.datum, "→", rolIntentie.sessietype);
+            const gecorrigeerd = await genereerSessieDagViaJob(kandidaat.datum, kandidaatDag, kandidaatUren, {
+              overigeSessies: overige, oudeSessie: { ...kandidaat, intentie: rolIntentie }, aanleiding: "weekpatroon_correctie",
+            });
+            if (gecorrigeerd) {
+              lokaalSessies = [...lokaalSessies.filter(s => s.datum !== kandidaat.datum), gecorrigeerd];
+              console.log("[Alternatief] Gecorrigeerd:", gecorrigeerd.type, gecorrigeerd.titel);
+            }
+          }
+        }
+      } catch (e) { console.error("[Alternatief] Weekpatroon-validatie mislukt:", e); }
+
+      // Waarom-teksten buurdagen vernieuwen
+      try {
+        const { vernieuwWaaromTekstenWeek } = await import("@/lib/sessie/waaromTekst");
+        const bijgewerkt = await vernieuwWaaromTekstenWeek(lokaalSessies, [datum]);
+        if (bijgewerkt.length > 0) console.log("[Alternatief] WaaromTekst vernieuwd:", bijgewerkt.join(", "));
+      } catch (e) { console.error("[Alternatief] WaaromTekst mislukt:", e); }
+    }
+
+    const eindWeekSessies = { ...weekSessies, sessies: lokaalSessies };
+    setWeekSessies(eindWeekSessies);
+    const eindPlan = { ...seizoensplan, weekSessies: eindWeekSessies };
+    setSeizoensplan(eindPlan);
+    fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(eindPlan) });
+  }, [weekSessies, seizoensplan, urenPerDag, genereerSessieDagViaJob]);
+
   return (
     <div style={{ minHeight: "100vh", fontFamily: "var(--font-nunito), 'Nunito', sans-serif" }}>
 
@@ -819,6 +900,7 @@ export default function Page() {
               onRpeSaved={handleRpeSaved}
               onOpenProfiel={() => setProfielOpen(true)}
               onEditBeschikbaarheid={() => setBeschikbaarheidSchermOpen(true)}
+              onAlternatiefSessie={handleAlternatiefSessie}
               onPlanWijziging={() => {
                 fetch("/api/plan").then(r => r.json()).then(pd => {
                   if (pd.success && pd.data) {

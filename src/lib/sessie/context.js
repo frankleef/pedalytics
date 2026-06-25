@@ -7,7 +7,7 @@ const ZWAAR_TYPES = ["sweetspot", "interval", "drempel", "vo2max", "sweetspot_in
 /**
  * @typedef {import('../types').DagIntentie} DagIntentie
  *
- * @typedef {"beschikbaarheid_nieuw" | "beschikbaarheid_uren" | "check_in_aanpassing" | "rpe_trigger" | "fase_2_conflict" | "distributie_correctie"} Aanleiding
+ * @typedef {"beschikbaarheid_nieuw" | "beschikbaarheid_uren" | "beschikbaarheid_verplaatsing" | "check_in_aanpassing" | "rpe_trigger" | "fase_2_conflict" | "distributie_correctie" | "alternatief_verzoek" | "weekpatroon_correctie"} Aanleiding
  *
  * @typedef {Object} SessieContext
  * @property {string} datum

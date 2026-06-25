@@ -10,6 +10,7 @@ import ScaleInput from "./ScaleInput";
 import SharedHeader from "./SharedHeader";
 import { StatusBanner, KerngetallenTiles } from "./SessieUitkomstKaart";
 import AdaptatieScoreKaart from "./AdaptatieScoreKaart"; // TSS+fase kaart op Schema
+import AlternatiefSessiePopup from "./AlternatiefSessiePopup";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
 const DAG_KORT = ["ZO","MA","DI","WO","DO","VR","ZA"];
@@ -176,7 +177,7 @@ function bepaalMode(offset, sessie, rit, ftp, planStartISO) {
 export default function SchemaTab({
   seizoensplan, weekSessies, weekSessiesLaden, beschikbaar, voortgang,
   profiel, wellenessHuidig, vandaagInvoer, onEditBeschikbaarheid, initialDagOffset,
-  onRpeSaved, onOpenProfiel, onPlanWijziging,
+  onRpeSaved, onOpenProfiel, onPlanWijziging, onAlternatiefSessie,
 }) {
   const [selectedIdx, setSelectedIdx] = useState(10 + (initialDagOffset || 0));
   const [rpeWaarde, setRpeWaarde] = useState(6);
@@ -193,6 +194,8 @@ export default function SchemaTab({
   const [streamsLaden, setStreamsLaden] = useState(null);
   const [deviceTipWeg, setDeviceTipWeg] = useState(() => typeof window !== "undefined" && localStorage.getItem("deviceTipGezien") === "1");
   const [hitteData, setHitteData] = useState({});
+  const [toontAlternatiefPopup, setToontAlternatiefPopup] = useState(false);
+  const [alternatiefLaden, setAlternatiefLaden] = useState(false);
   const stripRef = useRef(null);
 
   const nu = new Date();
@@ -460,7 +463,23 @@ export default function SchemaTab({
                 return <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec }}>{icoon} {dw.temp}° · 💨 {dw.wind} km/u</span>;
               })()}
             </div>
-            <h1 style={{ margin: "5px 0 18px", font: "800 28px/1.18 var(--font-nunito), sans-serif", letterSpacing: -0.5, textWrap: "pretty", color: T.text }}>{sessie.titel}</h1>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, margin: "5px 0 18px" }}>
+              <h1 style={{ margin: 0, flex: 1, font: "800 28px/1.18 var(--font-nunito), sans-serif", letterSpacing: -0.5, textWrap: "pretty", color: T.text }}>{sessie.titel}</h1>
+              {onAlternatiefSessie && !alternatiefLaden && (
+                <button
+                  onClick={() => setToontAlternatiefPopup(true)}
+                  aria-label="Andere training vandaag"
+                  style={{ flexShrink: 0, marginTop: 4, width: 36, height: 36, borderRadius: "50%", border: `1.5px solid ${T.cardBorder}`, background: T.cardBg, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 4v5h5M20 20v-5h-5" stroke={T.textSec} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M20.49 9A9 9 0 005.64 5.64L4 9m16 6l-1.64 3.36A9 9 0 013.51 15" stroke={T.textSec} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </button>
+              )}
+              {alternatiefLaden && (
+                <div style={{ flexShrink: 0, marginTop: 4, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ width: 18, height: 18, border: `2px solid ${T.cardBorder}`, borderTopColor: T.textSec, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                </div>
+              )}
+            </div>
 
             <div style={{ display: "flex", gap: 10, marginBottom: 18 }}>
               {[
@@ -804,6 +823,22 @@ export default function SchemaTab({
         </div>
       </div>
 
+      {toontAlternatiefPopup && (
+        <AlternatiefSessiePopup
+          onBevestig={async ({ reden }) => {
+            setToontAlternatiefPopup(false);
+            setAlternatiefLaden(true);
+            try {
+              await onAlternatiefSessie(cur.iso, reden);
+            } finally {
+              setAlternatiefLaden(false);
+            }
+          }}
+          onAnnuleer={() => setToontAlternatiefPopup(false)}
+        />
+      )}
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
