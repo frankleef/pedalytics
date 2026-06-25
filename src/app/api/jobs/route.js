@@ -93,15 +93,15 @@ export async function POST(request) {
       try {
         const zones = bouwZonesUitProfiel(params.profiel.ftp, params.profiel.power_zones);
         const piekSprint = await kv.get(`piek_sprint_vermogen:${params.userId || ""}`) || Math.round(params.profiel.ftp * 1.8);
-        const verwerkSegmenten = (segs) => (segs || []).map(seg => {
-          if (seg.zone) return berekenBlok(seg, zones, params.profiel.ftp, piekSprint);
+        const verwerkSegmenten = (segs, sessietype) => (segs || []).map(seg => {
+          if (seg.zone) return berekenBlok(seg, zones, params.profiel.ftp, piekSprint, sessietype);
           return seg;
         });
         if (type === "sessieDag" && result.segmenten) {
-          result.segmenten = verwerkSegmenten(result.segmenten);
+          result.segmenten = verwerkSegmenten(result.segmenten, result.sessietype || result.type);
         }
         if (type === "weekSessies" && result.sessies) {
-          result.sessies = result.sessies.map(s => ({ ...s, segmenten: verwerkSegmenten(s.segmenten) }));
+          result.sessies = result.sessies.map(s => ({ ...s, segmenten: verwerkSegmenten(s.segmenten, s.sessietype || s.type) }));
         }
       } catch (e) { console.warn(`[Job ${jobId}] Vermogensbereik mislukt:`, e.message); }
     }

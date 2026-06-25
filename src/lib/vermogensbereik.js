@@ -57,7 +57,7 @@ export function cadansVoorBlok(sessietype, blokDuurSeconden) {
   return { min: 85, max: 95 };
 }
 
-export function berekenBlok(blokDef, zones, ftpW, piekSprintW) {
+export function berekenBlok(blokDef, zones, ftpW, piekSprintW, sessietype) {
   const zone = zones[blokDef.zone];
   if (!zone) return blokDef;
 
@@ -70,7 +70,8 @@ export function berekenBlok(blokDef, zones, ftpW, piekSprintW) {
     range = berekenRangeZ1Z4(zone, blokDef.positie || "midden", blokDef.isSpecifiek, ftpW);
   }
 
-  const cadans = cadansVoorBlok(blokDef.sessietype, blokDef.blokDuurSeconden || 240);
+  const effectiefType = blokDef.sessietype || sessietype;
+  const cadans = cadansVoorBlok(effectiefType, blokDef.blokDuurSeconden || 240);
 
   return {
     ...blokDef,

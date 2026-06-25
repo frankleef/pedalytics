@@ -123,8 +123,9 @@ export async function POST(request) {
             try {
               const zones = bouwZonesUitProfiel(profiel.ftp, profiel.power_zones);
               const piekSprint = await kv.get(`piek_sprint_vermogen:${userId}`) || Math.round(profiel.ftp * 1.8);
+              const sessietype = sessie.sessietype || sessie.type;
               sessie.segmenten = (sessie.segmenten || []).map(seg =>
-                seg.zone ? berekenBlok(seg, zones, profiel.ftp, piekSprint) : seg
+                seg.zone ? berekenBlok(seg, zones, profiel.ftp, piekSprint, sessietype) : seg
               );
             } catch (e) { console.warn(`[sessies-aanvullen] Vermogensbereik mislukt voor ${datum}:`, e.message); }
           }
