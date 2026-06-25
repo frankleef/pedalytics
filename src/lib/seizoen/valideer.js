@@ -19,12 +19,24 @@ export function valideerSeizoensPlan(plan) {
     }
   }
 
-  // Check 3:1 ritme: elke 4e week moet herstelweek zijn
-  kader.forEach((week, i) => {
-    if ((i + 1) % 4 === 0 && week.weektype !== "herstel") {
-      fouten.push(`Week ${week.week}: verwacht herstelweek op positie ${i + 1}, maar is "${week.weektype}"`);
+  // Overgangsweek validatie
+  const sweetspotWeken = kader.filter(w => w.fase === "sweetspot" || w.fase === "Sweetspot");
+  const drempelWeken = kader.filter(w => w.fase === "drempel" || w.fase === "Drempel" || w.fase === "Drempel + VO2max");
+  if (sweetspotWeken.length > 0 && drempelWeken.length > 0) {
+    const heeftOvergang = kader.some(w => w.fase === "overgangsfase" || w.fase === "Overgangsfase");
+    if (!heeftOvergang) {
+      fouten.push("Overgangsweek (overgangsfase) ontbreekt tussen sweetspot en drempel");
     }
-  });
+  }
+
+  // Consolidatieweek TSS
+  const consolidatieWeek = kader.find(w => (w.fase || "").toLowerCase() === "consolidatie");
+  if (consolidatieWeek && drempelWeken.length > 0) {
+    const drempelPiek = Math.max(0, ...drempelWeken.map(w => w.tss_doel ?? 0));
+    if (drempelPiek > 0 && consolidatieWeek.tss_doel > drempelPiek * 0.65) {
+      fouten.push(`Consolidatieweek TSS (${consolidatieWeek.tss_doel}) boven 65% van drempelpiek (${Math.round(drempelPiek * 0.65)})`);
+    }
+  }
 
   // Valideer sessies in detail_weken (als aanwezig, bij seizoensgeneratie)
   if (plan.detail_weken && Array.isArray(plan.detail_weken)) {

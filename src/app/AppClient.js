@@ -277,53 +277,54 @@ export default function Page() {
   }, []);
 
   const bouwKader = (doelConfig) => {
-    const { DOELPROFIELEN, faseVoorWeek } = require("@/lib/seizoen/doelprofielen");
-    const weken = doelConfig.tijdshorizon_weken || 13;
+    const { DOELPROFIELEN, faseInstellingen } = require("@/lib/seizoen/doelprofielen");
+    const { bouwWeekvolgorde } = require("@/lib/seizoen/faseDuren");
+
+    const totaalWeken = doelConfig.tijdshorizon_weken || 16;
     const ctl = doelConfig.huidige_ctl || 45;
     const baseTss = Math.round(ctl * 5);
     const doelType = doelConfig.seizoensdoel?.type || doelConfig.doel || "ftp";
-    const profiel = DOELPROFIELEN[doelType] || DOELPROFIELEN.ftp;
+    const doelProfiel = DOELPROFIELEN[doelType] || DOELPROFIELEN.ftp;
     const niveau = doelConfig.ervaringsniveau || "recreatief";
     const niveauOpbouw = { starter: 0.05, recreatief: 0.10, getraind: 0.15 }[niveau] || 0.10;
-    const opbouwPct = profiel.tss_opbouw_pct ?? niveauOpbouw;
+    const opbouwPct = doelProfiel.tss_opbouw_pct ?? niveauOpbouw;
+    const taperPct = doelProfiel.taper_tss_pct || 0.45;
 
-    const result = [];
+    const weekVolgorde = bouwWeekvolgorde(totaalWeken, doelType, niveau);
+
     let vorigOpbouwTss = baseTss;
     let piekTss = baseTss;
-    const taperPct = profiel.taper_tss_pct || 0.45;
 
-    for (let i = 0; i < weken; i++) {
-      const weekNr = i + 1;
-      const weektype = (weekNr % 4 === 0) ? "herstel" : "opbouw";
-      const faseInfo = faseVoorWeek(profiel, weekNr);
-      const fase = faseInfo?.naam || "Basis";
+    return weekVolgorde.map((wk) => {
+      const faseInfo = faseInstellingen(doelProfiel, wk.fase);
       let tss_doel;
 
-      if (weektype === "herstel") {
+      if (wk.weektype === "herstel") {
         tss_doel = Math.round(piekTss * taperPct);
         vorigOpbouwTss = baseTss;
         piekTss = baseTss;
+      } else if (wk.fase === "consolidatie") {
+        tss_doel = Math.round(piekTss * 0.58);
+      } else if (wk.fase === "test") {
+        tss_doel = Math.round(piekTss * 0.40);
       } else {
-        const blokGroei = 1 + opbouwPct * Math.floor(i / 4);
-        tss_doel = i === 0 ? baseTss : Math.round(vorigOpbouwTss * (1 + opbouwPct));
-        tss_doel = Math.min(tss_doel, Math.round(baseTss * blokGroei * 1.3));
+        tss_doel = wk.weeknummer === 1 ? baseTss : Math.round(vorigOpbouwTss * (1 + opbouwPct));
+        tss_doel = Math.min(tss_doel, Math.round(baseTss * 1.8));
         vorigOpbouwTss = tss_doel;
         piekTss = Math.max(piekTss, tss_doel);
       }
 
-      result.push({
-        week: weekNr,
-        fase,
-        weektype,
+      return {
+        week: wk.weeknummer,
+        fase: wk.fase,
+        weektype: wk.weektype,
         tss_doel,
         focus: faseInfo ? `${faseInfo.sessietypes.slice(0, 3).join(", ")}` : "Z2 volume",
         z1z2_doel: faseInfo?.z1z2_doel || 0.80,
         max_intensiteit: faseInfo?.max_intensiteit_per_week ?? 1,
         sessietypes: faseInfo?.sessietypes || ["z2_vlak", "z2_variabel", "z1_herstel"],
-      });
-    }
-
-    return result;
+      };
+    });
   };
 
   const genereerSeizoensplan = useCallback(async (doelConfig) => {

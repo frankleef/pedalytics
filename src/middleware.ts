@@ -18,7 +18,7 @@ function isOnboarding(pathname: string) {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (isPublic(pathname) || pathname.startsWith("/_next/") || pathname.startsWith("/favicon") || pathname.startsWith("/.well-known/") || pathname.startsWith("/api/cron/") || /\.(ico|png|svg|jpg|webp|css|js|woff2?|json)$/.test(pathname)) {
+  if (isPublic(pathname) || pathname.startsWith("/_next/") || pathname.startsWith("/favicon") || pathname.startsWith("/.well-known/") || pathname.startsWith("/api/cron/") || pathname.startsWith("/api/admin/") || /\.(ico|png|svg|jpg|webp|css|js|woff2?|json)$/.test(pathname)) {
     return NextResponse.next();
   }
 

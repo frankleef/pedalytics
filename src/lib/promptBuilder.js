@@ -262,6 +262,21 @@ UITGEBREIDE SESSIETYPES (gebruik alleen op de aangegeven posities en fasen):
 - progressief: oplopend per kwartier: Z1 → Z2 → Z3 → Z4 → Z1 uitrijden. Variabele dag in opbouwfase. Alle niveaus
 - herstel_mobiliteit: 20–30 min Z1 + mobiliteitswerk-reminder. Herstelweken of na zware dag. Alle niveaus
 
+OVERGANGSWEEK (overgangsfase):
+Eén week tussen sweetspot en drempel. Twee intensiteitsdagen verplicht, minimaal 48u van elkaar:
+- Dag 1: sweetspot_lang (langste sweetspot-blok van het plan, ≥20 min)
+- Dag 2: drempel_intervallen (3×8 min @ 97–100% FTP, herstel 1:1) — conservatief
+Alle overige dagen: Z1–Z2 polarized. TSS-doel: 80–85% van piekweek sweetspot.
+
+CONSOLIDATIEWEEK (consolidatie):
+TSS-doel: 55–60% van piekweek drempel. Eén intensiteitsdag: drempel_intervallen (2×12 min @ 95–100% FTP) of race_simulatie.
+Aerobe dagen: langer dan opbouwweken, lage intensiteit Z1–Z2. Rustdagen: 2–3.
+
+NEUROMUSCULAIRE PRIMING (FTP-doel, basisweek):
+Plan sprint_neuraal als intensiteitsdag in week 1 en week 3 van elk basisblok.
+Structuur: 60–75 min Z2 met 6–8 maximale sprints van 8–10 seconden, 3–4 min Z1-herstel.
+Plan sprint_neuraal NOOIT adjacent aan een andere intensiteitsdag.
+
 ZONE-RESTRICTIE — Z1 HERSTELBLOKKEN:
 Z1 (<55% FTP) is ALLEEN toegestaan als herstelblok in: sprint_neuraal, vo2max_intervallen, vo2max_kort, microbursts, z2_embedded_sprint, sprint_peak_test.
 In ALLE andere sessietypes gebruik je Z2 voor herstelblokken:

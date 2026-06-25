@@ -23,48 +23,76 @@ Doel: maximale cumulatieve tijd op of net boven FTP per sessie.
 Intensiteit stabiel binnen elk blok — geen negatieve splits of build-up.
 Aantal herhalingen: 3–5× afhankelijk van blokduur en TSS-budget.`;
 
+const OVERGANG_SST_DREMPEL_INSTRUCTIE = `Trainingsmethode: OVERGANG SST → DREMPEL.
+Dit is de brugweek tussen de sweetspot- en drempelfase.
+Intensiteitsdag 1 (eerder in de week): LAATSTE SWEETSPOT.
+  SST-methode: 88–93% FTP, blok minimaal 20 minuten (sweetspot_lang).
+  Dit is de langste sweetspot-sessie van het hele plan.
+Intensiteitsdag 2 (later in de week, minimaal 48u na dag 1): EERSTE DREMPELBLOK.
+  Polarized-methode: 97–100% FTP, blokken 8 minuten, herstel 1:1.
+  Bewust kort en conservatief — doel is wennen, niet maximale stimulus.
+  Kies de onderkant van de TSS-range.
+Aerobe dagen: strikt Z1–Z2, geen Z3.`;
+
+const CONSOLIDATIE_INSTRUCTIE = `Trainingsmethode: CONSOLIDATIE (Mujika & Padilla, 2003).
+Volume: 55–60% van de piekweek van de drempelfase — bewuste afbouw.
+Intensiteit: ongewijzigd — intensiteitsdag blijft op of boven FTP.
+Doel: adaptaties laten landen, geen nieuwe stimulus toevoegen.
+Intensiteitsdag: één sessie, kort (2×12 min @ 95–100% FTP of race_simulatie).
+  Geen extra blokken; kies het minimum van de TSS-range.
+Aerobe dagen: langer qua duur dan normale opbouwweken, lage intensiteit (Z1–Z2).
+Extra rustdag: plan 2–3 rustdagen, meer dan in opbouwweken.`;
+
 export const METHODE_INSTRUCTIES = {
   polarized: POLARIZED_INSTRUCTIE,
   sst: SST_INSTRUCTIE,
   sst_tijdbeperkt: SST_TIJDBEPERKT_INSTRUCTIE,
   seiler_long: SEILER_LONG_INSTRUCTIE,
+  overgang_sst_drempel: OVERGANG_SST_DREMPEL_INSTRUCTIE,
+  consolidatie: CONSOLIDATIE_INSTRUCTIE,
 };
 
 export const METHODE_PER_FASE_EN_DOEL = {
   ftp: {
     basis: "polarized",
     sweetspot: "sst",
+    overgangsfase: "overgang_sst_drempel",
     drempel: "polarized",
-    consolidatie: "polarized",
+    consolidatie: "consolidatie",
     test: "polarized",
   },
   aerobe_basis: {
     aerobe_opbouw_1: "polarized",
     aerobe_opbouw_2: "polarized",
     aerobe_verdieping: "polarized",
-    consolidatie: "polarized",
+    overgangsfase: "overgang_sst_drempel",
+    consolidatie: "consolidatie",
     test: "polarized",
   },
   klimmen: {
     basis: "polarized",
     sweetspot: "sst",
+    overgangsfase: "overgang_sst_drempel",
     drempel_vo2max: "seiler_long",
     klimspecifiek: "seiler_long",
-    consolidatie: "sst",
+    consolidatie: "consolidatie",
     test: "polarized",
   },
   uithoudingsvermogen: {
     volume_opbouw: "polarized",
     volume_duur: "polarized",
     sweetspot_hard: "sst",
-    consolidatie: "polarized",
+    overgangsfase: "overgang_sst_drempel",
+    consolidatie: "consolidatie",
     taper: "polarized",
   },
   sprint: {
     aerobe_basis: "polarized",
     sprintkracht: "polarized",
+    overgangsfase: "overgang_sst_drempel",
     drempel_vo2max: "sst",
     specifiek: "polarized",
+    consolidatie: "consolidatie",
     test: "polarized",
   },
 };

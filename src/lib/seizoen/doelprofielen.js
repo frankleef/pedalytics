@@ -148,6 +148,24 @@ export function faseVoorWeek(profiel, weekNr) {
 }
 
 /**
+ * Zoekt fase-instellingen op basis van fase-naam (lowercase) en doelprofiel.
+ * Gebruikt door de dynamische bouwKader().
+ */
+export function faseInstellingen(profiel, faseNaam) {
+  if (!profiel?.fases) return null;
+  const normaal = faseNaam.toLowerCase();
+  for (const fase of profiel.fases) {
+    if (fase.naam.toLowerCase() === normaal) return fase;
+  }
+  // Fallback: overgangsfase → sweetspot-instellingen als basis
+  if (normaal === "overgangsfase") {
+    const ss = profiel.fases.find(f => f.naam.toLowerCase() === "sweetspot");
+    if (ss) return { ...ss, naam: "Overgangsfase", max_intensiteit_per_week: 2, sessietypes: ["sweetspot_lang", "drempel_intervallen", "z2_vlak", "z2_variabel", "z1_herstel"] };
+  }
+  return null;
+}
+
+/**
  * Genereert de fasetabel als leesbare tekst voor de prompt.
  */
 export function fasetabelAlsTekst(profiel) {
