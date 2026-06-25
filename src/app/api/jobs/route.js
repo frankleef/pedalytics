@@ -98,10 +98,10 @@ export async function POST(request) {
           return seg;
         });
         if (type === "sessieDag" && result.segmenten) {
-          result.segmenten = verwerkSegmenten(result.segmenten, result.sessietype || result.type);
+          result.segmenten = verwerkSegmenten(result.segmenten, result.intentie?.sessietype || result.sessietype || result.type);
         }
         if (type === "weekSessies" && result.sessies) {
-          result.sessies = result.sessies.map(s => ({ ...s, segmenten: verwerkSegmenten(s.segmenten, s.sessietype || s.type) }));
+          result.sessies = result.sessies.map(s => ({ ...s, segmenten: verwerkSegmenten(s.segmenten, s.intentie?.sessietype || s.sessietype || s.type) }));
         }
       } catch (e) { console.warn(`[Job ${jobId}] Vermogensbereik mislukt:`, e.message); }
     }
