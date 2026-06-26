@@ -814,7 +814,83 @@ export default function Page() {
             console.log("[Beschikbaarheid] Genereer sessie voor:", datum, dag, uren, "uur", `(vervangt ${bestaandeSessie.type})`);
           }
 
-          const sessie = await genereerSessieDagViaJob(datum, dag, uren, { overigeSessies, oudeSessie, aanleiding: beschAanleiding });
+          // Z3-naar-Z2 ruil: in de basisperiode vervalt de reden voor een Z3-afsluiter
+          // zodra een extra dag beschikbaar komt — meer Z2-volume is fysiologisch superieur.
+          let overigeSessiesVoorGeneratie = overigeSessies;
+          if (!bestaandeSessie && beschAanleiding === "beschikbaarheid_nieuw" && uren >= 1 && aankomendWeek?.fase === "basis") {
+            const sessiesDezeWeek = lokaalSessies.filter(
+              s => !s.voltooid && s.datum && weekMaandagISO(s.datum) === mISO
+            );
+            const z2TssNieuweDag = Math.round(uren * 0.65 * 0.65 * 100);
+
+            if (z2TssNieuweDag >= 40) {
+              // Zoek sessie waarbij het laatste segment Z3 is (tempo-afsluiter patroon)
+              const z3Kandidaat = sessiesDezeWeek.find(s => {
+                const segs = s.segmenten;
+                if (!segs?.length) return false;
+                return segs[segs.length - 1].zone === "Z3";
+              });
+
+              if (z3Kandidaat) {
+                const z3Blok = z3Kandidaat.segmenten[z3Kandidaat.segmenten.length - 1];
+                const z3BlokTss = Math.round((z3Blok.blokDuurSeconden / 3600) * 0.82 * 0.82 * 100);
+                const huidigeTssWeek = sessiesDezeWeek.reduce(
+                  (som, s) => som + (s.tss || s.tss_schatting || 0), 0
+                );
+                const weekDoelTss = aankomendWeek.tss_doel || 300;
+                const ruimte = weekDoelTss - (huidigeTssWeek - z3BlokTss);
+
+                if (ruimte >= z2TssNieuweDag) {
+                  console.log(`[Z3Ruil] ${z3Kandidaat.datum}: Z3-blok ${z3BlokTss} TSS verwijderd → ruimte ${ruimte} voor Z2 ${z2TssNieuweDag} TSS op ${datum}`);
+
+                  // Segmenten zonder het Z3-blok (defensief gekloot om mutaties te vermijden)
+                  const gesplitsteSegmenten = z3Kandidaat.segmenten.slice(0, -1).map(seg => ({ ...seg }));
+                  const MIN_DUUR_SEC = 60 * 60;
+                  let restDuurSec = gesplitsteSegmenten.reduce((s, seg) => s + (seg.blokDuurSeconden || 0), 0);
+
+                  // Verleng langste Z2-segment als resterende duur < 60 min
+                  if (restDuurSec < MIN_DUUR_SEC) {
+                    let maxIdx = -1, maxDuur = 0;
+                    gesplitsteSegmenten.forEach((seg, i) => {
+                      if (seg.zone === "Z2" && (seg.blokDuurSeconden || 0) > maxDuur) {
+                        maxDuur = seg.blokDuurSeconden || 0; maxIdx = i;
+                      }
+                    });
+                    if (maxIdx >= 0) {
+                      gesplitsteSegmenten[maxIdx].blokDuurSeconden += MIN_DUUR_SEC - restDuurSec;
+                      restDuurSec = MIN_DUUR_SEC;
+                    }
+                  }
+
+                  const nieuwTss = Math.max(0, (z3Kandidaat.tss || z3Kandidaat.tss_schatting || 0) - z3BlokTss);
+                  const gewijzigdeSessie = {
+                    ...z3Kandidaat,
+                    segmenten: gesplitsteSegmenten,
+                    duur_min: Math.round(restDuurSec / 60),
+                    tss: nieuwTss,
+                    tss_schatting: nieuwTss,
+                  };
+
+                  lokaalSessies = lokaalSessies.map(s => s.datum === z3Kandidaat.datum ? gewijzigdeSessie : s);
+                  overigeSessiesVoorGeneratie = lokaalSessies.filter(s => s.datum !== datum && !s.voltooid);
+                  setWeekSessies({ ...weekSessies, sessies: lokaalSessies });
+
+                  // Intervals.icu event bijwerken voor de gewijzigde sessie
+                  try {
+                    await fetch("/api/intervals/events", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ sessies: [gewijzigdeSessie], ftp: PROFIEL.ftp }),
+                    });
+                  } catch (e) { console.warn("[Z3Ruil] Intervals update mislukt:", e); }
+
+                  beschAanleiding = "beschikbaarheid_nieuw_z2_ruil";
+                }
+              }
+            }
+          }
+
+          const sessie = await genereerSessieDagViaJob(datum, dag, uren, { overigeSessies: overigeSessiesVoorGeneratie, oudeSessie, aanleiding: beschAanleiding });
           if (sessie) {
             lokaalSessies = [...lokaalSessies.filter(s => s.datum !== datum), sessie];
             setWeekSessies({ ...weekSessies, sessies: lokaalSessies });
