@@ -598,8 +598,26 @@ export default function Page() {
     const verplaatsIntentiePool = isVerplaatsing ? [...verwijderdeSessies] : [];
 
     console.log("[Beschikbaarheid] Diff:", { verwijderd, toegevoegd, urenGewijzigd, verplaatsing: isVerplaatsing ? verwijderdeSessies.map(s => s.type) : "nee" });
-    const toeTeVoegen = [...toegevoegd, ...urenGewijzigd];
-    for (const dag of toeTeVoegen) {
+
+    // Uren gewijzigd: verwijder bestaande sessies zodat server-side aanvullen ze opnieuw genereert
+    for (const dag of urenGewijzigd) {
+      for (let i = 0; i <= 10; i++) {
+        const d = new Date(nu); d.setDate(nu.getDate() + i);
+        if (DAGNAMEN[d.getDay()] === dag && datumISO(d) >= vandaagISO) {
+          const datum = datumISO(d);
+          if (ritDatums.has(datum)) continue;
+          const sessie = lokaalSessies.find(s => s.datum === datum && !s.voltooid);
+          if (sessie) {
+            if (sessie.intervalsEventId) fetch(`/api/intervals/events/${sessie.intervalsEventId}`, { method: "DELETE" }).catch(() => {});
+            lokaalSessies = lokaalSessies.filter(s => s.datum !== datum);
+            gewijzigdeDatums.push(datum);
+          }
+        }
+      }
+    }
+
+    // Nieuw toegevoegde dagen: genereer sessie client-side (via job)
+    for (const dag of toegevoegd) {
       for (let i = 0; i <= 10; i++) {
         const d = new Date(nu); d.setDate(nu.getDate() + i);
         if (DAGNAMEN[d.getDay()] === dag && datumISO(d) >= vandaagISO) {
@@ -613,7 +631,6 @@ export default function Page() {
           let oudeSessie = bestaandeSessie;
           let beschAanleiding = bestaandeSessie ? "beschikbaarheid_uren" : "beschikbaarheid_nieuw";
 
-          // Bij verplaatsing: gebruik de intentie van de verwijderde sessie
           if (!bestaandeSessie && verplaatsIntentiePool.length > 0) {
             oudeSessie = verplaatsIntentiePool.shift();
             beschAanleiding = "beschikbaarheid_verplaatsing";
@@ -720,7 +737,22 @@ export default function Page() {
     setWeekSessies(eindWeekSessies);
     const eindPlan = { ...seizoensplan, beschikbaarheid: nieuwBeschikbaar, urenPerDag: nieuwUren, weekSessies: eindWeekSessies };
     setSeizoensplan(eindPlan);
-    fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(eindPlan) });
+    await fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(eindPlan) });
+
+    // Server-side aanvullen: regenereert sessies op verwijderde urenGewijzigd-dagen met nieuwe duur
+    if (urenGewijzigd.length > 0) {
+      try {
+        const aanvulResp = await fetch("/api/sessies/aanvullen", { method: "POST" });
+        if (aanvulResp.ok) {
+          const planResp = await fetch("/api/plan");
+          if (planResp.ok) {
+            const bijgewerktPlan = await planResp.json();
+            if (bijgewerktPlan?.weekSessies) setWeekSessies(bijgewerktPlan.weekSessies);
+            if (bijgewerktPlan) setSeizoensplan(bijgewerktPlan);
+          }
+        }
+      } catch (e) { console.error("[BeschikbaarheidAanvullen] mislukt:", e); }
+    }
 
     if (gewijzigdeDatums.length > 0) {
       checkImpact(gewijzigdeDatums, lokaalSessies).catch(e => console.error("Impact check:", e));
