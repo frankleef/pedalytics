@@ -3,6 +3,7 @@ import { getKV } from "@/lib/kv";
 import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsDelete } from "@/lib/intervals";
 import { voerWekelijkseEvaluatieUit } from "@/lib/volumeCorrectie";
+import { vulSessiesAanVoorGebruiker } from "@/lib/sessiesAanvullen";
 import { vandaagISO } from "@/lib/datum";
 
 export const maxDuration = 300;
@@ -60,11 +61,20 @@ export async function POST(request) {
     }, { status: 500 });
   }
 
+  // Tweede pass: vul eventuele gaten die door een mislukte Claude-call zijn ontstaan
+  let aanvulResultaat = null;
+  try {
+    aanvulResultaat = await vulSessiesAanVoorGebruiker(userId);
+  } catch (e) {
+    console.warn(`[reset-en-regenereer] Aanvul-pass mislukt voor ${userId}:`, e.message);
+  }
+
   return NextResponse.json({
     ok: true,
     gewist: teVerwijderen.length,
     verwijderdEvents,
     misluktEvents,
     regenereerResultaat,
+    aanvulResultaat,
   });
 }
