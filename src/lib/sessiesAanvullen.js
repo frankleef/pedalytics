@@ -273,11 +273,15 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
 
   if (aangevuld.length > 0) {
     const huidigPlan = await kv.get(planKey);
-    huidigPlan.weekSessies = {
-      ...huidigPlan.weekSessies,
-      sessies: [...(huidigPlan.weekSessies?.sessies || []), ...aangevuld],
-    };
-    await kv.set(planKey, huidigPlan);
+    const bestaandeDatumsNu = new Set((huidigPlan.weekSessies?.sessies || []).map(s => s.datum));
+    const uniekAangevuld = aangevuld.filter(s => !bestaandeDatumsNu.has(s.datum));
+    if (uniekAangevuld.length > 0) {
+      huidigPlan.weekSessies = {
+        ...huidigPlan.weekSessies,
+        sessies: [...(huidigPlan.weekSessies?.sessies || []), ...uniekAangevuld],
+      };
+      await kv.set(planKey, huidigPlan);
+    }
   }
 
   return { status: "aangevuld", aantal: aangevuld.length, datums: aangevuld.map(s => s.datum) };
