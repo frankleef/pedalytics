@@ -635,13 +635,6 @@ export default function Page() {
     history.back();
     setBeschikbaarheidSchermOpen(false);
 
-    // Sla beschikbaarheid/uren direct op — sessiegeneratie kan daarna minuten duren
-    fetch("/api/plan", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...seizoensplan, beschikbaarheid: nieuwBeschikbaar, urenPerDag: nieuwUren }),
-    });
-
     const nu = new Date();
     const vandaagISO = getVandaag();
     const alleDagen = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag", "Zondag"];
@@ -681,6 +674,19 @@ export default function Page() {
         }
       }
     }
+
+    // Sla beschikbaarheid én al gecorrigeerde sessies direct op als één atomaire write.
+    // lokaalSessies bevat de verwijderde sessies al niet meer — een refresh ziet nooit stale data.
+    fetch("/api/plan", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...seizoensplan,
+        beschikbaarheid: nieuwBeschikbaar,
+        urenPerDag: nieuwUren,
+        weekSessies: { ...weekSessies, sessies: lokaalSessies },
+      }),
+    });
 
     setWeekSessies({ ...weekSessies, sessies: lokaalSessies });
 
