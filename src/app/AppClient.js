@@ -824,16 +824,29 @@ export default function Page() {
             const z2TssNieuweDag = Math.round(uren * 0.65 * 0.65 * 100);
 
             if (z2TssNieuweDag >= 40) {
-              // Zoek sessie waarbij het laatste segment Z3 is (tempo-afsluiter patroon)
-              const z3Kandidaat = sessiesDezeWeek.find(s => {
-                const segs = s.segmenten;
-                if (!segs?.length) return false;
-                return segs[segs.length - 1].zone === "Z3";
-              });
+              // Detectie: volumecorrectie-afsluiter = z2_vlak/z2_variabel sessie waarbij
+              // het laatste segment Z3 is, alle overige Z1/Z2, en Z3-blok ≤ 25 min.
+              function isVolumeCorrectieAfsluiter(s) {
+                const segs = s.segmenten ?? [];
+                if (segs.length < 2) return false;
+                const sessietype = s.intentie?.sessietype || s.type;
+                if (!["z2_vlak", "z2_variabel"].includes(sessietype)) return false;
+                const laatste = segs[segs.length - 1];
+                if (laatste.zone !== "Z3") return false;
+                if (!segs.slice(0, -1).every(seg => ["Z1", "Z2"].includes(seg.zone))) return false;
+                if ((laatste.blokDuurSeconden ?? 0) > 25 * 60) return false;
+                return true;
+              }
+
+              const z3Kandidaat = sessiesDezeWeek.find(isVolumeCorrectieAfsluiter);
 
               if (z3Kandidaat) {
                 const z3Blok = z3Kandidaat.segmenten[z3Kandidaat.segmenten.length - 1];
-                const z3BlokTss = Math.round((z3Blok.blokDuurSeconden / 3600) * 0.82 * 0.82 * 100);
+                const z3DuurUur = (z3Blok.blokDuurSeconden ?? 0) / 3600;
+                const z3GemVermogen = ((z3Blok.vermogenMin ?? 0) + (z3Blok.vermogenMax ?? 0)) / 2;
+                const ftp = PROFIEL.ftp || 265;
+                const z3If = z3GemVermogen > 0 ? z3GemVermogen / ftp : 0.82;
+                const z3BlokTss = z3Blok.tss_schatting ?? Math.round(z3DuurUur * z3If * z3If * 100);
                 const huidigeTssWeek = sessiesDezeWeek.reduce(
                   (som, s) => som + (s.tss || s.tss_schatting || 0), 0
                 );
