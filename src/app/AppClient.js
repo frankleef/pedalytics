@@ -768,11 +768,12 @@ export default function Page() {
           const ctl = wellenessHuidig?.icu_ctl ?? seizoensplan.huidige_ctl ?? 40;
           const trainingsfrequentie = aankomendWeek?.trainingsfrequentie ?? maxTrainingsdagenPerWeek(ctl);
 
-          const sessiesDezeWeek = lokaalSessies.filter(s =>
+          // Frequentie-check: alleen sessies in dezelfde kalenderweek (excl. mobiliteit)
+          const sessiesDezeWeekFreq = lokaalSessies.filter(s =>
             !s.voltooid && s.datum && weekMaandagISO(s.datum) === mISO &&
             s.type !== "herstel_mobiliteit" && s.intentie?.sessietype !== "herstel_mobiliteit"
           );
-          const reedsGepland = sessiesDezeWeek.length;
+          const reedsGepland = sessiesDezeWeekFreq.length;
 
           if (!bestaandeSessie && reedsGepland >= trainingsfrequentie) {
             console.log(`[Beschikbaarheid] ${datum} (${dag}): rustdag — frequentie ${trainingsfrequentie} al bereikt (${reedsGepland} sessies)`);
@@ -782,7 +783,9 @@ export default function Page() {
           let beschAanleiding = bestaandeSessie ? "beschikbaarheid_uren" : "beschikbaarheid_nieuw";
           let oudeSessie = bestaandeSessie;
 
-          if (!bestaandeSessie && heeftTeLangReeks(sessiesDezeWeek, { datum, type: "kandidaat" })) {
+          // Reeks-check: alle sessies (weekgrens kan worden overschreden)
+          const alleSessiesVoorReeks = lokaalSessies.filter(s => !s.voltooid && s.datum);
+          if (!bestaandeSessie && heeftTeLangReeks(alleSessiesVoorReeks, { datum, type: "kandidaat" })) {
             beschAanleiding = "herstelpatroon_correctie";
             console.log(`[Beschikbaarheid] ${datum} (${dag}): opeenvolgend — aanleiding → herstelpatroon_correctie`);
           }

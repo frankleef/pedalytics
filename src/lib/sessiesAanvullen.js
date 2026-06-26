@@ -86,8 +86,13 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
     if (reedsGepland >= frequentie) continue;
 
     // Stop-conditie 2: zou 4+ opeenvolgende trainingsdagen opleveren
-    const weekSessies = bestaandeSessies.filter(s => !s.voltooid && weekMaandagISO(s.datum) === mISO);
-    if (heeftTeLangReeks(weekSessies, { datum: iso, type: "kandidaat" })) continue;
+    // Gebruik ALLE sessies (niet alleen dezelfde week) — reeks kan weekgrens overschrijden
+    // Inclusief al toegevoegde ontbrekend-entries van deze run
+    const alleSessiesVoorReeks = [
+      ...bestaandeSessies.filter(s => !s.voltooid),
+      ...ontbrekend,
+    ];
+    if (heeftTeLangReeks(alleSessiesVoorReeks, { datum: iso, type: "kandidaat" })) continue;
 
     ontbrekend.push({ datum: iso, dagNaam, uren: urenPerDag[dagNaam] || 1.5 });
     geplandPerWeek[mISO] = reedsGepland + 1;
