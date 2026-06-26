@@ -861,20 +861,20 @@ export default function Page() {
     setSeizoensplan(eindPlan);
     await fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(eindPlan) });
 
-    // Server-side aanvullen: regenereert sessies op verwijderde urenGewijzigd-dagen met nieuwe duur
-    if (urenGewijzigd.length > 0) {
-      try {
-        const aanvulResp = await fetch("/api/sessies/aanvullen", { method: "POST" });
-        if (aanvulResp.ok) {
-          const planResp = await fetch("/api/plan");
-          if (planResp.ok) {
-            const bijgewerktPlan = await planResp.json();
-            if (bijgewerktPlan?.weekSessies) setWeekSessies(bijgewerktPlan.weekSessies);
-            if (bijgewerktPlan) setSeizoensplan(bijgewerktPlan);
-          }
+    // Server-side aanvullen: vult alle ontbrekende sessies op beschikbare dagen in.
+    // Altijd aanroepen — ook als geen diff, zodat eerder verwijderde sessies worden hersteld.
+    // vulSessiesAanVoorGebruiker keert snel terug als er niets ontbreekt.
+    try {
+      const aanvulResp = await fetch("/api/sessies/aanvullen", { method: "POST" });
+      if (aanvulResp.ok) {
+        const planResp = await fetch("/api/plan");
+        if (planResp.ok) {
+          const bijgewerktPlan = await planResp.json();
+          if (bijgewerktPlan?.weekSessies) setWeekSessies(bijgewerktPlan.weekSessies);
+          if (bijgewerktPlan) setSeizoensplan(bijgewerktPlan);
         }
-      } catch (e) { console.error("[BeschikbaarheidAanvullen] mislukt:", e); }
-    }
+      }
+    } catch (e) { console.error("[BeschikbaarheidAanvullen] mislukt:", e); }
 
     if (gewijzigdeDatums.length > 0) {
       checkImpact(gewijzigdeDatums, lokaalSessies).catch(e => console.error("Impact check:", e));
