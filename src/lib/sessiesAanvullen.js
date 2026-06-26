@@ -23,20 +23,20 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
   const beschikbareDagen = Object.entries(plan.beschikbaarheid).filter(([, v]) => v).map(([k]) => k);
   const beschikbareDagenAantal = beschikbareDagen.length;
 
-  // ISO-weeknummer van de aankomende maandag (= de week die gegenereerd wordt)
-  const nu = new Date();
-  const aankomendeMaandag = new Date(nu);
-  aankomendeMaandag.setDate(nu.getDate() + ((8 - nu.getDay()) % 7 || 7));
-  const d = new Date(Date.UTC(aankomendeMaandag.getFullYear(), aankomendeMaandag.getMonth(), aankomendeMaandag.getDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const aankomendeWeekNr = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
   const urenPerDag = plan.urenPerDag || {};
   const bestaandeSessies = plan.weekSessies?.sessies || [];
   const bestaandeDatums = new Set(bestaandeSessies.map(s => s.datum));
 
-  const ontbrekend = [];
+  // ISO-weeknummer van de aankomende week (voor volumecorrectie-metadata)
   const nu = new Date();
+  const aankomendeMaandag = new Date(nu);
+  aankomendeMaandag.setDate(nu.getDate() + ((8 - nu.getDay()) % 7 || 7));
+  const dWeek = new Date(Date.UTC(aankomendeMaandag.getFullYear(), aankomendeMaandag.getMonth(), aankomendeMaandag.getDate()));
+  dWeek.setUTCDate(dWeek.getUTCDate() + 4 - (dWeek.getUTCDay() || 7));
+  const weekYearStart = new Date(Date.UTC(dWeek.getUTCFullYear(), 0, 1));
+  const aankomendeWeekNr = Math.ceil((((dWeek - weekYearStart) / 86400000) + 1) / 7);
+
+  const ontbrekend = [];
   for (let i = 1; i <= 10; i++) {
     const d = new Date(nu);
     d.setDate(nu.getDate() + i);
