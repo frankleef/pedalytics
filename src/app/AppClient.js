@@ -675,6 +675,40 @@ export default function Page() {
       } catch (e) { console.error("[WaaromTekst] Vernieuwing mislukt:", e); }
     }
 
+    // Volumecorrectie-geldigheidscheck: beschikbaarheid gewijzigd → ongeldig geworden sessies herplannen
+    const huidigeBeschikbareDagen = Object.values(nieuwBeschikbaar).filter(Boolean).length;
+    const ongeldigeSessies = lokaalSessies.filter(s =>
+      s.volumecorrectie &&
+      s.volumecorrectie.beschikbareDagen !== huidigeBeschikbareDagen &&
+      !s.voltooid && !ritDatums.has(s.datum)
+    );
+    if (ongeldigeSessies.length > 0) {
+      console.log("[VolumecorrectieHereval] Ongeldig geworden sessies:", ongeldigeSessies.map(s => s.datum));
+      const ongeldigeDatums = new Set(ongeldigeSessies.map(s => s.datum));
+      ongeldigeSessies.forEach(s => {
+        if (s.intervalsEventId) fetch(`/api/intervals/events/${s.intervalsEventId}`, { method: "DELETE" }).catch(() => {});
+      });
+      lokaalSessies = lokaalSessies.filter(s => !ongeldigeDatums.has(s.datum) || s.voltooid);
+
+      const tussenPlan = { ...seizoensplan, beschikbaarheid: nieuwBeschikbaar, urenPerDag: nieuwUren, weekSessies: { ...weekSessies, sessies: lokaalSessies } };
+      setWeekSessies(tussenPlan.weekSessies);
+      setSeizoensplan(tussenPlan);
+      await fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(tussenPlan) });
+
+      try {
+        const herevalResp = await fetch("/api/volumecorrectie/hereval", { method: "POST" });
+        if (herevalResp.ok) {
+          const planResp = await fetch("/api/plan");
+          if (planResp.ok) {
+            const bijgewerktPlan = await planResp.json();
+            if (bijgewerktPlan?.weekSessies) setWeekSessies(bijgewerktPlan.weekSessies);
+            if (bijgewerktPlan) setSeizoensplan(bijgewerktPlan);
+          }
+        }
+      } catch (e) { console.error("[VolumecorrectieHereval] mislukt:", e); }
+      return;
+    }
+
     const eindWeekSessies = { ...weekSessies, sessies: lokaalSessies };
     setWeekSessies(eindWeekSessies);
     const eindPlan = { ...seizoensplan, beschikbaarheid: nieuwBeschikbaar, urenPerDag: nieuwUren, weekSessies: eindWeekSessies };

@@ -21,6 +21,16 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
 
   const vandaag = vandaagISO();
   const beschikbareDagen = Object.entries(plan.beschikbaarheid).filter(([, v]) => v).map(([k]) => k);
+  const beschikbareDagenAantal = beschikbareDagen.length;
+
+  // ISO-weeknummer van de aankomende maandag (= de week die gegenereerd wordt)
+  const nu = new Date();
+  const aankomendeMaandag = new Date(nu);
+  aankomendeMaandag.setDate(nu.getDate() + ((8 - nu.getDay()) % 7 || 7));
+  const d = new Date(Date.UTC(aankomendeMaandag.getFullYear(), aankomendeMaandag.getMonth(), aankomendeMaandag.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const aankomendeWeekNr = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
   const urenPerDag = plan.urenPerDag || {};
   const bestaandeSessies = plan.weekSessies?.sessies || [];
   const bestaandeDatums = new Set(bestaandeSessies.map(s => s.datum));
@@ -106,6 +116,12 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       if (totaalMinuten < 60) {
         console.warn(`[sessiesAanvullen] ${userId} ${datum}: sessie te kort (${Math.round(totaalMinuten)} min) — overgeslagen`);
         continue;
+      }
+
+      if (aerobeDagen.includes(datum)) {
+        sessie.volumecorrectie = { aanleiding: "nieuwe_dag", beschikbareDagen: beschikbareDagenAantal, weekNr: aankomendeWeekNr };
+      } else if (tempoAfsluiters.includes(datum)) {
+        sessie.volumecorrectie = { aanleiding: "tempo_afsluiter", beschikbareDagen: beschikbareDagenAantal, weekNr: aankomendeWeekNr };
       }
 
       if (profiel.power_zones && profiel.ftp) {
