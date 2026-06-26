@@ -189,22 +189,24 @@ export function bepaalVolumeCorrectie({ rampRate, tsbGemiddelde14d, rpeDeltaTren
 
   const rampTeLaag      = rampRate !== null && rampRate < 2.0;
   const rampTeHoog      = rampRate !== null && rampRate > 7.0;
-  const tsbPositief     = tsbGemiddelde14d !== null && tsbGemiddelde14d > 3;
-  const tsbNegatief     = tsbGemiddelde14d !== null && tsbGemiddelde14d < -10;
+  // > +5 = fresh/transition: te weinig prikkel, sporter zit boven grey zone
+  const tsbTePositief   = tsbGemiddelde14d !== null && tsbGemiddelde14d > 5;
+  // < -30 = risk zone: onder optimal, ophoping richting overtraining
+  const tsbTeNegatief   = tsbGemiddelde14d !== null && tsbGemiddelde14d < -30;
   const adaptatieSlecht = rpeDeltaTrend !== null && rpeDeltaTrend > 1.0;
 
-  const omhoog = (rampTeLaag || tsbPositief) && !adaptatieSlecht && !tsbNegatief;
-  const omlaag = tsbNegatief || (rampTeHoog && adaptatieSlecht);
+  const omhoog = (rampTeLaag || tsbTePositief) && !adaptatieSlecht && !tsbTeNegatief;
+  const omlaag = tsbTeNegatief || (rampTeHoog && adaptatieSlecht);
 
   if (omhoog) {
-    if (rampTeLaag && tsbGemiddelde14d > 8) return { richting: "omhoog", pct: 0.12 };
-    if (rampTeLaag || tsbGemiddelde14d > 5) return { richting: "omhoog", pct: 0.07 };
+    if (rampTeLaag && tsbGemiddelde14d > 15) return { richting: "omhoog", pct: 0.12 };
+    if (rampTeLaag || tsbGemiddelde14d > 8)  return { richting: "omhoog", pct: 0.07 };
     return { richting: "omhoog", pct: 0.05 };
   }
 
   if (omlaag) {
-    if (tsbNegatief && tsbGemiddelde14d < -15) return { richting: "omlaag", pct: 0.12 };
-    if (tsbNegatief) return { richting: "omlaag", pct: 0.08 };
+    if (tsbTeNegatief && tsbGemiddelde14d < -40) return { richting: "omlaag", pct: 0.12 };
+    if (tsbTeNegatief) return { richting: "omlaag", pct: 0.08 };
     return { richting: "omlaag", pct: 0.05 };
   }
 
