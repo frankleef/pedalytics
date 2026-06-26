@@ -297,28 +297,26 @@ export async function checkEnZetWeekVlag(userId, isoWeeknummer) {
 
 // ====== Chunk 4: Volume-aanpassing bepalen ======
 
-export function bepaalVolumeAanpassing({ plan, aankomendWeek, correctie, signalen, actualeTssDezeWeek = null }) {
-  const huidigTssDoel = aankomendWeek?.tss_doel || 300;
-
-  // Als de actuele TSS significant lager was dan het kader-doel, anker op realiteit.
-  // Voorkomt dat een ambitieus kader een onhaalbaar grote sprong veroorzaakt.
-  const effectieveBasis = (actualeTssDezeWeek != null && actualeTssDezeWeek > 0 && actualeTssDezeWeek < huidigTssDoel * 0.85)
-    ? Math.round(actualeTssDezeWeek * 1.10)
-    : huidigTssDoel;
+export function bepaalVolumeAanpassing({ plan, aankomendWeek, correctie, signalen, geplandeTssDezeWeek = null }) {
+  // Basis = geplande TSS van de HUIDIGE week (kader), niet de aankomende week.
+  // Voorkomt dat een inflated kader-doel voor volgende week de berekening verstoort.
+  const basis = (geplandeTssDezeWeek != null && geplandeTssDezeWeek > 0)
+    ? geplandeTssDezeWeek
+    : (aankomendWeek?.tss_doel || 300);
 
   let nieuwTssDoel;
   if (correctie.richting === "omhoog") {
-    nieuwTssDoel = Math.round(effectieveBasis * (1 + correctie.pct));
+    nieuwTssDoel = Math.round(basis * (1 + correctie.pct));
   } else if (correctie.richting === "omlaag") {
-    nieuwTssDoel = Math.round(effectieveBasis * (1 - correctie.pct));
+    nieuwTssDoel = Math.round(basis * (1 - correctie.pct));
   } else {
-    nieuwTssDoel = effectieveBasis;
+    nieuwTssDoel = basis;
   }
 
-  // Harde grenzen obv kader-doel
+  // Harde grenzen obv basis
   nieuwTssDoel = Math.max(
-    Math.round(huidigTssDoel * 0.60),
-    Math.min(Math.round(huidigTssDoel * 1.20), nieuwTssDoel)
+    Math.round(basis * 0.60),
+    Math.min(Math.round(basis * 1.20), nieuwTssDoel)
   );
 
   if (correctie.richting !== "omhoog") {
@@ -458,20 +456,20 @@ export async function voerWekelijkseEvaluatieUit(userId, { forceer = false } = {
     return { overgeslagen: true, reden: "taper/eindweek" };
   }
 
-  const dezeWeekMaandagISO = datumVoegDagenToe(maandagISO, -7); // huidige week = maandag - 7
-  const [signalen, actualeTssDezeWeek] = await Promise.all([
-    haalVolumeSignalen(userId),
-    haalActueleTssDezeWeek(userId, dezeWeekMaandagISO),
-  ]);
+  const huidigeWeekNr = aankomendWeekNr - 1;
+  const huidigeWeek = plan.kader?.find(w => w.week === huidigeWeekNr);
+  const geplandeTssDezeWeek = huidigeWeek?.tss_doel ?? null;
+
+  const signalen = await haalVolumeSignalen(userId);
   const correctie = bepaalVolumeCorrectie(signalen);
 
-  console.log(`[volumecorrectie] ${userId}: actuele TSS deze week=${actualeTssDezeWeek}, kader=${aankomendWeek.tss_doel}`);
+  console.log(`[volumecorrectie] ${userId}: geplande TSS huidige week=${geplandeTssDezeWeek}, kader aankomend=${aankomendWeek.tss_doel}`);
 
   if (correctie.richting === "geen") {
     console.log(`[volumecorrectie] ${userId}: geen aanpassing nodig (week ${weekNr})`);
     await kv.set(`volumecorrectie_log:${userId}:${weekNr}`, {
       weeknummer: weekNr, uitgevoerd: new Date().toISOString(),
-      richting: "geen", pct: 0, signalen, actualeTssDezeWeek,
+      richting: "geen", pct: 0, signalen, geplandeTssDezeWeek,
       oudTssDoel: aankomendWeek.tss_doel, nieuwTssDoel: aankomendWeek.tss_doel,
     }, { ex: 90 * 86400 });
     if (!forceer) await kv.set(`weekcheck_gedaan:${userId}:${weekNr}`, "1", { ex: 8 * 86400 });
@@ -479,7 +477,7 @@ export async function voerWekelijkseEvaluatieUit(userId, { forceer = false } = {
   }
 
   const oudTssDoel = aankomendWeek.tss_doel;
-  const aanpassing = bepaalVolumeAanpassing({ plan, aankomendWeek, correctie, signalen, actualeTssDezeWeek });
+  const aanpassing = bepaalVolumeAanpassing({ plan, aankomendWeek, correctie, signalen, geplandeTssDezeWeek });
 
   // Pas tss_doel aan in kader
   const kaderIdx = plan.kader.findIndex(w => w.week === aankomendWeekNr);
@@ -525,7 +523,7 @@ export async function voerWekelijkseEvaluatieUit(userId, { forceer = false } = {
   // Log
   await kv.set(`volumecorrectie_log:${userId}:${weekNr}`, {
     weeknummer: weekNr, uitgevoerd: new Date().toISOString(),
-    richting: correctie.richting, pct: correctie.pct, signalen, actualeTssDezeWeek,
+    richting: correctie.richting, pct: correctie.pct, signalen, geplandeTssDezeWeek,
     oudTssDoel, nieuwTssDoel: aanpassing.nieuwTssDoel,
     acties: aanpassing.acties,
   }, { ex: 90 * 86400 });
@@ -533,9 +531,9 @@ export async function voerWekelijkseEvaluatieUit(userId, { forceer = false } = {
   // KV-vlag (niet bij forceer=true zodat echte evaluatie later nog kan draaien)
   if (!forceer) await kv.set(`weekcheck_gedaan:${userId}:${weekNr}`, "1", { ex: 8 * 86400 });
 
-  console.log(`[volumecorrectie] ${userId}: week ${weekNr} ${correctie.richting} ${Math.round(correctie.pct * 100)}% — actueel ${actualeTssDezeWeek} / kader ${oudTssDoel} → ${aanpassing.nieuwTssDoel}`);
+  console.log(`[volumecorrectie] ${userId}: week ${weekNr} ${correctie.richting} ${Math.round(correctie.pct * 100)}% — gepland ${geplandeTssDezeWeek} / kader aankomend ${oudTssDoel} → ${aanpassing.nieuwTssDoel}`);
   return {
-    richting: correctie.richting, pct: correctie.pct, signalen, actualeTssDezeWeek,
+    richting: correctie.richting, pct: correctie.pct, signalen, geplandeTssDezeWeek,
     oudTssDoel, nieuwTssDoel: aanpassing.nieuwTssDoel,
     acties: aanpassing.acties,
   };
