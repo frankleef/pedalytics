@@ -9,9 +9,6 @@ export const maxDuration = 300;
 
 export async function POST(request) {
   const body = await request.json().catch(() => ({}));
-  if (body.secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
   const userId = body.userId;
   if (!userId) return NextResponse.json({ error: "userId vereist" }, { status: 400 });
 
