@@ -62,6 +62,8 @@ export async function vulSessiesAanVoorGebruiker(userId) {
     if (wData?.length > 0) wellness = wData[0];
   } catch {}
 
+  const piekSprint = await kv.get(`piek_sprint_vermogen:${userId}`) || Math.round((profiel.ftp || 265) * 1.8);
+
   const aangevuld = [];
 
   for (const { datum, dagNaam, uren } of ontbrekend) {
@@ -91,10 +93,15 @@ export async function vulSessiesAanVoorGebruiker(userId) {
       voegVerwachtRpeToe(sessie);
       corrigeerSessieTss(sessie);
 
+      const totaalMinuten = (sessie.segmenten || []).reduce((som, seg) => som + (seg.blokDuurSeconden || seg.duur_min * 60 || 0), 0) / 60;
+      if (totaalMinuten < 60) {
+        console.warn(`[sessiesAanvullen] ${userId} ${datum}: sessie te kort (${Math.round(totaalMinuten)} min) — overgeslagen`);
+        continue;
+      }
+
       if (profiel.power_zones && profiel.ftp) {
         try {
           const zones = bouwZonesUitProfiel(profiel.ftp, profiel.power_zones);
-          const piekSprint = await kv.get(`piek_sprint_vermogen:${userId}`) || Math.round(profiel.ftp * 1.8);
           const sessietype = sessie.intentie?.sessietype || sessie.sessietype || sessie.type;
           sessie.segmenten = (sessie.segmenten || []).map(seg =>
             seg.zone ? berekenBlok(seg, zones, profiel.ftp, piekSprint, sessietype) : seg

@@ -39,12 +39,14 @@ export async function POST(request) {
 
         const apiKey = decrypt(encKey);
 
+        // Plan één keer lezen per user per sync-run
+        const planKey = `${userId}:seizoensplan`;
+        const plan = await kv.get(planKey);
+
         // Eenmalige TSS-migratie: ophalen van icu_training_load voor bestaande events
         const tssMigratieKey = `migratie:tss-bron:${userId}`;
         if (!(await kv.get(tssMigratieKey))) {
           try {
-            const planKey = `${userId}:seizoensplan`;
-            const plan = await kv.get(planKey);
             const sessies = plan?.weekSessies?.sessies || [];
             let bijgewerkt = 0;
             for (const s of sessies) {
@@ -76,9 +78,7 @@ export async function POST(request) {
             const athlete = await athleteResp.json();
             const rideSport = (athlete.sportSettings || []).find(s => s.types?.includes("Ride"));
             const ftpVanIntervals = rideSport?.ftp ?? null;
-            const planKey = `${userId}:seizoensplan`;
-            const planVoorFtp = await kv.get(planKey);
-            const ftpInPlan = planVoorFtp?.huidige_ftp ?? null;
+            const ftpInPlan = plan?.huidige_ftp ?? null;
             if (ftpVanIntervals && ftpInPlan && Math.abs(ftpVanIntervals - ftpInPlan) > 1) {
               console.log(`[ftp-sync] ${userId}: ${ftpInPlan}W → ${ftpVanIntervals}W`);
               await verwerkFtpTest(userId, { icu_ftp: ftpVanIntervals });
@@ -127,11 +127,10 @@ export async function POST(request) {
           // Wekelijkse volume-evaluatie ook zonder nieuwe rit
           try {
             if (await isWekelijkseCheckVerschuldigd(userId)) {
-              const planVoorWeek = await kv.get(`${userId}:seizoensplan`);
-              if (planVoorWeek?.kader && planVoorWeek?.startdatum) {
-                const dagenSindsStart = Math.max(0, (Date.now() - new Date(planVoorWeek.startdatum).getTime()) / 86400000);
+              if (plan?.kader && plan?.startdatum) {
+                const dagenSindsStart = Math.max(0, (Date.now() - new Date(plan.startdatum).getTime()) / 86400000);
                 const huidigeWeekNr = Math.max(1, Math.ceil(dagenSindsStart / 7));
-                const huidigeKaderWeek = planVoorWeek.kader?.find(w => w.week === huidigeWeekNr);
+                const huidigeKaderWeek = plan.kader?.find(w => w.week === huidigeWeekNr);
                 if (huidigeKaderWeek?.weektype === "herstel") {
                   await voerHerstelweekEvaluatieUit(userId);
                 } else {
@@ -152,8 +151,6 @@ export async function POST(request) {
         if (lastActivity?.id === nieuwste.id) {
           // Herbereken conditiescore met verse wellness-data, ook zonder nieuwe rit
           try {
-            const planKey = `${userId}:seizoensplan`;
-            const plan = await kv.get(planKey);
             if (plan) {
               const wellData = await intervalsGet("/wellness", { oldest: datumOffset(-28), newest: datumOffset(0) }, { apiKey, athleteId });
               let ctlNu = null, ctl4wGeleden = null, ctlRamp = null;
@@ -191,11 +188,10 @@ export async function POST(request) {
           // Wekelijkse volume-evaluatie ook in idempotent pad
           try {
             if (await isWekelijkseCheckVerschuldigd(userId)) {
-              const planVoorWeek = await kv.get(`${userId}:seizoensplan`);
-              if (planVoorWeek?.kader && planVoorWeek?.startdatum) {
-                const dagenSindsStart = Math.max(0, (Date.now() - new Date(planVoorWeek.startdatum).getTime()) / 86400000);
+              if (plan?.kader && plan?.startdatum) {
+                const dagenSindsStart = Math.max(0, (Date.now() - new Date(plan.startdatum).getTime()) / 86400000);
                 const huidigeWeekNr = Math.max(1, Math.ceil(dagenSindsStart / 7));
-                const huidigeKaderWeek = planVoorWeek.kader?.find(w => w.week === huidigeWeekNr);
+                const huidigeKaderWeek = plan.kader?.find(w => w.week === huidigeWeekNr);
                 if (huidigeKaderWeek?.weektype === "herstel") {
                   await voerHerstelweekEvaluatieUit(userId);
                 } else {
@@ -214,10 +210,6 @@ export async function POST(request) {
           datum_iso: nieuwste.start_date_local?.split("T")[0],
           checkedAt: new Date().toISOString(),
         });
-
-        // Check of nieuwste rit een FTP-test was
-        const planKey = `${userId}:seizoensplan`;
-        const plan = await kv.get(planKey);
 
         // Migratie: start_profiel toevoegen als het ontbreekt
         if (plan && !plan.start_profiel) {
@@ -332,6 +324,9 @@ export async function POST(request) {
                     await kv.set(`decoupling:${rit.id}`, { decoupling: dc, apparent_temp_celsius, temp_baseline, hitte_gecorrigeerd, startTijd: rit.start_date_local, duurMinuten: Math.round(duurMin), userId });
                   }
                   await bijwerkenDecouplingBaseline(userId).catch(() => {});
+                  if (temp_baseline != null) {
+                    await kv.set(`temp_baseline:${userId}`, temp_baseline, { ex: 90 * 86400 });
+                  }
                 })
                 .catch(e => console.warn(`[sync] Decoupling cache mislukt:`, e.message));
             } catch (e) {
@@ -542,12 +537,10 @@ export async function POST(request) {
         // Wekelijkse volume-evaluatie (sectie 38)
         try {
           if (await isWekelijkseCheckVerschuldigd(userId)) {
-            const planVoorWeek = await kv.get(`${userId}:seizoensplan`);
-            if (planVoorWeek?.kader && planVoorWeek?.startdatum) {
-              const dagenSindsStart = Math.max(0, (Date.now() - new Date(planVoorWeek.startdatum).getTime()) / 86400000);
+            if (plan?.kader && plan?.startdatum) {
+              const dagenSindsStart = Math.max(0, (Date.now() - new Date(plan.startdatum).getTime()) / 86400000);
               const huidigeWeekNr = Math.max(1, Math.ceil(dagenSindsStart / 7));
-              const huidigeKaderWeek = planVoorWeek.kader?.find(w => w.week === huidigeWeekNr);
-
+              const huidigeKaderWeek = plan.kader?.find(w => w.week === huidigeWeekNr);
               if (huidigeKaderWeek?.weektype === "herstel") {
                 await voerHerstelweekEvaluatieUit(userId);
               } else {

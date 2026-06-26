@@ -14,26 +14,22 @@ export async function GET() {
 
     const vandaag = new Date().toISOString().slice(0, 10);
 
-    // Hitte-vlag ophalen voor cache-key differentiatie
+    // Hitte-vlag + cache-check: temp_baseline:{userId} is bijgehouden door sync-cron (1 kv.get)
     let weerData = null;
     try {
       const { haalGebruikersLocatie } = await import("@/lib/locatie");
+      const { berekenHitteVlag } = await import("@/lib/hitte");
       const { lat, lon } = await haalGebruikersLocatie(userId);
-      const weerResp = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=apparent_temperature&timezone=Europe/Amsterdam`, { next: { revalidate: 1800 } });
+      const [weerResp, tempBaseline] = await Promise.all([
+        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=apparent_temperature&timezone=Europe/Amsterdam`, { next: { revalidate: 1800 } }),
+        kv.get(`temp_baseline:${userId}`),
+      ]);
       if (weerResp.ok) {
         const wd = await weerResp.json();
         const apparentTemp = wd.current?.apparent_temperature ?? null;
         if (apparentTemp != null) {
-          const { berekenTempBaseline, berekenHitteVlag } = await import("@/lib/hitte");
-          const dcKeys = await kv.keys("decoupling:*");
-          const dcEntries = [];
-          for (const key of (dcKeys || []).slice(-20)) {
-            const entry = await kv.get(key);
-            if (entry?.userId === userId && entry?.apparent_temp_celsius != null) dcEntries.push(entry);
-          }
-          const baseline = berekenTempBaseline(dcEntries);
-          const hitte = baseline != null ? berekenHitteVlag(apparentTemp, baseline) : apparentTemp >= 32;
-          weerData = { apparentTemp: Math.round(apparentTemp), hitte, delta: baseline != null ? Math.round(apparentTemp - baseline) : null };
+          const hitte = tempBaseline != null ? berekenHitteVlag(apparentTemp, tempBaseline) : apparentTemp >= 32;
+          weerData = { apparentTemp: Math.round(apparentTemp), hitte, delta: tempBaseline != null ? Math.round(apparentTemp - tempBaseline) : null };
         }
       }
     } catch {}

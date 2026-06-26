@@ -317,10 +317,14 @@ export function bepaalVolumeAanpassing({ plan, aankomendWeek, correctie, signale
   );
   const bezetteDatums = new Set(sessiesInWeek.map(s => s.datum));
 
-  // Stap 1: beschikbare dag zonder sessie
+  // Stap 1: beschikbare dag zonder sessie én voldoende TSS-ruimte (≥40 TSS ≈ 60 min Z2)
+  const MIN_TSS_VOOR_NIEUWE_DAG = 40;
   const vrijeDagen = weekDatums.filter(datum => {
     const naam = dagNaamVanDatum(datum);
-    return beschikbareDagen.includes(naam) && !bezetteDatums.has(datum);
+    if (!beschikbareDagen.includes(naam) || bezetteDatums.has(datum)) return false;
+    const dagUren = urenPerDag[naam] || 1.5;
+    const geschatteTss = dagUren * 0.65 * 0.65 * 100;
+    return geschatteTss >= MIN_TSS_VOOR_NIEUWE_DAG;
   });
 
   if (vrijeDagen.length > 0) {
