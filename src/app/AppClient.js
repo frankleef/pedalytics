@@ -540,6 +540,13 @@ export default function Page() {
     setUrenPerDag(nieuwUren);
     setBeschikbaarheidSchermOpen(false);
 
+    // Sla beschikbaarheid/uren direct op — sessiegeneratie kan daarna minuten duren
+    fetch("/api/plan", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...seizoensplan, beschikbaarheid: nieuwBeschikbaar, urenPerDag: nieuwUren }),
+    });
+
     const nu = new Date();
     const vandaagISO = getVandaag();
     const alleDagen = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag", "Zondag"];
