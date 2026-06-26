@@ -4,6 +4,7 @@ import { intervalsGet } from "./intervals";
 import { datumOffset } from "./datum";
 import { ctlRampRegressie } from "./conditie";
 import { sendPush } from "./pushNotify";
+import { vulSessiesAanVoorGebruiker } from "./sessiesAanvullen";
 
 // ====== Interne hulpfuncties ======
 
@@ -460,6 +461,14 @@ export async function voerWekelijkseEvaluatieUit(userId, { forceer = false } = {
   }
 
   await kv.set(planKey, plan);
+
+  // Regenereer sessies direct na verwijdering
+  try {
+    await vulSessiesAanVoorGebruiker(userId);
+  } catch (e) {
+    console.error(`[volumecorrectie] Sessieregeneratie mislukt voor ${userId}:`, e.message);
+    throw e;
+  }
 
   // Push-notificatie (niet bij forceer=true — dit is een handmatige test)
   if (!forceer) {
