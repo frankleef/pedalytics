@@ -3,10 +3,9 @@ import { voerWekelijkseEvaluatieUit, haalVolumeSignalen } from "@/lib/volumeCorr
 
 export const maxDuration = 60;
 
-export async function GET(request) {
-  const { searchParams } = new URL(request.url);
-  const secret = searchParams.get("s");
-  if (!secret || secret !== process.env.CRON_SECRET) {
+export async function POST(request) {
+  const body = await request.json().catch(() => ({}));
+  if (body.secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
