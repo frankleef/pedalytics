@@ -419,6 +419,16 @@ Spec: 4-6x 4-5min @ zone Z5, herstel 1:1, TSS 70-90, warm-up ≥10min progressie
     rpeContext = "\nRPE-TREND: onderstimulering. Genereer sessie aan de bovenkant van de TSS-range.";
   }
 
+  let herstelpatroonContext = "";
+  if (ctx.aanleiding === "herstelpatroon_correctie") {
+    herstelpatroonContext = "\nHERSTELPATROON-CORRECTIE: deze dag grenst aan een zware sessie en heeft onvoldoende herstel. Verlaag de intensiteit: kortere duur (−20–30%), vermogen naar onderkant van de zone, of schakel om naar z2_vlak als het sessietype zwaarder was. Behoud het sessietype als het al Z2 is — pas alleen duur en vermogen aan.";
+  }
+
+  let volumecorrectieRestrictieContext = "";
+  if (ctx.aanleiding?.startsWith("volumecorrectie") || ctx.aanleiding === "herstelpatroon_correctie") {
+    volumecorrectieRestrictieContext = "\nVOLUMECORRECTIE — SESSIETYPE RESTRICTIE: deze sessie wordt gegenereerd als onderdeel van een volumecorrectie. Het doel is uitsluitend aerobe stimulus. De volgende sessietypes zijn verboden voor deze aanroep: kracht_lage_cadans (neuromusculaire prikkel, geen aerobe volumecompensatie), sprint_neuraal (neuromusculaire prikkel, geen aerobe volumecompensatie). Gebruik uitsluitend: z2_vlak, z2_variabel, progressief. Als de volumecorrectie een tempo-afsluiter vereist: voeg een Z3-blok toe aan een z2_vlak of z2_variabel sessie — genereer geen apart kracht- of sprintsessietype.";
+  }
+
   let distributieContext = "";
   if (ctx.distributieAfwijking) {
     const richting = ctx.distributieAfwijking.richting;
@@ -441,7 +451,7 @@ ${methodeSectie}
 PROFIEL: FTP ${ctx.atleetProfiel.ftp}W | LT ${ctx.atleetProfiel.lt_hr} bpm | Max HR ${ctx.atleetProfiel.max_hr} bpm | ${ctx.atleetProfiel.gewicht} kg${ctx.wPerKg ? ` | W/kg ${ctx.wPerKg}` : ""}
 ${ctx.ctlAtlTsb ? `CTL: ${ctx.ctlAtlTsb.ctl} | ATL: ${ctx.ctlAtlTsb.atl} | TSB: ${ctx.ctlAtlTsb.tsb}` : "CTL/ATL/TSB: niet meegewogen (toekomstige dag — plan op basis van het weekschema, niet op dagvorm)"}
 ${ctx.isToekomst ? "" : `HRV: ${hrvInfo}`}
-RPE afgelopen week: ${rpeInfo}${checkInContext}${rpeContext}${distributieContext}${vo2maxContext}${z6Context}
+RPE afgelopen week: ${rpeInfo}${checkInContext}${rpeContext}${herstelpatroonContext}${volumecorrectieRestrictieContext}${distributieContext}${vo2maxContext}${z6Context}
 Fase: ${ctx.fase} — ${ctx.focus} (TSS-doel ${ctx.tssDoel} per 7 dagen, weektype: ${ctx.weektype}, reeds gepland afgelopen 7d: ${weekTssNu} TSS, ruimte: ${tssRuimte} TSS)
 Ervaringsniveau: ${ctx.atleetProfiel.ervaringsniveau}
 Toegestane sessietypes deze fase: ${ctx.sessietypes ? ctx.sessietypes.join(", ") : sessietypesVoorFase(ctx.fase)}

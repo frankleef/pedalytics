@@ -179,17 +179,11 @@ function bepaalMode(offset, sessie, rit, ftp, planStartISO) {
 export default function SchemaTab({
   seizoensplan, weekSessies, weekSessiesLaden, beschikbaar, voortgang,
   profiel, wellenessHuidig, vandaagInvoer, onEditBeschikbaarheid, initialDagOffset,
-  onRpeSaved, onOpenProfiel, onPlanWijziging, onAlternatiefSessie,
+  onRpeSaved, onOpenProfiel, onPlanWijziging, onAlternatiefSessie, weerData,
 }) {
   const [selectedIdx, setSelectedIdx] = useState(10 + (initialDagOffset || 0));
   const [rpeWaarde, setRpeWaarde] = useState(6);
-  const [weerForecast, setWeerForecast] = useState({});
-
-  useEffect(() => {
-    fetch("/api/weer").then(r => r.json()).then(d => {
-      if (d.success && d.data?.forecast) setWeerForecast(d.data.forecast);
-    }).catch(() => {});
-  }, []);
+  const weerForecast = weerData?.forecast || {};
   const [rpeOpslaan, setRpeOpslaan] = useState(false);
   const [rpeOpgeslagen, setRpeOpgeslagen] = useState({});
   const [rpeBewerken, setRpeBewerken] = useState(false);

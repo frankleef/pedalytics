@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { getSessionUser } from "@/lib/auth";
 import { haalGebruikersLocatie } from "@/lib/locatie";
-import { berekenTempBaseline, berekenHitteVlag } from "@/lib/hitte";
+import { berekenHitteVlag } from "@/lib/hitte";
 
 const CONDITIE_MAP = {
   0: "Helder", 1: "Overwegend helder", 2: "Half bewolkt", 3: "Bewolkt",
@@ -46,20 +46,13 @@ export async function GET() {
       };
     });
 
-    // Hitte-detectie
+    // Hitte-detectie via temp_baseline:{userId} (1 KV get, bijgehouden door cron/sync)
     let hitte = false;
     if (apparentTemp != null) {
       try {
-        const kv = getKV();
         const userId = user?.id;
         if (userId) {
-          const dcKeys = await kv.keys(`decoupling:*`);
-          const dcEntries = [];
-          for (const key of (dcKeys || []).slice(-20)) {
-            const entry = await kv.get(key);
-            if (entry?.userId === userId && entry?.apparent_temp_celsius != null) dcEntries.push(entry);
-          }
-          const baseline = berekenTempBaseline(dcEntries);
+          const baseline = await getKV().get(`temp_baseline:${userId}`);
           hitte = baseline != null ? berekenHitteVlag(apparentTemp, baseline) : apparentTemp >= 32;
         } else {
           hitte = apparentTemp >= 32;

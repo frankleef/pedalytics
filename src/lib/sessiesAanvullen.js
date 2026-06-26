@@ -10,6 +10,8 @@ import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
 import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
 import { claudeCall } from "@/lib/claude";
 
+const VERBODEN_TYPES_VOLUMECORRECTIE = ["kracht_lage_cadans", "sprint_neuraal"];
+
 export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tempoAfsluiters = [] } = {}) {
   const kv = getKV();
   const planKey = `${userId}:seizoensplan`;
@@ -92,7 +94,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         dagNaam,
         uren,
         oudeSessie: null,
-        aanleiding: aerobeDagen.includes(datum) ? "volumecorrectie_aerobe" : "beschikbaarheid_nieuw",
+        aanleiding: aerobeDagen.includes(datum) ? "volumecorrectie_aerobe" : tempoAfsluiters.includes(datum) ? "volumecorrectie_tempo_afsluiter" : "beschikbaarheid_nieuw",
       });
 
       if (aerobeDagen.includes(datum)) {
@@ -111,6 +113,35 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       normaliseerSessieSegmenten(sessie);
       voegVerwachtRpeToe(sessie);
       corrigeerSessieTss(sessie);
+
+      // Deterministisch vangnet: verboden sessietypes bij volumecorrectie
+      const isVolumeCorrectie = aerobeDagen.includes(datum) || tempoAfsluiters.includes(datum);
+      if (isVolumeCorrectie) {
+        const sessietype = sessie.intentie?.sessietype || sessie.sessietype || "";
+        if (VERBODEN_TYPES_VOLUMECORRECTIE.includes(sessietype)) {
+          const reden = `${sessietype} niet toegestaan bij volumecorrectie`;
+          console.warn(`[sessiesAanvullen] ${userId} ${datum}: type-fix → z2_vlak (${reden})`);
+          try {
+            await kv.set(`volumecorrectie_type_fix:${userId}:${datum}`, { datum, vervangen: sessietype, door: "z2_vlak", reden }, { ex: 30 * 86400 });
+          } catch {}
+          sessie.type = "duur_variabel";
+          sessie.titel = "Z2 Vlak — Volumecorrectie";
+          if (sessie.intentie) {
+            sessie.intentie.sessietype = "z2_vlak";
+            sessie.intentie.rol = "aerobe_dag";
+            sessie.intentie.toegestane_zones = ["Z2"];
+          }
+          sessie.duur_min = Math.round(uren * 60);
+          sessie.segmenten = [{
+            zone: "Z2",
+            positie: "midden",
+            blokDuurSeconden: sessie.duur_min * 60,
+            isSpecifiek: false,
+            sessietype: "z2_vlak",
+          }];
+          corrigeerSessieTss(sessie);
+        }
+      }
 
       const totaalMinuten = (sessie.segmenten || []).reduce((som, seg) => som + (seg.blokDuurSeconden || seg.duur_min * 60 || 0), 0) / 60;
       if (totaalMinuten < 60) {

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import SeizoenWizard from "./components/SeizoenWizard";
 import HomeTab from "./components/HomeTab";
 import VoortgangTab from "./components/VoortgangTab";
@@ -16,6 +16,47 @@ import LegeKoppelStaat from "./components/LegeKoppelStaat";
 import { demoProfiel, demoSeizoensplan, demoWellness, demoRitten } from "@/lib/demoData";
 
 const PROFIEL_DEFAULT = { ftp: 265, lt_hr: 184, max_hr: 200, gewicht: 90, hrv_basislijn: 58, hr_basislijn: 49, doel: "31+ km/u gemiddeld solo in Z2" };
+
+function TerugToast({ zichtbaar }) {
+  if (!zichtbaar) return null;
+  return (
+    <div style={{
+      position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)",
+      background: "oklch(0.24 0.012 70)", color: "white",
+      padding: "10px 20px", borderRadius: 999,
+      font: "700 14px var(--font-nunito), sans-serif",
+      zIndex: 9999, pointerEvents: "none", whiteSpace: "nowrap",
+    }}>
+      Druk nogmaals terug om de app te sluiten
+    </div>
+  );
+}
+
+function checkHerstelpatroon(sessies, ritDatums) {
+  const gesorteerd = [...sessies]
+    .filter(s => !s.voltooid && !ritDatums.has(s.datum))
+    .sort((a, b) => new Date(a.datum) - new Date(b.datum));
+
+  const conflicten = [];
+  for (let i = 0; i < gesorteerd.length - 1; i++) {
+    const huidige = gesorteerd[i];
+    const volgende = gesorteerd[i + 1];
+    const dagVerschil = (new Date(volgende.datum) - new Date(huidige.datum)) / (1000 * 60 * 60 * 24);
+    const tssCurrent = huidige.tss ?? huidige.tss_schatting ?? 0;
+    const tssNext = volgende.tss ?? volgende.tss_schatting ?? 0;
+
+    if (dagVerschil === 1 && tssCurrent > 50 && tssNext > 50) {
+      const huidigZ2 = (huidige.intentie?.sessietype || "").startsWith("z2");
+      const volgendeZ2 = (volgende.intentie?.sessietype || "").startsWith("z2");
+      if (huidigZ2 && volgendeZ2 && tssCurrent < 70 && tssNext < 70) continue;
+
+      const lichter = tssCurrent <= tssNext ? huidige : volgende;
+      const zwaar = tssCurrent <= tssNext ? volgende : huidige;
+      conflicten.push({ zwaar, lichter });
+    }
+  }
+  return conflicten;
+}
 
 export default function Page() {
   const [profiel, setProfiel] = useState(PROFIEL_DEFAULT);
@@ -41,6 +82,56 @@ export default function Page() {
   const [succesMelding, setSuccesMelding] = useState(null);
   const [profielOpen, setProfielOpen] = useState(false);
   const [nietGekoppeld, setNietGekoppeld] = useState(false);
+  const [weerData, setWeerData] = useState(null);
+  const [checkinScore, setCheckinScore] = useState(null);
+  const [toastZichtbaar, setToastZichtbaar] = useState(false);
+
+  const tabHistoryRef = useRef([]);
+  const backPressTimerRef = useRef(null);
+  const toastTimerRef = useRef(null);
+  const closingModalRef = useRef(false);
+  const profielOpenRef = useRef(false);
+  const beschikbaarheidOpenRef = useRef(false);
+
+  useEffect(() => { profielOpenRef.current = profielOpen; }, [profielOpen]);
+  useEffect(() => { beschikbaarheidOpenRef.current = beschikbaarheidSchermOpen; }, [beschikbaarheidSchermOpen]);
+
+  function toonToast() {
+    setToastZichtbaar(true);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToastZichtbaar(false), 2000);
+  }
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    history.replaceState({ tab: "home" }, "", window.location.pathname);
+  }, []);
+
+  useEffect(() => {
+    function handlePopState() {
+      if (closingModalRef.current) { closingModalRef.current = false; return; }
+      if (profielOpenRef.current) { setProfielOpen(false); return; }
+      if (beschikbaarheidOpenRef.current) { setBeschikbaarheidSchermOpen(false); return; }
+      if (tabHistoryRef.current.length > 0) {
+        const vorigeTab = tabHistoryRef.current.pop();
+        setTab(vorigeTab);
+        if (tabHistoryRef.current.length > 0) {
+          history.pushState({ tab: vorigeTab }, "", window.location.pathname);
+        }
+        return;
+      }
+      if (backPressTimerRef.current) {
+        clearTimeout(backPressTimerRef.current);
+        backPressTimerRef.current = null;
+      } else {
+        toonToast();
+        history.pushState(null, "", window.location.pathname);
+        backPressTimerRef.current = setTimeout(() => { backPressTimerRef.current = null; }, 2000);
+      }
+    }
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -108,6 +199,8 @@ export default function Page() {
     }).catch(() => {});
     laadDagelijkseData();
     laadRecenteRitten();
+    fetch("/api/weer").then(r => r.json()).then(d => { if (d.success) setWeerData(d.data); }).catch(() => {});
+    fetch("/api/checkin").then(r => r.json()).then(d => { if (d.success && d.data) setCheckinScore(d.data.score); }).catch(() => {});
 
     return () => navigator.serviceWorker?.removeEventListener("message", swHandler);
   }, []);
@@ -538,6 +631,8 @@ export default function Page() {
 
     setBeschikbaar(nieuwBeschikbaar);
     setUrenPerDag(nieuwUren);
+    closingModalRef.current = true;
+    history.back();
     setBeschikbaarheidSchermOpen(false);
 
     // Sla beschikbaarheid/uren direct op — sessiegeneratie kan daarna minuten duren
@@ -592,6 +687,33 @@ export default function Page() {
     teVerwijderenEventIds.forEach(id => {
       fetch(`/api/intervals/events/${id}`, { method: "DELETE" }).catch(() => {});
     });
+
+    // Herstelpatroon-check: als opeenvolgende sessies met hoge TSS overblijven, verlicht de lichtste
+    if (verwijderd.length > 0) {
+      const conflicten = checkHerstelpatroon(lokaalSessies, ritDatums);
+      if (conflicten.length > 0) {
+        console.log("[Herstelpatroon] Conflicten:", conflicten.map(c => `${c.zwaar.datum}+${c.lichter.datum}`));
+        const alGecorrigeerd = new Set();
+        for (const { lichter } of conflicten) {
+          if (alGecorrigeerd.has(lichter.datum)) continue;
+          alGecorrigeerd.add(lichter.datum);
+          const dag = lichter.dag || DAGNAMEN[new Date(lichter.datum).getDay()];
+          const uren = nieuwUren[dag] || oudeUren[dag] || 1.5;
+          if (lichter.intervalsEventId) fetch(`/api/intervals/events/${lichter.intervalsEventId}`, { method: "DELETE" }).catch(() => {});
+          const overige = lokaalSessies.filter(s => s.datum !== lichter.datum && !s.voltooid);
+          const gecorrigeerd = await genereerSessieDagViaJob(lichter.datum, dag, uren, {
+            overigeSessies: overige,
+            oudeSessie: lichter,
+            aanleiding: "herstelpatroon_correctie",
+          });
+          if (gecorrigeerd) {
+            lokaalSessies = [...lokaalSessies.filter(s => s.datum !== lichter.datum), gecorrigeerd];
+            console.log("[Herstelpatroon] Gecorrigeerd:", lichter.datum, lichter.type, "→", gecorrigeerd.type, gecorrigeerd.titel);
+          }
+        }
+        setWeekSessies({ ...weekSessies, sessies: lokaalSessies });
+      }
+    }
 
     // Verplaatsingsdetectie: koppel verwijderde sessies aan nieuwe dagen
     const isVerplaatsing = verwijderdeSessies.length > 0 && toegevoegd.length > 0;
@@ -759,6 +881,16 @@ export default function Page() {
     }
   }, [beschikbaar, urenPerDag, seizoensplan, weekSessies, genereerSessieDagViaJob, checkImpact]);
 
+  const openProfiel = useCallback(() => {
+    if (typeof window !== "undefined") history.pushState({ modal: "profiel" }, "", window.location.pathname);
+    setProfielOpen(true);
+  }, []);
+
+  const openBeschikbaarheid = useCallback(() => {
+    if (typeof window !== "undefined") history.pushState({ modal: "beschikbaarheid" }, "", window.location.pathname);
+    setBeschikbaarheidSchermOpen(true);
+  }, []);
+
   const handleRpeSaved = useCallback((ritId, rpeWaarde) => {
     if (!voortgang?.ritten) return;
     const rit = voortgang.ritten.find(r => r.id === ritId);
@@ -863,7 +995,7 @@ export default function Page() {
         <BeschikbaarheidScherm
           beschikbaar={beschikbaar}
           urenPerDag={urenPerDag}
-          onTerug={() => setBeschikbaarheidSchermOpen(false)}
+          onTerug={() => history.back()}
           onOpslaan={handleBeschikbaarheidOpslaan}
         />
       )}
@@ -872,7 +1004,10 @@ export default function Page() {
         <ProfielScherm
           profiel={profiel}
           seizoensplan={seizoensplan}
-          onTerug={() => setProfielOpen(false)}
+          weerData={weerData}
+          initialCheckin={checkinScore}
+          onCheckinWijziging={(val) => setCheckinScore(val)}
+          onTerug={() => history.back()}
           onUitloggen={() => { import("next-auth/react").then(m => m.signOut({ callbackUrl: "/login" })); }}
           onPlanWijziging={() => {
             fetch("/api/plan").then(r => r.json()).then(pd => {
@@ -945,6 +1080,9 @@ export default function Page() {
               weekSessies={weekSessies}
               weekSessiesLaden={weekSessiesLaden}
               beschikbaar={beschikbaar}
+              weerData={weerData}
+              initialCheckin={checkinScore}
+              onCheckinWijziging={(val) => setCheckinScore(val)}
               onOpenWorkout={(sessie) => {
                 if (sessie.datum) {
                   const nu = new Date(); nu.setHours(0,0,0,0);
@@ -957,7 +1095,7 @@ export default function Page() {
                 }
                 setTab(1);
               }}
-              onOpenProfiel={() => setProfielOpen(true)}
+              onOpenProfiel={openProfiel}
             />
           )}
 
@@ -973,9 +1111,10 @@ export default function Page() {
               wellenessHuidig={wellenessHuidig}
               vandaagInvoer={vandaagInvoer}
               initialDagOffset={schemaDagOffset}
+              weerData={weerData}
               onRpeSaved={handleRpeSaved}
-              onOpenProfiel={() => setProfielOpen(true)}
-              onEditBeschikbaarheid={() => setBeschikbaarheidSchermOpen(true)}
+              onOpenProfiel={openProfiel}
+              onEditBeschikbaarheid={openBeschikbaarheid}
               onAlternatiefSessie={handleAlternatiefSessie}
               onPlanWijziging={() => {
                 fetch("/api/plan").then(r => r.json()).then(pd => {
@@ -996,20 +1135,29 @@ export default function Page() {
               voortgang={voortgang}
               seizoensplan={seizoensplan}
               weekSessies={weekSessies}
-              onOpenProfiel={() => setProfielOpen(true)}
+              onOpenProfiel={openProfiel}
             />
           )}
 
           {tab === 3 && (
             <CoachTab
               seizoensplan={seizoensplan}
-              onOpenProfiel={() => setProfielOpen(true)}
+              onOpenProfiel={openProfiel}
             />
           )}
 
-          <BottomNav activeTab={tab} onTabChange={(i) => { setTab(i); if (i === 1) setSchemaDagOffset(0); if (i === 2) laadVoortgang(); }} />
+          <BottomNav activeTab={tab} onTabChange={(i) => {
+            if (i !== tab) {
+              tabHistoryRef.current.push(tab);
+              history.pushState({ tab }, "", window.location.pathname);
+            }
+            setTab(i);
+            if (i === 1) setSchemaDagOffset(0);
+            if (i === 2) laadVoortgang();
+          }} />
         </>
       )}
+      <TerugToast zichtbaar={toastZichtbaar} />
     </div>
   );
 }

@@ -57,9 +57,9 @@ const STEDEN = [
   { stad: "Arnhem", lat: 51.98, lon: 5.91 },
 ];
 
-export default function ProfielScherm({ profiel, seizoensplan, onTerug, onUitloggen, onPlanWijziging }) {
-  const [checkin, setCheckin] = useState(null);
-  const [weerStad, setWeerStad] = useState("Breda");
+export default function ProfielScherm({ profiel, seizoensplan, weerData, initialCheckin, onCheckinWijziging, onTerug, onUitloggen, onPlanWijziging }) {
+  const [checkin, setCheckin] = useState(initialCheckin ?? null);
+  const [weerStad, setWeerStad] = useState(weerData?.stad || "Breda");
   const [hulpOpen, setHulpOpen] = useState(false);
   const [pushStatus, setPushStatus] = useState(null);
   const [pushFout, setPushFout] = useState("");
@@ -70,13 +70,11 @@ export default function ProfielScherm({ profiel, seizoensplan, onTerug, onUitlog
   const [locatieResultaten, setLocatieResultaten] = useState([]);
 
   useEffect(() => {
-    fetch("/api/checkin").then(r => r.json()).then(d => {
-      if (d.success && d.data) setCheckin(d.data.score);
-    }).catch(() => {});
-    fetch("/api/weer").then(r => r.json()).then(d => {
-      if (d.success && d.data?.stad) setWeerStad(d.data.stad);
-    }).catch(() => {});
-  }, []);
+    if (initialCheckin != null) setCheckin(initialCheckin);
+  }, [initialCheckin]);
+  useEffect(() => {
+    if (weerData?.stad) setWeerStad(weerData.stad);
+  }, [weerData?.stad]);
 
   const ftp = profiel?.ftp || 265;
   const gewicht = profiel?.gewicht || 90;
@@ -385,6 +383,7 @@ export default function ProfielScherm({ profiel, seizoensplan, onTerug, onUitlog
             rightLabel="Top"
             onChange={(val) => {
               setCheckin(val);
+              onCheckinWijziging?.(val);
               fetch("/api/checkin", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ score: val }) });
             }}
           />

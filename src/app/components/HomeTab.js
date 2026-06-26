@@ -15,19 +15,17 @@ import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
 
-export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagelijkseData, voortgang, seizoensplan, weekSessies, weekSessiesLaden, beschikbaar, onOpenWorkout, onEditBeschikbaarheid, onOpenProfiel }) {
-  const [checkin, setCheckin] = useState(null);
-  const [checkinLaden, setCheckinLaden] = useState(true);
-  const [weer, setWeer] = useState(null);
+export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagelijkseData, voortgang, seizoensplan, weekSessies, weekSessiesLaden, beschikbaar, weerData, initialCheckin, onCheckinWijziging, onOpenWorkout, onEditBeschikbaarheid, onOpenProfiel }) {
+  const [checkin, setCheckin] = useState(initialCheckin ?? null);
+  const [checkinLaden, setCheckinLaden] = useState(initialCheckin == null);
+  const weer = weerData ?? null;
 
   useEffect(() => {
-    fetch("/api/checkin").then(r => r.json()).then(d => {
-      if (d.success && d.data) setCheckin(d.data.score);
-    }).catch(() => {}).finally(() => setCheckinLaden(false));
-    fetch("/api/weer").then(r => r.json()).then(d => {
-      if (d.success) setWeer(d.data);
-    }).catch(() => {});
-  }, []);
+    if (initialCheckin != null && checkinLaden) {
+      setCheckin(initialCheckin);
+      setCheckinLaden(false);
+    }
+  }, [initialCheckin]);
   const hrvBasislijn = profiel?.hrv_basislijn || 58;
   const hrBasislijn = profiel?.hr_basislijn || 49;
   const tsb = wellenessHuidig ? Math.round((wellenessHuidig.ctl || 0) - (wellenessHuidig.atl || 0)) : null;
@@ -246,7 +244,7 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
         {!checkinLaden && !checkin && (
           <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 20px 22px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
             <ScaleInput value={0} max={5} question="Hoe voel je je vandaag?" leftLabel="Slecht" rightLabel="Top"
-              onChange={(val) => { setCheckin(val); fetch("/api/checkin", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ score: val }) }); }} />
+              onChange={(val) => { setCheckin(val); onCheckinWijziging?.(val); fetch("/api/checkin", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ score: val }) }); }} />
           </div>
         )}
 
