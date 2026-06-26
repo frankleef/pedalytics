@@ -10,7 +10,7 @@ import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
 import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
 import { claudeCall } from "@/lib/claude";
 
-export async function vulSessiesAanVoorGebruiker(userId) {
+export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tempoAfsluiters = [] } = {}) {
   const kv = getKV();
   const planKey = `${userId}:seizoensplan`;
   const plan = await kv.get(planKey);
@@ -82,8 +82,17 @@ export async function vulSessiesAanVoorGebruiker(userId) {
         dagNaam,
         uren,
         oudeSessie: null,
-        aanleiding: "beschikbaarheid_nieuw",
+        aanleiding: aerobeDagen.includes(datum) ? "volumecorrectie_aerobe" : "beschikbaarheid_nieuw",
       });
+
+      if (aerobeDagen.includes(datum)) {
+        promptData.prompt += "\n\nVOLUMECORRECTIE — AEROBE COMPENSATIE: Deze sessie wordt toegevoegd als aerobe volumecompensatie op basis van een volumecorrectie-evaluatie. Het doel is extra aerobe stimulus. Gebruik uitsluitend sessietypes die primair het aerobe systeem trainen: z2_vlak, z2_variabel, of progressief. Gebruik geen kracht_lage_cadans, sprint_neuraal, microbursts of andere neuromusculaire sessietypes — die dienen een ander fysiologisch doel en zijn niet geschikt als volumecompensatie.";
+      }
+
+      if (tempoAfsluiters.includes(datum)) {
+        const maxMinuten = Math.round(uren * 60);
+        promptData.prompt += `\n\nVOLUMECORRECTIE — TEMPO-AFSLUITER (harde instructie): Voeg aan het einde van deze sessie een Z3-tempo-afsluiter toe van 15-20 minuten. Dit is een harde instructie vanuit de volumecorrectie-evaluatie — geen suggestie. De rest van de sessie blijft Z2. Zorg dat de totale sessieduur binnen ${maxMinuten} minuten blijft.`;
+      }
 
       const raw = await claudeCall(promptData);
       const sessie = raw.sessie || raw.sessies?.[0] || raw;

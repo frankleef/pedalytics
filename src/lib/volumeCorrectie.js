@@ -466,9 +466,15 @@ export async function voerWekelijkseEvaluatieUit(userId, { forceer = false } = {
 
   await kv.set(planKey, plan);
 
-  // Regenereer sessies direct na verwijdering
+  // Regenereer sessies direct na verwijdering, met volumecorrectie-context
   try {
-    await vulSessiesAanVoorGebruiker(userId);
+    const aerobeDagen = aanpassing.acties
+      .filter(a => a.type === "nieuwe_dag")
+      .map(a => a.datum);
+    const tempoAfsluiters = aanpassing.acties
+      .filter(a => a.type === "tempo_afsluiter")
+      .map(a => a.datum);
+    await vulSessiesAanVoorGebruiker(userId, { aerobeDagen, tempoAfsluiters });
   } catch (e) {
     console.error(`[volumecorrectie] Sessieregeneratie mislukt voor ${userId}:`, e.message);
     throw e;
