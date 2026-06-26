@@ -13,6 +13,7 @@ import { berekenRpeTrend, verwerkRpeTrend } from "@/lib/sessie/rpeTrend";
 import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus, ctlRampRegressie } from "@/lib/conditie";
 import { haalRitTemperatuur, berekenTempBaseline, berekenHitteVlag, migreerHitteTemperatuur } from "@/lib/hitte";
 import { herberekenHrvProfiel, checkDataStatus } from "@/lib/hrv/profiel";
+import { isWekelijkseCheckVerschuldigd, voerWekelijkseEvaluatieUit, voerHerstelweekEvaluatieUit } from "@/lib/volumeCorrectie";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -123,6 +124,22 @@ export async function POST(request) {
         const ritten = (activities || []).filter(a => a.type === "Ride" || a.type === "VirtualRide");
 
         if (ritten.length === 0) {
+          // Wekelijkse volume-evaluatie ook zonder nieuwe rit
+          try {
+            if (await isWekelijkseCheckVerschuldigd(userId)) {
+              const planVoorWeek = await kv.get(`${userId}:seizoensplan`);
+              if (planVoorWeek?.kader && planVoorWeek?.startdatum) {
+                const dagenSindsStart = Math.max(0, (Date.now() - new Date(planVoorWeek.startdatum).getTime()) / 86400000);
+                const huidigeWeekNr = Math.max(1, Math.ceil(dagenSindsStart / 7));
+                const huidigeKaderWeek = planVoorWeek.kader?.find(w => w.week === huidigeWeekNr);
+                if (huidigeKaderWeek?.weektype === "herstel") {
+                  await voerHerstelweekEvaluatieUit(userId);
+                } else {
+                  await voerWekelijkseEvaluatieUit(userId);
+                }
+              }
+            }
+          } catch (e) { console.warn(`[sync] Volume-evaluatie mislukt voor ${userId}:`, e.message); }
           results.push({ userId, status: "no_new" });
           continue;
         }
@@ -170,6 +187,24 @@ export async function POST(request) {
               await kv.set(`conditie_score:${userId}`, { score, belasting, conditie, pill, ctl_nu: ctlNu, ctl_4w_geleden: ctl4wGeleden, ctl_ramp: ctlRamp, rpe_delta_trend: rpeTrend, bijgewerkt_op: new Date().toISOString() }, { ex: 8 * 86400 });
             }
           } catch (e) { console.warn(`[sync] Conditiescore mislukt:`, e.message); }
+
+          // Wekelijkse volume-evaluatie ook in idempotent pad
+          try {
+            if (await isWekelijkseCheckVerschuldigd(userId)) {
+              const planVoorWeek = await kv.get(`${userId}:seizoensplan`);
+              if (planVoorWeek?.kader && planVoorWeek?.startdatum) {
+                const dagenSindsStart = Math.max(0, (Date.now() - new Date(planVoorWeek.startdatum).getTime()) / 86400000);
+                const huidigeWeekNr = Math.max(1, Math.ceil(dagenSindsStart / 7));
+                const huidigeKaderWeek = planVoorWeek.kader?.find(w => w.week === huidigeWeekNr);
+                if (huidigeKaderWeek?.weektype === "herstel") {
+                  await voerHerstelweekEvaluatieUit(userId);
+                } else {
+                  await voerWekelijkseEvaluatieUit(userId);
+                }
+              }
+            }
+          } catch (e) { console.warn(`[sync] Volume-evaluatie mislukt voor ${userId}:`, e.message); }
+
           results.push({ userId, status: "up_to_date" });
           continue;
         }
@@ -503,6 +538,26 @@ export async function POST(request) {
           body: "Hoe voelde het? Vul je RPE in.",
           url: `/?tab=schema&datum=${ritDatumPush}&rpe=1`,
         });
+
+        // Wekelijkse volume-evaluatie (sectie 38)
+        try {
+          if (await isWekelijkseCheckVerschuldigd(userId)) {
+            const planVoorWeek = await kv.get(`${userId}:seizoensplan`);
+            if (planVoorWeek?.kader && planVoorWeek?.startdatum) {
+              const dagenSindsStart = Math.max(0, (Date.now() - new Date(planVoorWeek.startdatum).getTime()) / 86400000);
+              const huidigeWeekNr = Math.max(1, Math.ceil(dagenSindsStart / 7));
+              const huidigeKaderWeek = planVoorWeek.kader?.find(w => w.week === huidigeWeekNr);
+
+              if (huidigeKaderWeek?.weektype === "herstel") {
+                await voerHerstelweekEvaluatieUit(userId);
+              } else {
+                await voerWekelijkseEvaluatieUit(userId);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn(`[sync] Volume-evaluatie mislukt voor ${userId}:`, e.message);
+        }
 
         results.push({ userId, status: "new_activity", id: nieuwste.id });
       } catch (e) {
