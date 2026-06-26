@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { voerWekelijkseEvaluatieUit, haalVolumeSignalen } from "@/lib/volumeCorrectie";
+import { vulSessiesAanVoorGebruiker } from "@/lib/sessiesAanvullen";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 export async function POST(request) {
   const body = await request.json().catch(() => ({}));
@@ -10,9 +10,8 @@ export async function POST(request) {
   }
 
   try {
-    const signalen = await haalVolumeSignalen("u_frank_001");
-    const resultaat = await voerWekelijkseEvaluatieUit("u_frank_001", { forceer: true });
-    return NextResponse.json({ ok: true, signalen, resultaat });
+    const resultaat = await vulSessiesAanVoorGebruiker("u_frank_001");
+    return NextResponse.json({ ok: true, resultaat });
   } catch (err) {
     return NextResponse.json({ ok: false, error: err.message, stack: err.stack }, { status: 500 });
   }

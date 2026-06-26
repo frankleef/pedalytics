@@ -1,9 +1,10 @@
 "use client";
+import { useRef } from "react";
 import { T } from "../designTokens";
 import BeschikbaarheidEditor from "./BeschikbaarheidEditor";
 
 export default function BeschikbaarheidScherm({ beschikbaar, urenPerDag, onOpslaan, onTerug }) {
-  let laatsteData = { beschikbaar: beschikbaar || {}, uren: urenPerDag || {} };
+  const laatsteDataRef = useRef({ beschikbaar: beschikbaar || {}, uren: urenPerDag || {} });
 
   return (
     <div style={{ position: "fixed", inset: 0, background: T.bg, color: T.text, fontFamily: T.font, zIndex: 100, overflowY: "auto" }}>
@@ -24,11 +25,11 @@ export default function BeschikbaarheidScherm({ beschikbaar, urenPerDag, onOpsla
         <div style={{ flex: 1 }}>
           <BeschikbaarheidEditor
             initieel={{ beschikbaar, uren: urenPerDag }}
-            onWijzig={(data) => { laatsteData = data; }}
+            onWijzig={(data) => { laatsteDataRef.current = data; }}
           />
         </div>
 
-        <button onClick={() => onOpslaan(laatsteData)}
+        <button onClick={() => onOpslaan(laatsteDataRef.current)}
           style={{ width: "100%", marginTop: 20, border: "none", cursor: "pointer", padding: 16, borderRadius: T.pillRadius, background: T.slate, color: "oklch(0.97 0.01 84)", font: "800 16px var(--font-nunito), sans-serif", letterSpacing: 0.2 }}>
           Opslaan
         </button>
