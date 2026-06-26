@@ -382,17 +382,27 @@ export function bepaalVolumeAanpassing({ plan, aankomendWeek, correctie, signale
 
 // ====== Chunk 5: Wekelijkse evaluatie uitvoering ======
 
-export async function voerWekelijkseEvaluatieUit(userId) {
+export async function voerWekelijkseEvaluatieUit(userId, { forceer = false } = {}) {
   const kv = getKV();
   const planKey = `${userId}:seizoensplan`;
+
+  // KV-deduplicatiecheck (overgeslagen bij forceer=true)
+  const nu = new Date();
+  const weekNrCheck = haalIsoWeeknummer(nu);
+  if (!forceer) {
+    const alGedaan = await kv.get(`weekcheck_gedaan:${userId}:${weekNrCheck}`);
+    if (alGedaan) {
+      console.log(`[volumecorrectie] ${userId}: week ${weekNrCheck} al uitgevoerd`);
+      return { overgeslagen: true, reden: "al uitgevoerd deze week" };
+    }
+  }
 
   const plan = await kv.get(planKey);
   if (!plan?.kader) {
     console.log(`[volumecorrectie] ${userId}: geen plan`);
-    return;
+    return { overgeslagen: true, reden: "geen plan" };
   }
 
-  const nu = new Date();
   const maandagISO = berekenAankomendeMaandagISO(nu);
   const zondagISO = berekenZondagISO(maandagISO);
   const aankomendWeekNr = berekenAankomendWeekNr(plan);
@@ -401,17 +411,17 @@ export async function voerWekelijkseEvaluatieUit(userId) {
 
   if (!aankomendWeek) {
     console.log(`[volumecorrectie] ${userId}: week ${aankomendWeekNr} niet in kader`);
-    return;
+    return { overgeslagen: true, reden: `week ${aankomendWeekNr} niet in kader` };
   }
 
   // Geen correctie in herstelweek of taper
   if (aankomendWeek.weektype === "herstel") {
     console.log(`[volumecorrectie] ${userId}: week ${aankomendWeekNr} is herstelweek — overgeslagen`);
-    return;
+    return { overgeslagen: true, reden: "aankomende week is herstelweek" };
   }
   if (aankomendWeekNr >= (plan.tijdshorizon_weken || 13)) {
     console.log(`[volumecorrectie] ${userId}: week ${aankomendWeekNr} is taper/eindweek — overgeslagen`);
-    return;
+    return { overgeslagen: true, reden: "taper/eindweek" };
   }
 
   const signalen = await haalVolumeSignalen(userId);
@@ -424,8 +434,8 @@ export async function voerWekelijkseEvaluatieUit(userId) {
       richting: "geen", pct: 0, signalen,
       oudTssDoel: aankomendWeek.tss_doel, nieuwTssDoel: aankomendWeek.tss_doel,
     }, { ex: 90 * 86400 });
-    await kv.set(`weekcheck_gedaan:${userId}:${weekNr}`, "1", { ex: 8 * 86400 });
-    return;
+    if (!forceer) await kv.set(`weekcheck_gedaan:${userId}:${weekNr}`, "1", { ex: 8 * 86400 });
+    return { richting: "geen", signalen, oudTssDoel: aankomendWeek.tss_doel, nieuwTssDoel: aankomendWeek.tss_doel };
   }
 
   const oudTssDoel = aankomendWeek.tss_doel;
@@ -449,13 +459,14 @@ export async function voerWekelijkseEvaluatieUit(userId) {
 
   await kv.set(planKey, plan);
 
-  // Push-notificatie
-  const notificatieTekst = correctie.richting === "omhoog"
-    ? "Je sessies zijn iets uitgebreid — je lichaam kan meer aan dan je plan vroeg."
-    : "Je sessies zijn iets rustiger gemaakt — je lichaam heeft wat meer herstelruimte nodig.";
-
-  sendPush(userId, { title: "Plan bijgewerkt", body: notificatieTekst, url: "/?tab=schema" })
-    .catch(e => console.warn(`[volumecorrectie] Push mislukt:`, e.message));
+  // Push-notificatie (niet bij forceer=true — dit is een handmatige test)
+  if (!forceer) {
+    const notificatieTekst = correctie.richting === "omhoog"
+      ? "Je sessies zijn iets uitgebreid — je lichaam kan meer aan dan je plan vroeg."
+      : "Je sessies zijn iets rustiger gemaakt — je lichaam heeft wat meer herstelruimte nodig.";
+    sendPush(userId, { title: "Plan bijgewerkt", body: notificatieTekst, url: "/?tab=schema" })
+      .catch(e => console.warn(`[volumecorrectie] Push mislukt:`, e.message));
+  }
 
   // Log
   await kv.set(`volumecorrectie_log:${userId}:${weekNr}`, {
@@ -465,10 +476,15 @@ export async function voerWekelijkseEvaluatieUit(userId) {
     acties: aanpassing.acties,
   }, { ex: 90 * 86400 });
 
-  // KV-vlag
-  await kv.set(`weekcheck_gedaan:${userId}:${weekNr}`, "1", { ex: 8 * 86400 });
+  // KV-vlag (niet bij forceer=true zodat echte evaluatie later nog kan draaien)
+  if (!forceer) await kv.set(`weekcheck_gedaan:${userId}:${weekNr}`, "1", { ex: 8 * 86400 });
 
   console.log(`[volumecorrectie] ${userId}: week ${weekNr} ${correctie.richting} ${Math.round(correctie.pct * 100)}% — TSS ${oudTssDoel} → ${aanpassing.nieuwTssDoel}`);
+  return {
+    richting: correctie.richting, pct: correctie.pct, signalen,
+    oudTssDoel, nieuwTssDoel: aanpassing.nieuwTssDoel,
+    acties: aanpassing.acties,
+  };
 }
 
 // ====== Chunk 6: Herstelweek-evaluatie (blok-ijkmoment) ======
