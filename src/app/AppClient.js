@@ -92,6 +92,7 @@ export default function Page() {
   const closingModalRef = useRef(false);
   const profielOpenRef = useRef(false);
   const beschikbaarheidOpenRef = useRef(false);
+  const beschikbaarheidGeneratieIdRef = useRef(null);
 
   useEffect(() => { profielOpenRef.current = profielOpen; }, [profielOpen]);
   useEffect(() => { beschikbaarheidOpenRef.current = beschikbaarheidSchermOpen; }, [beschikbaarheidSchermOpen]);
@@ -624,6 +625,9 @@ export default function Page() {
   }, [weekSessies, seizoensplan, urenPerDag, genereerSessieDagViaJob]);
 
   const handleBeschikbaarheidOpslaan = useCallback(async (data) => {
+    const generatieId = `${Date.now()}-${Math.random()}`;
+    beschikbaarheidGeneratieIdRef.current = generatieId;
+
     const oudeBeschikbaar = beschikbaar;
     const oudeUren = urenPerDag;
     const nieuwBeschikbaar = data.beschikbaar;
@@ -756,6 +760,10 @@ export default function Page() {
     }
 
     for (const dag of toegevoegd) {
+      if (beschikbaarheidGeneratieIdRef.current !== generatieId) {
+        console.log("[Beschikbaarheid] Generatie geannuleerd — nieuwere beschikbaarheidssave gestart");
+        return;
+      }
       for (let i = 0; i <= 10; i++) {
         const d = new Date(nu); d.setDate(nu.getDate() + i);
         if (DAGNAMEN[d.getDay()] === dag && datumISO(d) >= vandaagISO) {
@@ -897,6 +905,11 @@ export default function Page() {
           }
         }
       } catch (e) { console.error("[VolumecorrectieHereval] mislukt:", e); }
+      return;
+    }
+
+    if (beschikbaarheidGeneratieIdRef.current !== generatieId) {
+      console.log("[Beschikbaarheid] Eindopslaan geannuleerd — nieuwere beschikbaarheidssave gestart");
       return;
     }
 
