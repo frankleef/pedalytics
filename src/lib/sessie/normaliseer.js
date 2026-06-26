@@ -64,6 +64,36 @@ export function normaliseerZ1Blokken(segmenten, sessietype) {
 }
 
 /**
+ * Centrale gate: max 1 kracht_lage_cadans per rollend 7-dagenvenster.
+ * Synchroon — neemt bestaandeSessies als input, geen KV-aanroep nodig.
+ *
+ * @param {object} nieuweSessie  - de te valideren sessie (heeft .datum en .intentie?.sessietype)
+ * @param {object[]} bestaandeSessies - alle al geplande/gereden sessies (inclusief aangevuld)
+ * @returns {{ geldig: boolean, reden?: string }}
+ */
+export function valideerKrachtRestrictie(nieuweSessie, bestaandeSessies) {
+  const sessietype = nieuweSessie.intentie?.sessietype || nieuweSessie.sessietype;
+  if (sessietype !== "kracht_lage_cadans") return { geldig: true };
+
+  const nieuweMs = new Date(nieuweSessie.datum).getTime();
+  const venster = 6 * 86400000; // 6 dagen = rollend 7-dagenvenster (datum zelf = dag 1)
+
+  const conflicten = (bestaandeSessies || []).filter(s => {
+    const st = s.intentie?.sessietype || s.sessietype;
+    if (st !== "kracht_lage_cadans") return false;
+    const diff = Math.abs(new Date(s.datum).getTime() - nieuweMs);
+    return diff > 0 && diff <= venster; // zelfde datum telt niet mee (vervangingsscenario)
+  });
+
+  if (conflicten.length === 0) return { geldig: true };
+
+  return {
+    geldig: false,
+    reden: `kracht_lage_cadans al gepland op ${conflicten.map(s => s.datum).join(", ")} (binnen 7 dagen)`,
+  };
+}
+
+/**
  * Normaliseert segmenten op een sessie-object (in-place).
  */
 export function normaliseerSessieSegmenten(sessie) {

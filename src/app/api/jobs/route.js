@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { bouwSeizoensplanPrompt, bouwWeekSessiesPrompt, bouwSessieDagPrompt } from "@/lib/promptBuilder";
 import { valideerSeizoensPlan } from "@/lib/seizoen/valideer";
-import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
+import { normaliseerSessieSegmenten, valideerKrachtRestrictie } from "@/lib/sessie/normaliseer";
 import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
 import { claudeCall } from "@/lib/claude";
 import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
@@ -68,6 +68,29 @@ export async function POST(request) {
       normaliseerSessieSegmenten(result);
       voegVerwachtRpeToe(result);
       corrigeerSessieTss(result);
+
+      // Centrale kracht-gate: max 1 kracht_lage_cadans per rollend 7-dagenvenster
+      const krachtCheck = valideerKrachtRestrictie(result, params.overigeSessies || []);
+      if (!krachtCheck.geldig) {
+        console.warn(`[Job ${jobId}] Kracht geblokkeerd — ${krachtCheck.reden} → z2_vlak`);
+        result.type = "duur_variabel";
+        result.titel = "Z2 Vlak — Kracht geblokkeerd";
+        if (result.intentie) {
+          result.intentie.sessietype = "z2_vlak";
+          result.intentie.rol = "aerobe_dag";
+          result.intentie.toegestane_zones = ["Z2"];
+        }
+        result.duur_min = Math.round((params.uren || 1.5) * 60);
+        result.segmenten = [{
+          zone: "Z2",
+          positie: "midden",
+          blokDuurSeconden: result.duur_min * 60,
+          isSpecifiek: false,
+          sessietype: "z2_vlak",
+        }];
+        corrigeerSessieTss(result);
+      }
+
       console.log(`[Job ${jobId}] Resultaat: ${result.type} "${result.titel}" | ${result.duur_min}min | TSS ${result.tss} | ${result.segmenten?.length || 0} segmenten`);
     } else if (type === "weekSessies") {
       result = raw;

@@ -5,7 +5,7 @@ import { vandaagISO, datumISO, DAGNAMEN } from "@/lib/datum";
 import { bouwSessieDagPrompt } from "@/lib/promptBuilder";
 import { maxTrainingsdagenPerWeek, heeftTeLangReeks } from "@/lib/trainingsfrequentie";
 import { segmentenNaarZwo } from "@/lib/workoutZwo";
-import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
+import { normaliseerSessieSegmenten, valideerKrachtRestrictie } from "@/lib/sessie/normaliseer";
 import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
 import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
 import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
@@ -175,6 +175,34 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
           } catch {}
           sessie.type = "duur_variabel";
           sessie.titel = "Z2 Vlak — Volumecorrectie";
+          if (sessie.intentie) {
+            sessie.intentie.sessietype = "z2_vlak";
+            sessie.intentie.rol = "aerobe_dag";
+            sessie.intentie.toegestane_zones = ["Z2"];
+          }
+          sessie.duur_min = Math.round(uren * 60);
+          sessie.segmenten = [{
+            zone: "Z2",
+            positie: "midden",
+            blokDuurSeconden: sessie.duur_min * 60,
+            isSpecifiek: false,
+            sessietype: "z2_vlak",
+          }];
+          corrigeerSessieTss(sessie);
+        }
+      }
+
+      // Centrale kracht-gate: max 1 kracht_lage_cadans per rollend 7-dagenvenster
+      {
+        const allesSessiesKracht = [...bestaandeSessies, ...aangevuld];
+        const krachtCheck = valideerKrachtRestrictie(sessie, allesSessiesKracht);
+        if (!krachtCheck.geldig) {
+          console.warn(`[sessiesAanvullen] ${userId} ${datum}: kracht geblokkeerd — ${krachtCheck.reden} → z2_vlak`);
+          try {
+            await kv.set(`kracht_gate_fix:${userId}:${datum}`, { datum, reden: krachtCheck.reden, door: "z2_vlak" }, { ex: 30 * 86400 });
+          } catch {}
+          sessie.type = "duur_variabel";
+          sessie.titel = "Z2 Vlak — Kracht geblokkeerd";
           if (sessie.intentie) {
             sessie.intentie.sessietype = "z2_vlak";
             sessie.intentie.rol = "aerobe_dag";
