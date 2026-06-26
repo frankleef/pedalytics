@@ -739,6 +739,16 @@ export default function Page() {
     }
 
     // Nieuw toegevoegde dagen: genereer sessie client-side (via job)
+    const { maxTrainingsdagenPerWeek, heeftTeLangReeks } = await import("@/lib/trainingsfrequentie");
+
+    // Hulp: maandag-ISO voor daggroepering
+    function weekMaandagISO(isoDate) {
+      const d = new Date(isoDate);
+      const dag = d.getDay();
+      d.setDate(d.getDate() + (dag === 0 ? -6 : 1 - dag));
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    }
+
     for (const dag of toegevoegd) {
       for (let i = 0; i <= 10; i++) {
         const d = new Date(nu); d.setDate(nu.getDate() + i);
@@ -750,15 +760,41 @@ export default function Page() {
           const overigeSessies = lokaalSessies.filter(s => s.datum !== datum && !s.voltooid);
           gewijzigdeDatums.push(datum);
 
-          let oudeSessie = bestaandeSessie;
+          // Frequentie-check: kaderweek opzoeken voor dit datum
+          const mISO = weekMaandagISO(datum);
+          const dagenSindsStart = Math.max(0, (new Date(datum) - new Date(seizoensplan.startdatum || datum)) / 86400000);
+          const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7) || 1);
+          const aankomendWeek = seizoensplan.kader?.find(w => w.week === weekNr) || seizoensplan.kader?.[0];
+          const ctl = wellenessHuidig?.icu_ctl ?? seizoensplan.huidige_ctl ?? 40;
+          const trainingsfrequentie = aankomendWeek?.trainingsfrequentie ?? maxTrainingsdagenPerWeek(ctl);
+
+          const sessiesDezeWeek = lokaalSessies.filter(s =>
+            !s.voltooid && s.datum && weekMaandagISO(s.datum) === mISO &&
+            s.type !== "herstel_mobiliteit" && s.intentie?.sessietype !== "herstel_mobiliteit"
+          );
+          const reedsGepland = sessiesDezeWeek.length;
+
+          if (!bestaandeSessie && reedsGepland >= trainingsfrequentie) {
+            console.log(`[Beschikbaarheid] ${datum} (${dag}): rustdag — frequentie ${trainingsfrequentie} al bereikt (${reedsGepland} sessies)`);
+            continue;
+          }
+
           let beschAanleiding = bestaandeSessie ? "beschikbaarheid_uren" : "beschikbaarheid_nieuw";
+          let oudeSessie = bestaandeSessie;
+
+          if (!bestaandeSessie && heeftTeLangReeks(sessiesDezeWeek, { datum, type: "kandidaat" })) {
+            beschAanleiding = "herstelpatroon_correctie";
+            console.log(`[Beschikbaarheid] ${datum} (${dag}): opeenvolgend — aanleiding → herstelpatroon_correctie`);
+          }
 
           if (!bestaandeSessie && verplaatsIntentiePool.length > 0) {
             oudeSessie = verplaatsIntentiePool.shift();
             beschAanleiding = "beschikbaarheid_verplaatsing";
             console.log("[Beschikbaarheid] Verplaatsing:", oudeSessie.type, "→", dag, "(intentie:", oudeSessie.intentie?.sessietype || oudeSessie.type, ")");
-          } else {
-            console.log("[Beschikbaarheid] Genereer sessie voor:", datum, dag, uren, "uur", bestaandeSessie ? `(vervangt ${bestaandeSessie.type})` : "(nieuw)");
+          } else if (!bestaandeSessie && beschAanleiding !== "herstelpatroon_correctie") {
+            console.log("[Beschikbaarheid] Genereer sessie voor:", datum, dag, uren, "uur (nieuw)");
+          } else if (bestaandeSessie) {
+            console.log("[Beschikbaarheid] Genereer sessie voor:", datum, dag, uren, "uur", `(vervangt ${bestaandeSessie.type})`);
           }
 
           const sessie = await genereerSessieDagViaJob(datum, dag, uren, { overigeSessies, oudeSessie, aanleiding: beschAanleiding });

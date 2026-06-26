@@ -3,6 +3,7 @@
 
 import { vandaagISO, datumISO, DAGNAMEN } from "./datum";
 import { bouwSessieContext } from "./sessie/context";
+import { maxTrainingsdagenPerWeek } from "./trainingsfrequentie";
 
 function sessietypesVoorFase(fase, kaderWeek) {
   if (kaderWeek?.sessietypes?.length > 0) return kaderWeek.sessietypes.join(", ");
@@ -113,7 +114,7 @@ export function bouwWeekSessiesPrompt({ profiel, wellness, dagelijkseData, voort
   const ctl = wellness?.ctl || seizoensplan.huidige_ctl || 45;
   const atl = wellness?.atl || 0;
   const tsb = Math.round(ctl - atl);
-  const maxDagen = ctl < 30 ? 2 : ctl < 40 ? 3 : ctl < 60 ? 4 : ctl < 80 ? 5 : 6;
+  const maxDagen = maxTrainingsdagenPerWeek(ctl);
 
   const nu = new Date();
   const vandaagISOStr = vandaagISO();

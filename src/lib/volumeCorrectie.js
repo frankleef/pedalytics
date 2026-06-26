@@ -5,6 +5,7 @@ import { datumOffset } from "./datum";
 import { ctlRampRegressie } from "./conditie";
 import { sendPush } from "./pushNotify";
 import { vulSessiesAanVoorGebruiker } from "./sessiesAanvullen";
+import { bepaalTrainingsfrequentie } from "./trainingsfrequentie";
 
 // ====== Interne hulpfuncties ======
 
@@ -544,6 +545,28 @@ export async function voerHerstelweekEvaluatieUit(userId) {
   const ervaringsniveau = plan.ervaringsniveau || "recreatief";
 
   const signalen = await haalVolumeSignalen(userId);
+
+  // Trainingsfrequentie bepalen voor het aankomende blok
+  const beschikbareCount = Object.values(plan.beschikbaarheid || {}).filter(Boolean).length;
+  // Wellness ophalen voor actuele TSB
+  let tsbNu = signalen.tsbGemiddelde14d;
+  try {
+    const creds = await getIntervalsCredentials(userId);
+    if (creds) {
+      const vandaagStr = datumOffset(0);
+      const wData = await intervalsGet("/wellness", { oldest: vandaagStr, newest: vandaagStr }, creds);
+      if (wData?.length > 0 && wData[0].icu_form != null) tsbNu = wData[0].icu_form;
+    }
+  } catch {}
+
+  const trainingsfrequentie = bepaalTrainingsfrequentie({
+    ctl: plan.huidige_ctl ?? 40,
+    tsb: tsbNu,
+    rpeDeltaTrend: signalen.rpeDeltaTrend,
+    decouplingMediaan: signalen.decouplingMediaan,
+    beschikbareDagen: beschikbareCount,
+  });
+
   const nieuweBasis = bepaalNieuweBlokBasis({ huidigePiekweekTss, signalen, ervaringsniveau, blokIndex });
 
   const opbouwPct = { starter: 0.05, recreatief: 0.10, getraind: 0.15 }[ervaringsniveau] || 0.10;
@@ -554,13 +577,14 @@ export async function voerHerstelweekEvaluatieUit(userId) {
   const volgendBlokOpbouwNrs = [volgendBlokStart, volgendBlokStart + 1, volgendBlokStart + 2];
   const volgendBlokHerstelNr = volgendBlokStart + 3;
 
-  // Herbereken tss_doel voor opbouwweken van aankomend blok
+  // Herbereken tss_doel voor opbouwweken van aankomend blok + sla trainingsfrequentie op
   volgendBlokOpbouwNrs.forEach((weekNrTarget, i) => {
     const idx = plan.kader.findIndex(w => w.week === weekNrTarget);
     if (idx < 0) return;
     plan.kader[idx] = {
       ...plan.kader[idx],
       tss_doel: Math.round(nieuweBasis * Math.pow(1 + opbouwPct, i)),
+      trainingsfrequentie,
     };
   });
 
@@ -571,6 +595,7 @@ export async function voerHerstelweekEvaluatieUit(userId) {
     plan.kader[herstelIdx] = {
       ...plan.kader[herstelIdx],
       tss_doel: Math.round(piekWeekTssNieuw * herstelweekPct),
+      trainingsfrequentie,
     };
   }
 

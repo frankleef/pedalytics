@@ -3,6 +3,7 @@ import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet, intervalsPost } from "@/lib/intervals";
 import { vandaagISO, datumISO, DAGNAMEN } from "@/lib/datum";
 import { bouwSessieDagPrompt } from "@/lib/promptBuilder";
+import { maxTrainingsdagenPerWeek, heeftTeLangReeks } from "@/lib/trainingsfrequentie";
 import { segmentenNaarZwo } from "@/lib/workoutZwo";
 import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
 import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
@@ -38,15 +39,58 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
   const weekYearStart = new Date(Date.UTC(dWeek.getUTCFullYear(), 0, 1));
   const aankomendeWeekNr = Math.ceil((((dWeek - weekYearStart) / 86400000) + 1) / 7);
 
+  const ctlBasis = plan.huidige_ctl ?? 40;
+
+  // Hulp: maandag-ISO voor een datum (voor week-groepering)
+  function weekMaandagISO(isoDate) {
+    const d = new Date(isoDate);
+    const dag = d.getDay();
+    const offset = dag === 0 ? -6 : 1 - dag;
+    d.setDate(d.getDate() + offset);
+    return datumISO(d);
+  }
+
+  // Hulp: kaderweek voor een datum
+  function kaderWeekVoorDatum(isoDate) {
+    if (!plan.startdatum) return plan.kader?.[0] || null;
+    const dagenSinds = Math.max(0, (new Date(isoDate) - new Date(plan.startdatum)) / 86400000);
+    const weekNr = Math.max(1, Math.ceil(dagenSinds / 7));
+    return plan.kader?.find(w => w.week === weekNr) || plan.kader?.[0] || null;
+  }
+
   const ontbrekend = [];
+  // Per week bijhouden hoeveel al gepland — voor frequentie-stop
+  const geplandPerWeek = {};
+
+  // Initialiseer geplandPerWeek vanuit bestaandeSessies
+  for (const s of bestaandeSessies) {
+    if (s.voltooid || !s.datum) continue;
+    if (s.type === "herstel_mobiliteit" || s.intentie?.sessietype === "herstel_mobiliteit") continue;
+    const mISO = weekMaandagISO(s.datum);
+    geplandPerWeek[mISO] = (geplandPerWeek[mISO] || 0) + 1;
+  }
+
   for (let i = 1; i <= 10; i++) {
     const d = new Date(nu);
     d.setDate(nu.getDate() + i);
     const iso = datumISO(d);
     const dagNaam = DAGNAMEN[d.getDay()];
-    if (beschikbareDagen.includes(dagNaam) && !bestaandeDatums.has(iso) && iso > vandaag) {
-      ontbrekend.push({ datum: iso, dagNaam, uren: urenPerDag[dagNaam] || 1.5 });
-    }
+    if (!beschikbareDagen.includes(dagNaam) || bestaandeDatums.has(iso) || iso <= vandaag) continue;
+
+    const mISO = weekMaandagISO(iso);
+    const kaderWeek = kaderWeekVoorDatum(iso);
+    const frequentie = kaderWeek?.trainingsfrequentie ?? maxTrainingsdagenPerWeek(ctlBasis);
+    const reedsGepland = geplandPerWeek[mISO] || 0;
+
+    // Stop-conditie 1: frequentie bereikt voor deze week
+    if (reedsGepland >= frequentie) continue;
+
+    // Stop-conditie 2: zou 4+ opeenvolgende trainingsdagen opleveren
+    const weekSessies = bestaandeSessies.filter(s => !s.voltooid && weekMaandagISO(s.datum) === mISO);
+    if (heeftTeLangReeks(weekSessies, { datum: iso, type: "kandidaat" })) continue;
+
+    ontbrekend.push({ datum: iso, dagNaam, uren: urenPerDag[dagNaam] || 1.5 });
+    geplandPerWeek[mISO] = reedsGepland + 1;
   }
 
   if (ontbrekend.length === 0) return { status: "compleet" };
