@@ -10,6 +10,7 @@ import { berekenGemiddeldeUrenPerWeek, berekenStartTss } from "@/lib/rijhistorie
 import { berekenDistributie } from "@/lib/sessie/distributie";
 import { checkFaseOvergang, berekenEnCacheDecoupling, bijwerkenDecouplingBaseline, backfillDecoupling } from "@/lib/decoupling";
 import { berekenRpeTrend, verwerkRpeTrend } from "@/lib/sessie/rpeTrend";
+import { berekenUitvoeringsscoreMetDetails, scoreLabel, zoneTimesNaarObject } from "@/lib/uitvoeringsscore";
 import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus, ctlRampRegressie } from "@/lib/conditie";
 import { haalRitTemperatuur, berekenTempBaseline, berekenHitteVlag, migreerHitteTemperatuur } from "@/lib/hitte";
 import { herberekenHrvProfiel, checkDataStatus } from "@/lib/hrv/profiel";
@@ -118,7 +119,7 @@ export async function POST(request) {
           oldest,
           newest: datumOffset(0),
           limit: "10",
-          fields: "id,start_date_local,type,icu_training_load,moving_time,icu_weighted_avg_watts,icu_rpe",
+          fields: "id,start_date_local,type,icu_training_load,moving_time,icu_weighted_avg_watts,icu_rpe,icu_intensity,icu_zone_times",
         }, { apiKey, athleteId });
 
         const ritten = (activities || []).filter(a => a.type === "Ride" || a.type === "VirtualRide");
@@ -243,9 +244,43 @@ export async function POST(request) {
           const ritDatum = nieuwste.start_date_local?.split("T")[0];
           const sessie = plan.weekSessies.sessies.find(s => s.datum === ritDatum);
 
-          // Markeer sessie als voltooid (RPE-delta wordt berekend bij RPE-invoer)
+          // Markeer sessie als voltooid + bereken uitvoeringsscore
           if (sessie && !sessie.voltooid) {
             sessie.voltooid = true;
+
+            // Bereken uitvoeringsscore alleen voor geplande ritten
+            if (sessie.intentie) {
+              try {
+                const ftp = plan.huidige_ftp || 265;
+                const tijdInZones = zoneTimesNaarObject(nieuwste.icu_zone_times);
+                const rawIf = nieuwste.icu_intensity
+                  ?? (nieuwste.icu_weighted_avg_watts && ftp ? nieuwste.icu_weighted_avg_watts / ftp : null);
+                const ifWaarde = rawIf != null ? (rawIf > 2 ? rawIf / 100 : rawIf) : null;
+
+                const resultaat = berekenUitvoeringsscoreMetDetails(
+                  {
+                    moving_time: nieuwste.moving_time,
+                    icu_training_load: nieuwste.icu_training_load,
+                    icu_intensity: ifWaarde,
+                    icu_time_in_zone: tijdInZones,
+                  },
+                  {
+                    duur_seconden: sessie.duur_min ? sessie.duur_min * 60 : null,
+                    tss_doel: sessie.tss || null,
+                  },
+                  sessie.intentie
+                );
+
+                if (resultaat !== null) {
+                  const scoreData = { ...resultaat, activiteitId: nieuwste.id, berekendOp: new Date().toISOString() };
+                  sessie.uitvoeringsScore = scoreData;
+                  await kv.set(`uitvoering:${userId}:${nieuwste.id}`, scoreData, { ex: 365 * 86400 });
+                }
+              } catch (e) {
+                console.warn(`[sync] Uitvoeringsscore mislukt voor ${userId}/${nieuwste.id}:`, e.message);
+              }
+            }
+
             await kv.set(planKey, plan);
           }
           if (sessie?.intentie?.rol === "ftp_test") {

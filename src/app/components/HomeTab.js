@@ -11,7 +11,7 @@ import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
 import SessieUitkomstKaart from "./SessieUitkomstKaart";
 import SeizoenSamenvattingKaart from "./SeizoenSamenvattingKaart";
 import GereedheidConditieKaart from "./GereedheidConditieKaart";
-import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
+import { classificeerRit } from "@/lib/rittype";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
 
@@ -175,9 +175,7 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
           const sessieVandaag = (weekSessies?.sessies || []).find(s => s.datum === vandaagISO);
           if (ritVandaag) {
             const cls = classificeerRit(ritVandaag, ftp);
-            let mode = "unplanned";
-            if (sessieVandaag && ritVandaag) mode = ritMatchesSessie(cls, sessieVandaag.type, ritVandaag, sessieVandaag) ? "matched" : "deviated";
-            else if (!sessieVandaag && ritVandaag) mode = "unplanned";
+            const mode = sessieVandaag ? "uitgevoerd" : "unplanned";
             return (
               <SessieUitkomstKaart
                 mode={mode} rit={ritVandaag} sessie={sessieVandaag} ritCls={cls} compact

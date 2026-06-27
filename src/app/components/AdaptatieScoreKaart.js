@@ -31,7 +31,7 @@ export default function AdaptatieScoreKaart({ weekTss, doelTss, fase, weekNr, we
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid oklch(0.93 0.01 82)` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.gradient }} />
-            <span style={{ font: "700 13.5px var(--font-nunito), sans-serif", color: T.text }}>{fase}</span>
+            <span style={{ font: "700 13.5px var(--font-nunito), sans-serif", color: T.text }}>{fase ? fase.charAt(0).toUpperCase() + fase.slice(1) : fase}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec, padding: "4px 10px", borderRadius: T.pillRadius, background: T.subtleFill }}>Week {weekNr} · {weektype}</span>

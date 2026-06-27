@@ -10,7 +10,7 @@ export function berekenVerwachtRpe(ifWaarde, duurMinuten) {
   const IF = ifWaarde > 2 ? ifWaarde / 100 : ifWaarde;
   const basis_rpe = 10 * Math.pow(IF, 2.5);
   const duur_correctie = (duurMinuten - 60) * 0.015;
-  return Math.round(Math.min(10, Math.max(1, basis_rpe + duur_correctie)) * 2) / 2;
+  return Math.ceil(Math.min(10, Math.max(1, basis_rpe + duur_correctie)));
 }
 
 /**

@@ -3,13 +3,13 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { T, SLATE, STATUS, getStatus, zoneKleur } from "../designTokens";
 import { berekenHerstelScore } from "./HerstelStatus";
 import WorkoutViz, { WerkelijkViz } from "./WorkoutViz";
-import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
+import { classificeerRit } from "@/lib/rittype";
 import { datumISO } from "@/lib/datum";
 import InfoTooltip from "./InfoTooltip";
 import ScaleInput from "./ScaleInput";
 import { isRpeAanpasbaar, berekenVerwachtRpe } from "@/lib/sessie/rpe";
 import SharedHeader from "./SharedHeader";
-import { StatusBanner, KerngetallenTiles } from "./SessieUitkomstKaart";
+import { KerngetallenTiles } from "./SessieUitkomstKaart";
 import AdaptatieScoreKaart from "./AdaptatieScoreKaart"; // TSS+fase kaart op Schema
 import AlternatiefSessiePopup from "./AlternatiefSessiePopup";
 import HrvAdviesKaart, { bepaalKeuzes } from "./HrvAdviesKaart";
@@ -19,8 +19,7 @@ const DAG_KORT = ["ZO","MA","DI","WO","DO","VR","ZA"];
 const RPE_LABELS = ["","Heel licht","Licht","Matig licht","Matig","Matig zwaar","Zwaar","Zwaar+","Erg zwaar","Maximaal-","Maximaal"];
 
 const DOT_KLEUREN = {
-  matched: "oklch(0.6 0.13 165)",
-  deviated: "oklch(0.72 0.13 70)",
+  uitgevoerd: "oklch(0.55 0.01 250)",
   unplanned: "oklch(0.55 0.07 215)",
   missed: "oklch(0.72 0.015 75)",
   planned: "oklch(0.74 0.05 200)",
@@ -158,15 +157,12 @@ function bouwBlockGroups(segmenten, ftp) {
 
 const SESSIE_LABELS = { duur_lang: "Duurrit", duur_variabel: "Variabele duurrit", duur_middel: "Duurrit", sweetspot: "Sweet spot", interval: "Interval", herstel: "Herstelrit", drempel: "Drempel", vo2max: "VO2max", tempo: "Tempo" };
 
-function bepaalMode(offset, sessie, rit, ftp, planStartISO) {
+function bepaalMode(offset, sessie, rit, planStartISO) {
   const isVerleden = offset < 0;
   const isVandaagMetRit = offset === 0 && rit;
   if (!isVerleden && !isVandaagMetRit) return sessie ? "planned" : "rest";
   if (rit && planStartISO && rit.datum_iso < planStartISO && !sessie) return "buiten_planperiode";
-  if (sessie && rit) {
-    const cls = classificeerRit(rit, ftp);
-    return ritMatchesSessie(cls, sessie.type, rit, sessie) ? "matched" : "deviated";
-  }
+  if (sessie && rit) return "uitgevoerd";
   if (!sessie && rit) return "unplanned";
   if (sessie && !rit) {
     // Pas "missed" tonen als het voorbij 06:00 de volgende ochtend is
@@ -174,6 +170,48 @@ function bepaalMode(offset, sessie, rit, ftp, planStartISO) {
     return "missed";
   }
   return "rest";
+}
+
+const DIMENSIE_LABELS = {
+  duur: "Duur",
+  belasting: "Belasting",
+  intensiteit: "Intensiteit",
+  zonedistributie: "Zonedistributie",
+  rpe: "RPE",
+};
+
+function DimensiesUitklapper({ dimensies }) {
+  const [open, setOpen] = useState(false);
+  const beschikbaar = Object.entries(dimensies).filter(([, d]) => d.score !== null);
+  if (beschikbaar.length === 0) return null;
+  return (
+    <div style={{ background: T.cardBg, borderRadius: T.cardRadius, border: `1px solid ${T.cardBorder}`, marginBottom: 16, overflow: "hidden" }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 16px", background: "none", border: "none", cursor: "pointer" }}
+      >
+        <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: T.text }}>Dimensies</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
+          <path d="M6 9l6 6 6-6" stroke={T.textSec} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      {open && (
+        <div style={{ padding: "4px 16px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+          {beschikbaar.map(([key, d]) => (
+            <div key={key}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: T.textSec }}>{DIMENSIE_LABELS[key] || key}</span>
+                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.38 0.01 250)" }}>{Math.round(d.score * 10) / 10}</span>
+              </div>
+              <div style={{ height: 5, borderRadius: 3, background: "oklch(0.91 0.006 250)", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${d.score * 10}%`, borderRadius: 3, background: "oklch(0.55 0.01 250)", transition: "width 0.3s" }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function SchemaTab({
@@ -222,7 +260,7 @@ export default function SchemaTab({
       || weekSessies?.sessies?.find(s => !s.datum && s.dag === dagNaam && s.type !== "rust")
       || null;
     const rit = (voortgang?.ritten || []).find(r => r.datum_iso === iso);
-    const mode = bepaalMode(offset, sessie, rit, ftp, planStartISO);
+    const mode = bepaalMode(offset, sessie, rit, planStartISO);
     stripData.push({ offset, datum: d, iso, dagNaam, wd: DAG_KORT[d.getDay()], date: d.getDate(), sessie, rit, mode });
   }
 
@@ -396,7 +434,7 @@ export default function SchemaTab({
             : "Duidelijk zwaarder dan verwacht — let op je herstel.";
           return (
             <div style={{ marginTop: 10, font: "600 12px/1.5 var(--font-nunito), sans-serif", color: delta > 1.5 ? "oklch(0.55 0.11 30)" : delta < -1 ? "oklch(0.5 0.11 165)" : T.textSec }}>
-              {tekst} (verwacht: {verwachtRpeDisplay})
+              {tekst} (verwacht: {Math.ceil(verwachtRpeDisplay)})
             </div>
           );
         })()}
@@ -545,7 +583,7 @@ export default function SchemaTab({
               {[
                 { label: "Duur", value: duurStr || "—" },
                 { label: "TSS", value: sessie.tss || "—", infoKey: "tss" },
-                sessie.verwacht_rpe ? { label: "Verwacht gevoel", value: `${Math.max(1, sessie.verwacht_rpe - 1)}–${Math.min(10, sessie.verwacht_rpe + 1)}` } : { label: "Gem. vermogen", value: gemVermogen ? `${gemVermogen}` : "—", unit: "w", infoKey: "vermogen" },
+                sessie.verwacht_rpe ? { label: "Verwacht gevoel", value: `${Math.max(1, Math.ceil(sessie.verwacht_rpe) - 1)}–${Math.min(10, Math.ceil(sessie.verwacht_rpe) + 1)}` } : { label: "Gem. vermogen", value: gemVermogen ? `${gemVermogen}` : "—", unit: "w", infoKey: "vermogen" },
               ].map((m, i) => (
                 <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2, padding: "15px 14px", borderRadius: 18, background: T.cardBg, border: `1px solid ${T.cardBorder}`, boxShadow: "0 2px 10px rgba(60,45,20,0.04)" }}>
                   <span style={{ font: "600 27px var(--font-fredoka), sans-serif", lineHeight: 1, color: T.text }}>{m.value}{m.unit && <span style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.textSec }}>{m.unit}</span>}</span>
@@ -722,16 +760,24 @@ export default function SchemaTab({
           </div>
         )}
 
-        {/* ══ MATCHED ══ */}
-        {mode === "matched" && (
+        {/* ══ UITGEVOERD (geplande rit voltooid) ══ */}
+        {mode === "uitgevoerd" && (
           <div>
-            <StatusBanner mode="matched" />
-
             {sessie && (
               <>
-                <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.6, color: T.textTert, textTransform: "uppercase" }}>{sessieLabel.toUpperCase()}</span>
-                <h1 style={{ margin: "5px 0 4px", font: "800 28px/1.18 var(--font-nunito), sans-serif", letterSpacing: -0.5, textWrap: "pretty", color: T.text }}>{sessie.titel}</h1>
-                {gematchteRit?.naam && <p style={{ margin: "0 0 18px", font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>{gematchteRit.naam}</p>}
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: gematchteRit?.naam ? 0 : 4 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.6, color: T.textTert, textTransform: "uppercase" }}>{sessieLabel.toUpperCase()}</span>
+                    <h1 style={{ margin: "5px 0 0", font: "800 28px/1.18 var(--font-nunito), sans-serif", letterSpacing: -0.5, textWrap: "pretty", color: T.text }}>{sessie.titel}</h1>
+                  </div>
+                  {sessie?.uitvoeringsScore?.score != null && (
+                    <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, paddingTop: 2 }}>
+                      <span style={{ font: "800 22px var(--font-fredoka), sans-serif", lineHeight: 1, color: "oklch(0.38 0.01 250)" }}>{sessie.uitvoeringsScore.score}</span>
+                      <span style={{ font: "600 11px var(--font-nunito), sans-serif", color: "oklch(0.5 0.01 250)", whiteSpace: "nowrap" }}>{sessie.uitvoeringsScore.label}</span>
+                    </div>
+                  )}
+                </div>
+                {gematchteRit?.naam && <p style={{ margin: "4px 0 18px", font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>{gematchteRit.naam}</p>}
               </>
             )}
 
@@ -742,7 +788,7 @@ export default function SchemaTab({
               </div>
             )}
 
-            {renderRitMetrics(true)}
+            {renderRitMetrics(!!sessie)}
 
             {(() => {
               const geredenDuur = gematchteRit?.duur_min || (gematchteRit?.moving_time ? Math.round(gematchteRit.moving_time / 60) : 0);
@@ -758,7 +804,7 @@ export default function SchemaTab({
                     </div>
                     <WorkoutViz segmenten={sessie.segmenten} hoogte={170} ftp={ftp} opacity={0.4} werkelijkWatts={werkelijkWatts} />
                     <div style={{ display: "flex", gap: 18, paddingTop: 13, borderTop: `1px solid ${T.divider}`, marginTop: 8 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 13, height: 9, borderRadius: 2, background: "oklch(0.72 0.13 165)", opacity: 0.45 }} /><span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>Gepland</span></div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 13, height: 9, borderRadius: 2, background: "oklch(0.6 0.07 250)", opacity: 0.45 }} /><span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>Gepland</span></div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 15, height: 2.5, borderRadius: 2, background: T.text }} /><span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>Gereden</span></div>
                     </div>
                   </div>
@@ -778,42 +824,11 @@ export default function SchemaTab({
               return null;
             })()}
 
-            {renderRpe()}
-          </div>
-        )}
-
-        {/* ══ DEVIATED ══ */}
-        {mode === "deviated" && (
-          <div>
-            <StatusBanner mode="deviated" />
-
-            {gematchteRit?.naam && <p style={{ margin: "0 0 12px", font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>{gematchteRit.naam}</p>}
-
-            {hitteData[gematchteRit?.id]?.hitte_gecorrigeerd && (
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "oklch(0.96 0.05 82)", marginBottom: 12 }}>
-                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.48 0.1 62)" }}>🌡️ Hitte-rit · {hitteData[gematchteRit.id].apparent_temp_celsius ?? hitteData[gematchteRit.id].temperatuur_celsius}°C{hitteData[gematchteRit.id].temp_baseline ? ` (+${Math.round(hitteData[gematchteRit.id].apparent_temp_celsius - hitteData[gematchteRit.id].temp_baseline)}°C)` : ""}</span>
-                <InfoTooltip metricKey="hitte" />
-              </div>
+            {/* Dimensies uitklapper */}
+            {sessie?.uitvoeringsScore?.dimensies && (
+              <DimensiesUitklapper dimensies={sessie.uitvoeringsScore.dimensies} />
             )}
 
-            <div style={{ display: "flex", gap: 10, marginBottom: 18 }}>
-              <div style={{ flex: 1, borderRadius: 16, background: T.cardBg, border: "1px dashed oklch(0.85 0.014 80)", padding: "13px 14px" }}>
-                <div style={{ font: "800 9.5px var(--font-nunito), sans-serif", letterSpacing: 1, color: T.textTert, marginBottom: 5 }}>GEPLAND</div>
-                <div style={{ font: "700 14.5px var(--font-nunito), sans-serif", color: "oklch(0.45 0.02 74)" }}>{sessie ? SESSIE_LABELS[sessie.type] || sessie.type : "—"}</div>
-                <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textTert }}>{sessie ? SESSIE_LABELS[sessie.type] || sessie.type : ""}</div>
-              </div>
-              <div style={{ flex: "none", display: "flex", alignItems: "center", color: T.textTert }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </div>
-              <div style={{ flex: 1, borderRadius: 16, background: "oklch(0.96 0.05 82)", border: "1px solid oklch(0.85 0.08 78)", padding: "13px 14px" }}>
-                <div style={{ font: "800 9.5px var(--font-nunito), sans-serif", letterSpacing: 1, color: "oklch(0.56 0.09 68)", marginBottom: 5 }}>GEREDEN</div>
-                <div style={{ font: "700 14.5px var(--font-nunito), sans-serif", color: "oklch(0.4 0.06 66)" }}>{ritCls?.label || "Rit"}</div>
-                <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.5 0.05 70)" }}>{ritCls?.label || ""}</div>
-              </div>
-            </div>
-
-            {renderRitMetrics(false)}
-            {renderWerkelijkGrafiek()}
             {renderRpe()}
           </div>
         )}

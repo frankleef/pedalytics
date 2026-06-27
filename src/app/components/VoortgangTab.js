@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { T } from "../designTokens";
 import SharedHeader from "./SharedHeader";
 import InfoTooltip from "./InfoTooltip";
-import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 import { datumISO } from "@/lib/datum";
 import { ResponsiveContainer, ComposedChart, LineChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ReferenceArea } from "recharts";
 
@@ -212,10 +211,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
     if (new Date(s.datum) > new Date()) return;
     totaalPlan++;
     const rit = planRitten.find(r => r.datum_iso === s.datum);
-    if (rit) {
-      const cls = classificeerRit(rit, ftp);
-      if (ritMatchesSessie(cls, s.type, rit, s)) matched++;
-    }
+    if (rit) matched++;
   });
   const planNaleving = totaalPlan > 0 ? Math.round((matched / totaalPlan) * 100) : 0;
 

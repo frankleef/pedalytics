@@ -19,7 +19,7 @@ export function berekenWeekStatus(seizoensplan, ritten, dagelijkseData) {
 
   // Gemiddelde RPE
   const rpeRitten = rittenDezeWeek.filter(r => r.rpe);
-  const gemRpe = rpeRitten.length > 0 ? +(rpeRitten.reduce((s, r) => s + r.rpe, 0) / rpeRitten.length).toFixed(1) : null;
+  const gemRpe = rpeRitten.length > 0 ? Math.ceil(rpeRitten.reduce((s, r) => s + r.rpe, 0) / rpeRitten.length) : null;
 
   // HRV trend (laatste 5 dagen)
   const recenteHrv = (dagelijkseData || []).filter(d => d.hrv).slice(-5);

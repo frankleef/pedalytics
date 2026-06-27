@@ -19,7 +19,7 @@ export function berekenRpeFeedback(ritten, weken = 4) {
     perType[type].push(r);
   });
 
-  const gemRpe = (arr) => arr.length > 0 ? +(arr.reduce((s, r) => s + r.rpe, 0) / arr.length).toFixed(1) : null;
+  const gemRpe = (arr) => arr.length > 0 ? Math.ceil(arr.reduce((s, r) => s + r.rpe, 0) / arr.length) : null;
 
   const duurRpe = gemRpe(perType.duurrit);
   const intervalRpe = gemRpe(perType.interval);
@@ -69,7 +69,7 @@ function berekenRpePerWeek(ritten, weken = 6) {
       const d = new Date(r.datum_iso);
       return d >= weekStart && d < weekEind;
     });
-    const gem = weekRitten.length > 0 ? +(weekRitten.reduce((s, r) => s + r.rpe, 0) / weekRitten.length).toFixed(1) : null;
+    const gem = weekRitten.length > 0 ? Math.ceil(weekRitten.reduce((s, r) => s + r.rpe, 0) / weekRitten.length) : null;
     result.push({ week: `W${weken - w}`, rpe: gem, aantal: weekRitten.length });
   }
   return result;

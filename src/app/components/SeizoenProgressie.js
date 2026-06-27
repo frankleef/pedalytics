@@ -72,7 +72,7 @@ export default function SeizoenProgressiePanel({ seizoensplan, wellness, ritten 
     });
     const werkelijkTss = Math.round(weekRitten.reduce((s, r) => s + (r.tss || 0), 0));
     const rpeRitten = weekRitten.filter(r => r.rpe);
-    const gemRpe = rpeRitten.length > 0 ? +(rpeRitten.reduce((s, r) => s + r.rpe, 0) / rpeRitten.length).toFixed(1) : null;
+    const gemRpe = rpeRitten.length > 0 ? Math.ceil(rpeRitten.reduce((s, r) => s + r.rpe, 0) / rpeRitten.length) : null;
     const ratio = w.tss_doel > 0 ? werkelijkTss / w.tss_doel : null;
     const status = ratio === null ? "—" : ratio >= 0.9 ? "✓" : ratio >= 0.7 ? "⚠️" : "✗";
     return { week: w.week, fase: w.fase, gepland: w.tss_doel, werkelijk: werkelijkTss, rpe: gemRpe, status, ratio };
