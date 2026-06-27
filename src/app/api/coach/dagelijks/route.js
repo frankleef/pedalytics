@@ -3,6 +3,7 @@ import { getKV } from "@/lib/kv";
 import { getSessionUser, getUserIntervalsConfig } from "@/lib/auth";
 import { claudeCall } from "@/lib/claude";
 import { datumOffset, vandaagISO } from "@/lib/datum";
+import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import { intervalsGet } from "@/lib/intervals";
 
 export async function GET() {
@@ -77,11 +78,7 @@ export async function GET() {
       return sessies.find(s => s.datum === vandaag && s.type !== "rust") || null;
     })();
 
-    const weekNr = (() => {
-      if (!plan?.startdatum) return null;
-      const diff = (Date.now() - new Date(plan.startdatum).getTime()) / (7 * 86400000);
-      return Math.max(1, Math.ceil(diff) || 1);
-    })();
+    const weekNr = plan?.startdatum ? weeknummerVoorDatum(new Date(), plan.startdatum) : null;
     const totaalWeken = plan?.tijdshorizon_weken || plan?.kader?.length || null;
     const fase = (() => {
       if (!weekNr || !plan?.kader) return null;

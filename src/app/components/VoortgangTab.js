@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { T } from "../designTokens";
+import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import SharedHeader from "./SharedHeader";
 import InfoTooltip from "./InfoTooltip";
 import { datumISO } from "@/lib/datum";
@@ -106,7 +107,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
   const ftp = profiel?.ftp || 265;
   const seizoenStart = seizoensplan?.startdatum ? new Date(seizoensplan.startdatum) : null;
   const seizoenWeken = seizoensplan?.tijdshorizon_weken || seizoensplan?.kader?.length || 13;
-  const weekNr = seizoenStart ? Math.max(1, Math.ceil((Date.now() - seizoenStart.getTime()) / (7 * 86400000)) || 1) : null;
+  const weekNr = seizoensplan?.startdatum ? weeknummerVoorDatum(new Date(), seizoensplan.startdatum) : null;
 
   const startFtp = (() => {
     if (seizoensplan?.start_ftp) return seizoensplan.start_ftp;

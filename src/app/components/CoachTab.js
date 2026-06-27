@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { T } from "../designTokens";
 import SharedHeader from "./SharedHeader";
+import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 
 export default function CoachTab({ seizoensplan, onOpenProfiel }) {
   const [bericht, setBericht] = useState(null);
@@ -17,7 +18,7 @@ export default function CoachTab({ seizoensplan, onOpenProfiel }) {
 
   const FASE_NAMEN = { basis: "Opbouw", sweetspot: "Sweetspot", drempel: "Drempel", consolidatie: "Consolidatie", test: "Testweek", herstel: "Herstel" };
   const seizoenStart = seizoensplan?.startdatum ? new Date(seizoensplan.startdatum) : null;
-  const weekNr = seizoenStart ? Math.max(1, Math.ceil((Date.now() - seizoenStart.getTime()) / (7 * 86400000)) || 1) : null;
+  const weekNr = seizoenStart && seizoensplan?.startdatum ? weeknummerVoorDatum(new Date(), seizoensplan.startdatum) : null;
   const totaalWeken = seizoensplan?.tijdshorizon_weken || seizoensplan?.kader?.length || null;
   const huidigeFase = weekNr && seizoensplan?.kader ? seizoensplan.kader.find(w => w.week === weekNr) || seizoensplan.kader[seizoensplan.kader.length - 1] : null;
   const fase = huidigeFase ? (FASE_NAMEN[huidigeFase.fase] || huidigeFase.fase) : null;

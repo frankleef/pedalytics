@@ -3,6 +3,7 @@
 
 import { kiesZ2Subtype, Z2_SUBTYPES } from "./z2subtypes";
 import { bepaalTrainingsmethode } from "./trainingsmethode";
+import { weeknummerVoorDatum } from "../weekgrenzen";
 const ZWAAR_TYPES = ["sweetspot", "interval", "drempel", "vo2max", "sweetspot_intervallen", "drempel_intervallen", "vo2max_intervallen", "over_under", "sprint_neuraal", "pyramide", "kracht_lage_cadans"];
 
 /**
@@ -73,10 +74,9 @@ export function bouwSessieContext({
   const tsb = Math.round(ctl - atl);
 
   // Weeknummer en kaderweek
-  const dagenSindsStart = seizoensplan?.startdatum
-    ? Math.max(0, (new Date(datum).getTime() - new Date(seizoensplan.startdatum).getTime()) / 86400000)
-    : 0;
-  const weeknummer = Math.max(1, Math.ceil(dagenSindsStart / 7) || 1);
+  const weeknummer = seizoensplan?.startdatum
+    ? weeknummerVoorDatum(datum, seizoensplan.startdatum)
+    : 1;
   const kaderWeek = seizoensplan?.kader?.find((w) => w.week === weeknummer) ||
     seizoensplan?.kader?.[0] ||
     { fase: "basis", tss_doel: 250, focus: "Z2 volume", weektype: "opbouw" };

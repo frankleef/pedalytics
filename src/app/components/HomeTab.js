@@ -8,6 +8,7 @@ import ScaleInput from "./ScaleInput";
 import InsightCard from "./home/InsightCard";
 import SharedHeader from "./SharedHeader";
 import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
+import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import SessieUitkomstKaart from "./SessieUitkomstKaart";
 import SeizoenSamenvattingKaart from "./SeizoenSamenvattingKaart";
 import GereedheidConditieKaart from "./GereedheidConditieKaart";
@@ -45,7 +46,7 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
 
   const FASE_NAMEN = { basis: "Opbouw", sweetspot: "Sweetspot", drempel: "Drempel", consolidatie: "Consolidatie", test: "Testweek", herstel: "Herstel" };
   const seizoenStart = seizoensplan?.startdatum ? new Date(seizoensplan.startdatum) : null;
-  const weekNr = seizoenStart ? Math.max(1, Math.ceil((Date.now() - seizoenStart.getTime()) / (7 * 86400000)) || 1) : null;
+  const weekNr = seizoenStart && seizoensplan?.startdatum ? weeknummerVoorDatum(new Date(), seizoensplan.startdatum) : null;
   const totaalWeken = seizoensplan?.tijdshorizon_weken || seizoensplan?.kader?.length || null;
   const huidigeFase = weekNr && seizoensplan?.kader ? seizoensplan.kader.find(w => w.week === weekNr) || seizoensplan.kader[seizoensplan.kader.length - 1] : null;
   const faseLabel = huidigeFase ? `${FASE_NAMEN[huidigeFase.fase] || huidigeFase.fase} · Week ${weekNr} van ${totaalWeken}` : null;

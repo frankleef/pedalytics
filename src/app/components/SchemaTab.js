@@ -3,6 +3,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { T, SLATE, STATUS, getStatus, zoneKleur } from "../designTokens";
 import { berekenHerstelScore } from "./HerstelStatus";
 import WorkoutViz, { WerkelijkViz } from "./WorkoutViz";
+import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import { classificeerRit } from "@/lib/rittype";
 import { datumISO } from "@/lib/datum";
 import InfoTooltip from "./InfoTooltip";
@@ -318,8 +319,7 @@ export default function SchemaTab({
   const grensISO = datumISO(new Date(nu.getTime() - 6 * 86400000));
   const rittenRollend7d = (voortgang?.ritten || []).filter(r => r.datum_iso && r.datum_iso >= grensISO);
   const werkelijkTss = Math.round(rittenRollend7d.reduce((s, r) => s + (r.tss || 0), 0));
-  const dagenSindsStart = seizoensplan?.startdatum ? Math.max(0, (Date.now() - new Date(seizoensplan.startdatum).getTime()) / 86400000) : 0;
-  const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7) || 1);
+  const weekNr = seizoensplan?.startdatum ? weeknummerVoorDatum(new Date(), seizoensplan.startdatum) : 1;
   const kaderWeek = seizoensplan?.kader?.find(w => w.week === weekNr) || seizoensplan?.kader?.[0];
   const doelTss = kaderWeek?.tss_doel || 0;
 

@@ -3,6 +3,7 @@ import { getKV } from "@/lib/kv";
 import { intervalsGet } from "@/lib/intervals";
 import { decrypt } from "@/lib/crypto";
 import { datumOffset } from "@/lib/datum";
+import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import { sendPush } from "@/lib/pushNotify";
 import { verifyQStash } from "@/lib/qstash";
 import { verwerkFtpTest } from "@/lib/sessie/ftpUpdate";
@@ -129,8 +130,7 @@ export async function POST(request) {
           try {
             if (await isWekelijkseCheckVerschuldigd(userId)) {
               if (plan?.kader && plan?.startdatum) {
-                const dagenSindsStart = Math.max(0, (Date.now() - new Date(plan.startdatum).getTime()) / 86400000);
-                const huidigeWeekNr = Math.max(1, Math.ceil(dagenSindsStart / 7));
+                const huidigeWeekNr = weeknummerVoorDatum(new Date(), plan.startdatum);
                 const huidigeKaderWeek = plan.kader?.find(w => w.week === huidigeWeekNr);
                 if (huidigeKaderWeek?.weektype === "herstel") {
                   await voerHerstelweekEvaluatieUit(userId);
@@ -190,8 +190,7 @@ export async function POST(request) {
           try {
             if (await isWekelijkseCheckVerschuldigd(userId)) {
               if (plan?.kader && plan?.startdatum) {
-                const dagenSindsStart = Math.max(0, (Date.now() - new Date(plan.startdatum).getTime()) / 86400000);
-                const huidigeWeekNr = Math.max(1, Math.ceil(dagenSindsStart / 7));
+                const huidigeWeekNr = weeknummerVoorDatum(new Date(), plan.startdatum);
                 const huidigeKaderWeek = plan.kader?.find(w => w.week === huidigeWeekNr);
                 if (huidigeKaderWeek?.weektype === "herstel") {
                   await voerHerstelweekEvaluatieUit(userId);
@@ -300,8 +299,7 @@ export async function POST(request) {
 
             // Seizoenseinde-detectie
             if (sessie.intentie.sessietype === "ramp_test" && !plan.seizoen_afgerond) {
-              const dagenSinds = plan.startdatum ? Math.max(0, (Date.now() - new Date(plan.startdatum).getTime()) / 86400000) : 0;
-              const huidigeWeek = Math.max(1, Math.ceil(dagenSinds / 7));
+              const huidigeWeek = plan.startdatum ? weeknummerVoorDatum(new Date(), plan.startdatum) : 1;
               if (huidigeWeek >= (plan.tijdshorizon_weken || 13)) {
                 if (!plan.start_ftp) {
                   const oudsteFtp = (plan.ftp_historie || []).sort((a, b) => a.datum.localeCompare(b.datum))[0];
@@ -464,7 +462,7 @@ export async function POST(request) {
             const vo2maxStatus = await kv.get(`vo2max_suggestie_status:${userId}`);
             if (!vo2maxStatus || vo2maxStatus === "geen") {
               const doelType = plan.seizoensdoel?.type || plan.doel || "ftp";
-              const wkNr = plan.startdatum ? Math.max(1, Math.ceil((Date.now() - new Date(plan.startdatum).getTime()) / 86400000 / 7)) : 1;
+              const wkNr = plan.startdatum ? weeknummerVoorDatum(new Date(), plan.startdatum) : 1;
               if (doelType === "ftp" && wkNr >= 5) {
                 const { evalueerVo2maxSuggestie } = await import("@/lib/plan/vo2maxDetectie");
                 const suggestie = await evalueerVo2maxSuggestie(userId);
@@ -481,8 +479,7 @@ export async function POST(request) {
 
           // Fase-overgang check via cardiac decoupling (bouwstuk 8b)
           if (plan.kader) {
-            const dagenSindsStart = plan.startdatum ? Math.max(0, (Date.now() - new Date(plan.startdatum).getTime()) / 86400000) : 0;
-            const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7) || 1);
+            const weekNr = plan.startdatum ? weeknummerVoorDatum(new Date(), plan.startdatum) : 1;
             const isLaatsteOpbouwWeek = weekNr % 4 === 3;
 
             if (isLaatsteOpbouwWeek) {

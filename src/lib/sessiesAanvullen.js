@@ -6,6 +6,7 @@ import { bouwSessieDagPrompt } from "@/lib/promptBuilder";
 import { maxTrainingsdagenPerWeek, heeftTeLangReeks } from "@/lib/trainingsfrequentie";
 import { segmentenNaarZwo } from "@/lib/workoutZwo";
 import { normaliseerSessieSegmenten, valideerKrachtRestrictie } from "@/lib/sessie/normaliseer";
+import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
 import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
 import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
@@ -53,8 +54,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
   // Hulp: kaderweek voor een datum
   function kaderWeekVoorDatum(isoDate) {
     if (!plan.startdatum) return plan.kader?.[0] || null;
-    const dagenSinds = Math.max(0, (new Date(isoDate) - new Date(plan.startdatum)) / 86400000);
-    const weekNr = Math.max(1, Math.ceil(dagenSinds / 7));
+    const weekNr = weeknummerVoorDatum(isoDate, plan.startdatum);
     return plan.kader?.find(w => w.week === weekNr) || plan.kader?.[0] || null;
   }
 

@@ -3,6 +3,7 @@ import { getKV } from "@/lib/kv";
 import { sendPush } from "@/lib/pushNotify";
 import { vandaagISO } from "@/lib/datum";
 import { verifyQStash } from "@/lib/qstash";
+import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import { bepaalHrvZone } from "@/lib/hrv/zone";
 import { bepaalNotificatie, checkNotificatieLimiet, verhoogNotificatieTeller, bouwNotificatieTekst } from "@/lib/hrv/notificatie";
 import { bepaalOpportunistischeTraining } from "@/lib/hrv/opportunistisch";
@@ -50,8 +51,7 @@ async function verwerkHrvNotificatie(userId, kv, vandaag) {
       if (hrvZone === "hoog" && !sessie) {
         const beschikbaar = plan.beschikbaarheid || {};
         const dagNaam = ["Zondag","Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag"][new Date(vandaag).getDay()];
-        const dagenSinds = plan.startdatum ? Math.max(0, (new Date(vandaag) - new Date(plan.startdatum)) / 86400000) : 0;
-        const weekNr = Math.max(1, Math.ceil(dagenSinds / 7));
+        const weekNr = plan.startdatum ? weeknummerVoorDatum(vandaag, plan.startdatum) : 1;
         const kaderWeek = plan.kader?.find(w => w.week === weekNr) || plan.kader?.[0];
         const weekTss = plan.weekSessies.sessies.filter(s => {
           if (!s.datum) return false;

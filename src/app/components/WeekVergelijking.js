@@ -1,11 +1,10 @@
 "use client";
+import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 
 export function berekenWeekStatus(seizoensplan, ritten, dagelijkseData) {
   if (!seizoensplan?.kader || !seizoensplan?.startdatum) return null;
 
-  const startDatum = new Date(seizoensplan.startdatum);
-  const nu = new Date();
-  const huidigeWeek = Math.max(1, Math.ceil((nu - startDatum) / (7 * 86400000)));
+  const huidigeWeek = weeknummerVoorDatum(new Date(), seizoensplan.startdatum);
 
   const kaderWeek = seizoensplan.kader?.find(w => w.week === huidigeWeek);
   if (!kaderWeek) return null;

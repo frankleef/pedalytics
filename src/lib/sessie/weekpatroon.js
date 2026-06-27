@@ -1,6 +1,51 @@
 const ZWAAR_ROLLEN = ["intensiteitsdag", "variabele_dag", "kracht_dag"];
 const ZWAAR_TYPES = ["kracht_lage_cadans", "sweetspot_intervallen", "drempel_intervallen", "vo2max_intervallen", "over_under", "sprint_neuraal", "pyramide"];
 
+const Z2_TYPES = ["z2_vlak", "z2_variabel", "z2_steady", "z2_cadans", "z2_heuvel"];
+
+export const SPRINT_STAARTJE_CONFIG = {
+  aantal: 5,
+  duur_seconden: 15,
+  herstel_seconden: 150,
+};
+
+/**
+ * Bepaalt of een dag het sprint-staartje mag krijgen.
+ * @param {object} week - kader-week object met weektype en dagen (sessies voor die week)
+ * @param {object} dag - de kandidaat sessie (zelfde structuur als weekSessies.sessies[])
+ * @param {number|null} tsb - huidige TSB (Training Stress Balance)
+ */
+export function magSprintStaartje(week, dag, tsb) {
+  if (week.weektype === "herstel" || week.type === "herstel") return false;
+
+  const weekDagen = week.dagen ?? [];
+
+  const heeftSprintSessie = weekDagen.some(
+    d => d.intentie?.sessietype === "sprint_neuraal"
+  );
+  if (heeftSprintSessie) return false;
+
+  const z2Dagen = weekDagen.filter(d => Z2_TYPES.includes(d.intentie?.sessietype));
+  if (z2Dagen.length === 0) return false;
+
+  const langsteZ2 = [...z2Dagen].sort(
+    (a, b) => (b.intentie?.tss_range?.max ?? 0) - (a.intentie?.tss_range?.max ?? 0)
+  )[0];
+  if (langsteZ2.datum !== dag.datum) return false;
+
+  const MS_PER_DAG = 24 * 60 * 60 * 1000;
+  const dagMs = new Date(dag.datum).getTime();
+  const naastIntensiteit = weekDagen.some(d => {
+    const diff = Math.abs(new Date(d.datum).getTime() - dagMs);
+    return diff > 0 && diff <= MS_PER_DAG && d.intentie?.rol === "intensiteitsdag";
+  });
+  if (naastIntensiteit) return false;
+
+  if (tsb != null && tsb < -25) return false;
+
+  return true;
+}
+
 export function valideerWeekpatroon(sessies, kaderWeek) {
   const weektype = kaderWeek?.weektype || "opbouw";
   const toekomstig = sessies.filter(s => !s.voltooid);

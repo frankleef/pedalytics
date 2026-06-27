@@ -3,6 +3,7 @@ import { getIntervalsCredentials } from "./users";
 import { intervalsGet } from "./intervals";
 import { datumOffset } from "./datum";
 import { ctlRampRegressie } from "./conditie";
+import { weeknummerVoorDatum } from "./weekgrenzen";
 import { sendPush } from "./pushNotify";
 import { vulSessiesAanVoorGebruiker } from "./sessiesAanvullen";
 import { bepaalTrainingsfrequentie } from "./trainingsfrequentie";
@@ -39,22 +40,18 @@ function vandaagISO(nu = new Date()) {
 
 function berekenAankomendWeekNr(plan) {
   if (!plan?.startdatum) return 2;
-  const dagenSindsStart = Math.max(0, (Date.now() - new Date(plan.startdatum).getTime()) / 86400000);
-  const huidigeWeekNr = Math.max(1, Math.ceil(dagenSindsStart / 7));
-  return huidigeWeekNr + 1;
+  return weeknummerVoorDatum(new Date(), plan.startdatum) + 1;
 }
 
 function berekenBlokIndex(plan) {
   if (!plan?.startdatum) return 0;
-  const dagenSindsStart = Math.max(0, (Date.now() - new Date(plan.startdatum).getTime()) / 86400000);
-  const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7));
+  const weekNr = weeknummerVoorDatum(new Date(), plan.startdatum);
   return Math.floor((weekNr - 1) / 4);
 }
 
 function berekenWeekInBlok(plan) {
   if (!plan?.startdatum) return 1;
-  const dagenSindsStart = Math.max(0, (Date.now() - new Date(plan.startdatum).getTime()) / 86400000);
-  const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7));
+  const weekNr = weeknummerVoorDatum(new Date(), plan.startdatum);
   return ((weekNr - 1) % 4) + 1;
 }
 
@@ -555,8 +552,7 @@ export async function voerHerstelweekEvaluatieUit(userId) {
   const maandagISO = berekenAankomendeMaandagISO(nu);
   const weekNr = haalIsoWeeknummer(new Date(maandagISO));
 
-  const dagenSindsStart = Math.max(0, (nu.getTime() - new Date(plan.startdatum).getTime()) / 86400000);
-  const huidigeWeekNr = Math.max(1, Math.ceil(dagenSindsStart / 7));
+  const huidigeWeekNr = weeknummerVoorDatum(nu, plan.startdatum);
   const blokIndex = Math.floor((huidigeWeekNr - 1) / 4); // 0-gebaseerd
 
   // Piekweek TSS van het zojuist afgesloten blok

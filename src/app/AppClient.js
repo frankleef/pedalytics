@@ -14,6 +14,7 @@ import { startJob, startJobRobuust, pollJob } from "@/lib/jobClient";
 import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
 import LegeKoppelStaat from "./components/LegeKoppelStaat";
 import { demoProfiel, demoSeizoensplan, demoWellness, demoRitten } from "@/lib/demoData";
+import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 
 const PROFIEL_DEFAULT = { ftp: 265, lt_hr: 184, max_hr: 200, gewicht: 90, hrv_basislijn: 58, hr_basislijn: 49, doel: "31+ km/u gemiddeld solo in Z2" };
 
@@ -578,8 +579,7 @@ export default function Page() {
     const sessies = actueleSessies || weekSessies?.sessies || [];
     if (sessies.length < 2) return;
 
-    const dagenSindsStart = Math.max(0, (Date.now() - new Date(seizoensplan.startdatum).getTime()) / 86400000);
-    const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7) || 1);
+    const weekNr = weeknummerVoorDatum(new Date(), seizoensplan.startdatum);
     const kaderWeek = seizoensplan.kader?.find(w => w.week === weekNr) || seizoensplan.kader?.[0];
     const tssTarget = kaderWeek?.tss_doel || 300;
 
@@ -776,8 +776,7 @@ export default function Page() {
 
           // Frequentie-check: kaderweek opzoeken voor dit datum
           const mISO = weekMaandagISO(datum);
-          const dagenSindsStart = Math.max(0, (new Date(datum) - new Date(seizoensplan.startdatum || datum)) / 86400000);
-          const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7) || 1);
+          const weekNr = seizoensplan.startdatum ? weeknummerVoorDatum(datum, seizoensplan.startdatum) : 1;
           const aankomendWeek = seizoensplan.kader?.find(w => w.week === weekNr) || seizoensplan.kader?.[0];
           const ctl = wellenessHuidig?.icu_ctl ?? seizoensplan.huidige_ctl ?? 40;
           const trainingsfrequentie = aankomendWeek?.trainingsfrequentie ?? maxTrainingsdagenPerWeek(ctl);
@@ -929,8 +928,7 @@ export default function Page() {
         for (const weekStart of geraakteWeken) {
           const weekEind = new Date(new Date(weekStart).getTime() + 7 * 86400000);
           const weekSessiesLijst = lokaalSessies.filter(s => s.datum >= weekStart && s.datum < datumISO(weekEind));
-          const dagenSinds = seizoenStart ? (new Date(weekStart) - seizoenStart) / 86400000 : 0;
-          const weekNr = Math.max(1, Math.ceil(dagenSinds / 7) + 1);
+          const weekNr = seizoensplan?.startdatum ? weeknummerVoorDatum(weekStart, seizoensplan.startdatum) : 1;
           const kaderWeek = seizoensplan.kader.find(w => w.week === weekNr) || seizoensplan.kader[0];
 
           const validatie = valideerWeekpatroon(weekSessiesLijst, kaderWeek);
@@ -1026,8 +1024,7 @@ export default function Page() {
     if (!sessie?.intentie) return;
 
     const { bepaalNieuweIntentie } = await import("@/lib/sessie/alternatief");
-    const dagenSindsStart = seizoensplan?.startdatum ? Math.max(0, (new Date(datum).getTime() - new Date(seizoensplan.startdatum).getTime()) / 86400000) : 0;
-    const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7) || 1);
+    const weekNr = seizoensplan?.startdatum ? weeknummerVoorDatum(datum, seizoensplan.startdatum) : 1;
     const kaderWeek = seizoensplan?.kader?.find(w => w.week === weekNr) || seizoensplan?.kader?.[0];
     const fase = kaderWeek?.fase || "basis";
 

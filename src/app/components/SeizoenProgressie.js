@@ -1,5 +1,6 @@
 "use client";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, Legend } from "recharts";
+import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 
 function berekenFtpPrognose(seizoensplan) {
   if (!seizoensplan?.kader) return [];
@@ -42,8 +43,7 @@ function berekenCtlPad(seizoensplan) {
 export default function SeizoenProgressiePanel({ seizoensplan, wellness, ritten }) {
   if (!seizoensplan?.kader) return null;
 
-  const startDatum = new Date(seizoensplan.startdatum);
-  const huidigeWeek = Math.max(1, Math.ceil((Date.now() - startDatum.getTime()) / (7 * 86400000)));
+  const huidigeWeek = weeknummerVoorDatum(new Date(), seizoensplan.startdatum);
   const wekenTotDeadline = seizoensplan.tijdshorizon_weken - huidigeWeek;
 
   // FTP prognose

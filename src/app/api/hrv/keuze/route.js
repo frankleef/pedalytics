@@ -3,6 +3,7 @@ import { getKV } from "@/lib/kv";
 import { getSessionUser } from "@/lib/auth";
 import { vandaagISO } from "@/lib/datum";
 import { verwerkSchrappen, verwerkVerlichten, verwerkVerplaatsen, verwerkOrigineel } from "@/lib/hrv/verwerking";
+import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 
 export async function POST(request) {
   const user = await getSessionUser();
@@ -29,8 +30,7 @@ export async function POST(request) {
     const dag = {
       hrv_vandaag: sessie.hrv_vandaag,
       fase: (() => {
-        const dagenSinds = seizoensplan?.startdatum ? Math.max(0, (new Date(datum) - new Date(seizoensplan.startdatum)) / 86400000) : 0;
-        const weekNr = Math.max(1, Math.ceil(dagenSinds / 7));
+        const weekNr = seizoensplan?.startdatum ? weeknummerVoorDatum(datum, seizoensplan.startdatum) : 1;
         return seizoensplan?.kader?.find(w => w.week === weekNr)?.fase || "basis";
       })(),
     };

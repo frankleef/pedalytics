@@ -3,6 +3,7 @@ import { getIntervalsCredentials } from "../users";
 import { intervalsGet } from "../intervals";
 import { datumOffset } from "../datum";
 import { berekenDecoupling } from "../decoupling";
+import { weeknummerVoorDatum } from "../weekgrenzen";
 
 /**
  * Check 1: Herstelstatus OK?
@@ -78,8 +79,7 @@ export async function checkFtpPlafond(userId) {
   const ftpHistorie = plan.ftp_historie || [];
   if (ftpHistorie.length >= 2) {
     const startdatum = plan.startdatum;
-    const dagenSindsStart = startdatum ? Math.max(0, (Date.now() - new Date(startdatum).getTime()) / 86400000) : 0;
-    const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7));
+    const weekNr = startdatum ? weeknummerVoorDatum(new Date(), startdatum) : 1;
     const blokStart = Math.floor((weekNr - 1) / 4) * 4 + 1;
     const blokStartDatum = startdatum ? new Date(new Date(startdatum).getTime() + (blokStart - 1) * 7 * 86400000).toISOString().slice(0, 10) : null;
 
@@ -159,8 +159,7 @@ export async function evalueerVo2maxSuggestie(userId) {
   if (doelType !== "ftp") return { suggereer: false, reden: "doel_niet_ftp" };
 
   // Minimaal week 5
-  const dagenSindsStart = plan?.startdatum ? Math.max(0, (Date.now() - new Date(plan.startdatum).getTime()) / 86400000) : 0;
-  const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7));
+  const weekNr = plan?.startdatum ? weeknummerVoorDatum(new Date(), plan.startdatum) : 1;
   if (weekNr < 5) return { suggereer: false, reden: "te_vroeg" };
 
   // Al geaccepteerd of afgewezen?

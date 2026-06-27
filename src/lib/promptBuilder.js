@@ -3,6 +3,7 @@
 
 import { vandaagISO, datumISO, DAGNAMEN } from "./datum";
 import { bouwSessieContext } from "./sessie/context";
+import { weeknummerVoorDatum } from "./weekgrenzen";
 import { maxTrainingsdagenPerWeek } from "./trainingsfrequentie";
 
 function sessietypesVoorFase(fase, kaderWeek) {
@@ -138,8 +139,7 @@ export function bouwWeekSessiesPrompt({ profiel, wellness, dagelijkseData, voort
   const tePlannenDagen = planDagen.filter(d => d.beschikbaar && !voltooideDatams.has(d.datum) && d.datum >= vandaagISOStr);
   if (tePlannenDagen.length === 0) return null;
 
-  const dagenSindsStart = Math.max(0, (Date.now() - new Date(seizoensplan.startdatum).getTime()) / 86400000);
-  const weekNr = Math.max(1, Math.ceil(dagenSindsStart / 7) || 1);
+  const weekNr = weeknummerVoorDatum(new Date(), seizoensplan.startdatum);
   const kaderWeek = seizoensplan.kader?.find(w => w.week === weekNr) || seizoensplan.kader?.[0] || { fase: "basis", tss_doel: 250, focus: "Z2 volume" };
   const kaderWeek2 = seizoensplan.kader?.find(w => w.week === weekNr + 1) || kaderWeek;
 
@@ -360,12 +360,18 @@ Gebruik de segmentstructuur die bij dit subtype hoort.`;
   let intentieInstructie;
   if (ctx.dagIntentie) {
     const isVerplaatsing = ctx.aanleiding === "beschikbaarheid_verplaatsing";
+    const sprintInstructie = ctx.dagIntentie.sprint_staartje === true
+      ? `\nSPRINT-STAARTJE (harde instructie — niet optioneel):
+Voeg na de Z2-blokken 5 sprintblokken toe van 15 seconden op maximaal vermogen (Z7,
+positie 'midden', sessietype 'sprint_neuraal'), elk gevolgd door 150 seconden actief
+herstel in Z1. De Z2-duur blijft volledig ongewijzigd — de sprints komen er achteraan.`
+      : "";
     intentieInstructie = `DAG-INTENTIE (${isVerplaatsing ? "voorkeur — behoud als het past" : "leidend — niet ter discussie"}):
 Rol: ${ctx.dagIntentie.rol}
 Sessietype: ${ctx.dagIntentie.sessietype}
 Toegestane zones: ${(ctx.dagIntentie.toegestane_zones || []).join(", ")}
 TSS-range: ${ctx.dagIntentie.tss_range?.min || "?"}–${ctx.dagIntentie.tss_range?.max || "?"}
-Achtergrond: ${ctx.dagIntentie.toelichting || ""}${z2SubtypeContext}
+Achtergrond: ${ctx.dagIntentie.toelichting || ""}${z2SubtypeContext}${sprintInstructie}
 ${isVerplaatsing ? `
 Deze sessie is VERPLAATST van een andere dag. Behoud het sessietype en de intentie,
 tenzij er een conflict is met de overige geplande sessies deze week (bv. twee zware
