@@ -83,7 +83,7 @@ export default function Page() {
   const [profielOpen, setProfielOpen] = useState(false);
   const [nietGekoppeld, setNietGekoppeld] = useState(false);
   const [weerData, setWeerData] = useState(null);
-  const [checkinScore, setCheckinScore] = useState(null);
+  const [checkinScore, setCheckinScore] = useState(undefined);
   const [toastZichtbaar, setToastZichtbaar] = useState(false);
 
   const tabHistoryRef = useRef([]);
@@ -201,7 +201,7 @@ export default function Page() {
     laadDagelijkseData();
     laadRecenteRitten();
     fetch("/api/weer").then(r => r.json()).then(d => { if (d.success) setWeerData(d.data); }).catch(() => {});
-    fetch("/api/checkin").then(r => r.json()).then(d => { if (d.success && d.data) setCheckinScore(d.data.score); }).catch(() => {});
+    fetch("/api/checkin").then(r => r.json()).then(d => { setCheckinScore(d.success && d.data ? d.data.score : null); }).catch(() => { setCheckinScore(null); });
 
     return () => navigator.serviceWorker?.removeEventListener("message", swHandler);
   }, []);

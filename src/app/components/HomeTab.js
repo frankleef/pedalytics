@@ -16,12 +16,12 @@ import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
 
 export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagelijkseData, voortgang, seizoensplan, weekSessies, weekSessiesLaden, beschikbaar, weerData, initialCheckin, onCheckinWijziging, onOpenWorkout, onEditBeschikbaarheid, onOpenProfiel }) {
-  const [checkin, setCheckin] = useState(initialCheckin ?? null);
-  const [checkinLaden, setCheckinLaden] = useState(initialCheckin == null);
+  const [checkin, setCheckin] = useState(initialCheckin !== undefined ? initialCheckin : null);
+  const [checkinLaden, setCheckinLaden] = useState(initialCheckin === undefined);
   const weer = weerData ?? null;
 
   useEffect(() => {
-    if (initialCheckin != null && checkinLaden) {
+    if (initialCheckin !== undefined && checkinLaden) {
       setCheckin(initialCheckin);
       setCheckinLaden(false);
     }
