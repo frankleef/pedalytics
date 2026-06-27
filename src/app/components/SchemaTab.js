@@ -55,7 +55,11 @@ function segWattRange(seg, ftpW) {
 }
 
 function segTimeStr(min) {
-  return `${Math.floor(min / 60)}:${String(Math.round(min % 60)).padStart(2, "0")}`;
+  const totalSec = Math.round(min * 60);
+  if (totalSec < 60) return `${totalSec}s`;
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return s > 0 ? `${m}:${String(s).padStart(2, "0")}` : `${m}:00`;
 }
 
 const BLOCK_BG = {

@@ -141,12 +141,13 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
     if (tsb !== null && tsb < -25) continue;
     const bestaandeWeekSessies = bestaandeSessies.filter(s => s.datum && weekMaandagISO(s.datum) === mISO);
     const weekObject = { ...kaderWeek, dagen: bestaandeWeekSessies };
-    // Kandidaat = dag met meeste beschikbare uren (proxy voor langste Z2 in een nieuwe week)
-    const kandidaat = weekDagen.reduce((best, dag) =>
-      (dag.uren || 1.5) >= (best.uren || 1.5) ? dag : best, weekDagen[0]);
-    const kandidaatSessie = { datum: kandidaat.datum, intentie: { sessietype: "z2_vlak", rol: "aerobe_dag", tss_range: { max: 999 } } };
+    const z2Types = ["z2_vlak", "z2_variabel", "z2_steady", "z2_cadans", "z2_heuvel"];
+    const kandidaatSessie = weekObject.dagen
+      .filter(d => z2Types.includes(d.intentie?.sessietype) && !d.voltooid)
+      .sort((a, b) => (b.duur_min || 0) - (a.duur_min || 0))[0];
+    if (!kandidaatSessie) continue;
     if (magSprintStaartje(weekObject, kandidaatSessie, tsb)) {
-      sprintStaartjeDagen.add(kandidaat.datum);
+      sprintStaartjeDagen.add(kandidaatSessie.datum);
     }
   }
 
