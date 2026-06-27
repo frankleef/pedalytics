@@ -790,39 +790,7 @@ export default function SchemaTab({
 
             {renderRitMetrics(!!sessie)}
 
-            {(() => {
-              const geredenDuur = gematchteRit?.duur_min || (gematchteRit?.moving_time ? Math.round(gematchteRit.moving_time / 60) : 0);
-              const geplandeDuur = sessie?.duur_min || 60;
-              const duurRatio = geplandeDuur > 0 ? geredenDuur / geplandeDuur : 0;
-
-              if (werkelijkWatts?.length >= 10 && sessie?.segmenten && duurRatio >= 0.75) {
-                return (
-                  <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 18px 18px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16, padding: "0 2px" }}>
-                      <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>Gepland vs gereden</span>
-                      <span style={{ font: "700 11.5px var(--font-nunito), sans-serif", color: T.textSec }}>FTP {ftp}W</span>
-                    </div>
-                    <WorkoutViz segmenten={sessie.segmenten} hoogte={170} ftp={ftp} opacity={0.4} werkelijkWatts={werkelijkWatts} />
-                    <div style={{ display: "flex", gap: 18, paddingTop: 13, borderTop: `1px solid ${T.divider}`, marginTop: 8 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 13, height: 9, borderRadius: 2, background: "oklch(0.6 0.07 250)", opacity: 0.45 }} /><span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>Gepland</span></div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 15, height: 2.5, borderRadius: 2, background: T.text }} /><span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>Gereden</span></div>
-                    </div>
-                  </div>
-                );
-              }
-              if (werkelijkWatts?.length >= 10) {
-                return (
-                  <>
-                    {sessie && <div style={{ font: "800 10px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, marginBottom: 10 }}>STOND GEPLAND · {sessie.titel} · {geplandeDuur}min</div>}
-                    {renderWerkelijkGrafiek()}
-                  </>
-                );
-              }
-              if (!werkelijkWatts && !streamsLaden) {
-                return <div style={{ padding: "20px 0", font: "600 13px var(--font-nunito), sans-serif", color: T.textTert, textAlign: "center" }}>Geen vermogensdata beschikbaar voor deze rit</div>;
-              }
-              return null;
-            })()}
+            {renderWerkelijkGrafiek()}
 
             {/* Dimensies uitklapper */}
             {sessie?.uitvoeringsScore?.dimensies && (

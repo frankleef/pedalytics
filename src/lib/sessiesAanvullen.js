@@ -11,6 +11,7 @@ import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
 import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
 import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
 import { claudeCall } from "@/lib/claude";
+import { magSprintStaartje, SPRINT_STAARTJE_CONFIG } from "@/lib/sessie/weekpatroon";
 
 const VERBODEN_TYPES_VOLUMECORRECTIE = ["kracht_lage_cadans", "sprint_neuraal"];
 
@@ -125,6 +126,30 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
 
   const piekSprint = await kv.get(`piek_sprint_vermogen:${userId}`) || Math.round((profiel.ftp || 265) * 1.8);
 
+  // Bepaal welke dagen een sprint-staartje krijgen, per week
+  const tsb = wellness ? Math.round((wellness.ctl ?? 0) - (wellness.atl ?? 0)) : null;
+  const sprintStaartjeDagen = new Set();
+  const ontbrekendPerWeek = {};
+  for (const dag of ontbrekend) {
+    const mISO = weekMaandagISO(dag.datum);
+    if (!ontbrekendPerWeek[mISO]) ontbrekendPerWeek[mISO] = [];
+    ontbrekendPerWeek[mISO].push(dag);
+  }
+  for (const [mISO, weekDagen] of Object.entries(ontbrekendPerWeek)) {
+    const kaderWeek = kaderWeekVoorDatum(weekDagen[0].datum);
+    if (!kaderWeek || kaderWeek.weektype === "herstel") continue;
+    if (tsb !== null && tsb < -25) continue;
+    const bestaandeWeekSessies = bestaandeSessies.filter(s => s.datum && weekMaandagISO(s.datum) === mISO);
+    const weekObject = { ...kaderWeek, dagen: bestaandeWeekSessies };
+    // Kandidaat = dag met meeste beschikbare uren (proxy voor langste Z2 in een nieuwe week)
+    const kandidaat = weekDagen.reduce((best, dag) =>
+      (dag.uren || 1.5) >= (best.uren || 1.5) ? dag : best, weekDagen[0]);
+    const kandidaatSessie = { datum: kandidaat.datum, intentie: { sessietype: "z2_vlak", rol: "aerobe_dag", tss_range: { max: 999 } } };
+    if (magSprintStaartje(weekObject, kandidaatSessie, tsb)) {
+      sprintStaartjeDagen.add(kandidaat.datum);
+    }
+  }
+
   const aangevuld = [];
 
   for (const { datum, dagNaam, uren } of ontbrekend) {
@@ -155,6 +180,10 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         promptData.prompt += `\n\nVOLUMECORRECTIE — TEMPO-AFSLUITER (harde instructie): Voeg aan het einde van deze sessie een Z3-tempo-afsluiter toe van 15-20 minuten. Dit is een harde instructie vanuit de volumecorrectie-evaluatie — geen suggestie. De rest van de sessie blijft Z2. Zorg dat de totale sessieduur binnen ${maxMinuten} minuten blijft.`;
       }
 
+      if (sprintStaartjeDagen.has(datum)) {
+        promptData.prompt += "\n\nSPRINT-STAARTJE (harde instructie — niet optioneel):\nVoeg na de Z2-blokken 5 sprintblokken toe van 15 seconden op maximaal vermogen (Z7, positie 'midden'), elk gevolgd door 150 seconden actief herstel in Z1. De Z2-duur blijft volledig ongewijzigd — de sprints komen er achteraan.";
+      }
+
       const raw = await claudeCall(promptData);
       const sessie = raw.sessie || raw.sessies?.[0] || raw;
       if (!sessie.datum) sessie.datum = datum;
@@ -162,6 +191,13 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       normaliseerSessieSegmenten(sessie);
       voegVerwachtRpeToe(sessie);
       corrigeerSessieTss(sessie);
+
+      if (sprintStaartjeDagen.has(datum) && sessie.intentie) {
+        sessie.intentie.sprint_staartje = true;
+        sessie.intentie.sprint_staartje_config = SPRINT_STAARTJE_CONFIG;
+        const zones = sessie.intentie.toegestane_zones || ["Z1", "Z2"];
+        if (!zones.includes("Z7")) sessie.intentie.toegestane_zones = [...zones, "Z7"];
+      }
 
       // Deterministisch vangnet: verboden sessietypes bij volumecorrectie
       const isVolumeCorrectie = aerobeDagen.includes(datum) || tempoAfsluiters.includes(datum);
