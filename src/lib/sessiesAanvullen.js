@@ -249,7 +249,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       // Vrijheidsdag: week 3 van intensieve fase, tweede intensiteitsdag
       const isVrijheidsdag = (
         weekInFase === 3 &&
-        dagIntentieVoorDag?.dagRol === 'tweede_intensiteit' &&
+        dagIntentieVoorDag?.rol === 'tweede_intensiteit' &&
         VRIJHEID_FASEN.has(huidigeFase)
       );
       const effectiefSessietype = isVrijheidsdag ? 'gemengd' : (dagIntentieVoorDag?.sessietype ?? null);

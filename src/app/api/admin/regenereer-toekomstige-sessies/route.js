@@ -16,6 +16,7 @@ import {
   getRecenteArchetypes,
   slaArchetypeOp,
   migreerZ2VariabelNaarDuur,
+  migreesSessietype,
 } from "@/lib/sessie-archetypes";
 
 export const maxDuration = 300;
@@ -109,6 +110,21 @@ export async function POST(request) {
   for (const sessie of toekomstigeSessies) {
     const datum = sessie.datum;
     try {
+      // Migreer verouderd sessietype in dag-intentie
+      const oorspronkelijkSessietype = sessie.intentie?.sessietype;
+      const gemigreerdSessietype = migreesSessietype(oorspronkelijkSessietype);
+
+      if (sessie.intentie && !gemigreerdSessietype && oorspronkelijkSessietype) {
+        console.warn(`[regenereer] Onbekend sessietype "${oorspronkelijkSessietype}" op ${datum} — overgeslagen`);
+        resultaten.push({ datum, status: 'overgeslagen', reden: `onbekend sessietype: ${oorspronkelijkSessietype}` });
+        continue;
+      }
+
+      if (sessie.intentie && gemigreerdSessietype && gemigreerdSessietype !== oorspronkelijkSessietype) {
+        console.log(`[regenereer] Migratie dag-intentie ${datum}: "${oorspronkelijkSessietype}" → "${gemigreerdSessietype}"`);
+        sessie.intentie.sessietype = gemigreerdSessietype;
+      }
+
       const overigeSessies = sessies.filter(s => s.datum !== datum && !s.voltooid);
 
       const promptData = bouwSessieDagPrompt({
@@ -133,7 +149,7 @@ export async function POST(request) {
 
       const isVrijheidsdag = (
         weekInFase === 3 &&
-        dagIntentie?.dagRol === 'tweede_intensiteit' &&
+        dagIntentie?.rol === 'tweede_intensiteit' &&
         VRIJHEID_FASEN.has(huidigeFase)
       );
       const effectiefSessietype = isVrijheidsdag ? 'gemengd' : (dagIntentie?.sessietype ?? null);
@@ -218,7 +234,14 @@ export async function POST(request) {
       };
       await kv.set(planKey, huidigPlan);
 
-      resultaten.push({ datum, status: 'ok', archetype: gekozenArchetypeId });
+      resultaten.push({
+        datum,
+        status: 'ok',
+        archetype: gekozenArchetypeId,
+        ...(gemigreerdSessietype !== oorspronkelijkSessietype
+          ? { sessietype_gemigreerd: `${oorspronkelijkSessietype} → ${gemigreerdSessietype}` }
+          : {}),
+      });
       console.log(`[regenereer] ${datum}: ok, archetype=${gekozenArchetypeId}`);
     } catch (e) {
       console.error(`[regenereer] ${datum} mislukt:`, e.message);

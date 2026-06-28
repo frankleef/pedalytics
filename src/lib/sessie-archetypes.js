@@ -330,6 +330,57 @@ export const SESSIE_ARCHETYPES = {
   ],
 };
 
+export const GELDIGE_SESSIETYPES = new Set([
+  'z2_duur', 'sweetspot_intervallen', 'kracht_lage_cadans',
+  'drempel_intervallen', 'vo2max_intervallen',
+  'sprint_neuraal', 'z6_anaeroob', 'gemengd',
+]);
+
+export const SESSIETYPE_MIGRATIE = {
+  'z2_vlak':           'z2_duur',
+  'z2_cadans':         'z2_duur',
+  'over_under':        'drempel_intervallen',
+  'pyramide':          'drempel_intervallen',
+  'tempo_intervallen': 'sweetspot_intervallen',
+};
+
+export function valideerSessietype(sessietype) {
+  if (!sessietype) return false;
+  return GELDIGE_SESSIETYPES.has(sessietype);
+}
+
+export function migreesSessietype(sessietype) {
+  if (!sessietype) return null;
+  if (GELDIGE_SESSIETYPES.has(sessietype)) return sessietype;
+  return SESSIETYPE_MIGRATIE[sessietype] ?? null;
+}
+
+/**
+ * Kiest een archetype op basis van rotatie (pure functie, geen KV-afhankelijkheid).
+ * Vermijdt het meest recent gebruikte archetype (recenteArchetypes[0]).
+ * Geeft voorkeur aan archetypes die nog niet recent zijn gebruikt.
+ * Als alle archetypes recent zijn, kiest de minst recente.
+ * @param {Array} archetypes - Beschikbare archetypes (gefilterd op fase/week)
+ * @param {string[]} recenteArchetypes - Meest recent gebruikt (index 0 = meest recent), max 3
+ * @returns {object|null} Gekozen archetype of null als geen beschikbaar
+ */
+export function selecteerArchetype(archetypes, recenteArchetypes) {
+  if (!archetypes || archetypes.length === 0) return null;
+  const meestRecent = recenteArchetypes[0] ?? null;
+  const kandidaten = archetypes.filter(a => a.id !== meestRecent);
+  if (kandidaten.length === 0) return archetypes[0];
+  const nieuweKandidaten = kandidaten.filter(a => !recenteArchetypes.includes(a.id));
+  if (nieuweKandidaten.length > 0) {
+    return nieuweKandidaten[Math.floor(Math.random() * nieuweKandidaten.length)];
+  }
+  kandidaten.sort((a, b) => {
+    const posA = recenteArchetypes.indexOf(a.id);
+    const posB = recenteArchetypes.indexOf(b.id);
+    return posB - posA;
+  });
+  return kandidaten[0];
+}
+
 const Z1_TOEGESTANE_SESSIETYPES = new Set(['sprint_neuraal', 'z6_anaeroob', 'kracht_lage_cadans']);
 const Z1_TOEGESTANE_GEMENGD_ARCHETYPES = new Set(['alles_mag', 'raketstart', 'klim_simulator']);
 
