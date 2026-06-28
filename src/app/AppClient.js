@@ -419,7 +419,7 @@ export default function Page() {
         focus: faseInfo ? `${faseInfo.sessietypes.slice(0, 3).join(", ")}` : "Z2 volume",
         z1z2_doel: faseInfo?.z1z2_doel || 0.80,
         max_intensiteit: faseInfo?.max_intensiteit_per_week ?? 1,
-        sessietypes: faseInfo?.sessietypes || ["z2_vlak", "z2_variabel", "z1_herstel"],
+        sessietypes: faseInfo?.sessietypes || ["z2_vlak", "z2_duur", "z1_herstel"],
       };
     });
   };
@@ -823,13 +823,13 @@ export default function Page() {
             const z2TssNieuweDag = Math.round(uren * 0.65 * 0.65 * 100);
 
             if (z2TssNieuweDag >= 40) {
-              // Detectie: volumecorrectie-afsluiter = z2_vlak/z2_variabel sessie waarbij
+              // Detectie: volumecorrectie-afsluiter = z2_vlak/z2_duur sessie waarbij
               // het laatste segment Z3 is, alle overige Z1/Z2, en Z3-blok ≤ 25 min.
               function isVolumeCorrectieAfsluiter(s) {
                 const segs = s.segmenten ?? [];
                 if (segs.length < 2) return false;
                 const sessietype = s.intentie?.sessietype || s.type;
-                if (!["z2_vlak", "z2_variabel"].includes(sessietype)) return false;
+                if (!["z2_vlak", "z2_duur"].includes(sessietype)) return false;
                 const laatste = segs[segs.length - 1];
                 if (laatste.zone !== "Z3") return false;
                 if (!segs.slice(0, -1).every(seg => ["Z1", "Z2"].includes(seg.zone))) return false;

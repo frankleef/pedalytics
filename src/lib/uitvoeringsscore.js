@@ -39,7 +39,7 @@ export function zonedistributieScore(tijdInZones, toegestaneZones) {
 export const BEOOGDE_IF = {
   z1_herstel: 0.50,
   z2_vlak: 0.65, z2_steady: 0.65, z2_cadans: 0.65, z2_heuvel: 0.65,
-  z2_variabel: 0.70, z2_tempo_teugjes: 0.70,
+  z2_duur: 0.70, z2_tempo_teugjes: 0.70,
   sweetspot_intervallen: 0.88,
   drempel_intervallen: 0.97, over_under: 0.97,
   vo2max_intervallen: 1.10,

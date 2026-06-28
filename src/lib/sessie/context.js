@@ -86,7 +86,7 @@ export function bouwSessieContext({
 
   // Z2-subtype selectie
   let z2Subtype = null;
-  const isZ2Type = dagIntentie?.sessietype === "z2_vlak" || dagIntentie?.sessietype === "z2_variabel"
+  const isZ2Type = dagIntentie?.sessietype === "z2_vlak" || dagIntentie?.sessietype === "z2_duur"
     || (!dagIntentie && !oudeSessie);
   if (isZ2Type) {
     const subKey = kiesZ2Subtype({

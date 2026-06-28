@@ -9,10 +9,10 @@ import { maxTrainingsdagenPerWeek } from "./trainingsfrequentie";
 function sessietypesVoorFase(fase, kaderWeek) {
   if (kaderWeek?.sessietypes?.length > 0) return kaderWeek.sessietypes.join(", ");
   const tabel = {
-    basis: "z2_vlak, z2_variabel, z2_cadans, z2_heuvel, progressief, z1_herstel, herstel_mobiliteit — GEEN intensiteitssessies",
-    sweetspot: "sweetspot_intervallen, sweetspot_lang, over_under, microbursts, z2_vlak, z2_variabel, z2_cadans, progressief, z1_herstel, herstel_mobiliteit",
-    drempel: "drempel_intervallen, over_under, pyramide, vo2max_lang, vo2max_kort, z2_vlak, z2_variabel, progressief, z1_herstel, herstel_mobiliteit",
-    consolidatie: "race_simulatie, drempel_intervallen, over_under, z2_variabel, z1_herstel, herstel_mobiliteit",
+    basis: "z2_vlak, z2_duur, z2_cadans, z2_heuvel, progressief, z1_herstel, herstel_mobiliteit — GEEN intensiteitssessies",
+    sweetspot: "sweetspot_intervallen, sweetspot_lang, over_under, microbursts, z2_vlak, z2_duur, z2_cadans, progressief, z1_herstel, herstel_mobiliteit",
+    drempel: "drempel_intervallen, over_under, pyramide, vo2max_lang, vo2max_kort, z2_vlak, z2_duur, progressief, z1_herstel, herstel_mobiliteit",
+    consolidatie: "race_simulatie, drempel_intervallen, over_under, z2_duur, z1_herstel, herstel_mobiliteit",
     test: "z2_vlak, ramp_test",
   };
   return tabel[fase] || tabel.basis;
@@ -66,7 +66,7 @@ SESSIETYPES VOOR DEZE FASE:
 DAG-INTENTIE (verplicht voor elke trainingsdag):
 Elke sessie bevat een "intentie"-object met:
 - rol: één van [intensiteitsdag, aerobe_dag, hersteldag, variabele_dag, ftp_test]
-- sessietype: één van [sweetspot_intervallen, sweetspot_lang, drempel_intervallen, over_under, pyramide, vo2max_intervallen, vo2max_lang, vo2max_kort, microbursts, race_simulatie, progressief, sprint_neuraal, kracht_lage_cadans, z2_vlak, z2_variabel, z2_cadans, z2_heuvel, z2_tempo_teugjes, z2_steady, z2_lang, z2_embedded_sprint, sprint_peak_test, z1_herstel, herstel_actief, herstel_mobiliteit, ramp_test]
+- sessietype: één van [sweetspot_intervallen, sweetspot_lang, drempel_intervallen, over_under, pyramide, vo2max_intervallen, vo2max_lang, vo2max_kort, microbursts, race_simulatie, progressief, sprint_neuraal, kracht_lage_cadans, z2_vlak, z2_duur, z2_cadans, z2_heuvel, z2_tempo_teugjes, z2_steady, z2_lang, z2_embedded_sprint, sprint_peak_test, z1_herstel, herstel_actief, herstel_mobiliteit, ramp_test]
 - toegestane_zones: array van zones die deze dag gebruikt mogen worden (bv. ["Z1", "Z2"])
 - tss_range: { min, max } waarbinnen de TSS moet vallen
 - toelichting: één zin over de rol van deze dag in het weekpatroon
@@ -291,7 +291,7 @@ Z2-herstel houdt de aerobe stimulus actief. Z1 is uitsluitend voor volledig hers
 DAG-INTENTIE (verplicht voor elke trainingsdag):
 Elke sessie moet een "intentie"-object bevatten met:
 - rol: één van [intensiteitsdag, aerobe_dag, hersteldag, variabele_dag, ftp_test]
-- sessietype: één van [sweetspot_intervallen, sweetspot_lang, drempel_intervallen, over_under, pyramide, vo2max_intervallen, vo2max_lang, vo2max_kort, microbursts, race_simulatie, progressief, sprint_neuraal, kracht_lage_cadans, z2_vlak, z2_variabel, z2_cadans, z2_heuvel, z2_tempo_teugjes, z2_steady, z2_lang, z2_embedded_sprint, sprint_peak_test, z1_herstel, herstel_actief, herstel_mobiliteit, ramp_test]
+- sessietype: één van [sweetspot_intervallen, sweetspot_lang, drempel_intervallen, over_under, pyramide, vo2max_intervallen, vo2max_lang, vo2max_kort, microbursts, race_simulatie, progressief, sprint_neuraal, kracht_lage_cadans, z2_vlak, z2_duur, z2_cadans, z2_heuvel, z2_tempo_teugjes, z2_steady, z2_lang, z2_embedded_sprint, sprint_peak_test, z1_herstel, herstel_actief, herstel_mobiliteit, ramp_test]
 - toegestane_zones: array van zones (bv. ["Z1", "Z2"])
 - tss_range: { min, max }
 - toelichting: één zin over de rol van deze dag
@@ -385,7 +385,7 @@ Aanleiding voor deze aanroep: ${ctx.aanleiding}`;
     intentieInstructie = `DAG-INTENTIE (verplicht — bepaal zelf):
 Voeg een "intentie"-object toe met:
 - rol: één van [intensiteitsdag, aerobe_dag, hersteldag, variabele_dag, ftp_test]
-- sessietype: één van [sweetspot_intervallen, sweetspot_lang, drempel_intervallen, over_under, pyramide, vo2max_intervallen, vo2max_lang, vo2max_kort, microbursts, race_simulatie, progressief, sprint_neuraal, kracht_lage_cadans, z2_vlak, z2_variabel, z2_cadans, z2_heuvel, z2_tempo_teugjes, z2_steady, z2_lang, z2_embedded_sprint, sprint_peak_test, z1_herstel, herstel_actief, herstel_mobiliteit, ramp_test]
+- sessietype: één van [sweetspot_intervallen, sweetspot_lang, drempel_intervallen, over_under, pyramide, vo2max_intervallen, vo2max_lang, vo2max_kort, microbursts, race_simulatie, progressief, sprint_neuraal, kracht_lage_cadans, z2_vlak, z2_duur, z2_cadans, z2_heuvel, z2_tempo_teugjes, z2_steady, z2_lang, z2_embedded_sprint, sprint_peak_test, z1_herstel, herstel_actief, herstel_mobiliteit, ramp_test]
 - toegestane_zones: array van zones (bv. ["Z1", "Z2"])
 - tss_range: { min, max }
 - toelichting: één zin over de rol van deze dag
@@ -433,12 +433,12 @@ Spec: 4-6x 4-5min @ zone Z5, herstel 1:1, TSS 70-90, warm-up ≥10min progressie
 
   let z3RuilContext = "";
   if (ctx.aanleiding === "beschikbaarheid_nieuw_z2_ruil") {
-    z3RuilContext = "\nZ3-NAAR-Z2 RUIL: een bestaande sessie deze week had een Z3-afsluiter die net is verwijderd omdat er een extra beschikbare dag is bijgekomen. Deze sessie is de aerobe compensatie daarvoor. Genereer uitsluitend een Z2-sessie (z2_vlak of z2_variabel). Geen Z3 of hogere zones. Het weekdoel wordt gehaald via dit extra Z2-volume.";
+    z3RuilContext = "\nZ3-NAAR-Z2 RUIL: een bestaande sessie deze week had een Z3-afsluiter die net is verwijderd omdat er een extra beschikbare dag is bijgekomen. Deze sessie is de aerobe compensatie daarvoor. Genereer uitsluitend een Z2-sessie (z2_vlak of z2_duur). Geen Z3 of hogere zones. Het weekdoel wordt gehaald via dit extra Z2-volume.";
   }
 
   let volumecorrectieRestrictieContext = "";
   if (ctx.aanleiding?.startsWith("volumecorrectie") || ctx.aanleiding === "herstelpatroon_correctie") {
-    volumecorrectieRestrictieContext = "\nVOLUMECORRECTIE — SESSIETYPE RESTRICTIE: deze sessie wordt gegenereerd als onderdeel van een volumecorrectie. Het doel is uitsluitend aerobe stimulus. De volgende sessietypes zijn verboden voor deze aanroep: kracht_lage_cadans (neuromusculaire prikkel, geen aerobe volumecompensatie), sprint_neuraal (neuromusculaire prikkel, geen aerobe volumecompensatie). Gebruik uitsluitend: z2_vlak, z2_variabel, progressief. Als de volumecorrectie een tempo-afsluiter vereist: voeg een Z3-blok toe aan een z2_vlak of z2_variabel sessie — genereer geen apart kracht- of sprintsessietype.";
+    volumecorrectieRestrictieContext = "\nVOLUMECORRECTIE — SESSIETYPE RESTRICTIE: deze sessie wordt gegenereerd als onderdeel van een volumecorrectie. Het doel is uitsluitend aerobe stimulus. De volgende sessietypes zijn verboden voor deze aanroep: kracht_lage_cadans (neuromusculaire prikkel, geen aerobe volumecompensatie), sprint_neuraal (neuromusculaire prikkel, geen aerobe volumecompensatie). Gebruik uitsluitend: z2_vlak, z2_duur, progressief. Als de volumecorrectie een tempo-afsluiter vereist: voeg een Z3-blok toe aan een z2_vlak of z2_duur sessie — genereer geen apart kracht- of sprintsessietype.";
   }
 
   let distributieContext = "";
@@ -504,7 +504,7 @@ Alleen JSON.`,
 
 function bouwWeekrolVanContext(overigeSessies, fase, uren) {
   const aantalZwaar = overigeSessies.filter(s => s.isZwaar).length;
-  const aantalVariabel = overigeSessies.filter(s => s.type === "duur_variabel" || s.intentie?.sessietype === "z2_variabel").length;
+  const aantalVariabel = overigeSessies.filter(s => s.type === "duur_variabel" || s.intentie?.sessietype === "z2_duur").length;
   const aantalVlak = overigeSessies.filter(s => s.type === "duur_lang" || s.intentie?.sessietype === "z2_vlak").length;
   const totaal = overigeSessies.length;
 

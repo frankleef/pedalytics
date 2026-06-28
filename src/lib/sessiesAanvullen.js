@@ -12,8 +12,39 @@ import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
 import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
 import { claudeCall } from "@/lib/claude";
 import { magSprintStaartje, SPRINT_STAARTJE_CONFIG } from "@/lib/sessie/weekpatroon";
+import {
+  getArchetypesVoorSessietype,
+  getRecenteArchetypes,
+  slaArchetypeOp,
+} from "@/lib/sessie-archetypes";
 
 const VERBODEN_TYPES_VOLUMECORRECTIE = ["kracht_lage_cadans", "sprint_neuraal"];
+
+const Z1_TOEGESTANE_SESSIETYPES = new Set([
+  'sprint_neuraal',
+  'z6_anaeroob',
+  'kracht_lage_cadans',
+]);
+
+const Z1_TOEGESTANE_GEMENGD_ARCHETYPES = new Set([
+  'alles_mag', 'raketstart', 'klim_simulator',
+]);
+
+function valideerZ1Gebruik(blokken, sessietype, archetypeId = null) {
+  if (Z1_TOEGESTANE_SESSIETYPES.has(sessietype)) return true;
+  if (sessietype === 'gemengd' && archetypeId && Z1_TOEGESTANE_GEMENGD_ARCHETYPES.has(archetypeId)) return true;
+  const overtredend = (blokken || []).find(b => b.zone === 'Z1');
+  if (overtredend) {
+    console.error(
+      `[sessiesAanvullen] Z1-blok gedetecteerd in sessietype "${sessietype}" — niet toegestaan.`,
+      overtredend
+    );
+    return false;
+  }
+  return true;
+}
+
+const VRIJHEID_FASEN = new Set(['sweetspot', 'drempel', 'vo2max']);
 
 export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tempoAfsluiters = [] } = {}) {
   const kv = getKV();
@@ -57,6 +88,19 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
     if (!plan.startdatum) return plan.kader?.[0] || null;
     const weekNr = weeknummerVoorDatum(isoDate, plan.startdatum);
     return plan.kader?.find(w => w.week === weekNr) || plan.kader?.[0] || null;
+  }
+
+  // Hulp: week-in-fase (1-based) voor een kaderweek
+  function weekInFaseVoorKaderWeek(kaderWeek) {
+    if (!kaderWeek || !plan.kader) return 1;
+    const sorted = [...plan.kader].sort((a, b) => a.week - b.week);
+    const fase = kaderWeek.fase;
+    let teller = 0;
+    for (const w of sorted) {
+      if (w.fase === fase) teller++;
+      if (w.week === kaderWeek.week) return teller;
+    }
+    return 1;
   }
 
   const ontbrekend = [];
@@ -141,7 +185,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
     if (tsb !== null && tsb < -25) continue;
     const bestaandeWeekSessies = bestaandeSessies.filter(s => s.datum && weekMaandagISO(s.datum) === mISO);
     const weekObject = { ...kaderWeek, dagen: bestaandeWeekSessies };
-    const z2Types = ["z2_vlak", "z2_variabel", "z2_steady", "z2_cadans", "z2_heuvel"];
+    const z2Types = ["z2_vlak", "z2_duur", "z2_steady", "z2_cadans", "z2_heuvel"];
     const kandidaatSessie = weekObject.dagen
       .filter(d => z2Types.includes(d.intentie?.sessietype) && !d.voltooid)
       .sort((a, b) => (b.duur_min || 0) - (a.duur_min || 0))[0];
@@ -173,7 +217,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       });
 
       if (aerobeDagen.includes(datum)) {
-        promptData.prompt += "\n\nVOLUMECORRECTIE — AEROBE COMPENSATIE: Deze sessie wordt toegevoegd als aerobe volumecompensatie op basis van een volumecorrectie-evaluatie. Het doel is extra aerobe stimulus. Gebruik uitsluitend sessietypes die primair het aerobe systeem trainen: z2_vlak, z2_variabel, of progressief. Gebruik geen kracht_lage_cadans, sprint_neuraal, microbursts of andere neuromusculaire sessietypes — die dienen een ander fysiologisch doel en zijn niet geschikt als volumecompensatie.";
+        promptData.prompt += "\n\nVOLUMECORRECTIE — AEROBE COMPENSATIE: Deze sessie wordt toegevoegd als aerobe volumecompensatie op basis van een volumecorrectie-evaluatie. Het doel is extra aerobe stimulus. Gebruik uitsluitend sessietypes die primair het aerobe systeem trainen: z2_vlak, z2_duur, of progressief. Gebruik geen kracht_lage_cadans, sprint_neuraal, microbursts of andere neuromusculaire sessietypes — die dienen een ander fysiologisch doel en zijn niet geschikt als volumecompensatie.";
       }
 
       if (tempoAfsluiters.includes(datum)) {
@@ -185,10 +229,58 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         promptData.prompt += "\n\nSPRINT-STAARTJE (harde instructie — niet optioneel):\nVoeg na de Z2-blokken 5 sprintblokken toe van 15 seconden op maximaal vermogen (Z7, positie 'midden'), elk gevolgd door 150 seconden actief herstel in Z1. De Z2-duur blijft volledig ongewijzigd — de sprints komen er achteraan.";
       }
 
+      // SESSIEVARIATIE — archetype-selectie vóór Claude-aanroep
+      const kaderWeekVoorDag = kaderWeekVoorDatum(datum);
+      const huidigeFase = kaderWeekVoorDag?.fase ?? 'basis';
+      const weekInFase = weekInFaseVoorKaderWeek(kaderWeekVoorDag);
+      const dagIntentieVoorDag = null; // nieuwe sessies hebben geen bestaande intentie
+
+      // Vrijheidsdag: week 3 van intensieve fase, tweede intensiteitsdag
+      const isVrijheidsdag = (
+        weekInFase === 3 &&
+        dagIntentieVoorDag?.dagRol === 'tweede_intensiteit' &&
+        VRIJHEID_FASEN.has(huidigeFase)
+      );
+      const effectiefSessietype = isVrijheidsdag ? 'gemengd' : (dagIntentieVoorDag?.sessietype ?? null);
+      if (isVrijheidsdag) {
+        console.log(`[sessiesAanvullen] Vrijheidsdag geactiveerd: week ${weekInFase}, fase ${huidigeFase}, datum ${datum}`);
+      }
+
+      let gekozenArchetypeId = null;
+      if (effectiefSessietype) {
+        const archetypes = getArchetypesVoorSessietype(
+          effectiefSessietype,
+          huidigeFase,
+          weekInFase,
+          plan.seizoensdoel?.type ?? null
+        );
+        if (archetypes.length > 0) {
+          const recenteArchetypes = await getRecenteArchetypes(kv, userId, effectiefSessietype);
+          const isGemengd = effectiefSessietype === 'gemengd';
+          const sessieVariatieBlok = JSON.stringify({
+            beschikbare_archetypes: archetypes,
+            recente_archetypes: recenteArchetypes,
+            rotatie_instructie: isGemengd
+              ? 'Dit is een vrijheidsessie (gemengd). Kies een archetype dat NIET gelijk is aan recente_archetypes[0]. Maak de beschrijving motiverend en energiek — dit is de leukste training van de week. Geef gekozen_archetype_id terug als apart veld in je JSON-output.'
+              : 'Kies een archetype dat NIET gelijk is aan recente_archetypes[0]. Geef sterke voorkeur aan archetypes die niet in recente_archetypes staan. Schaal blokduur proportioneel naar beschikbare sessieduur. Geef gekozen_archetype_id terug als apart veld in je JSON-output.',
+          }, null, 2);
+          promptData.prompt += `\n\nSESSIEVARIATIE — VERPLICHT\n\nJe ontvangt beschikbare_archetypes voor het gevraagde sessietype.\nKies exact één archetype. Regels:\n1. Kies NOOIT hetzelfde archetype als recente_archetypes[0]\n2. Geef sterke voorkeur aan archetypes die niet in recente_archetypes staan\n3. Schaal blokduur proportioneel naar beschikbare sessieduur — verander niet de blokverhouding (bv. 3:1 werk/herstel blijft 3:1)\n4. Geef gekozen_archetype_id terug als apart veld in je JSON-output\n\nTRAININGEN ZIJN LEUK EN AFWISSELEND:\nElke sessie heeft een herkenbare structuur — een progressie, een ritme of een spel.\nGeen rechte lijnen. Gebruik de archetypestructuur als basis.\n\nZ1-ZONE REGEL — HARDE CONSTRAINT:\nZ1 is verboden behalve in: sprint_neuraal, z6_anaeroob, kracht_lage_cadans.\nGebruik Z2 als minimumzone voor opwarming, cooling-down en herstelblokken\nin alle andere sessietypes.\n\n${sessieVariatieBlok}`;
+        }
+      }
+
       const raw = await claudeCall(promptData);
       const sessie = raw.sessie || raw.sessies?.[0] || raw;
       if (!sessie.datum) sessie.datum = datum;
       if (!sessie.dag) sessie.dag = dagNaam;
+
+      // Archetype opslaan na Claude-respons (STAP 4)
+      gekozenArchetypeId = raw.gekozen_archetype_id ?? sessie.gekozen_archetype_id ?? null;
+      if (gekozenArchetypeId && effectiefSessietype) {
+        await slaArchetypeOp(kv, userId, effectiefSessietype, gekozenArchetypeId);
+      } else if (effectiefSessietype) {
+        console.warn(`[sessiesAanvullen] gekozen_archetype_id ontbreekt voor ${effectiefSessietype} op ${datum}`);
+      }
+
       normaliseerSessieSegmenten(sessie);
       voegVerwachtRpeToe(sessie);
       corrigeerSessieTss(sessie);
@@ -267,6 +359,14 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         sessie.volumecorrectie = { aanleiding: "nieuwe_dag", beschikbareDagen: beschikbareDagenAantal, weekNr: aankomendeWeekNr };
       } else if (tempoAfsluiters.includes(datum)) {
         sessie.volumecorrectie = { aanleiding: "tempo_afsluiter", beschikbareDagen: beschikbareDagenAantal, weekNr: aankomendeWeekNr };
+      }
+
+      // Z1-validatie vóór berekenBlok (STAP 5)
+      {
+        const sessietype = sessie.intentie?.sessietype || sessie.sessietype || sessie.type;
+        if (!valideerZ1Gebruik(sessie.segmenten, sessietype, gekozenArchetypeId)) {
+          throw new Error(`Z1-validatie mislukt voor sessietype ${sessietype} op ${datum}`);
+        }
       }
 
       if (profiel.power_zones && profiel.ftp) {

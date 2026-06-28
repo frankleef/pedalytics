@@ -32,13 +32,13 @@ export async function POST(request) {
     duur_min: duurMin,
     intentie: {
       rol: "aerobe_dag",
-      sessietype: "z2_variabel",
+      sessietype: "z2_duur",
       toegestane_zones: ["Z1", "Z2"],
       tss_range: { min: 40, max: 60 },
       toelichting: "Opportunistische sessie — HRV geeft ruimte voor extra volume",
     },
     opportunistisch: true,
-    segmenten: [{ zone: "Z2", positie: "midden", blokDuurSeconden: duurMin * 60, isSpecifiek: false, sessietype: "z2_variabel" }],
+    segmenten: [{ zone: "Z2", positie: "midden", blokDuurSeconden: duurMin * 60, isSpecifiek: false, sessietype: "z2_duur" }],
   };
 
   sessies.push(sessie);

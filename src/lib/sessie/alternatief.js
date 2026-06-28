@@ -9,10 +9,10 @@ const SESSIETYPES_PER_ROL_EN_FASE = {
     _default: ["sweetspot_intervallen", "over_under", "pyramide"],
   },
   variabele_dag: {
-    _default: ["progressief", "z2_variabel", "z2_cadans", "microbursts", "kracht_lage_cadans"],
+    _default: ["progressief", "z2_duur", "z2_cadans", "microbursts", "kracht_lage_cadans"],
   },
   aerobe_dag: {
-    _default: ["z2_variabel", "z2_vlak", "z2_cadans", "z2_heuvel", "z2_lang", "progressief"],
+    _default: ["z2_duur", "z2_vlak", "z2_cadans", "z2_heuvel", "z2_lang", "progressief"],
   },
   hersteldag: {
     _default: ["herstel_actief", "herstel_mobiliteit"],
@@ -23,10 +23,10 @@ function kiesAlternatiefSessietype(origineelType, rol, fase) {
   const opties = (
     SESSIETYPES_PER_ROL_EN_FASE[rol]?.[fase] ??
     SESSIETYPES_PER_ROL_EN_FASE[rol]?._default ??
-    ["z2_variabel"]
+    ["z2_duur"]
   ).filter(t => t !== origineelType);
 
-  return opties[0] ?? "z2_variabel";
+  return opties[0] ?? "z2_duur";
 }
 
 export function bepaalNieuweIntentie(origineleIntentie, reden, fase, hrvZone) {
@@ -37,7 +37,7 @@ export function bepaalNieuweIntentie(origineleIntentie, reden, fase, hrvZone) {
   if (HERSTELGERELATEERDE_REDENEN.includes(effectieveReden) && origineleIntentie.rol === "intensiteitsdag") {
     return {
       rol: "aerobe_dag",
-      sessietype: "z2_variabel",
+      sessietype: "z2_duur",
       toegestane_zones: ["Z1", "Z2"],
       tss_range: {
         min: Math.round((origineleIntentie.tss_range?.min ?? 60) * 0.6),

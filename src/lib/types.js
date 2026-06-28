@@ -6,7 +6,7 @@
  */
 
 /**
- * @typedef {"z2_vlak" | "z2_variabel" | "z2_cadans" | "z2_heuvel" | "z2_tempo_teugjes" | "z2_steady" | "z2_lang" |
+ * @typedef {"z2_vlak" | "z2_duur" | "z2_cadans" | "z2_heuvel" | "z2_tempo_teugjes" | "z2_steady" | "z2_lang" |
  *   "sweetspot_intervallen" | "sweetspot_lang" |
  *   "drempel_intervallen" | "over_under" | "pyramide" |
  *   "vo2max_intervallen" | "vo2max_lang" | "vo2max_kort" |
@@ -59,7 +59,7 @@ export const DAG_ROLLEN = [
 
 /** Geldige Sessietype-waarden */
 export const SESSIETYPES = [
-  "z2_vlak", "z2_variabel", "z2_cadans", "z2_heuvel", "z2_tempo_teugjes", "z2_steady", "z2_lang",
+  "z2_vlak", "z2_duur", "z2_cadans", "z2_heuvel", "z2_tempo_teugjes", "z2_steady", "z2_lang",
   "sweetspot_intervallen", "sweetspot_lang",
   "drempel_intervallen", "over_under", "pyramide",
   "vo2max_intervallen", "vo2max_lang", "vo2max_kort",

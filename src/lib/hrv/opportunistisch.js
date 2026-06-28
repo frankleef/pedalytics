@@ -9,7 +9,7 @@ export function bepaalOpportunistischeTraining(context) {
 
   return {
     type: "opportunistisch",
-    sessietype: "z2_variabel",
+    sessietype: "z2_duur",
     tss_range: { min: 40, max: 60 },
     notificatie: {
       titel: "Je lichaam is goed hersteld",

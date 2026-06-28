@@ -16,7 +16,7 @@ function maakWeek(weektype, dagen) {
 }
 
 const LANGSTE_Z2 = maakSessie("2026-06-28", "z2_vlak", 100);
-const KORTSTE_Z2 = maakSessie("2026-06-26", "z2_variabel", 60);
+const KORTSTE_Z2 = maakSessie("2026-06-26", "z2_duur", 60);
 
 test("herstelweek → false", () => {
   const week = maakWeek("herstel", [LANGSTE_Z2]);

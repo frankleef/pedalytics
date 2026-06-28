@@ -22,7 +22,7 @@ export const POPULATIENORMEN_HERSTEL = {
   pyramide: 1.5,
   microbursts: 1.5,
   z2_vlak: 0.8,
-  z2_variabel: 0.9,
+  z2_duur: 0.9,
   z2_lang: 1.0,
   sprint_neuraal: 1.2,
   kracht_lage_cadans: 1.5,

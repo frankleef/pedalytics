@@ -61,7 +61,7 @@ const SESSIETYPE_LABELS = {
   kracht_lage_cadans: "krachtsessie",
   race_simulatie: "racesimulatie",
   z2_vlak: "Z2-duurrit",
-  z2_variabel: "variabele Z2-rit",
+  z2_duur: "variabele Z2-rit",
 };
 
 export function bouwNotificatieTekst(type, sessie, hrvProfiel, huidigHrv) {
