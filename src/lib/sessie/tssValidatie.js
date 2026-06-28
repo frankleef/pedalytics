@@ -10,8 +10,6 @@ const IF_BEREIK = {
   drempel:        { min: 0.85, max: 0.98 },
   vo2max:         { min: 0.85, max: 1.05 },
   kracht_lage_cadans: { min: 0.70, max: 0.88 },
-  over_under:     { min: 0.80, max: 0.92 },
-  pyramide:       { min: 0.80, max: 0.95 },
   sprint_neuraal: { min: 0.55, max: 0.70 },
   z2_embedded_sprint: { min: 0.60, max: 0.72 },
 };

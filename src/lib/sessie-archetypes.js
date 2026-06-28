@@ -36,9 +36,30 @@ export const SESSIE_ARCHETYPES = {
       fase_beschikbaar: ['basis', 'sweetspot', 'drempel', 'vo2max', 'consolidatie'],
       week_in_fase_min: 3,
     },
+    {
+      id: 'z2_cadans',
+      naam: 'Cadansvariatie',
+      structuur: 'Blokken met verschillende cadans én vermogen binnen Z2',
+      tss_range: [55, 90],
+      fase_beschikbaar: ['basis', 'sweetspot', 'drempel', 'vo2max', 'consolidatie', 'taper'],
+    },
   ],
 
   sweetspot_intervallen: [
+    {
+      id: 'tempo_continu',
+      naam: 'Tempo continu',
+      structuur: '25–40 min aaneengesloten @ 76–85% FTP',
+      tss_range: [60, 90],
+      fase_beschikbaar: ['sweetspot', 'drempel', 'vo2max', 'consolidatie'],
+    },
+    {
+      id: 'tempo_intervallen',
+      naam: 'Tempo intervallen',
+      structuur: '4–5× [10–12 min @ 78–87% FTP], 3 min Z2 herstel',
+      tss_range: [65, 90],
+      fase_beschikbaar: ['sweetspot', 'drempel', 'vo2max', 'consolidatie'],
+    },
     {
       id: 'ss_standaard',
       naam: 'Sweetspot standaard',
@@ -74,60 +95,6 @@ export const SESSIE_ARCHETYPES = {
       structuur: '6–8× [8 min @ 90% FTP], 3 min Z2 herstel',
       tss_range: [70, 100],
       fase_beschikbaar: ['sweetspot', 'drempel', 'vo2max', 'consolidatie'],
-      week_in_fase_min: 2,
-    },
-  ],
-
-  tempo_intervallen: [
-    {
-      id: 'tempo_continu',
-      naam: 'Tempo continu',
-      structuur: '25–40 min aaneengesloten @ 78–85% FTP',
-      tss_range: [60, 90],
-      fase_beschikbaar: ['sweetspot', 'drempel', 'vo2max', 'consolidatie'],
-    },
-    {
-      id: 'tempo_intervallen',
-      naam: 'Tempo-intervallen',
-      structuur: '4–5× [10–12 min @ 80–88% FTP], 3 min Z2 herstel',
-      tss_range: [65, 90],
-      fase_beschikbaar: ['sweetspot', 'drempel', 'vo2max', 'consolidatie'],
-    },
-  ],
-
-  over_under: [
-    {
-      id: 'ou_standaard',
-      naam: 'Over-unders standaard',
-      structuur: '6× [2 min @ 88% → 1 min @ 105% FTP], 4 min Z2 herstel',
-      tss_range: [70, 90],
-      fase_beschikbaar: ['sweetspot', 'drempel', 'vo2max', 'consolidatie'],
-      week_in_fase_min: 5,
-    },
-    {
-      id: 'ou_lang',
-      naam: 'Lange over-unders',
-      structuur: '4× [3 min @ 88% → 2 min @ 103% FTP], 5 min Z2 herstel',
-      tss_range: [75, 100],
-      fase_beschikbaar: ['sweetspot', 'drempel', 'vo2max', 'consolidatie'],
-      week_in_fase_min: 5,
-    },
-  ],
-
-  pyramide: [
-    {
-      id: 'pyr_oplopend',
-      naam: 'Pyramide oplopend',
-      structuur: '2m–4m–6m @ drempel, 2 min Z2 tussenin',
-      tss_range: [75, 95],
-      fase_beschikbaar: ['drempel', 'vo2max', 'consolidatie'],
-    },
-    {
-      id: 'pyr_volledig',
-      naam: 'Volledige pyramide',
-      structuur: '2m–4m–6m–4m–2m @ drempel, 2 min Z2 tussenin',
-      tss_range: [80, 105],
-      fase_beschikbaar: ['drempel', 'vo2max', 'consolidatie'],
       week_in_fase_min: 2,
     },
   ],
@@ -195,6 +162,35 @@ export const SESSIE_ARCHETYPES = {
       id: 'drempel_wisselend',
       naam: 'Wisselende drempel',
       structuur: '1× [20 min @ 94%] + 1× [8 min @ 102% FTP], 5 min Z2 herstel',
+      tss_range: [80, 105],
+      fase_beschikbaar: ['drempel', 'vo2max', 'consolidatie'],
+      week_in_fase_min: 2,
+    },
+    {
+      id: 'ou_standaard',
+      naam: 'Over-unders',
+      structuur: '6× [2 min @ 88% → 1 min @ 105% FTP], 4 min Z2 herstel',
+      tss_range: [70, 90],
+      fase_beschikbaar: ['sweetspot', 'drempel', 'vo2max', 'consolidatie'],
+    },
+    {
+      id: 'ou_lang',
+      naam: 'Lange over-unders',
+      structuur: '4× [3 min @ 88% → 2 min @ 103% FTP], 5 min Z2 herstel',
+      tss_range: [75, 100],
+      fase_beschikbaar: ['sweetspot', 'drempel', 'vo2max', 'consolidatie'],
+    },
+    {
+      id: 'pyr_oplopend',
+      naam: 'Pyramide oplopend',
+      structuur: '2m–4m–6m @ drempel, 2 min Z2 tussenin',
+      tss_range: [75, 95],
+      fase_beschikbaar: ['drempel', 'vo2max', 'consolidatie'],
+    },
+    {
+      id: 'pyr_volledig',
+      naam: 'Volledige pyramide',
+      structuur: '2m–4m–6m–4m–2m @ drempel, 2 min Z2 tussenin',
       tss_range: [80, 105],
       fase_beschikbaar: ['drempel', 'vo2max', 'consolidatie'],
       week_in_fase_min: 2,
@@ -334,6 +330,23 @@ export const SESSIE_ARCHETYPES = {
   ],
 };
 
+const Z1_TOEGESTANE_SESSIETYPES = new Set(['sprint_neuraal', 'z6_anaeroob', 'kracht_lage_cadans']);
+const Z1_TOEGESTANE_GEMENGD_ARCHETYPES = new Set(['alles_mag', 'raketstart', 'klim_simulator']);
+
+/**
+ * Valideert of Z1-blokken zijn toegestaan voor het gegeven sessietype/archetype.
+ */
+export function valideerZ1Gebruik(blokken, sessietype, archetypeId = null) {
+  if (Z1_TOEGESTANE_SESSIETYPES.has(sessietype)) return true;
+  if (sessietype === 'gemengd' && archetypeId && Z1_TOEGESTANE_GEMENGD_ARCHETYPES.has(archetypeId)) return true;
+  const overtredend = (blokken || []).find(b => b.zone === 'Z1');
+  if (overtredend) {
+    console.error(`[sessie-archetypes] Z1-blok in sessietype "${sessietype}" — niet toegestaan.`, overtredend);
+    return false;
+  }
+  return true;
+}
+
 /**
  * Geeft gefilterde archetypes voor sessietype + fase + weekInFase.
  * Filtert ook op doel_beperking als seizoensdoel meegegeven.
@@ -342,6 +355,11 @@ export function getArchetypesVoorSessietype(sessietype, fase, weekInFase = 1, se
   const alle = SESSIE_ARCHETYPES[sessietype] ?? [];
   return alle.filter(a => {
     if (!a.fase_beschikbaar.includes(fase)) return false;
+    // Over-unders: sweetspot alleen vanaf week 5, drempel/vo2max/consolidatie altijd
+    if (['ou_standaard', 'ou_lang'].includes(a.id)) {
+      if (fase === 'sweetspot' && weekInFase < 5) return false;
+      return true;
+    }
     if ((a.week_in_fase_min ?? 1) > weekInFase) return false;
     if (a.doel_beperking && seizoensdoel && !a.doel_beperking.includes(seizoensdoel)) return false;
     return true;

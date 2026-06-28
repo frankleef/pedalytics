@@ -72,11 +72,11 @@ export async function POST(request) {
       // Centrale kracht-gate: max 1 kracht_lage_cadans per rollend 7-dagenvenster
       const krachtCheck = valideerKrachtRestrictie(result, params.overigeSessies || []);
       if (!krachtCheck.geldig) {
-        console.warn(`[Job ${jobId}] Kracht geblokkeerd — ${krachtCheck.reden} → z2_vlak`);
+        console.warn(`[Job ${jobId}] Kracht geblokkeerd — ${krachtCheck.reden} → z2_duur`);
         result.type = "duur_variabel";
-        result.titel = "Z2 Vlak — Kracht geblokkeerd";
+        result.titel = "Z2 Duur — Kracht geblokkeerd";
         if (result.intentie) {
-          result.intentie.sessietype = "z2_vlak";
+          result.intentie.sessietype = "z2_duur";
           result.intentie.rol = "aerobe_dag";
           result.intentie.toegestane_zones = ["Z2"];
         }
@@ -86,7 +86,7 @@ export async function POST(request) {
           positie: "midden",
           blokDuurSeconden: result.duur_min * 60,
           isSpecifiek: false,
-          sessietype: "z2_vlak",
+          sessietype: "z2_duur",
         }];
         corrigeerSessieTss(result);
       }

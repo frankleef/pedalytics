@@ -2,17 +2,17 @@ const HERSTELGERELATEERDE_REDENEN = ["hitte", "vermoeid"];
 
 const SESSIETYPES_PER_ROL_EN_FASE = {
   intensiteitsdag: {
-    basis: ["sweetspot_intervallen", "over_under", "pyramide", "progressief"],
-    sweetspot: ["over_under", "sweetspot_lang", "sweetspot_intervallen", "drempel_intervallen"],
-    drempel: ["drempel_intervallen", "over_under", "vo2max_lang", "vo2max_kort", "pyramide"],
-    consolidatie: ["race_simulatie", "drempel_intervallen", "over_under"],
-    _default: ["sweetspot_intervallen", "over_under", "pyramide"],
+    basis: ["sweetspot_intervallen", "drempel_intervallen", "progressief"],
+    sweetspot: ["sweetspot_lang", "sweetspot_intervallen", "drempel_intervallen"],
+    drempel: ["drempel_intervallen", "vo2max_lang", "vo2max_kort"],
+    consolidatie: ["race_simulatie", "drempel_intervallen"],
+    _default: ["sweetspot_intervallen", "drempel_intervallen"],
   },
   variabele_dag: {
-    _default: ["progressief", "z2_duur", "z2_cadans", "microbursts", "kracht_lage_cadans"],
+    _default: ["progressief", "z2_duur", "microbursts", "kracht_lage_cadans"],
   },
   aerobe_dag: {
-    _default: ["z2_duur", "z2_vlak", "z2_cadans", "z2_heuvel", "z2_lang", "progressief"],
+    _default: ["z2_duur", "z2_heuvel", "z2_lang", "progressief"],
   },
   hersteldag: {
     _default: ["herstel_actief", "herstel_mobiliteit"],

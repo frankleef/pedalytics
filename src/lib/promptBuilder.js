@@ -9,11 +9,11 @@ import { maxTrainingsdagenPerWeek } from "./trainingsfrequentie";
 function sessietypesVoorFase(fase, kaderWeek) {
   if (kaderWeek?.sessietypes?.length > 0) return kaderWeek.sessietypes.join(", ");
   const tabel = {
-    basis: "z2_vlak, z2_duur, z2_cadans, z2_heuvel, progressief, z1_herstel, herstel_mobiliteit — GEEN intensiteitssessies",
-    sweetspot: "sweetspot_intervallen, sweetspot_lang, over_under, microbursts, z2_vlak, z2_duur, z2_cadans, progressief, z1_herstel, herstel_mobiliteit",
-    drempel: "drempel_intervallen, over_under, pyramide, vo2max_lang, vo2max_kort, z2_vlak, z2_duur, progressief, z1_herstel, herstel_mobiliteit",
-    consolidatie: "race_simulatie, drempel_intervallen, over_under, z2_duur, z1_herstel, herstel_mobiliteit",
-    test: "z2_vlak, ramp_test",
+    basis: "z2_duur, z2_heuvel, progressief, z1_herstel, herstel_mobiliteit — GEEN intensiteitssessies",
+    sweetspot: "sweetspot_intervallen, sweetspot_lang, microbursts, z2_duur, progressief, z1_herstel, herstel_mobiliteit",
+    drempel: "drempel_intervallen, vo2max_lang, vo2max_kort, z2_duur, progressief, z1_herstel, herstel_mobiliteit",
+    consolidatie: "race_simulatie, drempel_intervallen, z2_duur, z1_herstel, herstel_mobiliteit",
+    test: "z2_duur, ramp_test",
   };
   return tabel[fase] || tabel.basis;
 }
@@ -66,7 +66,8 @@ SESSIETYPES VOOR DEZE FASE:
 DAG-INTENTIE (verplicht voor elke trainingsdag):
 Elke sessie bevat een "intentie"-object met:
 - rol: één van [intensiteitsdag, aerobe_dag, hersteldag, variabele_dag, ftp_test]
-- sessietype: één van [sweetspot_intervallen, sweetspot_lang, drempel_intervallen, over_under, pyramide, vo2max_intervallen, vo2max_lang, vo2max_kort, microbursts, race_simulatie, progressief, sprint_neuraal, kracht_lage_cadans, z2_vlak, z2_duur, z2_cadans, z2_heuvel, z2_tempo_teugjes, z2_steady, z2_lang, z2_embedded_sprint, sprint_peak_test, z1_herstel, herstel_actief, herstel_mobiliteit, ramp_test]
+- sessietype: één van [z2_duur, sweetspot_intervallen, kracht_lage_cadans, drempel_intervallen, vo2max_intervallen, sprint_neuraal, z6_anaeroob, gemengd, sweetspot_lang, vo2max_lang, vo2max_kort, microbursts, race_simulatie, progressief, z2_heuvel, z2_tempo_teugjes, z2_steady, z2_lang, z2_embedded_sprint, sprint_peak_test, z1_herstel, herstel_actief, herstel_mobiliteit, ramp_test]
+  VERBODEN sessietypes: z2_vlak (gebruik z2_duur), z2_cadans (gebruik z2_duur), over_under (gebruik drempel_intervallen), pyramide (gebruik drempel_intervallen), tempo_intervallen (gebruik sweetspot_intervallen)
 - toegestane_zones: array van zones die deze dag gebruikt mogen worden (bv. ["Z1", "Z2"])
 - tss_range: { min, max } waarbinnen de TSS moet vallen
 - toelichting: één zin over de rol van deze dag in het weekpatroon
@@ -90,7 +91,7 @@ Geef JSON:
           "vermogen": "170-195W", "hartslag": "<152 bpm", "reden": "...",
           "intentie": {
             "rol": "aerobe_dag",
-            "sessietype": "z2_vlak",
+            "sessietype": "z2_duur",
             "toegestane_zones": ["Z1", "Z2"],
             "tss_range": { "min": 70, "max": 100 },
             "toelichting": "Aerobe basis opbouwen"
@@ -247,9 +248,7 @@ SESSIETYPES:
 - sweetspot: 88-93% FTP blokken met Z2-herstel ertussen
 - interval: 95-120% FTP blokken met Z2-herstel ertussen
 - herstel: laag vermogen (50-60% FTP)
-- over_under: sets van 2m @ 86-90% FTP (under) + 1m @ 103-107% FTP (over), 5m Z2 herstel tussen sets. TSS 70-90
 - sprint_neuraal: 6-8x sprint 10-15s @ max (>150% FTP), 3-5m Z1 herstel. TSS 30-45. Nooit naast intensiteitsdag
-- pyramide: oplopend+aflopend rondom drempel: 2m→4m→6m→4m→2m @ 95-105% FTP, Z2 herstel. TSS 75-100
 - kracht_lage_cadans: 4-6x 5min @ 88-100% FTP met cadans_rpm {min:48, max:58}, 3min Z2 herstel ertussen (cadans terug naar 85-95 rpm). TSS 55-80. Voeg cadans_rpm toe aan de segmenten
 - z2_embedded_sprint: Z2 duurrit met 4-6 ingebedde max sprints (10-15s), 5min Z1 herstel na elke sprint. TSS 50-70
 - sprint_peak_test: 3x max sprint 10s, 5min Z1 rust ertussen. Eindtest voor sprint-doel
@@ -283,15 +282,14 @@ Z1 (<55% FTP) is ALLEEN toegestaan als herstelblok in: sprint_neuraal, vo2max_in
 In ALLE andere sessietypes gebruik je Z2 voor herstelblokken:
 - kracht_lage_cadans: herstel → Z2 (positie "onder"), cadans terug naar 85-95 rpm
 - sweetspot/drempel: herstel → Z2 (positie "midden")
-- over_under: under-fase → Z3 (positie "onder"), herstel tussen sets → Z2
-- pyramide: herstel → Z2 (positie "midden")
 - duur_variabel: herstel → Z2 (positie "onder")
 Z2-herstel houdt de aerobe stimulus actief. Z1 is uitsluitend voor volledig herstel na maximale inspanningen.
 
 DAG-INTENTIE (verplicht voor elke trainingsdag):
 Elke sessie moet een "intentie"-object bevatten met:
 - rol: één van [intensiteitsdag, aerobe_dag, hersteldag, variabele_dag, ftp_test]
-- sessietype: één van [sweetspot_intervallen, sweetspot_lang, drempel_intervallen, over_under, pyramide, vo2max_intervallen, vo2max_lang, vo2max_kort, microbursts, race_simulatie, progressief, sprint_neuraal, kracht_lage_cadans, z2_vlak, z2_duur, z2_cadans, z2_heuvel, z2_tempo_teugjes, z2_steady, z2_lang, z2_embedded_sprint, sprint_peak_test, z1_herstel, herstel_actief, herstel_mobiliteit, ramp_test]
+- sessietype: één van [z2_duur, sweetspot_intervallen, kracht_lage_cadans, drempel_intervallen, vo2max_intervallen, sprint_neuraal, z6_anaeroob, gemengd, sweetspot_lang, vo2max_lang, vo2max_kort, microbursts, race_simulatie, progressief, z2_heuvel, z2_tempo_teugjes, z2_steady, z2_lang, z2_embedded_sprint, sprint_peak_test, z1_herstel, herstel_actief, herstel_mobiliteit, ramp_test]
+  VERBODEN sessietypes: z2_vlak (gebruik z2_duur), z2_cadans (gebruik z2_duur), over_under (gebruik drempel_intervallen), pyramide (gebruik drempel_intervallen), tempo_intervallen (gebruik sweetspot_intervallen)
 - toegestane_zones: array van zones (bv. ["Z1", "Z2"])
 - tss_range: { min, max }
 - toelichting: één zin over de rol van deze dag
@@ -385,7 +383,8 @@ Aanleiding voor deze aanroep: ${ctx.aanleiding}`;
     intentieInstructie = `DAG-INTENTIE (verplicht — bepaal zelf):
 Voeg een "intentie"-object toe met:
 - rol: één van [intensiteitsdag, aerobe_dag, hersteldag, variabele_dag, ftp_test]
-- sessietype: één van [sweetspot_intervallen, sweetspot_lang, drempel_intervallen, over_under, pyramide, vo2max_intervallen, vo2max_lang, vo2max_kort, microbursts, race_simulatie, progressief, sprint_neuraal, kracht_lage_cadans, z2_vlak, z2_duur, z2_cadans, z2_heuvel, z2_tempo_teugjes, z2_steady, z2_lang, z2_embedded_sprint, sprint_peak_test, z1_herstel, herstel_actief, herstel_mobiliteit, ramp_test]
+- sessietype: één van [z2_duur, sweetspot_intervallen, kracht_lage_cadans, drempel_intervallen, vo2max_intervallen, sprint_neuraal, z6_anaeroob, gemengd, sweetspot_lang, vo2max_lang, vo2max_kort, microbursts, race_simulatie, progressief, z2_heuvel, z2_tempo_teugjes, z2_steady, z2_lang, z2_embedded_sprint, sprint_peak_test, z1_herstel, herstel_actief, herstel_mobiliteit, ramp_test]
+  VERBODEN sessietypes: z2_vlak (gebruik z2_duur), z2_cadans (gebruik z2_duur), over_under (gebruik drempel_intervallen), pyramide (gebruik drempel_intervallen), tempo_intervallen (gebruik sweetspot_intervallen)
 - toegestane_zones: array van zones (bv. ["Z1", "Z2"])
 - tss_range: { min, max }
 - toelichting: één zin over de rol van deze dag
@@ -428,17 +427,17 @@ Spec: 4-6x 4-5min @ zone Z5, herstel 1:1, TSS 70-90, warm-up ≥10min progressie
 
   let herstelpatroonContext = "";
   if (ctx.aanleiding === "herstelpatroon_correctie") {
-    herstelpatroonContext = "\nHERSTELPATROON-CORRECTIE: deze dag grenst aan een zware sessie en heeft onvoldoende herstel. Verlaag de intensiteit: kortere duur (−20–30%), vermogen naar onderkant van de zone, of schakel om naar z2_vlak als het sessietype zwaarder was. Behoud het sessietype als het al Z2 is — pas alleen duur en vermogen aan.";
+    herstelpatroonContext = "\nHERSTELPATROON-CORRECTIE: deze dag grenst aan een zware sessie en heeft onvoldoende herstel. Verlaag de intensiteit: kortere duur (−20–30%), vermogen naar onderkant van de zone, of schakel om naar z2_duur als het sessietype zwaarder was. Behoud het sessietype als het al Z2 is — pas alleen duur en vermogen aan.";
   }
 
   let z3RuilContext = "";
   if (ctx.aanleiding === "beschikbaarheid_nieuw_z2_ruil") {
-    z3RuilContext = "\nZ3-NAAR-Z2 RUIL: een bestaande sessie deze week had een Z3-afsluiter die net is verwijderd omdat er een extra beschikbare dag is bijgekomen. Deze sessie is de aerobe compensatie daarvoor. Genereer uitsluitend een Z2-sessie (z2_vlak of z2_duur). Geen Z3 of hogere zones. Het weekdoel wordt gehaald via dit extra Z2-volume.";
+    z3RuilContext = "\nZ3-NAAR-Z2 RUIL: een bestaande sessie deze week had een Z3-afsluiter die net is verwijderd omdat er een extra beschikbare dag is bijgekomen. Deze sessie is de aerobe compensatie daarvoor. Genereer uitsluitend een Z2-sessie (z2_duur). Geen Z3 of hogere zones. Het weekdoel wordt gehaald via dit extra Z2-volume.";
   }
 
   let volumecorrectieRestrictieContext = "";
   if (ctx.aanleiding?.startsWith("volumecorrectie") || ctx.aanleiding === "herstelpatroon_correctie") {
-    volumecorrectieRestrictieContext = "\nVOLUMECORRECTIE — SESSIETYPE RESTRICTIE: deze sessie wordt gegenereerd als onderdeel van een volumecorrectie. Het doel is uitsluitend aerobe stimulus. De volgende sessietypes zijn verboden voor deze aanroep: kracht_lage_cadans (neuromusculaire prikkel, geen aerobe volumecompensatie), sprint_neuraal (neuromusculaire prikkel, geen aerobe volumecompensatie). Gebruik uitsluitend: z2_vlak, z2_duur, progressief. Als de volumecorrectie een tempo-afsluiter vereist: voeg een Z3-blok toe aan een z2_vlak of z2_duur sessie — genereer geen apart kracht- of sprintsessietype.";
+    volumecorrectieRestrictieContext = "\nVOLUMECORRECTIE — SESSIETYPE RESTRICTIE: deze sessie wordt gegenereerd als onderdeel van een volumecorrectie. Het doel is uitsluitend aerobe stimulus. De volgende sessietypes zijn verboden voor deze aanroep: kracht_lage_cadans (neuromusculaire prikkel, geen aerobe volumecompensatie), sprint_neuraal (neuromusculaire prikkel, geen aerobe volumecompensatie). Gebruik uitsluitend: z2_duur, progressief. Als de volumecorrectie een tempo-afsluiter vereist: voeg een Z3-blok toe aan een z2_duur sessie — genereer geen apart kracht- of sprintsessietype.";
   }
 
   let distributieContext = "";
@@ -505,7 +504,7 @@ Alleen JSON.`,
 function bouwWeekrolVanContext(overigeSessies, fase, uren) {
   const aantalZwaar = overigeSessies.filter(s => s.isZwaar).length;
   const aantalVariabel = overigeSessies.filter(s => s.type === "duur_variabel" || s.intentie?.sessietype === "z2_duur").length;
-  const aantalVlak = overigeSessies.filter(s => s.type === "duur_lang" || s.intentie?.sessietype === "z2_vlak").length;
+  const aantalVlak = overigeSessies.filter(s => s.type === "duur_lang" || s.intentie?.sessietype === "z2_duur").length;
   const totaal = overigeSessies.length;
 
   let rol;

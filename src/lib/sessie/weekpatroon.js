@@ -1,7 +1,7 @@
 const ZWAAR_ROLLEN = ["intensiteitsdag", "variabele_dag", "kracht_dag"];
-const ZWAAR_TYPES = ["kracht_lage_cadans", "sweetspot_intervallen", "drempel_intervallen", "vo2max_intervallen", "over_under", "sprint_neuraal", "pyramide"];
+const ZWAAR_TYPES = ["kracht_lage_cadans", "sweetspot_intervallen", "drempel_intervallen", "vo2max_intervallen", "sprint_neuraal"];
 
-const Z2_TYPES = ["z2_vlak", "z2_duur", "z2_steady", "z2_cadans", "z2_heuvel"];
+const Z2_TYPES = ["z2_duur", "z2_steady", "z2_heuvel"];
 
 export const SPRINT_STAARTJE_CONFIG = {
   aantal: 5,

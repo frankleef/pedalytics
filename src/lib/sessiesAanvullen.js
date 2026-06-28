@@ -20,6 +20,17 @@ import {
 
 const VERBODEN_TYPES_VOLUMECORRECTIE = ["kracht_lage_cadans", "sprint_neuraal"];
 
+const GELDIGE_SESSIETYPES = new Set([
+  'z2_duur', 'sweetspot_intervallen', 'kracht_lage_cadans',
+  'drempel_intervallen', 'vo2max_intervallen',
+  'sprint_neuraal', 'z6_anaeroob', 'gemengd',
+  // Uitgebreide typen (geen kern maar wel geldig)
+  'sweetspot_lang', 'vo2max_lang', 'vo2max_kort', 'microbursts',
+  'race_simulatie', 'progressief', 'z2_heuvel', 'z2_tempo_teugjes',
+  'z2_steady', 'z2_lang', 'z2_embedded_sprint', 'sprint_peak_test',
+  'z1_herstel', 'herstel_actief', 'herstel_mobiliteit', 'ramp_test',
+]);
+
 const Z1_TOEGESTANE_SESSIETYPES = new Set([
   'sprint_neuraal',
   'z6_anaeroob',
@@ -185,7 +196,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
     if (tsb !== null && tsb < -25) continue;
     const bestaandeWeekSessies = bestaandeSessies.filter(s => s.datum && weekMaandagISO(s.datum) === mISO);
     const weekObject = { ...kaderWeek, dagen: bestaandeWeekSessies };
-    const z2Types = ["z2_vlak", "z2_duur", "z2_steady", "z2_cadans", "z2_heuvel"];
+    const z2Types = ["z2_duur", "z2_steady", "z2_heuvel"];
     const kandidaatSessie = weekObject.dagen
       .filter(d => z2Types.includes(d.intentie?.sessietype) && !d.voltooid)
       .sort((a, b) => (b.duur_min || 0) - (a.duur_min || 0))[0];
@@ -217,7 +228,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       });
 
       if (aerobeDagen.includes(datum)) {
-        promptData.prompt += "\n\nVOLUMECORRECTIE — AEROBE COMPENSATIE: Deze sessie wordt toegevoegd als aerobe volumecompensatie op basis van een volumecorrectie-evaluatie. Het doel is extra aerobe stimulus. Gebruik uitsluitend sessietypes die primair het aerobe systeem trainen: z2_vlak, z2_duur, of progressief. Gebruik geen kracht_lage_cadans, sprint_neuraal, microbursts of andere neuromusculaire sessietypes — die dienen een ander fysiologisch doel en zijn niet geschikt als volumecompensatie.";
+        promptData.prompt += "\n\nVOLUMECORRECTIE — AEROBE COMPENSATIE: Deze sessie wordt toegevoegd als aerobe volumecompensatie op basis van een volumecorrectie-evaluatie. Het doel is extra aerobe stimulus. Gebruik uitsluitend sessietypes die primair het aerobe systeem trainen: z2_duur of progressief. Gebruik geen kracht_lage_cadans, sprint_neuraal, microbursts of andere neuromusculaire sessietypes — die dienen een ander fysiologisch doel en zijn niet geschikt als volumecompensatie.";
       }
 
       if (tempoAfsluiters.includes(datum)) {
@@ -273,6 +284,21 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       if (!sessie.datum) sessie.datum = datum;
       if (!sessie.dag) sessie.dag = dagNaam;
 
+      // Sessietype-validatie: verboden typen direct afvangen
+      {
+        const gegevenType = sessie.intentie?.sessietype || sessie.sessietype;
+        if (!GELDIGE_SESSIETYPES.has(gegevenType) && gegevenType) {
+          const MIGRATIE_MAP = {
+            z2_vlak: 'z2_duur', z2_cadans: 'z2_duur',
+            over_under: 'drempel_intervallen', pyramide: 'drempel_intervallen',
+            tempo_intervallen: 'sweetspot_intervallen',
+          };
+          const vervangen = MIGRATIE_MAP[gegevenType] ?? 'z2_duur';
+          console.warn(`[sessiesAanvullen] Ongeldig sessietype "${gegevenType}" → "${vervangen}" op ${datum}`);
+          if (sessie.intentie) sessie.intentie.sessietype = vervangen;
+        }
+      }
+
       // Archetype opslaan na Claude-respons (STAP 4)
       gekozenArchetypeId = raw.gekozen_archetype_id ?? sessie.gekozen_archetype_id ?? null;
       if (gekozenArchetypeId && effectiefSessietype) {
@@ -298,14 +324,14 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         const sessietype = sessie.intentie?.sessietype || sessie.sessietype || "";
         if (VERBODEN_TYPES_VOLUMECORRECTIE.includes(sessietype)) {
           const reden = `${sessietype} niet toegestaan bij volumecorrectie`;
-          console.warn(`[sessiesAanvullen] ${userId} ${datum}: type-fix → z2_vlak (${reden})`);
+          console.warn(`[sessiesAanvullen] ${userId} ${datum}: type-fix → z2_duur (${reden})`);
           try {
-            await kv.set(`volumecorrectie_type_fix:${userId}:${datum}`, { datum, vervangen: sessietype, door: "z2_vlak", reden }, { ex: 30 * 86400 });
+            await kv.set(`volumecorrectie_type_fix:${userId}:${datum}`, { datum, vervangen: sessietype, door: "z2_duur", reden }, { ex: 30 * 86400 });
           } catch {}
           sessie.type = "duur_variabel";
-          sessie.titel = "Z2 Vlak — Volumecorrectie";
+          sessie.titel = "Z2 Duur — Volumecorrectie";
           if (sessie.intentie) {
-            sessie.intentie.sessietype = "z2_vlak";
+            sessie.intentie.sessietype = "z2_duur";
             sessie.intentie.rol = "aerobe_dag";
             sessie.intentie.toegestane_zones = ["Z2"];
           }
@@ -315,7 +341,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
             positie: "midden",
             blokDuurSeconden: sessie.duur_min * 60,
             isSpecifiek: false,
-            sessietype: "z2_vlak",
+            sessietype: "z2_duur",
           }];
           corrigeerSessieTss(sessie);
         }
@@ -326,14 +352,14 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         const allesSessiesKracht = [...bestaandeSessies, ...aangevuld];
         const krachtCheck = valideerKrachtRestrictie(sessie, allesSessiesKracht);
         if (!krachtCheck.geldig) {
-          console.warn(`[sessiesAanvullen] ${userId} ${datum}: kracht geblokkeerd — ${krachtCheck.reden} → z2_vlak`);
+          console.warn(`[sessiesAanvullen] ${userId} ${datum}: kracht geblokkeerd — ${krachtCheck.reden} → z2_duur`);
           try {
-            await kv.set(`kracht_gate_fix:${userId}:${datum}`, { datum, reden: krachtCheck.reden, door: "z2_vlak" }, { ex: 30 * 86400 });
+            await kv.set(`kracht_gate_fix:${userId}:${datum}`, { datum, reden: krachtCheck.reden, door: "z2_duur" }, { ex: 30 * 86400 });
           } catch {}
           sessie.type = "duur_variabel";
-          sessie.titel = "Z2 Vlak — Kracht geblokkeerd";
+          sessie.titel = "Z2 Duur — Kracht geblokkeerd";
           if (sessie.intentie) {
-            sessie.intentie.sessietype = "z2_vlak";
+            sessie.intentie.sessietype = "z2_duur";
             sessie.intentie.rol = "aerobe_dag";
             sessie.intentie.toegestane_zones = ["Z2"];
           }
@@ -343,7 +369,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
             positie: "midden",
             blokDuurSeconden: sessie.duur_min * 60,
             isSpecifiek: false,
-            sessietype: "z2_vlak",
+            sessietype: "z2_duur",
           }];
           corrigeerSessieTss(sessie);
         }

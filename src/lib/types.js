@@ -6,12 +6,12 @@
  */
 
 /**
- * @typedef {"z2_vlak" | "z2_duur" | "z2_cadans" | "z2_heuvel" | "z2_tempo_teugjes" | "z2_steady" | "z2_lang" |
+ * @typedef {"z2_duur" | "z2_heuvel" | "z2_tempo_teugjes" | "z2_steady" | "z2_lang" |
  *   "sweetspot_intervallen" | "sweetspot_lang" |
- *   "drempel_intervallen" | "over_under" | "pyramide" |
+ *   "drempel_intervallen" |
  *   "vo2max_intervallen" | "vo2max_lang" | "vo2max_kort" |
  *   "microbursts" | "race_simulatie" | "progressief" |
- *   "sprint_neuraal" | "kracht_lage_cadans" |
+ *   "sprint_neuraal" | "kracht_lage_cadans" | "z6_anaeroob" | "gemengd" |
  *   "z2_embedded_sprint" | "sprint_peak_test" |
  *   "herstel_actief" | "herstel_mobiliteit" |
  *   "z1_herstel" | "ramp_test"} Sessietype
@@ -57,14 +57,14 @@ export const DAG_ROLLEN = [
   "ftp_test",
 ];
 
-/** Geldige Sessietype-waarden */
+/** Geldige Sessietype-waarden (8 kern + uitgebreide) */
 export const SESSIETYPES = [
-  "z2_vlak", "z2_duur", "z2_cadans", "z2_heuvel", "z2_tempo_teugjes", "z2_steady", "z2_lang",
+  "z2_duur", "z2_heuvel", "z2_tempo_teugjes", "z2_steady", "z2_lang",
   "sweetspot_intervallen", "sweetspot_lang",
-  "drempel_intervallen", "over_under", "pyramide",
+  "drempel_intervallen",
   "vo2max_intervallen", "vo2max_lang", "vo2max_kort",
   "microbursts", "race_simulatie", "progressief",
-  "sprint_neuraal", "kracht_lage_cadans",
+  "sprint_neuraal", "kracht_lage_cadans", "z6_anaeroob", "gemengd",
   "z2_embedded_sprint", "sprint_peak_test",
   "herstel_actief", "herstel_mobiliteit",
   "z1_herstel", "ramp_test",

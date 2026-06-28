@@ -3,7 +3,7 @@ import { voorspelRpeEffect } from "./correlatie";
 
 const INTENSITEITS_TYPES = [
   "drempel_intervallen", "sweetspot_intervallen", "sweetspot_lang",
-  "over_under", "pyramide", "vo2max_intervallen", "vo2max_lang",
+  "vo2max_intervallen", "vo2max_lang",
   "vo2max_kort", "microbursts", "sprint_neuraal", "kracht_lage_cadans",
   "race_simulatie",
 ];
@@ -51,8 +51,6 @@ const SESSIETYPE_LABELS = {
   drempel_intervallen: "drempeltraining",
   sweetspot_intervallen: "sweetspot-training",
   sweetspot_lang: "lange sweetspot-sessie",
-  over_under: "over-under sessie",
-  pyramide: "pyramide-sessie",
   vo2max_intervallen: "VO2max-training",
   vo2max_lang: "lange VO2max-sessie",
   vo2max_kort: "korte VO2max-intervallen",
@@ -60,8 +58,9 @@ const SESSIETYPE_LABELS = {
   sprint_neuraal: "sprinttraining",
   kracht_lage_cadans: "krachtsessie",
   race_simulatie: "racesimulatie",
-  z2_vlak: "Z2-duurrit",
-  z2_duur: "variabele Z2-rit",
+  z2_duur: "Z2-duurrit",
+  z6_anaeroob: "anaerobe training",
+  gemengd: "gemengde sessie",
 };
 
 export function bouwNotificatieTekst(type, sessie, hrvProfiel, huidigHrv) {

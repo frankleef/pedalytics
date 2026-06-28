@@ -55,11 +55,8 @@ export function cadansVoorBlok(sessietype, blokDuurSeconden, zone, positie) {
   }
   if (["vo2max_kort", "microbursts"].includes(sessietype)) return { min: 90, max: 110 };
   if (sessietype === "z6_anaeroob") return { min: 95, max: 105 };
-  if (["drempel_intervallen", "over_under", "pyramide", "sweetspot_intervallen", "sweetspot_lang"].includes(sessietype)) {
+  if (["drempel_intervallen", "sweetspot_intervallen", "sweetspot_lang"].includes(sessietype)) {
     return { min: 88, max: 95 };
-  }
-  if (sessietype === "z2_cadans") {
-    return positie === "boven" ? { min: 95, max: 105 } : { min: 70, max: 80 };
   }
   if (sessietype === "z2_heuvel") {
     return positie === "boven" ? { min: 70, max: 80 } : { min: 90, max: 100 };

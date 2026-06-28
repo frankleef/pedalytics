@@ -60,7 +60,7 @@ export async function POST(request) {
       focus: faseInfo ? `${faseInfo.sessietypes.slice(0, 3).join(", ")}` : "Z2 volume",
       z1z2_doel: faseInfo?.z1z2_doel || 0.80,
       max_intensiteit: faseInfo?.max_intensiteit_per_week ?? 1,
-      sessietypes: faseInfo?.sessietypes || ["z2_vlak", "z2_duur", "z1_herstel"],
+      sessietypes: faseInfo?.sessietypes || ["z2_duur", "z1_herstel"],
     };
   });
 

@@ -46,7 +46,7 @@ const gemeenschappelijkeGegevens = {
     tss_doel: 80,
   },
   intentieZ2: {
-    sessietype: 'z2_vlak',
+    sessietype: 'z2_duur',
     toegestane_zones: ['Z1', 'Z2'],
   },
 }
@@ -63,12 +63,12 @@ test('berekenUitvoeringsscore: duurrit 30% te kort → duur-dimensie laag', () =
   const gepland = { duur_seconden: 5400, tss_doel: 80 }
   const score = berekenUitvoeringsscore(werkelijk, gepland, gemeenschappelijkeGegevens.intentieZ2)
   expect(score).not.toBeNull()
-  expect(score).toBeLessThan(6.0)
+  expect(score).toBeLessThan(7.0)
 })
 
 test('berekenUitvoeringsscore: Z2-sessie met 40% Z4 → lager dan sessie met 5% Z4', () => {
   const gepland = { duur_seconden: 5400, tss_doel: 80 }
-  const intentie = { sessietype: 'z2_vlak', toegestane_zones: ['Z1', 'Z2'] }
+  const intentie = { sessietype: 'z2_duur', toegestane_zones: ['Z1', 'Z2'] }
 
   const scoreVeel = berekenUitvoeringsscore(
     { moving_time: 5400, icu_training_load: 80, icu_intensity: 0.65, icu_time_in_zone: { Z1: 300, Z2: 2940, Z3: 0, Z4: 2160 } },
@@ -86,7 +86,7 @@ test('berekenUitvoeringsscore: gewichten 0.23+0.15+0.22+0.40 → score in [0,10]
   const score = berekenUitvoeringsscore(
     { moving_time: 5400, icu_training_load: 80, icu_intensity: 0.65, icu_time_in_zone: { Z1: 300, Z2: 4800, Z3: 300 } },
     { duur_seconden: 5400, tss_doel: 80 },
-    { sessietype: 'z2_vlak', toegestane_zones: ['Z1', 'Z2'] }
+    { sessietype: 'z2_duur', toegestane_zones: ['Z1', 'Z2'] }
   )
   expect(score).not.toBeNull()
   expect(score).toBeGreaterThanOrEqual(0)

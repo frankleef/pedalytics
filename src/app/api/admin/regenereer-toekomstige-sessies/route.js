@@ -53,6 +53,14 @@ export async function POST(request) {
   // 1. KV-migratie z2_variabel → z2_duur
   await migreerZ2VariabelNaarDuur(kv, userId);
 
+  // KV-cleanup verouderde sessietype-sleutels
+  const VEROUDERDE_SESSIETYPES = ['over_under', 'pyramide', 'tempo_intervallen', 'z2_vlak', 'z2_cadans'];
+  for (const oud of VEROUDERDE_SESSIETYPES) {
+    try {
+      await kv.delete(`sessie_archetypes:${userId}:${oud}`);
+    } catch { /* sleutel bestond niet — geen probleem */ }
+  }
+
   // 2. Plan ophalen
   const planKey = `${userId}:seizoensplan`;
   const plan = await kv.get(planKey);

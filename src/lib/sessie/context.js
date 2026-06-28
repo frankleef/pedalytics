@@ -4,7 +4,7 @@
 import { kiesZ2Subtype, Z2_SUBTYPES } from "./z2subtypes";
 import { bepaalTrainingsmethode } from "./trainingsmethode";
 import { weeknummerVoorDatum } from "../weekgrenzen";
-const ZWAAR_TYPES = ["sweetspot", "interval", "drempel", "vo2max", "sweetspot_intervallen", "drempel_intervallen", "vo2max_intervallen", "over_under", "sprint_neuraal", "pyramide", "kracht_lage_cadans"];
+const ZWAAR_TYPES = ["sweetspot", "interval", "drempel", "vo2max", "sweetspot_intervallen", "drempel_intervallen", "vo2max_intervallen", "sprint_neuraal", "kracht_lage_cadans"];
 
 /**
  * @typedef {import('../types').DagIntentie} DagIntentie
@@ -86,7 +86,7 @@ export function bouwSessieContext({
 
   // Z2-subtype selectie
   let z2Subtype = null;
-  const isZ2Type = dagIntentie?.sessietype === "z2_vlak" || dagIntentie?.sessietype === "z2_duur"
+  const isZ2Type = dagIntentie?.sessietype === "z2_duur"
     || (!dagIntentie && !oudeSessie);
   if (isZ2Type) {
     const subKey = kiesZ2Subtype({

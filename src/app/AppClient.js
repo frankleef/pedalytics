@@ -419,7 +419,7 @@ export default function Page() {
         focus: faseInfo ? `${faseInfo.sessietypes.slice(0, 3).join(", ")}` : "Z2 volume",
         z1z2_doel: faseInfo?.z1z2_doel || 0.80,
         max_intensiteit: faseInfo?.max_intensiteit_per_week ?? 1,
-        sessietypes: faseInfo?.sessietypes || ["z2_vlak", "z2_duur", "z1_herstel"],
+        sessietypes: faseInfo?.sessietypes || ["z2_duur", "z1_herstel"],
       };
     });
   };
@@ -829,7 +829,7 @@ export default function Page() {
                 const segs = s.segmenten ?? [];
                 if (segs.length < 2) return false;
                 const sessietype = s.intentie?.sessietype || s.type;
-                if (!["z2_vlak", "z2_duur"].includes(sessietype)) return false;
+                if (sessietype !== "z2_duur") return false;
                 const laatste = segs[segs.length - 1];
                 if (laatste.zone !== "Z3") return false;
                 if (!segs.slice(0, -1).every(seg => ["Z1", "Z2"].includes(seg.zone))) return false;

@@ -546,7 +546,7 @@ export default function SchemaTab({
             {sessie.hrv_zone && ["rood", "geel"].includes(sessie.hrv_zone) && !sessie.hrv_keuze_gemaakt && dayOffset === 0 && (
               <HrvAdviesKaart
                 zone={sessie.hrv_zone}
-                keuzes={bepaalKeuzes(sessie.hrv_zone, sessie.hrv_zone === "rood" ? (["drempel_intervallen","sweetspot_intervallen","sweetspot_lang","over_under","pyramide","vo2max_intervallen","vo2max_lang","vo2max_kort","microbursts","sprint_neuraal","kracht_lage_cadans","race_simulatie"].includes(sessie.intentie?.sessietype) ? "rood_intensiteit" : "rood_aeroob") : "geel_intensiteit")}
+                keuzes={bepaalKeuzes(sessie.hrv_zone, sessie.hrv_zone === "rood" ? (["drempel_intervallen","sweetspot_intervallen","sweetspot_lang","vo2max_intervallen","vo2max_lang","vo2max_kort","microbursts","sprint_neuraal","kracht_lage_cadans","race_simulatie"].includes(sessie.intentie?.sessietype) ? "rood_intensiteit" : "rood_aeroob") : "geel_intensiteit")}
                 onKeuze={async (keuze) => {
                   await fetch("/api/hrv/keuze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ datum: cur.iso, keuze }) });
                   onPlanWijziging?.();
