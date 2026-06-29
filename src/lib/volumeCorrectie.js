@@ -280,10 +280,13 @@ export async function isWekelijkseCheckVerschuldigd(userId, nu = new Date()) {
   if (weekdag !== "zo") return false;
   if (uur < 21 || (uur === 21 && minuut < 30)) return false;
 
-  // KV-deduplicatie: al uitgevoerd deze week?
+  // Atomische claim via nx: true — voorkomt race condition bij gelijktijdige cron-runs.
+  // Alleen de invocation die als eerste de vlag zet, mag de evaluatie uitvoeren.
   const weekNr = haalIsoWeeknummer(nu);
-  const alGedaan = await checkEnZetWeekVlag(userId, weekNr);
-  return !alGedaan;
+  const kv = getKV();
+  const claimKey = `weekcheck_gedaan:${userId}:${weekNr}`;
+  const geclaimd = await kv.set(claimKey, "1", { nx: true, ex: 8 * 86400 });
+  return geclaimd != null;
 }
 
 export async function checkEnZetWeekVlag(userId, isoWeeknummer) {
