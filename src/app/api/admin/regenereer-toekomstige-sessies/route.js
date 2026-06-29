@@ -106,7 +106,37 @@ export async function POST(request) {
 
   const resultaten = [];
 
-  // 4. Sequentieel regenereren
+  // 4a. Migratie: markeer sprint-staartjes in basisfase (eenmalig, idempotent)
+  {
+    const basisZ2PerWeek = {};
+    for (const sessie of toekomstigeSessies) {
+      const weekNr = weeknummerVoorDatum(sessie.datum, plan.startdatum);
+      const kw = plan.kader?.find(w => w.week === weekNr);
+      if (!kw || kw.fase !== 'basis' || kw.weektype === 'herstel') continue;
+      if (sessie.intentie?.sessietype !== 'z2_duur') continue;
+      if (!basisZ2PerWeek[weekNr]) basisZ2PerWeek[weekNr] = [];
+      basisZ2PerWeek[weekNr].push(sessie);
+    }
+    let sprintMigraties = 0;
+    for (const sessies_week of Object.values(basisZ2PerWeek)) {
+      const langste = sessies_week.reduce((a, b) =>
+        (a.intentie?.tss_range?.max ?? 0) >= (b.intentie?.tss_range?.max ?? 0) ? a : b
+      );
+      if (!langste.intentie) langste.intentie = {};
+      if (!langste.intentie.heeft_sprint_staartjes) {
+        langste.intentie.heeft_sprint_staartjes = true;
+        const zones = langste.intentie.toegestane_zones || ["Z2"];
+        if (!zones.includes("Z7")) langste.intentie.toegestane_zones = [...zones, "Z7"];
+        console.log(`[regenereer] Sprint-staartjes gemarkeerd: ${langste.datum}`);
+        sprintMigraties++;
+      }
+    }
+    if (sprintMigraties > 0) {
+      await kv.set(planKey, plan);
+    }
+  }
+
+  // 4b. Sequentieel regenereren
   for (const sessie of toekomstigeSessies) {
     const datum = sessie.datum;
     try {
@@ -179,6 +209,15 @@ export async function POST(request) {
       const raw = await claudeCall(promptData);
       const nieuweSessie = raw.sessie || raw.sessies?.[0] || raw;
       if (!nieuweSessie.datum) nieuweSessie.datum = datum;
+
+      // Safety net: behoud heeft_sprint_staartjes als de originele sessie die had
+      if (sessie.intentie?.heeft_sprint_staartjes && nieuweSessie.intentie) {
+        if (!nieuweSessie.intentie.heeft_sprint_staartjes) {
+          nieuweSessie.intentie.heeft_sprint_staartjes = true;
+          const zones = nieuweSessie.intentie.toegestane_zones || ["Z2"];
+          if (!zones.includes("Z7")) nieuweSessie.intentie.toegestane_zones = [...zones, "Z7"];
+        }
+      }
 
       gekozenArchetypeId = raw.gekozen_archetype_id ?? nieuweSessie.gekozen_archetype_id ?? null;
       if (gekozenArchetypeId && effectiefSessietype) {

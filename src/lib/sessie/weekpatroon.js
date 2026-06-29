@@ -3,12 +3,6 @@ const ZWAAR_TYPES = ["kracht_lage_cadans", "sweetspot_intervallen", "drempel_int
 
 const Z2_TYPES = ["z2_duur", "z2_steady", "z2_heuvel"];
 
-export const SPRINT_STAARTJE_CONFIG = {
-  aantal: 5,
-  duur_seconden: 15,
-  herstel_seconden: 150,
-};
-
 /**
  * Bepaalt of een dag het sprint-staartje mag krijgen.
  * @param {object} week - kader-week object met weektype en dagen (sessies voor die week)

@@ -11,7 +11,7 @@ import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
 import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
 import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
 import { claudeCall } from "@/lib/claude";
-import { magSprintStaartje, SPRINT_STAARTJE_CONFIG } from "@/lib/sessie/weekpatroon";
+import { magSprintStaartje } from "@/lib/sessie/weekpatroon";
 import {
   getArchetypesVoorSessietype,
   getRecenteArchetypes,
@@ -237,7 +237,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       }
 
       if (sprintStaartjeDagen.has(datum)) {
-        promptData.prompt += "\n\nSPRINT-STAARTJE (harde instructie — niet optioneel):\nVoeg na de Z2-blokken 5 sprintblokken toe van 15 seconden op maximaal vermogen (Z7, positie 'midden'), elk gevolgd door 150 seconden actief herstel in Z1. De Z2-duur blijft volledig ongewijzigd — de sprints komen er achteraan.";
+        promptData.prompt += "\n\nSPRINT-STAARTJES — VERPLICHT ONDERDEEL VAN DEZE SESSIE:\nGenereer de sessie als één geheel:\n1. Z2-KERN: maak de kern 8–10 minuten korter dan de totale sessieduur.\n2. SPRINT-STAARTJES aan het einde: 3–5 herhalingen van [10–15 sec maximaal @ Z7, positie 'midden'], elk gevolgd door 2–3 min Z2 herstel.\n3. TSS: kern + staartjes samen binnen het tss_doel. Sprintblokken voegen weinig TSS toe — reken de kern proportioneel korter.\n4. Zet heeft_sprint_staartjes: true in de intentie-output.";
       }
 
       // SESSIEVARIATIE — archetype-selectie vóór Claude-aanroep
@@ -312,9 +312,8 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       corrigeerSessieTss(sessie);
 
       if (sprintStaartjeDagen.has(datum) && sessie.intentie) {
-        sessie.intentie.sprint_staartje = true;
-        sessie.intentie.sprint_staartje_config = SPRINT_STAARTJE_CONFIG;
-        const zones = sessie.intentie.toegestane_zones || ["Z1", "Z2"];
+        sessie.intentie.heeft_sprint_staartjes = true;
+        const zones = sessie.intentie.toegestane_zones || ["Z2"];
         if (!zones.includes("Z7")) sessie.intentie.toegestane_zones = [...zones, "Z7"];
       }
 

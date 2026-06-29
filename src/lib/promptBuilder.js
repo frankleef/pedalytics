@@ -71,6 +71,12 @@ Elke sessie bevat een "intentie"-object met:
 - toegestane_zones: array van zones die deze dag gebruikt mogen worden (bv. ["Z1", "Z2"])
 - tss_range: { min, max } waarbinnen de TSS moet vallen
 - toelichting: één zin over de rol van deze dag in het weekpatroon
+- heeft_sprint_staartjes: true op de langste z2_duur-sessie van elke basisfase-week (zie hieronder), anders weglaten
+
+SPRINT-STAARTJES (basisfase):
+Markeer in elke week van de basisfase de z2_duur-sessie met de hoogste tss_range.max met heeft_sprint_staartjes: true.
+Frequentie: precies één sessie per week. Alle andere sessies: veld weglaten.
+Niet in herstelweken. Niet in sweetspot/drempel/vo2max/consolidatie fase.
 
 INTENSITEITSDISTRIBUTIE:
 - Z1-Z2 doel-aandeel: ${z1z2Doel(niveau)}
@@ -358,11 +364,14 @@ Gebruik de segmentstructuur die bij dit subtype hoort.`;
   let intentieInstructie;
   if (ctx.dagIntentie) {
     const isVerplaatsing = ctx.aanleiding === "beschikbaarheid_verplaatsing";
-    const sprintInstructie = ctx.dagIntentie.sprint_staartje === true
-      ? `\nSPRINT-STAARTJE (harde instructie — niet optioneel):
-Voeg na de Z2-blokken 5 sprintblokken toe van 15 seconden op maximaal vermogen (Z7,
-positie 'midden', sessietype 'sprint_neuraal'), elk gevolgd door 150 seconden actief
-herstel in Z1. De Z2-duur blijft volledig ongewijzigd — de sprints komen er achteraan.`
+    const heeftSprintStaartjes = ctx.dagIntentie.heeft_sprint_staartjes === true || ctx.dagIntentie.sprint_staartje === true;
+    const sprintInstructie = heeftSprintStaartjes
+      ? `\nSPRINT-STAARTJES — VERPLICHT ONDERDEEL VAN DEZE SESSIE:
+Genereer de sessie als één geheel:
+1. Z2-KERN: gebruik het gekozen archetype maar maak de kern 8–10 minuten korter dan de totale sessieduur.
+2. SPRINT-STAARTJES aan het einde: 3–5 herhalingen van [10–15 sec maximaal @ Z7, positie 'midden'], elk gevolgd door 2–3 min Z2 herstel.
+3. TSS: kern + staartjes samen binnen de TSS-range. Sprintblokken voegen weinig TSS toe — reken de kern proportioneel korter.
+4. Sla heeft_sprint_staartjes: true op in de intentie-output.`
       : "";
     intentieInstructie = `DAG-INTENTIE (${isVerplaatsing ? "voorkeur — behoud als het past" : "leidend — niet ter discussie"}):
 Rol: ${ctx.dagIntentie.rol}

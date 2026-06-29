@@ -8,7 +8,7 @@ import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
 import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
 import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
 import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
-import { SPRINT_STAARTJE_CONFIG } from "@/lib/sessie/weekpatroon";
+import { magSprintStaartje } from "@/lib/sessie/weekpatroon";
 import { DAGNAMEN } from "@/lib/datum";
 
 export const maxDuration = 120;
@@ -41,15 +41,14 @@ export async function POST(request) {
     return NextResponse.json({ error: "Sessie al voltooid" }, { status: 400 });
   }
 
-  // Zet sprint_staartje vlag op de intentie
-  const oudeZones = sessie.intentie?.toegestane_zones || ["Z1", "Z2"];
+  // Zet heeft_sprint_staartjes vlag op de intentie
+  const oudeZones = sessie.intentie?.toegestane_zones || ["Z2"];
   const nieuweZones = oudeZones.includes("Z7") ? oudeZones : [...oudeZones, "Z7"];
   const bijgewerkteSessie = {
     ...sessie,
     intentie: {
       ...sessie.intentie,
-      sprint_staartje: true,
-      sprint_staartje_config: SPRINT_STAARTJE_CONFIG,
+      heeft_sprint_staartjes: true,
       toegestane_zones: nieuweZones,
     },
   };
@@ -116,8 +115,7 @@ export async function POST(request) {
     type: result.type,
     sessietype: result.intentie?.sessietype,
     toegestane_zones: result.intentie?.toegestane_zones,
-    sprint_staartje: result.intentie?.sprint_staartje,
-    sprint_staartje_config: result.intentie?.sprint_staartje_config,
+    heeft_sprint_staartjes: result.intentie?.heeft_sprint_staartjes ?? true,
     aantalSegmenten: result.segmenten?.length,
     sprintSegmenten: result.segmenten?.filter(s => s.zone === "Z7")?.length ?? 0,
   });
