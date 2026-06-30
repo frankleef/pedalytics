@@ -9,6 +9,7 @@ import { datumISO } from "@/lib/datum";
 import InfoTooltip from "./InfoTooltip";
 import ScaleInput from "./ScaleInput";
 import { isRpeAanpasbaar, berekenVerwachtRpe } from "@/lib/sessie/rpe";
+import { berekenNP } from "@/lib/np";
 import SharedHeader from "./SharedHeader";
 import { KerngetallenTiles, StatusBanner } from "./SessieUitkomstKaart";
 import AdaptatieScoreKaart from "./AdaptatieScoreKaart"; // TSS+fase kaart op Schema
@@ -345,10 +346,17 @@ export default function SchemaTab({
   const renderRpe = () => {
     if (!gematchteRit) return null;
     const aanpasbaar = isRpeAanpasbaar(gematchteRit.start_date_local);
-    const verwachtRpeWerkelijk = (gematchteRit.wattage && gematchteRit.duur_min)
-      ? berekenVerwachtRpe(gematchteRit.wattage / ftp, gematchteRit.duur_min)
+    // Primaire bron: icu_weighted_avg_watts (NP, server-side berekend door intervals.icu).
+    // Fallback: zelf NP berekenen uit de ruwe streams als de aggregate-waarde nog niet
+    // beschikbaar is (intervals.icu-verwerkingstiming bij verse ritten).
+    const npVoorRpe = gematchteRit.wattage
+      ?? (werkelijkWatts?.length >= 30 ? berekenNP(werkelijkWatts) : null);
+    const verwachtRpeWerkelijk = (npVoorRpe && gematchteRit.duur_min)
+      ? berekenVerwachtRpe(npVoorRpe / ftp, gematchteRit.duur_min)
       : null;
-    const verwachtRpeDisplay = verwachtRpeWerkelijk ?? sessie?.verwacht_rpe ?? null;
+    // Geen fallback naar sessie.verwacht_rpe — dat vergelijkt tegen de GEPLANDE intensiteit,
+    // niet de gereden. Liever geen delta tonen dan een misleidende delta.
+    const verwachtRpeDisplay = verwachtRpeWerkelijk;
 
     const handleRpeSave = async (waarde) => {
       setRpeOpslaan(true);

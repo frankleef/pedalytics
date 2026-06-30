@@ -4,19 +4,7 @@
 // niet bruikbaar als vervanging — per-helft NP moet uit de streams berekend worden.
 
 import { getKV } from "./kv";
-
-function berekenNP(watts) {
-  if (!watts?.length || watts.length < 30) return null;
-  const rolling = [];
-  for (let i = 29; i < watts.length; i++) {
-    let som = 0;
-    for (let j = i - 29; j <= i; j++) som += watts[j];
-    rolling.push(som / 30);
-  }
-  let som4 = 0;
-  for (const w of rolling) som4 += Math.pow(w, 4);
-  return Math.pow(som4 / rolling.length, 0.25);
-}
+import { berekenNP } from "./np";
 
 function splitOpArbeid(watts, heartrate) {
   const totaal = watts.reduce((a, w) => a + w, 0);
