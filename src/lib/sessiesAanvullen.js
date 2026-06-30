@@ -9,6 +9,7 @@ import { normaliseerSessieSegmenten, valideerKrachtRestrictie } from "@/lib/sess
 import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
 import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
+import { capSessieDuur } from "@/lib/sessie/duurCap";
 import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
 import { claudeCall } from "@/lib/claude";
 import { magSprintStaartje } from "@/lib/sessie/weekpatroon";
@@ -50,7 +51,7 @@ function valideerZ1Gebruik(blokken, sessietype, archetypeId = null) {
 
 const VRIJHEID_FASEN = new Set(['sweetspot', 'drempel', 'vo2max']);
 
-export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tempoAfsluiters = [] } = {}) {
+export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tempoAfsluiters = [], verlengingen = [] } = {}) {
   const kv = getKV();
   const planKey = `${userId}:seizoensplan`;
   const plan = await kv.get(planKey);
@@ -460,5 +461,104 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
     }
   }
 
-  return { status: "aangevuld", aantal: aangevuld.length, datums: aangevuld.map(s => s.datum) };
+  // Verlengingen: bestaande sessies regenereren met uitgebreide duur tot het dag-maximum
+  const verlengd = [];
+  for (const { datum, maxMinuten } of verlengingen) {
+    try {
+      const bestaandeSessie = bestaandeSessies.find(s => s.datum === datum && !s.voltooid);
+      if (!bestaandeSessie) {
+        console.warn(`[sessiesAanvullen] verleng_sessie: geen niet-voltooide sessie gevonden voor ${datum}`);
+        continue;
+      }
+      if (!maxMinuten) {
+        console.warn(`[sessiesAanvullen] verleng_sessie: maxMinuten ontbreekt voor ${datum}, overgeslagen`);
+        continue;
+      }
+      const dagNaamV = bestaandeSessie.dag || DAGNAMEN[new Date(datum).getDay()];
+      const urenV = maxMinuten / 60;
+
+      const overigeSessies = [...bestaandeSessies, ...aangevuld]
+        .filter(s => s.datum !== datum && !s.voltooid);
+
+      const promptData = bouwSessieDagPrompt({
+        profiel,
+        wellness,
+        dagelijkseData: [],
+        voortgang: null,
+        seizoensplan: { ...plan, weekSessies: undefined },
+        overigeSessies,
+        datum,
+        dagNaam: dagNaamV,
+        uren: urenV,
+        oudeSessie: bestaandeSessie,
+        aanleiding: "beschikbaarheid_uren",
+      });
+      promptData.prompt += `\n\nVOLUMECORRECTIE — VERLENGING (harde instructie): Verleng deze sessie van ${bestaandeSessie.duur_min || "?"}min naar maximaal ${maxMinuten}min. Behoud het sessietype en de intensiteitsstructuur. Voeg Z2-volume toe aan het einde. De totale sessieduur mag ${maxMinuten}min NIET overschrijden.`;
+
+      const raw = await claudeCall(promptData);
+      const sessie = raw.sessie || raw.sessies?.[0] || raw;
+      if (!sessie.datum) sessie.datum = datum;
+      if (!sessie.dag) sessie.dag = dagNaamV;
+      if (bestaandeSessie.intervalsEventId) sessie.intervalsEventId = bestaandeSessie.intervalsEventId;
+      if (bestaandeSessie.intentie) sessie.intentie = { ...bestaandeSessie.intentie, ...sessie.intentie };
+
+      normaliseerSessieSegmenten(sessie);
+      voegVerwachtRpeToe(sessie);
+      corrigeerSessieTss(sessie);
+
+      // Deterministisch duur-vangnet via gedeelde capSessieDuur
+      capSessieDuur(sessie, maxMinuten, `sessiesAanvullen verleng_sessie ${datum}`);
+
+      if (profiel.power_zones && profiel.ftp) {
+        try {
+          const zones = bouwZonesUitProfiel(profiel.ftp, profiel.power_zones);
+          const sessietype = sessie.intentie?.sessietype || sessie.sessietype || sessie.type;
+          sessie.segmenten = (sessie.segmenten || []).map(seg =>
+            seg.zone ? berekenBlok(seg, zones, profiel.ftp, piekSprint, sessietype) : seg
+          );
+        } catch (e) { console.warn(`[sessiesAanvullen] Vermogensbereik mislukt voor verlengd ${datum}:`, e.message); }
+      }
+
+      sessie.volumecorrectie = { aanleiding: "verleng_sessie", weekNr: aankomendeWeekNr };
+
+      try {
+        const zwo = segmentenNaarZwo(sessie.segmenten, sessie.titel, profiel.ftp || 265);
+        const eventBody = {
+          category: "WORKOUT",
+          start_date_local: `${datum}T08:00:00`,
+          name: sessie.titel || sessie.type,
+          type: "Ride",
+          moving_time: (sessie.duur_min || 90) * 60,
+          ...(zwo ? { file_contents: zwo, file_type: "zwo" } : {}),
+        };
+        const result = await intervalsPost("/events", eventBody, creds);
+        if (result.id) {
+          sessie.intervalsEventId = result.id;
+          if (result.icu_training_load) { sessie.tss = result.icu_training_load; sessie.tss_bron = "intervals_icu"; }
+        }
+      } catch (e) {
+        console.warn(`[sessiesAanvullen] Intervals sync mislukt voor verlengd ${datum}:`, e.message);
+      }
+
+      verlengd.push(sessie);
+      console.log(`[sessiesAanvullen] verleng_sessie ${userId} ${datum}: ${sessie.type} ${sessie.duur_min}min (max ${maxMinuten}min)`);
+    } catch (e) {
+      console.error(`[sessiesAanvullen] verleng_sessie ${userId} ${datum} mislukt:`, e.message);
+    }
+  }
+
+  if (verlengd.length > 0) {
+    const huidigPlan = await kv.get(planKey);
+    const verlengdDatums = new Set(verlengd.map(s => s.datum));
+    huidigPlan.weekSessies = {
+      ...huidigPlan.weekSessies,
+      sessies: [
+        ...(huidigPlan.weekSessies?.sessies || []).filter(s => !verlengdDatums.has(s.datum)),
+        ...verlengd,
+      ],
+    };
+    await kv.set(planKey, huidigPlan);
+  }
+
+  return { status: "aangevuld", aantal: aangevuld.length, datums: aangevuld.map(s => s.datum), verlengd: verlengd.map(s => s.datum) };
 }

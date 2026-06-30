@@ -232,13 +232,13 @@ ${kaderWeek2 !== kaderWeek ? `- Volgende fase: ${kaderWeek2.fase} — ${kaderWee
 - Toegestane sessietypes deze fase: ${sessietypesVoorFase(kaderWeek.fase, kaderWeek)}
 
 BESCHIKBARE DAGEN (plan ALLEEN op deze datums):
-${tePlannenDagen.map(d => `  ${d.datum} (${d.dag}): ${d.uren} uur`).join("\n")}
+${tePlannenDagen.map(d => `  ${d.datum} (${d.dag}): ${d.uren} uur (max ${Math.round(d.uren * 60)} min)`).join("\n")}
 
 ${voltooideDatams.size > 0 ? `AL VOLTOOID (NIET herplannen): ${[...voltooideDatams].join(", ")}` : ""}
 
 REGELS:
 - Jij kiest welke beschikbare dagen een training krijgen (max ${maxDagen} per week bij CTL ${Math.round(ctl)})
-- DUUR: pas de trainingsduur aan op de beschikbare uren per dag. Nooit langer dan opgegeven
+- DUUR — HARDE GRENS: duur_min per sessie mag nooit het opgegeven maximum overschrijden (zie maxima in BESCHIKBARE DAGEN hierboven). Overschrijding is niet toegestaan.
 - Kies dagen met beste spreiding, min 1 rustdag tussen harde sessies
 - SUPERCOMPENSATIE: plan harde sessies (sweetspot/interval) op dagen waar TSB tussen -5 en +10 zit
 - Als TSB < -20: alleen Z2 of herstel, geen intensiteit
@@ -464,7 +464,7 @@ Spec: 4-6x 4-5min @ zone Z5, herstel 1:1, TSS 70-90, warm-up ≥10min progressie
     : "";
 
   return {
-    prompt: `Maak één trainingssessie voor ${ctx.datum} (${ctx.dagVanDeWeek}), ${ctx.uren} uur beschikbaar.
+    prompt: `Maak één trainingssessie voor ${ctx.datum} (${ctx.dagVanDeWeek}), ${ctx.uren} uur (${Math.round(ctx.uren * 60)} minuten) beschikbaar.
 
 ${intentieInstructie}
 ${methodeSectie}
@@ -483,7 +483,7 @@ ROL VAN DEZE DAG IN HET WEEKPATROON:
 ${weekrol}
 
 REGELS:
-- Duur past binnen ${ctx.uren} uur
+- DUUR — HARDE GRENS: de sessieduur mag ${Math.round(ctx.uren * 60)} minuten niet overschrijden (${ctx.uren} uur beschikbaar). Genereer duur_min ≤ ${Math.round(ctx.uren * 60)}.
 ${ctx.dagIntentie ? "- Intentie is leidend — pas alleen duur/vermogen/TSS aan binnen de intentie-grenzen" : "- Volg de weekrol hierboven — die bepaalt welk type sessie hier past"}
 - Min 1 rustdag tussen harde sessies${ctx.isToekomst ? "" : ". Als TSB < -20 of HRV dalend: alleen Z2 of herstel"}
 - Houd week-TSS onder ${ctx.tssDoel} totaal

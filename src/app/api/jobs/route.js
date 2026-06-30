@@ -7,6 +7,7 @@ import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
 import { claudeCall } from "@/lib/claude";
 import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
 import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
+import { capSessieDuur } from "@/lib/sessie/duurCap";
 
 export const maxDuration = 120;
 
@@ -89,6 +90,11 @@ export async function POST(request) {
           sessietype: "z2_duur",
         }];
         corrigeerSessieTss(result);
+      }
+
+      // Deterministisch vangnet: cap duur_min op het opgegeven uur-maximum
+      if (params.uren) {
+        capSessieDuur(result, Math.round(params.uren * 60), `Job ${jobId} ${params.datum}`);
       }
 
       console.log(`[Job ${jobId}] Resultaat: ${result.type} "${result.titel}" | ${result.duur_min}min | TSS ${result.tss} | ${result.segmenten?.length || 0} segmenten`);

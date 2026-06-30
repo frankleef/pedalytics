@@ -387,6 +387,7 @@ export function bepaalVolumeAanpassing({ plan, aankomendWeek, correctie, signale
       type: "verleng_sessie",
       datum: sessie.datum,
       extraMinuten: Math.round((maxUren - huidigeUren) * 60),
+      maxMinuten: Math.round(maxUren * 60),
     });
     return { nieuwTssDoel, acties };
   }
@@ -505,7 +506,10 @@ export async function voerWekelijkseEvaluatieUit(userId, { forceer = false } = {
     const tempoAfsluiters = aanpassing.acties
       .filter(a => a.type === "tempo_afsluiter")
       .map(a => a.datum);
-    await vulSessiesAanVoorGebruiker(userId, { aerobeDagen, tempoAfsluiters });
+    const verlengingen = aanpassing.acties
+      .filter(a => a.type === "verleng_sessie")
+      .map(a => ({ datum: a.datum, maxMinuten: a.maxMinuten }));
+    await vulSessiesAanVoorGebruiker(userId, { aerobeDagen, tempoAfsluiters, verlengingen });
   } catch (e) {
     console.error(`[volumecorrectie] Sessieregeneratie mislukt voor ${userId}:`, e.message);
     throw e;
