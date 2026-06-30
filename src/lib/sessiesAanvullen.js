@@ -174,30 +174,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
 
   const piekSprint = await kv.get(`piek_sprint_vermogen:${userId}`) || Math.round((profiel.ftp || 265) * 1.8);
 
-  // Bepaal welke dagen een sprint-staartje krijgen, per week
   const tsb = wellness ? Math.round((wellness.ctl ?? 0) - (wellness.atl ?? 0)) : null;
-  const sprintStaartjeDagen = new Set();
-  const ontbrekendPerWeek = {};
-  for (const dag of ontbrekend) {
-    const mISO = weekMaandagISO(dag.datum);
-    if (!ontbrekendPerWeek[mISO]) ontbrekendPerWeek[mISO] = [];
-    ontbrekendPerWeek[mISO].push(dag);
-  }
-  for (const [mISO, weekDagen] of Object.entries(ontbrekendPerWeek)) {
-    const kaderWeek = kaderWeekVoorDatum(weekDagen[0].datum);
-    if (!kaderWeek || kaderWeek.weektype === "herstel") continue;
-    if (tsb !== null && tsb < -25) continue;
-    const bestaandeWeekSessies = bestaandeSessies.filter(s => s.datum && weekMaandagISO(s.datum) === mISO);
-    const weekObject = { ...kaderWeek, dagen: bestaandeWeekSessies };
-    const z2Types = ["z2_duur", "z2_steady", "z2_heuvel"];
-    const kandidaatSessie = weekObject.dagen
-      .filter(d => z2Types.includes(d.intentie?.sessietype) && !d.voltooid)
-      .sort((a, b) => (b.duur_min || 0) - (a.duur_min || 0))[0];
-    if (!kandidaatSessie) continue;
-    if (magSprintStaartje(weekObject, kandidaatSessie, tsb)) {
-      sprintStaartjeDagen.add(kandidaatSessie.datum);
-    }
-  }
 
   const aangevuld = [];
 
@@ -227,10 +204,6 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       if (tempoAfsluiters.includes(datum)) {
         const maxMinuten = Math.round(uren * 60);
         promptData.prompt += `\n\nVOLUMECORRECTIE — TEMPO-AFSLUITER (harde instructie): Voeg aan het einde van deze sessie een Z3-tempo-afsluiter toe van 15-20 minuten. Dit is een harde instructie vanuit de volumecorrectie-evaluatie — geen suggestie. De rest van de sessie blijft Z2. Zorg dat de totale sessieduur binnen ${maxMinuten} minuten blijft.`;
-      }
-
-      if (sprintStaartjeDagen.has(datum)) {
-        promptData.prompt += "\n\nSPRINT-STAARTJES — VERPLICHT ONDERDEEL VAN DEZE SESSIE:\nGenereer de sessie als één geheel:\n1. Z2-KERN: maak de kern 8–10 minuten korter dan de totale sessieduur.\n2. SPRINT-STAARTJES aan het einde: 3–5 herhalingen van [10–15 sec maximaal @ Z7, positie 'midden'], elk gevolgd door 2–3 min Z2 herstel.\n3. TSS: kern + staartjes samen binnen het tss_doel. Sprintblokken voegen weinig TSS toe — reken de kern proportioneel korter.\n4. Zet heeft_sprint_staartjes: true in de intentie-output.";
       }
 
       // SESSIEVARIATIE — archetype-selectie vóór Claude-aanroep
@@ -302,10 +275,60 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       voegVerwachtRpeToe(sessie);
       corrigeerSessieTss(sessie);
 
-      if (sprintStaartjeDagen.has(datum) && sessie.intentie) {
-        sessie.intentie.heeft_sprint_staartjes = true;
-        const zones = sessie.intentie.toegestane_zones || ["Z2"];
-        if (!zones.includes("Z7")) sessie.intentie.toegestane_zones = [...zones, "Z7"];
+      // Sprint-staartjes post-generatie check: z2_duur in basisfase
+      if (
+        huidigeFase === 'basis' &&
+        kaderWeekVoorDag?.weektype !== 'herstel' &&
+        (sessie.intentie?.sessietype === 'z2_duur' || sessie.intentie?.sessietype === 'z2_heuvel') &&
+        !sessie.intentie?.heeft_sprint_staartjes &&
+        (tsb === null || tsb >= -25)
+      ) {
+        const mISO = weekMaandagISO(datum);
+        const alleWeekSessies = [
+          ...bestaandeSessies.filter(s => weekMaandagISO(s.datum) === mISO),
+          ...aangevuld.filter(s => weekMaandagISO(s.datum) === mISO),
+          { ...sessie, datum },
+        ];
+        // Skip als een andere sessie in deze week de vlag al heeft (bijv. via plan-opslag)
+        const heeftAlSprintVlag = alleWeekSessies.some(
+          s => s.datum !== datum && s.intentie?.heeft_sprint_staartjes === true
+        );
+        if (!heeftAlSprintVlag && magSprintStaartje({ ...kaderWeekVoorDag, dagen: alleWeekSessies }, { ...sessie, datum }, tsb)) {
+          const sprintIntentie = {
+            ...sessie.intentie,
+            heeft_sprint_staartjes: true,
+            toegestane_zones: (sessie.intentie?.toegestane_zones || ['Z2']).includes('Z7')
+              ? sessie.intentie.toegestane_zones
+              : [...(sessie.intentie?.toegestane_zones || ['Z2']), 'Z7'],
+          };
+          const sprintPromptData = bouwSessieDagPrompt({
+            profiel, wellness, dagelijkseData: [], voortgang: null,
+            seizoensplan: { ...plan, weekSessies: undefined },
+            overigeSessies: [...bestaandeSessies, ...aangevuld].filter(s => s.datum !== datum && !s.voltooid),
+            datum, dagNaam, uren,
+            oudeSessie: { ...sessie, intentie: sprintIntentie },
+            aanleiding: 'beschikbaarheid_nieuw',
+          });
+          try {
+            const sprintRaw = await claudeCall(sprintPromptData);
+            const sprintSessie = sprintRaw.sessie || sprintRaw.sessies?.[0] || sprintRaw;
+            if (!sprintSessie.datum) sprintSessie.datum = datum;
+            if (!sprintSessie.dag) sprintSessie.dag = dagNaam;
+            Object.assign(sessie, sprintSessie);
+            if (sessie.intentie) {
+              sessie.intentie.heeft_sprint_staartjes = true;
+              if (!sessie.intentie.toegestane_zones?.includes('Z7')) {
+                sessie.intentie.toegestane_zones = [...(sessie.intentie.toegestane_zones || ['Z2']), 'Z7'];
+              }
+            }
+            normaliseerSessieSegmenten(sessie);
+            voegVerwachtRpeToe(sessie);
+            corrigeerSessieTss(sessie);
+            console.log(`[sessiesAanvullen] Sprint-staartjes geregenereerd voor ${datum}`);
+          } catch (e) {
+            console.warn(`[sessiesAanvullen] Sprint-staartjes regeneratie mislukt voor ${datum}:`, e.message);
+          }
+        }
       }
 
       // Deterministisch vangnet: verboden sessietypes bij volumecorrectie
