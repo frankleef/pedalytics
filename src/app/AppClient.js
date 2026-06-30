@@ -522,7 +522,8 @@ export default function Page() {
         } catch (e) { console.error("Intervals.icu sync:", e); }
       }
 
-      const alleSessies = [...bewaardeSessies, ...nieuweSessies];
+      const bewaardeDatums = new Set(bewaardeSessies.map(s => s.datum));
+      const alleSessies = [...bewaardeSessies, ...nieuweSessies.filter(s => !bewaardeDatums.has(s.datum))];
       const nieuweWeekSessies = { ...result, sessies: alleSessies };
       setWeekSessies(nieuweWeekSessies);
       const bijgewerkt = { ...seizoensplan, beschikbaarheid: Object.fromEntries(beschikbareDagen.map(d => [d, true])), urenPerDag, weekSessies: nieuweWeekSessies };

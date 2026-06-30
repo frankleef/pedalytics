@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { getSessionUser } from "@/lib/auth";
 import { magSprintStaartje } from "@/lib/sessie/weekpatroon";
+import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 
 function planKey(userId) { return userId ? `${userId}:seizoensplan` : "seizoensplan"; }
 
@@ -15,20 +16,16 @@ export async function GET() {
   }
 }
 
+// weeknummerVoorDatum ankert op de maandag van de startdatumweek (sectie 41) —
+// gebruik nooit een inline ms/(7*86400000) berekening want die ankert op de startdatum zelf.
 function markeerSprintStaartjesDagen(plan) {
   if (!plan?.weekSessies?.sessies || !plan?.kader) return plan;
   const sessies = plan.weekSessies.sessies;
 
-  const weeknummerVoorSessie = (datum) => {
-    if (!plan.startdatum) return 1;
-    const ms = new Date(datum) - new Date(plan.startdatum);
-    return Math.floor(ms / (7 * 24 * 60 * 60 * 1000)) + 1;
-  };
-
   const sessiesPerWeek = {};
   for (const s of sessies) {
     if (!s.datum || s.voltooid) continue;
-    const nr = weeknummerVoorSessie(s.datum);
+    const nr = weeknummerVoorDatum(s.datum, plan.startdatum);
     if (!sessiesPerWeek[nr]) sessiesPerWeek[nr] = [];
     sessiesPerWeek[nr].push(s);
   }

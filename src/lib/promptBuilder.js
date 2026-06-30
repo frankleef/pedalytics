@@ -140,7 +140,7 @@ export function bouwWeekSessiesPrompt({ profiel, wellness, dagelijkseData, voort
   (voortgang?.ritten || []).forEach(rit => {
     if (!rit.datum_iso) return;
     const match = bestaandeSessies.find(s => s.datum === rit.datum_iso || (!s.datum && s.dag === DAGNAMEN[new Date(rit.datum_iso).getDay()]));
-    if (match && rit.datum_iso <= vandaagISOStr) voltooideDatams.add(rit.datum_iso);
+    if (match && rit.datum_iso < vandaagISOStr) voltooideDatams.add(rit.datum_iso);
   });
 
   const tePlannenDagen = planDagen.filter(d => d.beschikbaar && !voltooideDatams.has(d.datum) && d.datum >= vandaagISOStr);

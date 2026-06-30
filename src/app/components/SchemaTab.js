@@ -10,7 +10,7 @@ import InfoTooltip from "./InfoTooltip";
 import ScaleInput from "./ScaleInput";
 import { isRpeAanpasbaar, berekenVerwachtRpe } from "@/lib/sessie/rpe";
 import SharedHeader from "./SharedHeader";
-import { KerngetallenTiles } from "./SessieUitkomstKaart";
+import { KerngetallenTiles, StatusBanner } from "./SessieUitkomstKaart";
 import AdaptatieScoreKaart from "./AdaptatieScoreKaart"; // TSS+fase kaart op Schema
 import AlternatiefSessiePopup from "./AlternatiefSessiePopup";
 import HrvAdviesKaart, { bepaalKeuzes } from "./HrvAdviesKaart";
