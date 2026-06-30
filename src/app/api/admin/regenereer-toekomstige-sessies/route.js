@@ -106,6 +106,35 @@ export async function POST(request) {
 
   const resultaten = [];
 
+  // 3b. Opruimen: verwijder ALLE bestaande WORKOUT-events in intervals.icu voor
+  // datums die we gaan regenereren — voorkomt duplicaten bij herhaalde runs.
+  if (creds) {
+    try {
+      const teDatumsSet = new Set(toekomstigeSessies.map(s => s.datum));
+      const verVerDatum = toekomstigeSessies.at(-1)?.datum ?? vandaag;
+      const alleEvents = await intervalsGet("/events.json", { oldest: vandaag, newest: verVerDatum }, creds);
+      const teVerwijderen = (alleEvents || []).filter(e =>
+        e.category === "WORKOUT" &&
+        e.start_date_local &&
+        teDatumsSet.has(e.start_date_local.split("T")[0])
+      );
+      console.log(`[regenereer] ${teVerwijderen.length} bestaande WORKOUT-events verwijderen`);
+      for (const evt of teVerwijderen) {
+        try {
+          await intervalsDelete(`/events/${evt.id}`, creds);
+        } catch (e) {
+          console.warn(`[regenereer] Event ${evt.id} verwijderen mislukt:`, e.message);
+        }
+      }
+      // Reset bekende event-IDs in het plan zodat de regeneratie ze opnieuw aanmaakt
+      for (const sessie of toekomstigeSessies) {
+        if (sessie.intervalsEventId) sessie.intervalsEventId = null;
+      }
+    } catch (e) {
+      console.warn('[regenereer] Events opruimen mislukt:', e.message);
+    }
+  }
+
   // 4a. Migratie: markeer sprint-staartjes in basisfase (eenmalig, idempotent)
   {
     const basisZ2PerWeek = {};
