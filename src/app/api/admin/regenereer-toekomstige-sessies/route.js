@@ -17,6 +17,8 @@ import {
   slaArchetypeOp,
   migreerZ2VariabelNaarDuur,
   migreesSessietype,
+  TEST_SESSIETYPES,
+  HERSTEL_SESSIETYPES,
 } from "@/lib/sessie-archetypes";
 
 export const maxDuration = 300;
@@ -214,6 +216,9 @@ export async function POST(request) {
       const effectiefSessietype = isVrijheidsdag ? 'gemengd' : (dagIntentie?.sessietype ?? null);
 
       let gekozenArchetypeId = null;
+      if (TEST_SESSIETYPES.has(effectiefSessietype) || HERSTEL_SESSIETYPES.has(effectiefSessietype)) {
+        console.log(`[regenereer] ${datum}: sessietype ${effectiefSessietype} valt buiten archetypelogica (test/herstel)`);
+      }
       if (effectiefSessietype) {
         const archetypes = getArchetypesVoorSessietype(
           effectiefSessietype,

@@ -16,20 +16,13 @@ import {
   getArchetypesVoorSessietype,
   getRecenteArchetypes,
   slaArchetypeOp,
+  migreesSessietype,
+  TEST_SESSIETYPES,
+  HERSTEL_SESSIETYPES,
 } from "@/lib/sessie-archetypes";
 
 const VERBODEN_TYPES_VOLUMECORRECTIE = ["kracht_lage_cadans", "sprint_neuraal"];
 
-const GELDIGE_SESSIETYPES = new Set([
-  'z2_duur', 'sweetspot_intervallen', 'kracht_lage_cadans',
-  'drempel_intervallen', 'vo2max_intervallen',
-  'sprint_neuraal', 'z6_anaeroob', 'gemengd',
-  // Uitgebreide typen (geen kern maar wel geldig)
-  'sweetspot_lang', 'vo2max_lang', 'vo2max_kort', 'microbursts',
-  'race_simulatie', 'progressief', 'z2_heuvel', 'z2_tempo_teugjes',
-  'z2_steady', 'z2_lang', 'z2_embedded_sprint', 'sprint_peak_test',
-  'z1_herstel', 'herstel_actief', 'herstel_mobiliteit', 'ramp_test',
-]);
 
 const Z1_TOEGESTANE_SESSIETYPES = new Set([
   'sprint_neuraal',
@@ -284,18 +277,16 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       if (!sessie.datum) sessie.datum = datum;
       if (!sessie.dag) sessie.dag = dagNaam;
 
-      // Sessietype-validatie: verboden typen direct afvangen
+      // Sessietype-validatie: onverwacht sessietype in Claude-respons afvangen
       {
         const gegevenType = sessie.intentie?.sessietype || sessie.sessietype;
-        if (!GELDIGE_SESSIETYPES.has(gegevenType) && gegevenType) {
-          const MIGRATIE_MAP = {
-            z2_vlak: 'z2_duur', z2_cadans: 'z2_duur',
-            over_under: 'drempel_intervallen', pyramide: 'drempel_intervallen',
-            tempo_intervallen: 'sweetspot_intervallen',
-          };
-          const vervangen = MIGRATIE_MAP[gegevenType] ?? 'z2_duur';
-          console.warn(`[sessiesAanvullen] Ongeldig sessietype "${gegevenType}" → "${vervangen}" op ${datum}`);
-          if (sessie.intentie) sessie.intentie.sessietype = vervangen;
+        if (gegevenType) {
+          const gemigreerd = migreesSessietype(gegevenType);
+          if (gemigreerd !== gegevenType) {
+            const vervangen = gemigreerd ?? 'z2_duur';
+            console.warn(`[sessiesAanvullen] Onverwacht sessietype "${gegevenType}" → "${vervangen}" op ${datum}`);
+            if (sessie.intentie) sessie.intentie.sessietype = vervangen;
+          }
         }
       }
 
@@ -303,7 +294,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       gekozenArchetypeId = raw.gekozen_archetype_id ?? sessie.gekozen_archetype_id ?? null;
       if (gekozenArchetypeId && effectiefSessietype) {
         await slaArchetypeOp(kv, userId, effectiefSessietype, gekozenArchetypeId);
-      } else if (effectiefSessietype) {
+      } else if (effectiefSessietype && !TEST_SESSIETYPES.has(effectiefSessietype) && !HERSTEL_SESSIETYPES.has(effectiefSessietype)) {
         console.warn(`[sessiesAanvullen] gekozen_archetype_id ontbreekt voor ${effectiefSessietype} op ${datum}`);
       }
 

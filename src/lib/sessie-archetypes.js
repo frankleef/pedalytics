@@ -43,6 +43,21 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [55, 90],
       fase_beschikbaar: ['basis', 'sweetspot', 'drempel', 'vo2max', 'consolidatie', 'taper'],
     },
+    {
+      id: 'z2_heuvel',
+      naam: 'Heuvelsimulatie',
+      structuur: '6× [6 min hogere Z2-fractie + 5 min lagere Z2-fractie] — simuleert glooiend terrein binnen Z2',
+      tss_range: [60, 95],
+      fase_beschikbaar: ['basis', 'sweetspot', 'drempel', 'vo2max', 'consolidatie', 'taper'],
+    },
+    {
+      id: 'z2_tempo_teugjes',
+      naam: 'Tempo-teugjes',
+      structuur: '4× [10 min 78–82% FTP + 8 min 58–65% FTP] — bovenkant Z2 afgewisseld met diep herstel',
+      tss_range: [65, 95],
+      fase_beschikbaar: ['sweetspot', 'drempel', 'vo2max', 'consolidatie'],
+      vereist_lage_decoupling: true,
+    },
   ],
 
   sweetspot_intervallen: [
@@ -245,6 +260,14 @@ export const SESSIE_ARCHETYPES = {
       week_in_fase_min: 2,
       doel_beperking: ['klimmen'],
     },
+    {
+      id: 'vo2_microbursts',
+      naam: 'Microbursts',
+      structuur: '15–20× [15 sec @ 120–130% FTP + 15 sec Z2] — geen volledig herstel, traint snelle VO2-kinetiek',
+      tss_range: [60, 85],
+      fase_beschikbaar: ['vo2max', 'consolidatie'],
+      week_in_fase_min: 2,
+    },
   ],
 
   sprint_neuraal: [
@@ -327,6 +350,13 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [70, 90],
       fase_beschikbaar: ['sweetspot', 'drempel', 'vo2max'],
     },
+    {
+      id: 'race_simulatie',
+      naam: 'Race simulatie',
+      structuur: '10 min Z2 → 2× [3 min drempel + 1 min sprint] → 15 min sweetspot → 2× [2 min VO2max + 30 sec sprint] → 10 min Z2 uitrollen',
+      tss_range: [75, 100],
+      fase_beschikbaar: ['sweetspot', 'drempel', 'vo2max'],
+    },
   ],
 };
 
@@ -337,12 +367,42 @@ export const GELDIGE_SESSIETYPES = new Set([
 ]);
 
 export const SESSIETYPE_MIGRATIE = {
-  'z2_vlak':           'z2_duur',
-  'z2_cadans':         'z2_duur',
-  'over_under':        'drempel_intervallen',
-  'pyramide':          'drempel_intervallen',
-  'tempo_intervallen': 'sweetspot_intervallen',
+  'z2_vlak':            'z2_duur',
+  'z2_cadans':          'z2_duur',
+  'z2_steady':          'z2_duur',
+  'z2_lang':            'z2_duur',
+  'over_under':         'drempel_intervallen',
+  'pyramide':           'drempel_intervallen',
+  'tempo_intervallen':  'sweetspot_intervallen',
+  'z2_embedded_sprint': 'sprint_neuraal',
+  'sweetspot_lang':     'sweetspot_intervallen',
+  'vo2max_lang':        'vo2max_intervallen',
+  'vo2max_kort':        'vo2max_intervallen',
+  'progressief':        'z2_duur',
 };
+
+/**
+ * TEST_SESSIETYPES en HERSTEL_SESSIETYPES zijn bewust UITGESLOTEN van de
+ * archetypelogica. Dit zijn geen trainingssessies met variatiebehoefte:
+ *
+ * - Tests (ramp_test, sprint_peak_test) hebben een vaste, gestandaardiseerde
+ *   structuur nodig voor meetbare, vergelijkbare resultaten over tijd.
+ *   Variatie zou de testresultaten onbetrouwbaar maken.
+ *
+ * - Herstelsessies (z1_herstel, herstel_actief, herstel_mobiliteit) zijn
+ *   bewust simpel en voorspelbaar — het doel is actief herstel, niet
+ *   afwisseling. Variatie zou hier geen waarde toevoegen.
+ */
+export const TEST_SESSIETYPES = new Set([
+  'ramp_test',
+  'sprint_peak_test',
+]);
+
+export const HERSTEL_SESSIETYPES = new Set([
+  'z1_herstel',
+  'herstel_actief',
+  'herstel_mobiliteit',
+]);
 
 export function valideerSessietype(sessietype) {
   if (!sessietype) return false;
@@ -352,6 +412,8 @@ export function valideerSessietype(sessietype) {
 export function migreesSessietype(sessietype) {
   if (!sessietype) return null;
   if (GELDIGE_SESSIETYPES.has(sessietype)) return sessietype;
+  if (TEST_SESSIETYPES.has(sessietype)) return sessietype;
+  if (HERSTEL_SESSIETYPES.has(sessietype)) return sessietype;
   return SESSIETYPE_MIGRATIE[sessietype] ?? null;
 }
 
