@@ -4,6 +4,7 @@ import { getUserIntervalsConfig } from "@/lib/auth";
 import { getKV } from "@/lib/kv";
 import { vandaagISO } from "@/lib/datum";
 import { berekenVerwachtRpe } from "@/lib/sessie/rpe";
+import { zoneTimesNaarObject } from "@/lib/uitvoeringsscore";
 
 export async function GET(request, { params }) {
   try {
@@ -41,12 +42,12 @@ export async function PUT(request, { params }) {
 
           // Delta berekenen op basis van de gereden rit, niet de geplande sessie
           const sessie = ritDatum ? plan.weekSessies.sessies.find(s => s.datum === ritDatum) : null;
-          const npWatts = activity.icu_weighted_avg_watts || activity.average_watts;
-          const ftp = plan.huidige_ftp || 265;
           const duurMin = activity.moving_time ? Math.round(activity.moving_time / 60) : 60;
-          if (npWatts && ftp) {
-            const ifGereden = npWatts / ftp;
-            const verwachtGereden = berekenVerwachtRpe(ifGereden, duurMin);
+          const tijdInZones = zoneTimesNaarObject(activity.icu_zone_times);
+          const verwachtGereden = tijdInZones ? berekenVerwachtRpe(tijdInZones, duurMin) : null;
+          if (verwachtGereden == null) {
+            console.warn(`[RPE] Geen zonedistributie beschikbaar voor activiteit ${id} — delta niet berekend`);
+          } else {
             const delta = rpe - verwachtGereden;
             if (sessie) {
               sessie.rpe_delta = Math.round(delta * 10) / 10;

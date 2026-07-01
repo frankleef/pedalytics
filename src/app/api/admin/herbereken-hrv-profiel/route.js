@@ -7,6 +7,7 @@ import { berekenHerstelDagen } from "@/lib/hrv/herstelsnelheid";
 import { berekenHrvRpeCorrelatie } from "@/lib/hrv/correlatie";
 import { datumOffset } from "@/lib/datum";
 import { berekenVerwachtRpe as berekenVerwachtRpeLib } from "@/lib/sessie/rpe";
+import { zoneTimesNaarObject } from "@/lib/uitvoeringsscore";
 
 export const maxDuration = 120;
 
@@ -67,7 +68,7 @@ export async function POST(request) {
 
   const alleActiviteiten = await intervalsGet("/activities", {
     oldest: datumOffset(-365), newest: datumOffset(0), limit: "500",
-    fields: "id,name,start_date_local,icu_rpe,icu_training_load,moving_time,type,icu_weighted_avg_watts,average_watts",
+    fields: "id,name,start_date_local,icu_rpe,icu_training_load,moving_time,type,icu_weighted_avg_watts,average_watts,icu_zone_times",
   }, creds);
 
   const rittenMetRpe = (alleActiviteiten || [])
@@ -78,12 +79,10 @@ export async function POST(request) {
       const datum = rit.start_date_local?.slice(0, 10);
       const w = wellnessByDatum[datum];
       if (!w?.hrv) return null;
-      if (!rit.icu_weighted_avg_watts && !rit.average_watts) return null;
-      const npWatts = rit.icu_weighted_avg_watts || rit.average_watts;
-      const ftpVoorRit = plan?.huidige_ftp || 265;
-      const ifGereden = npWatts / ftpVoorRit;
+      const tijdInZones = zoneTimesNaarObject(rit.icu_zone_times);
+      if (!tijdInZones) return null;
       const duurMin = rit.moving_time ? Math.round(rit.moving_time / 60) : null;
-      const verwachtRpe = (ifGereden && duurMin) ? berekenVerwachtRpeLib(ifGereden, duurMin) : null;
+      const verwachtRpe = duurMin ? berekenVerwachtRpeLib(tijdInZones, duurMin) : null;
       const rpeDelta = verwachtRpe != null ? rit.icu_rpe - verwachtRpe : null;
       return { datum, hrv: w.hrv, icu_rpe: rit.icu_rpe, verwacht_rpe: verwachtRpe, rpe_delta: rpeDelta };
     })

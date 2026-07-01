@@ -1,67 +1,68 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { berekenVerwachtRpe } from '../sessie/rpe.js'
 
-// Werkelijke interface: berekenVerwachtRpe(ifWaarde, duurMinuten)
-// Let op: functie gebruikt Math.ceil (niet round) → retourneert integer
-// IF > 2 wordt als percentage behandeld en gedeeld door 100
+// Lucia TRIMP (Lucia et al., 2003): Coggan Z1-Z7 tijdsverdeling gegroepeerd naar
+// 3 fysiologische zones (gewicht 1/2/3), gewogen naar tijdsaandeel.
+// Interface: berekenVerwachtRpe(tijdInZones, duurMinuten)
+// tijdInZones mag fracties (som = 1.0) of seconden zijn — wordt intern genormaliseerd.
 
 describe('berekenVerwachtRpe', () => {
-  // IF=0.75, 60min: basis = 10×0.75^2.5 ≈ 4.871, correctie=0 → ceil(4.871) = 5
-  it('berekent correct voor IF 0.75, 60 min', () => {
-    expect(berekenVerwachtRpe(0.75, 60)).toBe(5)
+  it('berekent correct voor puur Z2, 60 min', () => {
+    const rpe = berekenVerwachtRpe({ Z1: 0, Z2: 1, Z3: 0, Z4: 0, Z5: 0, Z6: 0, Z7: 0 }, 60)
+    expect(rpe).toBe(3.5)
   })
 
-  // IF als percentage werkt hetzelfde
-  it('accepteert IF als percentage (>2 → gedeeld door 100)', () => {
-    expect(berekenVerwachtRpe(75, 60)).toBe(berekenVerwachtRpe(0.75, 60))
+  it('berekent correct voor gemengde rit (Z2 60%/Z3 30%/Z5 10%, 90 min)', () => {
+    const rpe = berekenVerwachtRpe({ Z1: 0, Z2: 0.6, Z3: 0.3, Z4: 0, Z5: 0.1, Z6: 0, Z7: 0 }, 90)
+    expect(rpe).toBeCloseTo(5.5, 1)
   })
 
-  // Duurcorrectie positief: IF=0.65, 120min vs 60min
-  // 60min: ceil(10×0.65^2.5) = ceil(3.406) = 4
-  // 120min: ceil(3.406 + 0.9) = ceil(4.306) = 5
+  it('berekent correct voor sweetspot (Z3 40%/Z4 60%, 90 min)', () => {
+    const rpe = berekenVerwachtRpe({ Z1: 0, Z2: 0, Z3: 0.4, Z4: 0.6, Z5: 0, Z6: 0, Z7: 0 }, 90)
+    expect(rpe).toBeCloseTo(7.0, 1)
+  })
+
+  it('berekent correct voor drempel (Z4 80%/Z5 20%, 60 min)', () => {
+    const rpe = berekenVerwachtRpe({ Z1: 0, Z2: 0, Z3: 0, Z4: 0.8, Z5: 0.2, Z6: 0, Z7: 0 }, 60)
+    expect(rpe).toBeCloseTo(7.5, 1)
+  })
+
+  it('accepteert seconden i.p.v. fracties (wordt intern genormaliseerd)', () => {
+    const fracties = berekenVerwachtRpe({ Z2: 0.6, Z3: 0.3, Z5: 0.1 }, 90)
+    const seconden = berekenVerwachtRpe({ Z2: 3240, Z3: 1620, Z5: 540 }, 90)
+    expect(seconden).toBe(fracties)
+  })
+
   it('verhoogt RPE voor ritten boven 60 min', () => {
-    const basis = berekenVerwachtRpe(0.65, 60)
-    const lang  = berekenVerwachtRpe(0.65, 120)
+    const basis = berekenVerwachtRpe({ Z3: 1 }, 60)
+    const lang = berekenVerwachtRpe({ Z3: 1 }, 120)
     expect(lang).toBeGreaterThan(basis)
   })
 
-  // Duurcorrectie negatief: IF=0.65, 60min vs 20min
-  // 60min: ceil(10×0.65^2.5) = ceil(3.408) = 4
-  // 20min: ceil(3.408 + (20-60)×0.015) = ceil(3.408 - 0.6) = ceil(2.808) = 3
   it('verlaagt RPE voor korte ritten onder 60 min', () => {
-    const basis = berekenVerwachtRpe(0.65, 60)
-    const kort  = berekenVerwachtRpe(0.65, 20)
+    const basis = berekenVerwachtRpe({ Z2: 1 }, 60)
+    const kort = berekenVerwachtRpe({ Z2: 1 }, 20)
     expect(kort).toBeLessThan(basis)
   })
 
-  // IF 1.0 → basis = 10×1.0^2.5 = 10 → ceil(10) = 10
-  it('IF 1.0 geeft RPE 10 bij 60 min', () => {
-    expect(berekenVerwachtRpe(1.0, 60)).toBe(10)
+  it('geeft null bij lege of ontbrekende zonedistributie', () => {
+    expect(berekenVerwachtRpe({}, 60)).toBeNull()
+    expect(berekenVerwachtRpe(undefined, 60)).toBeNull()
   })
 
-  // Maximum capping
   it('RPE overschrijdt nooit 10', () => {
-    expect(berekenVerwachtRpe(1.2, 180)).toBeLessThanOrEqual(10)
-    expect(berekenVerwachtRpe(2.0, 300)).toBeLessThanOrEqual(10)
+    expect(berekenVerwachtRpe({ Z7: 1 }, 240)).toBeLessThanOrEqual(10)
   })
 
-  // Minimum capping
   it('RPE is nooit lager dan 1', () => {
-    expect(berekenVerwachtRpe(0.1, 10)).toBeGreaterThanOrEqual(1)
-    expect(berekenVerwachtRpe(0.01, 5)).toBeGreaterThanOrEqual(1)
+    expect(berekenVerwachtRpe({ Z1: 1 }, 10)).toBeGreaterThanOrEqual(1)
   })
 
-  // Z1 herstelrit: IF=0.52, 45min
-  // basis = 10×0.52^2.5 ≈ 1.950, correctie = (45-60)×0.015 = -0.225 → 1.725 → ceil = 2
-  it('berekent correct voor Z1 herstelrit (IF 0.52, 45 min)', () => {
-    expect(berekenVerwachtRpe(0.52, 45)).toBe(2)
-  })
-
-  // Sweetspot: IF=0.9, 90min
-  // basis = 10×0.9^2.5 ≈ 7.686, correctie = 0.45 → 8.136 → ceil = 9
-  it('sweetspot (IF 0.9, 90 min) geeft hoge RPE', () => {
-    const rpe = berekenVerwachtRpe(0.9, 90)
-    expect(rpe).toBeGreaterThanOrEqual(8)
-    expect(rpe).toBeLessThanOrEqual(10)
+  it('backward-compat: getal als eerste argument geeft deprecation-warning en IF^2.5-fallback', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const rpe = berekenVerwachtRpe(0.7, 60)
+    expect(warnSpy).toHaveBeenCalled()
+    expect(rpe).toBeCloseTo(4.0, 1)
+    warnSpy.mockRestore()
   })
 })

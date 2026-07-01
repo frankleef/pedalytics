@@ -9,7 +9,7 @@ import { datumISO } from "@/lib/datum";
 import InfoTooltip from "./InfoTooltip";
 import ScaleInput from "./ScaleInput";
 import { isRpeAanpasbaar, berekenVerwachtRpe } from "@/lib/sessie/rpe";
-import { berekenNP } from "@/lib/np";
+import { zoneTimesNaarObject } from "@/lib/uitvoeringsscore";
 import SharedHeader from "./SharedHeader";
 import { KerngetallenTiles, StatusBanner } from "./SessieUitkomstKaart";
 import AdaptatieScoreKaart from "./AdaptatieScoreKaart"; // TSS+fase kaart op Schema
@@ -254,9 +254,9 @@ export default function SchemaTab({
   const statusKey = getStatus(score);
   const st = STATUS[statusKey];
 
-  // 21-day strip
+  // 18-day strip: 10 dagen terug, vandaag, 7 dagen vooruit
   const stripData = [];
-  for (let i = 0; i < 21; i++) {
+  for (let i = 0; i < 18; i++) {
     const offset = i - 10;
     const d = new Date(nu);
     d.setDate(nu.getDate() + offset);
@@ -270,7 +270,7 @@ export default function SchemaTab({
     stripData.push({ offset, datum: d, iso, dagNaam, wd: DAG_KORT[d.getDay()], date: d.getDate(), sessie, rit, mode });
   }
 
-  const sel = Math.max(0, Math.min(20, selectedIdx));
+  const sel = Math.max(0, Math.min(17, selectedIdx));
   const cur = stripData[sel];
   const dayOffset = cur.offset;
   const bekekeDagNaam = cur.dagNaam;
@@ -346,13 +346,11 @@ export default function SchemaTab({
   const renderRpe = () => {
     if (!gematchteRit) return null;
     const aanpasbaar = isRpeAanpasbaar(gematchteRit.start_date_local);
-    // Primaire bron: icu_weighted_avg_watts (NP, server-side berekend door intervals.icu).
-    // Fallback: zelf NP berekenen uit de ruwe streams als de aggregate-waarde nog niet
-    // beschikbaar is (intervals.icu-verwerkingstiming bij verse ritten).
-    const npVoorRpe = gematchteRit.wattage
-      ?? (werkelijkWatts?.length >= 30 ? berekenNP(werkelijkWatts) : null);
-    const verwachtRpeWerkelijk = (npVoorRpe && gematchteRit.duur_min)
-      ? berekenVerwachtRpe(npVoorRpe / ftp, gematchteRit.duur_min)
+    // Lucia TRIMP: verwachte RPE op basis van de werkelijke zonedistributie
+    // van de gereden rit (sectie 26-C, Appendix B-1).
+    const zoneDistWerkelijk = zoneTimesNaarObject(gematchteRit.zoneTijden);
+    const verwachtRpeWerkelijk = (zoneDistWerkelijk && gematchteRit.duur_min)
+      ? berekenVerwachtRpe(zoneDistWerkelijk, gematchteRit.duur_min)
       : null;
     // Geen fallback naar sessie.verwacht_rpe — dat vergelijkt tegen de GEPLANDE intensiteit,
     // niet de gereden. Liever geen delta tonen dan een misleidende delta.

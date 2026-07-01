@@ -128,7 +128,7 @@ export function bouwWeekSessiesPrompt({ profiel, wellness, dagelijkseData, voort
   const vandaagISOStr = vandaagISO();
 
   const planDagen = [];
-  for (let i = 0; i <= 10; i++) {
+  for (let i = 0; i <= 6; i++) {
     const d = new Date(nu); d.setDate(nu.getDate() + i);
     const iso = datumISO(d);
     const dagNaam = DAGNAMEN[d.getDay()];
@@ -207,7 +207,7 @@ export function bouwWeekSessiesPrompt({ profiel, wellness, dagelijkseData, voort
   const doelType = seizoensplan.seizoensdoel?.type || "ftp";
 
   return {
-    prompt: `Maak concrete trainingssessies voor een wielrenner voor de komende 10 dagen.
+    prompt: `Maak concrete trainingssessies voor een wielrenner voor de komende 7 dagen.
 
 SEIZOENSDOEL: ${doelType}
 
