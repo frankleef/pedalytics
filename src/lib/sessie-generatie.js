@@ -123,8 +123,26 @@ export function groeperenInSets(blokken) {
 }
 
 /**
- * Selecteert een variant op basis van actuele dagvorm (TSB, HRV-zone, RPE-trend).
+ * Bepaalt het doelgewicht (1=licht, 2=middel, 3=zwaar) op basis van actuele
+ * dagvorm (TSB, HRV-zone, RPE-trend). Pure functie, geen KV-afhankelijkheid —
+ * losstaand exportbaar zodat andere modules (bv. de weeksolver, chunk 3) dezelfde
+ * drempels hergebruiken in plaats van een parallel mechanisme te bouwen.
  * HRV-vocabulaire moet exact matchen met bepaalHrvZone(): 'rood'|'geel'|'normaal'|'hoog'|'onbekend'.
+ *
+ * @param {{tsb?: number, hrv?: string, rpeDeltaTrend?: number}} dagvorm
+ * @returns {number} 1, 2 of 3
+ */
+export function bepaalDoelGewicht(dagvorm) {
+  const { tsb = 0, hrv = "normaal", rpeDeltaTrend = 0 } = dagvorm ?? {};
+
+  if (tsb < -20 || hrv === "rood") return 1;
+  if (tsb < -10 || hrv === "geel" || rpeDeltaTrend > 1.0) return 2;
+  if (tsb >= 5 && (hrv === "normaal" || hrv === "hoog") && rpeDeltaTrend < 0.5) return 3;
+  return 2;
+}
+
+/**
+ * Selecteert een variant op basis van actuele dagvorm (TSB, HRV-zone, RPE-trend).
  * KV-rotatie per gewichtsgroep, zodat niet steeds dezelfde (lichte/zware) variant terugkomt.
  *
  * @param {object} kv
@@ -133,18 +151,7 @@ export function groeperenInSets(blokken) {
  * @param {{tsb?: number, hrv?: string, rpeDeltaTrend?: number}} dagvorm
  */
 export async function selecteerVariantOpDagvorm(kv, archetype, userId, dagvorm) {
-  const { tsb = 0, hrv = "normaal", rpeDeltaTrend = 0 } = dagvorm ?? {};
-
-  let doelGewicht;
-  if (tsb < -20 || hrv === "rood") {
-    doelGewicht = 1;
-  } else if (tsb < -10 || hrv === "geel" || rpeDeltaTrend > 1.0) {
-    doelGewicht = 2;
-  } else if (tsb >= 5 && (hrv === "normaal" || hrv === "hoog") && rpeDeltaTrend < 0.5) {
-    doelGewicht = 3;
-  } else {
-    doelGewicht = 2;
-  }
+  const doelGewicht = bepaalDoelGewicht(dagvorm);
 
   const kandidaten = archetype.varianten.filter(v => v.zwaartegewicht === doelGewicht);
   const pool = kandidaten.length > 0 ? kandidaten : archetype.varianten;
