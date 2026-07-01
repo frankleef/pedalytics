@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { berekenZ2AandeelSessietype, haalPrioriteitOp, PRIORITEIT_PER_FASE, degradeerBijLageTsb, solveWeek, pasBudgetToe } from '../weekSolver.js'
 import { SESSIE_ARCHETYPES as VARIANT_ARCHETYPES } from '../../sessie-varianten.js'
 
@@ -139,24 +141,87 @@ describe('solveWeek', () => {
     expect(klimspecifiek.find(r => r.pad === 'kernstimulus').sessietype).toBe('drempel_intervallen')
   })
 
-  it('aerobe_basis en uithoudingsvermogen: kracht_lage_cadans staat nooit toe op z2-toewijzingen', () => {
-    for (const doel of ['aerobe_basis', 'uithoudingsvermogen']) {
-      const resultaat = solveWeek({
-        fase: 'basis', weekInFase: 1, weektype: 'opbouw', seizoensdoel: doel,
-        weekTssDoel: 200, vasteDagen: [],
-        openDagen: dagen('2026-07-06:2', '2026-07-08:1.5', '2026-07-10:2'),
-        alGeleverd: {}, tsb: 0,
-      })
-      for (const t of resultaat.filter(r => r.sessietype === 'z2_duur')) {
-        expect(t.krachtLageCadansToegestaan).toBe(false)
+  it('aerobe_basis, uithoudingsvermogen en sprint: kracht_lage_cadans wordt nooit gekozen, in geen enkele fase', () => {
+    const generiekeFases = ['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test']
+    for (const doel of ['aerobe_basis', 'uithoudingsvermogen', 'sprint']) {
+      for (const fase of generiekeFases) {
+        const resultaat = solveWeek({
+          fase, weekInFase: 1, weektype: 'opbouw', seizoensdoel: doel,
+          weekTssDoel: 200, vasteDagen: [],
+          openDagen: dagen('2026-07-06:2', '2026-07-08:1.5', '2026-07-10:2'),
+          alGeleverd: {}, tsb: 0,
+        })
+        expect(resultaat.some(r => r.sessietype === 'kracht_lage_cadans')).toBe(false)
       }
     }
-    // Ter vergelijking: bij ftp blijft het bestaande gedrag (toegestaan)
-    const ftpResultaat = solveWeek({
+  })
+
+  it('ftp/basis: zonder bekende historie wordt de eerste Z2-dag kracht_lage_cadans (1x/2 weken, geen eerdere toewijzing bekend)', () => {
+    const resultaat = solveWeek({
       fase: 'basis', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
-      weekTssDoel: 200, vasteDagen: [], openDagen: dagen('2026-07-06:2'), alGeleverd: {}, tsb: 0,
+      weekTssDoel: 200, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2', '2026-07-08:1.5'),
+      alGeleverd: {}, tsb: 0,
     })
-    expect(ftpResultaat[0].krachtLageCadansToegestaan).toBe(true)
+    expect(resultaat.filter(r => r.sessietype === 'kracht_lage_cadans')).toHaveLength(1)
+  })
+
+  it('ftp/basis (1x/2 weken): binnen het interval sinds de laatste toewijzing -> geen nieuwe kracht_lage_cadans', () => {
+    const resultaat = solveWeek({
+      fase: 'basis', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
+      weekTssDoel: 200, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2', '2026-07-08:1.5'),
+      alGeleverd: {}, tsb: 0,
+      weekNummerInSeizoen: 5, laatsteKrachtLageCadansWeek: 4, // 1 week geleden, interval is 2
+    })
+    expect(resultaat.some(r => r.sessietype === 'kracht_lage_cadans')).toBe(false)
+  })
+
+  it('ftp/basis (1x/2 weken): interval verstreken -> weer toegestaan', () => {
+    const resultaat = solveWeek({
+      fase: 'basis', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
+      weekTssDoel: 200, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2', '2026-07-08:1.5'),
+      alGeleverd: {}, tsb: 0,
+      weekNummerInSeizoen: 6, laatsteKrachtLageCadansWeek: 4, // 2 weken geleden, interval is 2
+    })
+    expect(resultaat.filter(r => r.sessietype === 'kracht_lage_cadans')).toHaveLength(1)
+  })
+
+  it('klimmen/sweetspot (1x/week): elke week opnieuw toegestaan', () => {
+    const resultaat = solveWeek({
+      fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'klimmen',
+      weekTssDoel: 300, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2', '2026-07-08:1.5'),
+      alGeleverd: {}, tsb: 0,
+      weekNummerInSeizoen: 6, laatsteKrachtLageCadansWeek: 5, // vorige week, interval is 1
+    })
+    expect(resultaat.filter(r => r.sessietype === 'kracht_lage_cadans')).toHaveLength(1)
+  })
+
+  it('overgangsfase/consolidatie/test: kracht_lage_cadans nooit toegestaan, ook niet voor klimmen/ftp', () => {
+    for (const doel of ['klimmen', 'ftp']) {
+      for (const fase of ['overgangsfase', 'consolidatie', 'test']) {
+        const resultaat = solveWeek({
+          fase, weekInFase: 1, weektype: 'opbouw', seizoensdoel: doel,
+          weekTssDoel: 200, vasteDagen: [], openDagen: dagen('2026-07-06:2'), alGeleverd: {}, tsb: 0,
+        })
+        expect(resultaat.some(r => r.sessietype === 'kracht_lage_cadans')).toBe(false)
+      }
+    }
+  })
+
+  it('herstelweek: kracht_lage_cadans wordt niet toegewezen, ook niet als de fase het normaal toestaat', () => {
+    const resultaat = solveWeek({
+      fase: 'basis', weekInFase: 1, weektype: 'herstel', seizoensdoel: 'ftp',
+      weekTssDoel: 100, vasteDagen: [], openDagen: dagen('2026-07-06:2'), alGeleverd: {}, tsb: 0,
+    })
+    expect(resultaat.some(r => r.sessietype === 'kracht_lage_cadans')).toBe(false)
+  })
+
+  it('een kracht_lage_cadans-toewijzing komt zonder enige Claude-afhankelijkheid tot stand (solveWeek importeert geen claude-module)', () => {
+    const bron = require('fs').readFileSync(require.resolve('../weekSolver.js'), 'utf8')
+    expect(bron).not.toMatch(/claude/i)
   })
 
   it('sprint, Sprintkracht-fase: max 2 sprint_neuraal-dagen, nooit aangrenzend', () => {

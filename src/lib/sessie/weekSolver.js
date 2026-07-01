@@ -226,12 +226,65 @@ export function haalPrioriteitOp(seizoensdoel, fase, periode = {}) {
   return entry;
 }
 
-// Sectie 26-A: kracht_lage_cadans is bij deze twee doelen nooit toegestaan, ook
-// niet als sluitpost voor een Z2-slot (zie doelprofielen.js — deze twee doelen
-// hebben geen enkele fase met kracht_lage_cadans in de sessietypes-lijst).
-// solveWeek() zelf kiest hier geen kracht_lage_cadans (dat gebeurt downstream,
-// bij archetype-selectie) — dit is een informatief vlag voor die laag.
-const KRACHT_LAGE_CADANS_VERBODEN_DOELEN = new Set(['aerobe_basis', 'uithoudingsvermogen']);
+// Sectie 26-A, fix 2: kracht_lage_cadans-gating is een HARDE beslissing binnen
+// solveWeek() zelf (stap 5), niet meer een informatief vlag voor een downstream
+// Claude-promptinstructie. aerobe_basis/uithoudingsvermogen krijgen het nooit
+// (bevestigd: geen enkele fase in doelprofielen.js vermeldt kracht_lage_cadans
+// voor deze twee doelen). sprint krijgt het ook nooit — bevestigd via
+// doelprofielen.js: geen van sprint's vijf fases vermeldt kracht_lage_cadans in
+// de sessietypes-lijst (in tegenstelling tot wat een eerdere opdracht aannam).
+// klimmen/ftp: frequentie per fase, opgegeven door de gebruiker (geen bestaande
+// tabel hiervoor gevonden in de codebase — zie project-memory).
+const KRACHT_LAGE_CADANS_VERBODEN_DOELEN = new Set(['aerobe_basis', 'uithoudingsvermogen', 'sprint']);
+
+// Frequentietabel, opgegeven door de gebruiker (geen bestaande tabel hiervoor
+// gevonden in de codebase — zie project-memory). Fases die hier ontbreken
+// (overgangsfase, consolidatie, test) staan kracht_lage_cadans nooit toe.
+const KRACHT_FREQUENTIE = {
+  klimmen: {
+    basis:         { toegestaan: true,  frequentie: '1x_per_week' },
+    sweetspot:     { toegestaan: true,  frequentie: '1x_per_week' },
+    overgangsfase: { toegestaan: false },
+    drempel:       { toegestaan: true,  frequentie: '1x_per_2_weken' },
+    consolidatie:  { toegestaan: false },
+    test:          { toegestaan: false },
+  },
+  ftp: {
+    basis:         { toegestaan: true,  frequentie: '1x_per_2_weken' },
+    sweetspot:     { toegestaan: true,  frequentie: '1x_per_week' },
+    overgangsfase: { toegestaan: false },
+    drempel:       { toegestaan: true,  frequentie: '1x_per_2_weken' },
+    consolidatie:  { toegestaan: false },
+    test:          { toegestaan: false },
+  },
+};
+
+// Vertaalt de frequentie-labels naar een interval in weken.
+const FREQUENTIE_NAAR_WEKEN = { '1x_per_week': 1, '1x_per_2_weken': 2 };
+
+/**
+ * Bepaalt of een Z2-slot deze week kracht_lage_cadans mag worden, i.p.v. gewone
+ * z2_duur. Harde uitsluiting voor KRACHT_LAGE_CADANS_VERBODEN_DOELEN. Voor de
+ * overige doelen: alleen toegestaan in fases met `toegestaan: true` in
+ * KRACHT_FREQUENTIE, en alleen als het opgegeven interval sinds de laatste
+ * toewijzing verstreken is.
+ *
+ * @param {string} seizoensdoel
+ * @param {string} generiekeFase - al genormaliseerd (zie normaliseerFase)
+ * @param {number|null|undefined} weekNummerInSeizoen - absoluut weeknummer (plan.kader[].week)
+ * @param {number|null|undefined} laatsteKrachtLageCadansWeek - weeknummer van de
+ *   laatst bekende kracht_lage_cadans-toewijzing (uit vaste/voltooide sessies)
+ * @returns {boolean}
+ */
+function magKrachtLageCadans(seizoensdoel, generiekeFase, weekNummerInSeizoen, laatsteKrachtLageCadansWeek) {
+  if (KRACHT_LAGE_CADANS_VERBODEN_DOELEN.has(seizoensdoel)) return false;
+  const entry = KRACHT_FREQUENTIE[seizoensdoel]?.[generiekeFase];
+  if (!entry?.toegestaan) return false;
+  const intervalWeken = FREQUENTIE_NAAR_WEKEN[entry.frequentie];
+  if (!intervalWeken) return false;
+  if (weekNummerInSeizoen == null || laatsteKrachtLageCadansWeek == null) return true;
+  return (weekNummerInSeizoen - laatsteKrachtLageCadansWeek) >= intervalWeken;
+}
 
 /**
  * Degradeert een kandidaat-sessietype bij lage TSB op weekplan-niveau.
@@ -303,11 +356,6 @@ function bouwToewijzing({ datum, beschikbareUren }, sessietype, { fase, weekInFa
     pad, // observability: 'kernstimulus'|'secundair'|'vrijheidsessie'|'z2'
     beschikbareUren,
   };
-  // Informatief vlag voor de archetype-selectielaag (zie KRACHT_LAGE_CADANS_VERBODEN_DOELEN
-  // hierboven) — solveWeek() kiest zelf geen kracht_lage_cadans, dus dit is puur signaal.
-  if (sessietype === "z2_duur") {
-    toewijzing.krachtLageCadansToegestaan = !KRACHT_LAGE_CADANS_VERBODEN_DOELEN.has(seizoensdoel);
-  }
   return toewijzing;
 }
 
@@ -331,11 +379,16 @@ function bouwToewijzing({ datum, beschikbareUren }, sessietype, { fase, weekInFa
  * @param {Array}  ctx.openDagen - [{ datum, beschikbareUren }]
  * @param {{tss?: number, z2Minuten?: number, totaalMinuten?: number}} [ctx.alGeleverd]
  * @param {number|null} [ctx.tsb]
+ * @param {number|null} [ctx.weekNummerInSeizoen] - absoluut weeknummer (plan.kader[].week)
+ *   voor de kracht_lage_cadans-frequentiegate (zie magKrachtLageCadans)
+ * @param {number|null} [ctx.laatsteKrachtLageCadansWeek] - weeknummer van de laatst
+ *   bekende kracht_lage_cadans-toewijzing, uit vaste/voltooide sessies
  * @returns {Array<{datum, sessietype, tss_doel, toegestane_zones, archetype_hint, gedegradeerd, pad}>}
  */
 export function solveWeek({
   fase, weekInFase, weektype, seizoensdoel, weekTssDoel, belastingscap, aantalWekenInFase,
   vasteDagen = [], openDagen = [], alGeleverd = {}, tsb = null,
+  weekNummerInSeizoen = null, laatsteKrachtLageCadansWeek = null,
 }) {
   const cap = belastingscap ?? weekTssDoel;
   const alGeleverdTss = alGeleverd.tss ?? 0;
@@ -417,12 +470,21 @@ export function solveWeek({
   }
 
   // Stap 5: rest vullen met z2_duur, resterend budget proportioneel naar uren.
+  // Fix 2: kracht_lage_cadans is hier een harde beslissing (magKrachtLageCadans),
+  // niet meer een downstream Claude-promptinstructie — max 1 keer per week, en
+  // alleen als de frequentiegate dat toelaat en het niet al via een vaste dag
+  // deze week geleverd is.
   const z2Dagen = openDagenAflopend.filter(d => !gebruikt.has(d.datum));
   const totaalUrenZ2 = z2Dagen.reduce((s, d) => s + d.beschikbareUren, 0);
+  const generiekeFaseVoorKracht = normaliseerFase(seizoensdoel, fase);
+  let krachtLageCadansGebruiktDezeWeek = bestaandeSessietypesDezeWeek.has("kracht_lage_cadans");
   for (const dag of z2Dagen) {
     const aandeel = totaalUrenZ2 > 0 ? dag.beschikbareUren / totaalUrenZ2 : 0;
     const tssDoel = Math.max(0, Math.round(restBudget * aandeel));
-    toewijzingen.push(bouwToewijzing(dag, "z2_duur", { fase, weekInFase, seizoensdoel, pad: "z2", tssDoelOverride: tssDoel }));
+    const wordtKracht = !isHerstelAchtig && !krachtLageCadansGebruiktDezeWeek &&
+      magKrachtLageCadans(seizoensdoel, generiekeFaseVoorKracht, weekNummerInSeizoen, laatsteKrachtLageCadansWeek);
+    if (wordtKracht) krachtLageCadansGebruiktDezeWeek = true;
+    toewijzingen.push(bouwToewijzing(dag, wordtKracht ? "kracht_lage_cadans" : "z2_duur", { fase, weekInFase, seizoensdoel, pad: "z2", tssDoelOverride: tssDoel }));
   }
 
   toewijzingen.sort((a, b) => a.datum.localeCompare(b.datum));

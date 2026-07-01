@@ -207,6 +207,16 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         status: s.voltooid ? 'voltooid' : (s.status || 'gepland'),
       }));
 
+    // Fix 2: kracht_lage_cadans-frequentiegate heeft het weeknummer nodig waarin
+    // dat sessietype voor het laatst is toegewezen, om het interval (1x/week,
+    // 1x/2 weken) te bewaken over meerdere solveWeek()-aanroepen heen.
+    let laatsteKrachtLageCadansWeek;
+    for (const s of [...bestaandeSessies, ...aangevuld]) {
+      if ((s.intentie?.sessietype || s.type) !== 'kracht_lage_cadans' || !s.datum) continue;
+      const wk = weeknummerVoorDatum(s.datum, plan.startdatum);
+      if (laatsteKrachtLageCadansWeek == null || wk > laatsteKrachtLageCadansWeek) laatsteKrachtLageCadansWeek = wk;
+    }
+
     try {
       const alGeleverd = await bepaalAlGeleverd(userId, mISO);
       const ruweToewijzingen = solveWeek({
@@ -216,6 +226,8 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         seizoensdoel: plan.seizoensdoel?.type ?? 'ftp',
         weekTssDoel: kaderWeekVoorDeze?.tss_doel ?? 0,
         aantalWekenInFase: aantalWekenInFaseVoorDeze,
+        weekNummerInSeizoen: kaderWeekVoorDeze?.week ?? null,
+        laatsteKrachtLageCadansWeek: laatsteKrachtLageCadansWeek ?? null,
         vasteDagen: vasteDagenDezeWeek,
         openDagen: normaleDagen.map(d => ({ datum: d.datum, beschikbareUren: d.uren })),
         alGeleverd, tsb,
