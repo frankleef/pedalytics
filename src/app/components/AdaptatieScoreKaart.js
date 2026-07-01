@@ -27,14 +27,20 @@ export default function AdaptatieScoreKaart({ weekTss, doelTss, fase, weekNr, we
 
   return (
     <div style={{ background: T.cardBg, borderRadius: 24, padding: "15px 17px 16px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 18 }}>
-      {fase && (
+      {(fase || onEditBeschikbaarheid) && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid oklch(0.93 0.01 82)` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.gradient }} />
-            <span style={{ font: "700 13.5px var(--font-nunito), sans-serif", color: T.text }}>{fase ? fase.charAt(0).toUpperCase() + fase.slice(1) : fase}</span>
+            {fase && (
+              <>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.gradient }} />
+                <span style={{ font: "700 13.5px var(--font-nunito), sans-serif", color: T.text }}>{fase.charAt(0).toUpperCase() + fase.slice(1)}</span>
+              </>
+            )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec, padding: "4px 10px", borderRadius: T.pillRadius, background: T.subtleFill }}>Week {weekNr} · {weektype}</span>
+            {fase && (
+              <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec, padding: "4px 10px", borderRadius: T.pillRadius, background: T.subtleFill }}>Week {weekNr} · {weektype}</span>
+            )}
             {onEditBeschikbaarheid && (
               <button onClick={onEditBeschikbaarheid} style={{ width: 30, height: 30, borderRadius: "50%", border: `1px solid oklch(0.93 0.01 82)`, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke={T.textTert} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke={T.textTert} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>

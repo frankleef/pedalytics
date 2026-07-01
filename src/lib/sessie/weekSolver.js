@@ -55,34 +55,120 @@ export function berekenZ2AandeelSessietype(sessietype, archetypeId) {
  * Kernstimulus/secundair/eerst-laten-vallen-indeling per seizoensdoel × fase.
  * Vastgesteld beleid — niet wijzigen tijdens implementatie.
  *
- * 'sprint' als seizoensdoel bestaat (zie doel_beperking in sessie-archetypes.js)
- * maar heeft bewust nog geen entry hier — haalPrioriteitOp() gooit een expliciete
- * fout voor 'sprint' in plaats van stilzwijgend op ftp terug te vallen, in
- * afwachting van een echte sprint-indeling.
+ * BELANGRIJK — fasenamen: de standaard kader-opbouw (bouwKader → bouwWeekvolgorde
+ * in src/lib/seizoen/faseDuren.js) genereert voor ELK seizoensdoel dezelfde zes
+ * generieke, kleine-letter fasenamen: basis, sweetspot, overgangsfase, drempel,
+ * consolidatie, test. Er bestaat GEEN "vo2max"-fase — die bug (PRIORITEIT_PER_FASE.
+ * ftp.vo2max) veroorzaakte een undefined-crash zodra een ftp-gebruiker in de
+ * Drempel-periode zat. Deze tabel is daarom gesleuteld op de generieke namen.
  *
- * kracht_lage_cadans telt NIET mee als eigen intensiteitsslot — behandel het
- * overal in deze module als variant van z2_duur (zie chunk 4/5).
+ * doelprofielen.js (src/lib/seizoen/doelprofielen.js) kent daarnaast rijkere,
+ * doel-specifieke fasenamen (bv. "Drempel + VO2max", "Klimspecifiek",
+ * "Sprintkracht") — die komen alleen voor in kaderWeek.fase nadat een gebruiker
+ * via /api/plan/wijzig-doel van seizoensdoel wisselt (die route herschrijft
+ * fase-namen voor toekomstige weken met doelprofielen.js's namen). FASE_ALIAS
+ * hieronder vertaalt die rijke namen terug naar de generieke sleutel. Waar één
+ * doelprofielen-doel de generieke "drempel"-periode in meerdere sub-fases
+ * opdeelt (klimmen: "Drempel + VO2max" + "Klimspecifiek"), is dat hier bewust
+ * samengevoegd tot één generieke entry — de standaard kader-opbouw kan die
+ * twee sub-fases sowieso niet als aparte kaderWeek.fase-waarden onderscheiden.
  */
 export const PRIORITEIT_PER_FASE = {
   ftp: {
-    basis:      { kernstimulus: null,                                          secundair: null,                    eerstLatenVallen: [] },
-    sweetspot:  { kernstimulus: ['sweetspot_intervallen', 'drempel_intervallen'], secundair: 'vo2max_intervallen', eerstLatenVallen: ['sprint_neuraal', 'gemengd'] },
-    vo2max:     { kernstimulus: ['vo2max_intervallen'],                        secundair: 'sweetspot_intervallen', eerstLatenVallen: ['sprint_neuraal', 'gemengd'] },
-    herstel:    { kernstimulus: null,                                          secundair: null,                    eerstLatenVallen: [] },
+    basis:         { kernstimulus: null,                     secundair: null,                 eerstLatenVallen: [] },
+    sweetspot:     { kernstimulus: ['sweetspot_intervallen'], secundair: null,                 eerstLatenVallen: ['vo2max_intervallen', 'sprint_neuraal', 'gemengd'] },
+    overgangsfase: { kernstimulus: ['sweetspot_intervallen'], secundair: null,                 eerstLatenVallen: ['vo2max_intervallen', 'sprint_neuraal', 'gemengd'] },
+    drempel:       { kernstimulus: ['drempel_intervallen'],   secundair: null,                 eerstLatenVallen: ['sweetspot_intervallen', 'sprint_neuraal', 'gemengd'] },
+    consolidatie:  { kernstimulus: ['drempel_intervallen'],   secundair: null,                 eerstLatenVallen: ['sprint_neuraal', 'gemengd'] },
+    test:          { kernstimulus: null,                      secundair: null,                 eerstLatenVallen: [] },
   },
   klimmen: {
-    basis:      { kernstimulus: null,                                          secundair: null,                    eerstLatenVallen: [] },
-    sweetspot:  { kernstimulus: ['sweetspot_intervallen'],                     secundair: 'drempel_intervallen',   eerstLatenVallen: ['sprint_neuraal', 'gemengd'] },
-    vo2max:     { kernstimulus: ['vo2max_intervallen'],                        secundair: 'sprint_neuraal',        eerstLatenVallen: ['gemengd'] },
-    herstel:    { kernstimulus: null,                                          secundair: null,                    eerstLatenVallen: [] },
+    basis:         { kernstimulus: null,                     secundair: null,                 eerstLatenVallen: [] },
+    sweetspot:     { kernstimulus: ['sweetspot_intervallen'], secundair: null,                 eerstLatenVallen: ['drempel_intervallen', 'sprint_neuraal', 'gemengd'] },
+    overgangsfase: { kernstimulus: ['sweetspot_intervallen'], secundair: null,                 eerstLatenVallen: ['drempel_intervallen', 'sprint_neuraal', 'gemengd'] },
+    // Dekt zowel "Drempel + VO2max" (weken 9,10 — meerderheid, representatief
+    // gekozen) als "Klimspecifiek" (week 11, samengevoegd zie boven).
+    drempel:       { kernstimulus: ['drempel_intervallen'], secundair: 'vo2max_intervallen', eerstLatenVallen: ['sprint_neuraal', 'gemengd'] },
+    consolidatie:  { kernstimulus: ['sweetspot_intervallen'], secundair: null,                 eerstLatenVallen: ['vo2max_intervallen', 'gemengd'] },
+    test:          { kernstimulus: null,                      secundair: null,                 eerstLatenVallen: [] },
+  },
+  aerobe_basis: {
+    basis:         { kernstimulus: null,                     secundair: null,                 eerstLatenVallen: [] },
+    sweetspot:     { kernstimulus: null,                      secundair: null,                 eerstLatenVallen: [] },
+    overgangsfase: { kernstimulus: null,                      secundair: null,                 eerstLatenVallen: [] },
+    // "alleen bij decoupling <5%" (spec) is een variant-nuance die hier niet
+    // afgedwongen wordt — vereist decoupling-data die solveWeek() nu niet ontvangt.
+    drempel:       { kernstimulus: ['sweetspot_intervallen'], secundair: null,                 eerstLatenVallen: ['drempel_intervallen', 'vo2max_intervallen', 'sprint_neuraal', 'gemengd'] },
+    consolidatie:  { kernstimulus: null,                      secundair: null,                 eerstLatenVallen: [] },
+    test:          { kernstimulus: null,                      secundair: null,                 eerstLatenVallen: [] },
+  },
+  uithoudingsvermogen: {
+    basis:         { kernstimulus: null,                     secundair: null,                 eerstLatenVallen: [] },
+    sweetspot:     { kernstimulus: null,                      secundair: null,                 eerstLatenVallen: [] },
+    overgangsfase: { kernstimulus: null,                      secundair: null,                 eerstLatenVallen: [] },
+    drempel:       { kernstimulus: ['sweetspot_intervallen'], secundair: null,                 eerstLatenVallen: ['drempel_intervallen', 'vo2max_intervallen', 'sprint_neuraal', 'gemengd'] },
+    consolidatie:  { kernstimulus: null,                      secundair: null,                 eerstLatenVallen: [] },
+    // doelprofielen noemt dit "Taper" (geen eindtest voor dit doel) — komt via de
+    // generieke kader-opbouw toch als "test"-fase binnen.
+    test:          { kernstimulus: null,                      secundair: null,                 eerstLatenVallen: [] },
+  },
+  sprint: {
+    basis:         { kernstimulus: ['sprint_neuraal'],        secundair: null,                 eerstLatenVallen: ['drempel_intervallen', 'vo2max_intervallen', 'gemengd'] },
+    sweetspot:     { kernstimulus: ['sprint_neuraal'],        secundair: null,                 eerstLatenVallen: ['drempel_intervallen', 'vo2max_intervallen', 'gemengd'] },
+    overgangsfase: { kernstimulus: ['sprint_neuraal'],        secundair: null,                 eerstLatenVallen: ['drempel_intervallen', 'vo2max_intervallen', 'gemengd'] },
+    // "secundair alleen over_under-archetype" (spec) is een variant-nuance,
+    // hier niet afgedwongen — dat is archetype-selectie, niet sessietype-keuze.
+    drempel:       { kernstimulus: ['sprint_neuraal'],        secundair: 'drempel_intervallen', eerstLatenVallen: ['vo2max_intervallen', 'gemengd'] },
+    consolidatie:  { kernstimulus: 'gemengd',                 secundair: 'sprint_neuraal',      eerstLatenVallen: ['drempel_intervallen', 'vo2max_intervallen'] },
+    test:          { kernstimulus: ['sprint_neuraal'],        secundair: null,                 eerstLatenVallen: [] },
+  },
+};
+
+const GENERIEKE_FASES = new Set(['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test']);
+
+// Vertaalt doelprofielen.js's rijke, doel-specifieke fasenamen (kleine letters)
+// terug naar de generieke sleutel hierboven — alleen relevant voor kaderWeken die
+// via /api/plan/wijzig-doel zijn herschreven; de standaard kader-opbouw levert
+// al generieke namen, die hebben deze alias niet nodig.
+const FASE_ALIAS_PER_DOEL = {
+  ftp: {
+    'basis': 'basis', 'sweetspot': 'sweetspot', 'drempel': 'drempel',
+    'consolidatie': 'consolidatie', 'test': 'test',
+  },
+  klimmen: {
+    'basis': 'basis', 'sweetspot': 'sweetspot',
+    'drempel + vo2max': 'drempel', 'klimspecifiek': 'drempel',
+    'consolidatie': 'consolidatie', 'test': 'test',
+  },
+  aerobe_basis: {
+    'aerobe opbouw 1': 'basis', 'aerobe opbouw 2': 'sweetspot',
+    'aerobe verdieping': 'drempel', 'consolidatie': 'consolidatie', 'test': 'test',
+  },
+  uithoudingsvermogen: {
+    'volume opbouw': 'basis', 'volume + duur': 'sweetspot',
+    'sweetspot hardening': 'drempel', 'consolidatie': 'consolidatie', 'taper': 'test',
+  },
+  sprint: {
+    'aerobe basis': 'basis', 'sprintkracht': 'sweetspot',
+    'sprint + drempel': 'drempel', 'specifiek': 'consolidatie', 'test': 'test',
   },
 };
 
 /**
- * Haalt de prioriteit-entry op voor een seizoensdoel × fase.
- * Gooit een expliciete fout bij een onbekende combinatie (bv. 'sprint') —
- * geen stille fallback, zodat een ontbrekende beleidsbeslissing zichtbaar blijft.
+ * Haalt de prioriteit-entry op voor een seizoensdoel × fase. Accepteert zowel de
+ * generieke kader-fasenamen (het normale geval) als de rijke doelprofielen-namen
+ * (na een wijzig-doel-actie), via FASE_ALIAS_PER_DOEL.
+ * Gooit een expliciete fout bij een onbekende combinatie — geen stille fallback,
+ * zodat een ontbrekende beleidsbeslissing zichtbaar blijft, en gooit VOORDAT er
+ * enige dagtoewijzing gebeurt (aangeroepen als eerste stap in solveWeek()).
  */
+function normaliseerFase(seizoensdoel, fase) {
+  const genormaliseerd = fase?.toLowerCase?.() ?? "";
+  return GENERIEKE_FASES.has(genormaliseerd)
+    ? genormaliseerd
+    : FASE_ALIAS_PER_DOEL[seizoensdoel]?.[genormaliseerd];
+}
+
 export function haalPrioriteitOp(seizoensdoel, fase) {
   const tabel = PRIORITEIT_PER_FASE[seizoensdoel];
   if (!tabel) {
@@ -90,14 +176,22 @@ export function haalPrioriteitOp(seizoensdoel, fase) {
       `haalPrioriteitOp: geen prioriteitstabel voor seizoensdoel "${seizoensdoel}" — nog niet gedefinieerd in PRIORITEIT_PER_FASE.`
     );
   }
-  const entry = tabel[fase];
+  const generiekeFase = normaliseerFase(seizoensdoel, fase);
+  const entry = generiekeFase ? tabel[generiekeFase] : undefined;
   if (!entry) {
     throw new Error(
-      `haalPrioriteitOp: geen prioriteit-entry voor fase "${fase}" binnen seizoensdoel "${seizoensdoel}".`
+      `haalPrioriteitOp: geen prioriteitsdefinitie voor doel "${seizoensdoel}", fase "${fase}".`
     );
   }
   return entry;
 }
+
+// Sectie 26-A: kracht_lage_cadans is bij deze twee doelen nooit toegestaan, ook
+// niet als sluitpost voor een Z2-slot (zie doelprofielen.js — deze twee doelen
+// hebben geen enkele fase met kracht_lage_cadans in de sessietypes-lijst).
+// solveWeek() zelf kiest hier geen kracht_lage_cadans (dat gebeurt downstream,
+// bij archetype-selectie) — dit is een informatief vlag voor die laag.
+const KRACHT_LAGE_CADANS_VERBODEN_DOELEN = new Set(['aerobe_basis', 'uithoudingsvermogen']);
 
 /**
  * Degradeert een kandidaat-sessietype bij lage TSB op weekplan-niveau.
@@ -159,7 +253,7 @@ function schatTssDoel(sessietype, fase, weekInFase, seizoensdoel, gedegradeerd) 
 }
 
 function bouwToewijzing({ datum, beschikbareUren }, sessietype, { fase, weekInFase, seizoensdoel, gedegradeerd = false, pad, tssDoelOverride }) {
-  return {
+  const toewijzing = {
     datum,
     sessietype,
     tss_doel: tssDoelOverride ?? schatTssDoel(sessietype, fase, weekInFase, seizoensdoel, gedegradeerd),
@@ -169,6 +263,12 @@ function bouwToewijzing({ datum, beschikbareUren }, sessietype, { fase, weekInFa
     pad, // observability: 'kernstimulus'|'secundair'|'vrijheidsessie'|'z2'
     beschikbareUren,
   };
+  // Informatief vlag voor de archetype-selectielaag (zie KRACHT_LAGE_CADANS_VERBODEN_DOELEN
+  // hierboven) — solveWeek() kiest zelf geen kracht_lage_cadans, dus dit is puur signaal.
+  if (sessietype === "z2_duur") {
+    toewijzing.krachtLageCadansToegestaan = !KRACHT_LAGE_CADANS_VERBODEN_DOELEN.has(seizoensdoel);
+  }
+  return toewijzing;
 }
 
 /**
@@ -181,7 +281,7 @@ function bouwToewijzing({ datum, beschikbareUren }, sessietype, { fase, weekInFa
  * @param {string} ctx.fase
  * @param {number} ctx.weekInFase
  * @param {string} ctx.weektype - 'opbouw'|'herstel'
- * @param {string} ctx.seizoensdoel - 'ftp'|'klimmen' (zie haalPrioriteitOp)
+ * @param {string} ctx.seizoensdoel - 'ftp'|'klimmen'|'aerobe_basis'|'uithoudingsvermogen'|'sprint' (zie haalPrioriteitOp)
  * @param {number} ctx.weekTssDoel
  * @param {number} [ctx.belastingscap] - harde bovengrens; standaard gelijk aan weekTssDoel
  * @param {Array}  [ctx.vasteDagen] - [{ datum, sessietype, tss_doel, status }]
@@ -245,6 +345,30 @@ export function solveWeek({
         gebruikt.add(dag.datum);
         restBudget -= tssDoel;
         toewijzingen.push(bouwToewijzing(dag, secundairType, { fase, weekInFase, seizoensdoel, gedegradeerd, pad: isVrijheid ? "vrijheidsessie" : "secundair", tssDoelOverride: tssDoel }));
+      }
+    }
+  }
+
+  // Uitzondering (sectie 48, stap 3.2) — sprint-doel, Sprintkracht-fase (generiek:
+  // sweetspot): een TWEEDE sprint_neuraal-dag toestaan bovenop de kernstimulus,
+  // mits niet aangrenzend aan de eerste. Dit vult secundair niet generiek in
+  // (die is hier null) — het is een doel-specifieke aanvulling vóór de generieke
+  // adjacency-check/z2-opvulling, niet een vervanging daarvan.
+  if (
+    !isHerstelAchtig && seizoensdoel === "sprint" &&
+    normaliseerFase(seizoensdoel, fase) === "sweetspot" &&
+    kernstimulusDatum && !bestaandeSessietypesDezeWeek.has("sprint_neuraal")
+  ) {
+    const kandidaat = openDagenAflopend.find(
+      d => !gebruikt.has(d.datum) && !zijnAangrenzend(kernstimulusDatum, d.datum)
+    );
+    if (kandidaat) {
+      const { gedegradeerd } = degradeerBijLageTsb("sprint_neuraal", tsb);
+      const tssDoel = schatTssDoel("sprint_neuraal", fase, weekInFase, seizoensdoel, gedegradeerd);
+      if (tssDoel <= restBudget) {
+        gebruikt.add(kandidaat.datum);
+        restBudget -= tssDoel;
+        toewijzingen.push(bouwToewijzing(kandidaat, "sprint_neuraal", { fase, weekInFase, seizoensdoel, gedegradeerd, pad: "secundair", tssDoelOverride: tssDoel }));
       }
     }
   }
