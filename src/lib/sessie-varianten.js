@@ -13,7 +13,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Progressief',
       tss_range: [55, 90],
       fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie','taper'],
-      tekst_template: 'Drie blokken, elk iets zwaarder. Geen uitschieters — gewoon consistent opbouwen.',
       varianten: [
         {
           id: 'z2_prog_3blokken',
@@ -56,7 +55,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Negatieve splits',
       tss_range: [55, 85],
       fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie','taper'],
-      tekst_template: 'Eerste helft rustig, tweede helft stevig. Klassieke negatieve split.',
       varianten: [
         {
           id: 'z2_ns_2blokken',
@@ -99,7 +97,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Variabele blokken',
       tss_range: [60, 90],
       fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie','taper'],
-      tekst_template: 'Afwisseling laag en hoog binnen Z2. Houdt de benen bezig zonder fysiologische uitschieters.',
       varianten: [
         {
           id: 'z2_var_15_10',
@@ -148,7 +145,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Golfpatroon',
       tss_range: [60, 95],
       fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie','taper'],
-      tekst_template: 'Golvend ritme: oplopend naar bovenkant Z2, dan terugzakken. Houdt het hoofd erbij.',
       varianten: [
         {
           id: 'z2_golf_8_5',
@@ -208,7 +204,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Cadansvariatie',
       tss_range: [55, 90],
       fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie','taper'],
-      tekst_template: 'Afwisseling hoge en lage cadans binnen Z2. Traint pedaleerefficiëntie.',
       varianten: [
         {
           id: 'z2_cad_8_4',
@@ -264,7 +259,6 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [70, 105],
       fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie'],
       week_in_fase_min: 3,
-      tekst_template: 'Duurrit met ingekapselde tempoblokken. Losse, gevarieerde structuur.',
       varianten: [
         {
           id: 'z2_tempo_3x7',
@@ -320,7 +314,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Sweetspot standaard',
       tss_range: [70, 95],
       fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
-      tekst_template: 'Drie sweetspot-blokken. Het meest efficiënte trainingsgebied voor FTP-opbouw.',
       varianten: [
         {
           id: 'ss_std_3x15',
@@ -360,7 +353,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Sweetspot oplopend',
       tss_range: [70, 95],
       fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
-      tekst_template: 'Blokken oplopend in intensiteit. Elk blok zwaarder dan het vorige.',
       varianten: [
         {
           id: 'ss_opl_4x12',
@@ -415,7 +407,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Sweetspot afdalend',
       tss_range: [70, 95],
       fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
-      tekst_template: 'Zwaarste blok eerst, daarna aflopen. Traint presteren vanuit vermoeidheid.',
       varianten: [
         {
           id: 'ss_afd_4x12',
@@ -471,7 +462,6 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [75, 105],
       fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
       week_in_fase_min: 2,
-      tekst_template: 'Lang aaneengesloten sweetspot-werk. Mentale uitdaging — focus houden over het hele blok.',
       varianten: [
         {
           id: 'ss_lang_1x35',
@@ -512,7 +502,6 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [70, 100],
       fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
       week_in_fase_min: 2,
-      tekst_template: 'Veel korte blokken op sweetspot. Elk blok mentaal behapbaar — samen telt het op.',
       varianten: [
         {
           id: 'ss_kv_6x8',
@@ -552,7 +541,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Tempo continu',
       tss_range: [60, 90],
       fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
-      tekst_template: 'Aaneengesloten tempo. Stevig maar beheersbaar — dit is comfortabel oncomfortabel.',
       varianten: [
         {
           id: 'tc_1blok',
@@ -594,7 +582,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Tempo intervallen',
       tss_range: [65, 90],
       fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
-      tekst_template: 'Tempowerk in intervallen. Iets meer ruimte tussen de blokken dan bij sweetspot.',
       varianten: [
         {
           id: 'ti_4x12',
@@ -639,7 +626,6 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [55, 75],
       fase_beschikbaar: ['basis','sweetspot','drempel'],
       doel_beperking: ['klimmen','ftp','sprint'],
-      tekst_template: 'Lage cadans op Z3–Z4 vermogen. Traint spierkracht en effiëntie bij lagere trapfrequentie.',
       varianten: [
         {
           id: 'kracht_std_4x5',
@@ -686,7 +672,6 @@ export const SESSIE_ARCHETYPES = {
       fase_beschikbaar: ['basis','sweetspot','drempel'],
       week_in_fase_min: 2,
       doel_beperking: ['klimmen','ftp','sprint'],
-      tekst_template: 'Langere krachtsblokken. Meer spierweerstand per blok.',
       varianten: [
         {
           id: 'kracht_lang_4x7',
@@ -735,7 +720,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Drempel standaard',
       tss_range: [75, 100],
       fase_beschikbaar: ['drempel','vo2max','consolidatie'],
-      tekst_template: 'Drie drempelblokken. Stevig maar beheersbaar — hier wordt FTP opgebouwd.',
       varianten: [
         {
           id: 'dr_std_3x15',
@@ -775,7 +759,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Drempel oplopend',
       tss_range: [75, 100],
       fase_beschikbaar: ['drempel','vo2max','consolidatie'],
-      tekst_template: 'Oplopend naar net boven drempel. Elke herhaling zwaarder.',
       varianten: [
         {
           id: 'dr_opl_3x12',
@@ -827,7 +810,6 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [75, 100],
       fase_beschikbaar: ['drempel','vo2max','consolidatie'],
       week_in_fase_min: 2,
-      tekst_template: 'Zwaarste blok eerst op 103% FTP, daarna aflopen. Traint mentale hardheid.',
       varianten: [
         {
           id: 'dr_afd_3x12',
@@ -879,7 +861,6 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [70, 100],
       fase_beschikbaar: ['drempel','vo2max','consolidatie'],
       week_in_fase_min: 2,
-      tekst_template: 'Veel korte blokken op en net boven drempel. Elk blok behapbaar, samen zwaar.',
       varianten: [
         {
           id: 'dr_kv_6x8',
@@ -920,7 +901,6 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [80, 110],
       fase_beschikbaar: ['drempel','vo2max','consolidatie'],
       week_in_fase_min: 2,
-      tekst_template: 'Lang aaneengesloten drempelwerk. Uithoudingsfocus — tempo houden wanneer het zwaar wordt.',
       varianten: [
         {
           id: 'dr_lang_1x30',
@@ -959,7 +939,6 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [80, 105],
       fase_beschikbaar: ['drempel','vo2max','consolidatie'],
       week_in_fase_min: 2,
-      tekst_template: 'Afwisseling van lang sub-drempel en kort boven-drempel. Tactisch en fysiologisch gevarieerd.',
       varianten: [
         {
           id: 'dr_wis_20plus8',
@@ -1004,7 +983,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Over-unders',
       tss_range: [70, 90],
       fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
-      tekst_template: 'Sub-drempel naar boven-drempel en terug. Traint werken terwijl je verzuurt.',
       varianten: [
         {
           id: 'ou_std_6x2plus1',
@@ -1048,7 +1026,6 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [75, 100],
       fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
       week_in_fase_min: 2,
-      tekst_template: 'Langere over-under blokken. Meer tijd in het lactaatstapelingsgebied.',
       varianten: [
         {
           id: 'ou_lang_4x3plus2',
@@ -1091,7 +1068,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Pyramide oplopend',
       tss_range: [75, 95],
       fase_beschikbaar: ['drempel','vo2max','consolidatie'],
-      tekst_template: 'Oplopende blokduren op drempel. Steeds langere blokken — progressief zwaarder.',
       varianten: [
         {
           id: 'pyr_opl_2_4_6',
@@ -1143,7 +1119,6 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [80, 105],
       fase_beschikbaar: ['drempel','vo2max','consolidatie'],
       week_in_fase_min: 2,
-      tekst_template: 'Op en dan weer af. Bouw op naar het piekblok, daarna aflopen.',
       varianten: [
         {
           id: 'pyr_vol_2_4_6_4_2',
@@ -1208,7 +1183,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Klassieke 5×5',
       tss_range: [70, 90],
       fase_beschikbaar: ['vo2max','consolidatie'],
-      tekst_template: 'Vijf minuten vol gas, vijf minuten herstel — vijf keer. De klassieke VO2max-sessie.',
       varianten: [
         {
           id: 'vo2_5x5_std',
@@ -1248,7 +1222,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Rønnestad 4×4',
       tss_range: [60, 80],
       fase_beschikbaar: ['vo2max','consolidatie'],
-      tekst_template: 'Rønnestad 4×4: iets korter, iets harder dan 5×5. Hogere piekprikkel.',
       varianten: [
         {
           id: 'vo2_4x4_std',
@@ -1289,7 +1262,6 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [60, 80],
       fase_beschikbaar: ['vo2max','consolidatie'],
       week_in_fase_min: 2,
-      tekst_template: '40 seconden vol gas, 20 seconden actief herstel. Je leert snel in Z5 te komen.',
       varianten: [
         {
           id: 'vo2_4020_20rep',
@@ -1330,7 +1302,6 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [55, 80],
       fase_beschikbaar: ['vo2max','consolidatie'],
       week_in_fase_min: 2,
-      tekst_template: 'Korte, harde minuten. Mentaal toegankelijker dan langere blokken.',
       varianten: [
         {
           id: 'vo2_kort_10x1',
@@ -1371,7 +1342,6 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [75, 100],
       fase_beschikbaar: ['vo2max','consolidatie'],
       week_in_fase_min: 2,
-      tekst_template: 'Langere blokken in Z5. Maximale tijd in zone — mentaal zwaar maar fysiologisch optimaal.',
       varianten: [
         {
           id: 'vo2_lang_3x7',
@@ -1412,7 +1382,6 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [65, 85],
       fase_beschikbaar: ['vo2max','consolidatie'],
       week_in_fase_min: 2,
-      tekst_template: 'Elk blok harder dan het vorige. Progressieve overbelasting binnen één sessie.',
       varianten: [
         {
           id: 'vo2_opl_5x3',
@@ -1475,7 +1444,6 @@ export const SESSIE_ARCHETYPES = {
       fase_beschikbaar: ['vo2max','consolidatie'],
       week_in_fase_min: 2,
       doel_beperking: ['klimmen'],
-      tekst_template: 'Klimspecifieke VO2max: korte, steile inspanningen met volledig herstel ertussen.',
       varianten: [
         {
           id: 'vo2_klim_6x3',
@@ -1519,7 +1487,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Korte sprints',
       tss_range: [30, 45],
       fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie'],
-      tekst_template: 'Maximale sprints van 10 seconden. Volledig herstel na elke sprint.',
       varianten: [
         {
           id: 'spr_k_8x10',
@@ -1560,7 +1527,6 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [35, 50],
       fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie'],
       week_in_fase_min: 2,
-      tekst_template: 'Iets langere sprints voor meer capaciteitstraining. Volledig herstel blijft essentieel.',
       varianten: [
         {
           id: 'spr_l_6x15',
@@ -1600,7 +1566,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Embedded sprints',
       tss_range: [60, 85],
       fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie'],
-      tekst_template: 'Z2-duurrit met spontane maximale sprints. Simuleert de realiteit van buiten rijden.',
       varianten: [
         {
           id: 'spr_inb_5',
@@ -1673,7 +1638,6 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [50, 70],
       fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
       doel_beperking: ['sprint','klimmen'],
-      tekst_template: 'Anaerobe inspanningen van 40 seconden. Volledig herstel — elke herhaling maximaal.',
       varianten: [
         {
           id: 'z6_5x40',
@@ -1718,7 +1682,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Alles mag',
       tss_range: [60, 85],
       fase_beschikbaar: ['sweetspot','drempel','vo2max'],
-      tekst_template: 'Sprints, VO2max, drempel, tempo — alles in één sessie. Geen vaste structuur, wel vol gas.',
       varianten: [
         {
           id: 'alles_mag_v1',
@@ -1744,7 +1707,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Raketstart',
       tss_range: [55, 80],
       fase_beschikbaar: ['sweetspot','drempel','vo2max'],
-      tekst_template: 'Drie maximale sprints als opener, dan sweetspot. Je benen zijn al moe — dan bouwen.',
       varianten: [
         {
           id: 'raket_v1',
@@ -1767,7 +1729,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Omgekeerde wereld',
       tss_range: [65, 85],
       fase_beschikbaar: ['sweetspot','drempel','vo2max'],
-      tekst_template: 'VO2max direct na opwarming — dan sweetspot — dan nog een keer VO2max. Zwaar aan het begin en aan het eind.',
       varianten: [
         {
           id: 'omgekeerd_v1',
@@ -1790,7 +1751,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Pieken en dalen',
       tss_range: [60, 80],
       fase_beschikbaar: ['sweetspot','drempel','vo2max'],
-      tekst_template: 'Aaneengesloten afwisseling: Z2, sweetspot, Z2, drempel, Z2. Geen pauzes — gewoon rijden.',
       varianten: [
         {
           id: 'pd_v1',
@@ -1815,7 +1775,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Klimsimulator',
       tss_range: [65, 85],
       fase_beschikbaar: ['sweetspot','drempel','vo2max'],
-      tekst_template: 'Vier klimmen: oprit sweetspot, aanval VO2max, sprint voor de top. Afdalen en opnieuw.',
       varianten: [
         {
           id: 'klim_v1',
@@ -1837,7 +1796,6 @@ export const SESSIE_ARCHETYPES = {
       naam: 'Negatieve vermoeidheid',
       tss_range: [70, 90],
       fase_beschikbaar: ['sweetspot','drempel','vo2max'],
-      tekst_template: 'Drempel eerst, daarna VO2max. Zwaarder naarmate je vermoeider wordt — mentale hardheid.',
       varianten: [
         {
           id: 'negv_v1',

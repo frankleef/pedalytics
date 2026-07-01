@@ -13,7 +13,8 @@ import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
 import { claudeCall } from "@/lib/claude";
 import { magSprintStaartje } from "@/lib/sessie/weekpatroon";
 import { genereerSessieDag } from "@/lib/sessie/genereren";
-import { bepaalDagIntentieMetRetry } from "@/lib/sessie/dagIntentie";
+import { solveWeek, pasBudgetToe } from "@/lib/sessie/weekSolver";
+import { bepaalAlGeleverd } from "@/lib/sessie/context";
 
 const VERBODEN_TYPES_VOLUMECORRECTIE = ["kracht_lage_cadans", "sprint_neuraal"];
 
@@ -173,6 +174,58 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
 
   const aangevuld = [];
 
+  // Sectie 48: groepeer ontbrekende dagen per week, zodat solveWeek() alle open
+  // dagen van een week in één keer ziet (nodig voor kernstimulus/secundair-
+  // verdeling en adjacency-check — een per-dag-aanroep zou dat niet kunnen).
+  // Volumecorrectie-dagen (aerobeDagen/tempoAfsluiters) blijven hier buiten:
+  // die vereisen precieze structurele ingrepen (bv. een aangeplakt Z3-blok) die
+  // het archetype/variant-systeem niet kan uitdrukken, dus die blijven volledig
+  // via Claude (met promptExtra) lopen, zoals vóór sectie 47/48.
+  const ontbrekendPerWeek = {};
+  for (const dag of ontbrekend) {
+    const mISO = weekMaandagISO(dag.datum);
+    (ontbrekendPerWeek[mISO] ??= []).push(dag);
+  }
+
+  const toewijzingPerDatum = {};
+  for (const [mISO, dagenDezeWeek] of Object.entries(ontbrekendPerWeek)) {
+    const normaleDagen = dagenDezeWeek.filter(
+      d => !aerobeDagen.includes(d.datum) && !tempoAfsluiters.includes(d.datum)
+    );
+    if (normaleDagen.length === 0) continue;
+
+    const kaderWeekVoorDeze = kaderWeekVoorDatum(normaleDagen[0].datum);
+    const huidigeFaseVoorDeze = kaderWeekVoorDeze?.fase ?? 'basis';
+    const weekInFaseVoorDeze = weekInFaseVoorKaderWeek(kaderWeekVoorDeze);
+    const vasteDagenDezeWeek = [...bestaandeSessies, ...aangevuld]
+      .filter(s => weekMaandagISO(s.datum) === mISO)
+      .map(s => ({
+        datum: s.datum,
+        sessietype: s.intentie?.sessietype || s.type,
+        tss_doel: s.tss ?? 0,
+        status: s.voltooid ? 'voltooid' : (s.status || 'gepland'),
+      }));
+
+    try {
+      const alGeleverd = await bepaalAlGeleverd(userId, mISO);
+      const ruweToewijzingen = solveWeek({
+        fase: huidigeFaseVoorDeze,
+        weekInFase: weekInFaseVoorDeze,
+        weektype: kaderWeekVoorDeze?.weektype || 'opbouw',
+        seizoensdoel: plan.seizoensdoel?.type ?? 'ftp',
+        weekTssDoel: kaderWeekVoorDeze?.tss_doel ?? 0,
+        vasteDagen: vasteDagenDezeWeek,
+        openDagen: normaleDagen.map(d => ({ datum: d.datum, beschikbareUren: d.uren })),
+        alGeleverd, tsb,
+      });
+      const toewijzingen = pasBudgetToe(ruweToewijzingen, kaderWeekVoorDeze?.tss_doel ?? 0, alGeleverd.tss);
+      for (const t of toewijzingen) toewijzingPerDatum[t.datum] = t;
+    } catch (e) {
+      console.error(`[sessiesAanvullen] solveWeek mislukt voor week ${mISO}:`, e.message);
+      // Geen toewijzingen voor deze week — dagen hieronder worden per stuk overgeslagen.
+    }
+  }
+
   for (const { datum, dagNaam, uren } of ontbrekend) {
     try {
       const overigeSessies = [...bestaandeSessies, ...aangevuld]
@@ -191,35 +244,19 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       const huidigeFase = kaderWeekVoorDag?.fase ?? 'basis';
       const weekInFase = weekInFaseVoorKaderWeek(kaderWeekVoorDag);
 
-      // Sectie 47: dag-intentie (alleen sessietype+tss_doel) via een lichte
-      // Claude-aanroep, zodat genereerSessieDag daarna deterministisch kan
-      // genereren. Volumecorrectie-dagen slaan dit over — die vereisen precieze
-      // structurele ingrepen (bv. een aangeplakt Z3-blok) die het archetype/
-      // variant-systeem niet kan uitdrukken, dus die blijven volledig via Claude
-      // (met promptExtra) lopen, zoals vóór sectie 47.
       const isVolumeCorrectieDag = aerobeDagen.includes(datum) || tempoAfsluiters.includes(datum);
       let oudeSessieVoorGeneratie = null;
       if (!isVolumeCorrectieDag) {
-        const aantalWekenInFase = (plan.kader || []).filter(w => w.fase === huidigeFase).length || 1;
-        const mISOVoorIntentie = weekMaandagISO(datum);
-        const geplandeDagenDezeWeek = [...bestaandeSessies, ...aangevuld]
-          .filter(s => s.datum !== datum && weekMaandagISO(s.datum) === mISOVoorIntentie)
-          .map(s => ({ dag: s.dag || DAGNAMEN[new Date(s.datum).getDay()], sessietype: s.intentie?.sessietype || s.type, tss: s.tss ?? 0 }));
-
-        try {
-          const dagIntentie = await bepaalDagIntentieMetRetry({
-            fase: huidigeFase, weekInFase, aantalWekenInFase,
-            weektype: kaderWeekVoorDag?.weektype || 'opbouw',
-            kaderWeek: kaderWeekVoorDag,
-            weekTssDoel: kaderWeekVoorDag?.tss_doel ?? 0,
-            geplandeDagen: geplandeDagenDezeWeek,
-            datum, dagNaam, beschikbareUren: uren,
-          });
-          oudeSessieVoorGeneratie = { intentie: { sessietype: dagIntentie.sessietype, tss_doel: dagIntentie.tss_doel } };
-        } catch (e) {
-          console.error(`[sessiesAanvullen] Dag-intentie mislukt voor ${datum} — dag overgeslagen:`, e.message);
+        const toewijzing = toewijzingPerDatum[datum];
+        if (!toewijzing) {
+          console.error(`[sessiesAanvullen] Geen weeksolver-toewijzing voor ${datum} — dag overgeslagen`);
           continue;
         }
+        if (toewijzing.sessietype === 'rust') {
+          console.log(`[sessiesAanvullen] ${datum}: weeksolver-budget geschrapt naar rustdag — geen sessie aangemaakt`);
+          continue;
+        }
+        oudeSessieVoorGeneratie = { intentie: { sessietype: toewijzing.sessietype, tss_doel: toewijzing.tss_doel } };
       }
 
       const sessie = await genereerSessieDag({

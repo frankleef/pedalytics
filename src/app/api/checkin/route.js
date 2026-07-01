@@ -3,6 +3,7 @@ import { getKV } from "@/lib/kv";
 import { vandaagISO } from "@/lib/datum";
 import { getSessionUser } from "@/lib/auth";
 import { checkInSessieAanpassing, adviesOpvolgen } from "@/lib/sessie/checkinAanpassing";
+import { vulSessiesAanVoorGebruiker } from "@/lib/sessiesAanvullen";
 
 function checkinKey(userId) {
   const prefix = userId ? `${userId}:` : "";
@@ -72,6 +73,19 @@ export async function DELETE(request) {
       return NextResponse.json({ success: false, error: "Datum vereist" }, { status: 400 });
     }
     const result = await adviesOpvolgen(user?.id, datum);
+
+    // Sectie 48-C/48-F: dezelfde herplanningsfunctie (solveWeek-gedreven) als bij
+    // een structurele beschikbaarheidswijziging — vult alleen echt open dagen
+    // deze week opnieuw in (met de nu bijgewerkte vasteDagen-status), forceert
+    // geen inhaalslag voor de zojuist geschrapte sessie zelf.
+    if (result?.actie === "rustdag_ingesteld") {
+      vulSessiesAanVoorGebruiker(user?.id).then((r) => {
+        console.log(`[checkIn] Herplanning na adviesOpvolgen voor ${user?.id}:`, r);
+      }).catch((e) => {
+        console.error(`[checkIn] Herplanning na adviesOpvolgen mislukt voor ${user?.id}:`, e.message);
+      });
+    }
+
     return NextResponse.json({ success: true, ...result });
   } catch (e) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
