@@ -12,7 +12,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'z2_progressief',
       naam: 'Progressief',
       tss_range: [55, 90],
-      fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie','taper'],
+      fase_beschikbaar: ['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max', 'taper'],
       varianten: [
         {
           id: 'z2_prog_3blokken',
@@ -54,7 +54,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'z2_negatief_split',
       naam: 'Negatieve splits',
       tss_range: [55, 85],
-      fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie','taper'],
+      fase_beschikbaar: ['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max', 'taper'],
       varianten: [
         {
           id: 'z2_ns_2blokken',
@@ -96,7 +96,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'z2_variabel_blokken',
       naam: 'Variabele blokken',
       tss_range: [60, 90],
-      fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie','taper'],
+      fase_beschikbaar: ['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max', 'taper'],
       varianten: [
         {
           id: 'z2_var_15_10',
@@ -144,7 +144,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'z2_golf',
       naam: 'Golfpatroon',
       tss_range: [60, 95],
-      fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie','taper'],
+      fase_beschikbaar: ['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max', 'taper'],
       varianten: [
         {
           id: 'z2_golf_8_5',
@@ -203,7 +203,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'z2_cadans',
       naam: 'Cadansvariatie',
       tss_range: [55, 90],
-      fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie','taper'],
+      fase_beschikbaar: ['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max', 'taper'],
       varianten: [
         {
           id: 'z2_cad_8_4',
@@ -257,7 +257,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'z2_tempo_blokken',
       naam: 'Z2 met temposnippers',
       tss_range: [70, 105],
-      fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie'],
+      fase_beschikbaar: ['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max'],
       week_in_fase_min: 3,
       varianten: [
         {
@@ -309,7 +309,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'z2_heuvel',
       naam: 'Heuvelsimulatie',
       tss_range: [60, 95],
-      fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie','taper'],
+      fase_beschikbaar: ['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max', 'taper'],
       varianten: [
         {
           id: 'z2_heuvel_licht',
@@ -375,7 +375,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'z2_tempo_teugjes',
       naam: 'Tempo-teugjes',
       tss_range: [65, 95],
-      fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
+      fase_beschikbaar: ['sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max'],
       vereist_lage_decoupling: true,
       varianten: [
         {
@@ -434,7 +434,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'ss_standaard',
       naam: 'Sweetspot standaard',
       tss_range: [70, 95],
-      fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
+      fase_beschikbaar: ['sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
           id: 'ss_std_3x15',
@@ -473,7 +473,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'ss_oplopend',
       naam: 'Sweetspot oplopend',
       tss_range: [70, 95],
-      fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
+      fase_beschikbaar: ['sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
           id: 'ss_opl_4x12',
@@ -527,7 +527,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'ss_afdalend',
       naam: 'Sweetspot afdalend',
       tss_range: [70, 95],
-      fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
+      fase_beschikbaar: ['sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
           id: 'ss_afd_4x12',
@@ -581,7 +581,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'ss_lang',
       naam: 'Lang sweetspot blok',
       tss_range: [75, 105],
-      fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
+      fase_beschikbaar: ['sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'vo2max'],
       week_in_fase_min: 2,
       varianten: [
         {
@@ -621,7 +621,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'ss_kort_veel',
       naam: 'Veel korte sweetspotblokken',
       tss_range: [70, 100],
-      fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
+      fase_beschikbaar: ['sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'vo2max'],
       week_in_fase_min: 2,
       varianten: [
         {
@@ -661,7 +661,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'tempo_continu',
       naam: 'Tempo continu',
       tss_range: [60, 90],
-      fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
+      fase_beschikbaar: ['sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
           id: 'tc_1blok',
@@ -702,7 +702,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'tempo_intervallen',
       naam: 'Tempo intervallen',
       tss_range: [65, 90],
-      fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
+      fase_beschikbaar: ['sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
           id: 'ti_4x12',
@@ -1303,7 +1303,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'vo2_5x5',
       naam: 'Klassieke 5×5',
       tss_range: [70, 90],
-      fase_beschikbaar: ['vo2max','consolidatie'],
+      fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
           id: 'vo2_5x5_std',
@@ -1342,7 +1342,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'vo2_4x4',
       naam: 'Rønnestad 4×4',
       tss_range: [60, 80],
-      fase_beschikbaar: ['vo2max','consolidatie'],
+      fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
           id: 'vo2_4x4_std',
@@ -1381,7 +1381,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'vo2_4020',
       naam: '40/20\'s',
       tss_range: [60, 80],
-      fase_beschikbaar: ['vo2max','consolidatie'],
+      fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
       week_in_fase_min: 2,
       varianten: [
         {
@@ -1421,7 +1421,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'vo2_microbursts',
       naam: 'Microbursts',
       tss_range: [60, 85],
-      fase_beschikbaar: ['vo2max','consolidatie'],
+      fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
       week_in_fase_min: 2,
       varianten: [
         {
@@ -1461,7 +1461,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'vo2_kort',
       naam: 'Korte intervallen',
       tss_range: [55, 80],
-      fase_beschikbaar: ['vo2max','consolidatie'],
+      fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
       week_in_fase_min: 2,
       varianten: [
         {
@@ -1501,7 +1501,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'vo2_lang',
       naam: 'Lange VO2max-blokken',
       tss_range: [75, 100],
-      fase_beschikbaar: ['vo2max','consolidatie'],
+      fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
       week_in_fase_min: 2,
       varianten: [
         {
@@ -1541,7 +1541,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'vo2_oplopend',
       naam: 'Oplopende VO2max',
       tss_range: [65, 85],
-      fase_beschikbaar: ['vo2max','consolidatie'],
+      fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
       week_in_fase_min: 2,
       varianten: [
         {
@@ -1602,7 +1602,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'vo2_klim',
       naam: 'Klimsimulatie',
       tss_range: [60, 85],
-      fase_beschikbaar: ['vo2max','consolidatie'],
+      fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
       week_in_fase_min: 2,
       doel_beperking: ['klimmen'],
       varianten: [
@@ -1647,7 +1647,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'sprint_kort',
       naam: 'Korte sprints',
       tss_range: [30, 45],
-      fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie'],
+      fase_beschikbaar: ['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max'],
       varianten: [
         {
           id: 'spr_k_8x10',
@@ -1686,7 +1686,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'sprint_lang',
       naam: 'Langere sprints',
       tss_range: [35, 50],
-      fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie'],
+      fase_beschikbaar: ['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max'],
       week_in_fase_min: 2,
       varianten: [
         {
@@ -1726,7 +1726,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'sprint_ingebed',
       naam: 'Embedded sprints',
       tss_range: [60, 85],
-      fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie'],
+      fase_beschikbaar: ['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max'],
       varianten: [
         {
           id: 'spr_inb_5',
@@ -1842,7 +1842,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'alles_mag',
       naam: 'Alles mag',
       tss_range: [60, 85],
-      fase_beschikbaar: ['sweetspot','drempel','vo2max'],
+      fase_beschikbaar: ['sweetspot', 'drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
           id: 'alles_mag_v1',
@@ -1867,7 +1867,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'raketstart',
       naam: 'Raketstart',
       tss_range: [55, 80],
-      fase_beschikbaar: ['sweetspot','drempel','vo2max'],
+      fase_beschikbaar: ['sweetspot', 'drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
           id: 'raket_v1',
@@ -1889,7 +1889,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'omgekeerde_wereld',
       naam: 'Omgekeerde wereld',
       tss_range: [65, 85],
-      fase_beschikbaar: ['sweetspot','drempel','vo2max'],
+      fase_beschikbaar: ['sweetspot', 'drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
           id: 'omgekeerd_v1',
@@ -1911,7 +1911,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'pieken_en_dalen',
       naam: 'Pieken en dalen',
       tss_range: [60, 80],
-      fase_beschikbaar: ['sweetspot','drempel','vo2max'],
+      fase_beschikbaar: ['sweetspot', 'drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
           id: 'pd_v1',
@@ -1935,7 +1935,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'klim_simulator',
       naam: 'Klimsimulator',
       tss_range: [65, 85],
-      fase_beschikbaar: ['sweetspot','drempel','vo2max'],
+      fase_beschikbaar: ['sweetspot', 'drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
           id: 'klim_v1',
@@ -1956,7 +1956,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'negatieve_vermoeidheid',
       naam: 'Negatieve vermoeidheid',
       tss_range: [70, 90],
-      fase_beschikbaar: ['sweetspot','drempel','vo2max'],
+      fase_beschikbaar: ['sweetspot', 'drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
           id: 'negv_v1',
@@ -1977,7 +1977,7 @@ export const SESSIE_ARCHETYPES = {
       id: 'race_simulatie',
       naam: 'Race simulatie',
       tss_range: [75, 100],
-      fase_beschikbaar: ['sweetspot','drempel','vo2max'],
+      fase_beschikbaar: ['sweetspot', 'drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
           // Structuur (sessie-archetypes.js): 10' Z2 -> 2x [3' drempel + 1' sprint]

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { genereerSessieDag } from '../sessie/genereren.js'
+import { PRIORITEIT_PER_FASE } from '../sessie/weekSolver.js'
 
 function maakKv(seed = {}) {
   const store = new Map(Object.entries(seed))
@@ -97,4 +98,41 @@ describe('genereerSessieDag — volledig deterministisch, geen Claude meer', () 
     // z2_duur omschakelen.
     expect(sessie.intentie.sessietype).toBe('z2_duur')
   })
+})
+
+// Regressietest voor de "fase_beschikbaar dekt niet elke fase die solveWeek()
+// daadwerkelijk toewijst"-bug: elke seizoensweek bevat gegarandeerd een
+// overgangsfase- en een test-week (bouwWeekvolgorde in faseDuren.js, altijd
+// aanwezig, niet optioneel), en klimmen's drempel-fase wijst vo2max_intervallen
+// toe. Vóór de fix faalde genereerSessieDag() hier altijd (geen archetype
+// bereikbaar), voor élke gebruiker, élk seizoen — dit was geen edge case.
+describe('genereerSessieDag x solveWeek() — volledige fase-dekking (regressietest)', () => {
+  const GENERIEKE_FASES = ['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test']
+
+  for (const [doel, faseTabel] of Object.entries(PRIORITEIT_PER_FASE)) {
+    for (const fase of GENERIEKE_FASES) {
+      const entry = faseTabel[fase]
+      if (!entry) continue
+      const kandidaten = new Set([
+        ...(Array.isArray(entry.kernstimulus) ? entry.kernstimulus : entry.kernstimulus ? [entry.kernstimulus] : []),
+        ...(entry.secundair ? [entry.secundair] : []),
+        'z2_duur', // altijd mogelijk via de z2-fill-stap (stap 5)
+      ])
+      for (const sessietype of kandidaten) {
+        it(`${doel} / ${fase}: "${sessietype}" genereert deterministisch, geen throw`, async () => {
+          const kv = maakKv()
+          const sessie = await genereerSessieDag({
+            ...basisCtx,
+            kv,
+            plan: { seizoensdoel: { type: doel } },
+            huidigeFase: fase,
+            weekInFase: 3, // ruim binnen elke week_in_fase_min in de dataset (max 2)
+            effectiefSessietype: sessietype,
+            oudeSessie: { intentie: { sessietype } },
+          })
+          expect(sessie.gegenereerd_door).toBe('deterministisch')
+        })
+      }
+    }
+  }
 })
