@@ -6,7 +6,7 @@ import { bouwSessieContext } from "./sessie/context";
 import { weeknummerVoorDatum } from "./weekgrenzen";
 import { maxTrainingsdagenPerWeek } from "./trainingsfrequentie";
 
-function sessietypesVoorFase(fase, kaderWeek) {
+export function sessietypesVoorFase(fase, kaderWeek) {
   if (kaderWeek?.sessietypes?.length > 0) return kaderWeek.sessietypes.join(", ");
   const tabel = {
     basis: "z2_duur, z2_heuvel, progressief, z1_herstel, herstel_mobiliteit — GEEN intensiteitssessies",

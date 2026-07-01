@@ -13,6 +13,7 @@ import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
 import { claudeCall } from "@/lib/claude";
 import { magSprintStaartje } from "@/lib/sessie/weekpatroon";
 import { genereerSessieDag } from "@/lib/sessie/genereren";
+import { bepaalDagIntentieMetRetry } from "@/lib/sessie/dagIntentie";
 
 const VERBODEN_TYPES_VOLUMECORRECTIE = ["kracht_lage_cadans", "sprint_neuraal"];
 
@@ -186,17 +187,45 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         promptExtra += `\n\nVOLUMECORRECTIE — TEMPO-AFSLUITER (harde instructie): Voeg aan het einde van deze sessie een Z3-tempo-afsluiter toe van 15-20 minuten. Dit is een harde instructie vanuit de volumecorrectie-evaluatie — geen suggestie. De rest van de sessie blijft Z2. Zorg dat de totale sessieduur binnen ${maxMinuten} minuten blijft.`;
       }
 
-      // Fase/week — nodig voor de sprint-staartjes-check verderop. Nieuwe sessies
-      // hebben nog geen bestaande intentie, dus genereerSessieDag valt hier altijd
-      // terug op Claude (er is nog geen sessietype om een archetype op te kiezen).
       const kaderWeekVoorDag = kaderWeekVoorDatum(datum);
       const huidigeFase = kaderWeekVoorDag?.fase ?? 'basis';
       const weekInFase = weekInFaseVoorKaderWeek(kaderWeekVoorDag);
 
+      // Sectie 47: dag-intentie (alleen sessietype+tss_doel) via een lichte
+      // Claude-aanroep, zodat genereerSessieDag daarna deterministisch kan
+      // genereren. Volumecorrectie-dagen slaan dit over — die vereisen precieze
+      // structurele ingrepen (bv. een aangeplakt Z3-blok) die het archetype/
+      // variant-systeem niet kan uitdrukken, dus die blijven volledig via Claude
+      // (met promptExtra) lopen, zoals vóór sectie 47.
+      const isVolumeCorrectieDag = aerobeDagen.includes(datum) || tempoAfsluiters.includes(datum);
+      let oudeSessieVoorGeneratie = null;
+      if (!isVolumeCorrectieDag) {
+        const aantalWekenInFase = (plan.kader || []).filter(w => w.fase === huidigeFase).length || 1;
+        const mISOVoorIntentie = weekMaandagISO(datum);
+        const geplandeDagenDezeWeek = [...bestaandeSessies, ...aangevuld]
+          .filter(s => s.datum !== datum && weekMaandagISO(s.datum) === mISOVoorIntentie)
+          .map(s => ({ dag: s.dag || DAGNAMEN[new Date(s.datum).getDay()], sessietype: s.intentie?.sessietype || s.type, tss: s.tss ?? 0 }));
+
+        try {
+          const dagIntentie = await bepaalDagIntentieMetRetry({
+            fase: huidigeFase, weekInFase, aantalWekenInFase,
+            weektype: kaderWeekVoorDag?.weektype || 'opbouw',
+            kaderWeek: kaderWeekVoorDag,
+            weekTssDoel: kaderWeekVoorDag?.tss_doel ?? 0,
+            geplandeDagen: geplandeDagenDezeWeek,
+            datum, dagNaam, beschikbareUren: uren,
+          });
+          oudeSessieVoorGeneratie = { intentie: { sessietype: dagIntentie.sessietype, tss_doel: dagIntentie.tss_doel } };
+        } catch (e) {
+          console.error(`[sessiesAanvullen] Dag-intentie mislukt voor ${datum} — dag overgeslagen:`, e.message);
+          continue;
+        }
+      }
+
       const sessie = await genereerSessieDag({
         kv, userId, datum, dagNaam, uren,
         profiel, wellness, plan, overigeSessies,
-        oudeSessie: null,
+        oudeSessie: oudeSessieVoorGeneratie,
         aanleiding: aerobeDagen.includes(datum) ? "volumecorrectie_aerobe" : tempoAfsluiters.includes(datum) ? "volumecorrectie_tempo_afsluiter" : "beschikbaarheid_nieuw",
         promptExtra, huidigeFase, weekInFase, hrvProfiel, piekSprint,
         alleSessiesVoorKrachtCheck: [...bestaandeSessies, ...aangevuld],
