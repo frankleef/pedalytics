@@ -9,6 +9,101 @@ import { SESSIE_ARCHETYPES as VARIANT_ARCHETYPES } from "./sessie-varianten";
 const HERSTEL_MIN_SEC = 60;
 const WERK_MIN_SEC = 90;
 
+// Maximum werkblokduur per archetype (seconden) — voorkomt dat schaalVariant()
+// werkblokken bij een lange gevraagde sessieduur fysiologisch te ver oprekt
+// (waargenomen: kracht_lage_cadans-krachtsblok van 24 min bij een 3-uurs sessie).
+// Elke waarde is afgeleid uit wat het archetype zelf al aangeeft in zijn naam/
+// structuur (bv. 'kracht_std_4x5' = "4× 5' @ 50 rpm" -> 5 min per herhaling),
+// genomen over de zwaarste variant binnen dat archetype, plus een bescheiden
+// afronding/marge. Geen nieuwe getallen verzonnen — alleen de bestaande
+// bedoeling een bovengrens gegeven i.p.v. oneindig laten meeschalen.
+//
+// z2_duur krijgt hier bewust GEEN entries — dat hele sessietype is duurgericht
+// (zie bepaalMaximumBlokduur). Z1/Z2-blokken (vrijwel altijd de herstelblokken,
+// soms ook "werk"-getypeerde Z2-blokken zoals in pieken_en_dalen) hebben óók
+// geen maximum nodig ongeacht het archetype — laag vermogen volhouden is nooit
+// het probleem dat deze cap oplost.
+//
+// Waarde is óf één getal (geldt voor alle niet-Z1/Z2-werkblokken van dat
+// archetype) óf een { [zone]: seconden }-map voor archetypes met meerdere,
+// wezenlijk verschillende werkzones (over-unders, vrijheidsessies).
+const MAXIMUM_BLOKDUUR_PER_ARCHETYPE = {
+  // ── kracht_lage_cadans — "4-8 min" per de fysiologische bedoeling ──
+  kracht_standaard: 360,   // 6 min (grootste variant: "4× 5'")
+  kracht_lang: 480,        // 8 min (grootste variant: "4× 7'")
+
+  // ── sweetspot_intervallen ──
+  ss_standaard: 1560,      // 26 min ("2× 25'")
+  ss_oplopend: 960,        // 16 min ("3× 15'"/"4× 12'")
+  ss_afdalend: 960,        // 16 min ("3× 15'")
+  ss_lang: 2160,           // 36 min ("1× 35'")
+  ss_kort_veel: 540,       // 9 min ("6× 8'")
+  tempo_continu: 2700,     // 45 min — geen expliciete naam-minuten; bewust lang/aaneengesloten van aard
+  tempo_intervallen: 960,  // 16 min ("3× 15'")
+
+  // ── drempel_intervallen ──
+  drempel_standaard: 1260,   // 21 min ("2× 20'")
+  drempel_oplopend: 960,     // 16 min ("3× 15'")
+  drempel_afdalend: 960,     // 16 min ("3× 15'")
+  drempel_kort_veel: 540,    // 9 min ("6× 8'")
+  drempel_lang: 2160,        // 36 min ("1× 35'")
+  drempel_wisselend: 1560,   // 26 min ("25'+10'")
+  ou_standaard: { Z3: 150, Z4: 90 },   // 2.5 min "under" / 1.5 min "over" ("6× [2'+1']")
+  ou_lang: { Z3: 270, Z4: 180 },       // 4.5 min "under" / 3 min "over" ("4× [3'+2']")
+  pyr_oplopend: 480,         // 8 min ("2'–3'–5'–7'")
+  pyr_volledig: 540,         // 9 min ("3'–5'–8'–5'–3'")
+
+  // ── vo2max_intervallen ──
+  vo2_5x5: 420,          // 7 min (grootste variant: "6× 4'")
+  vo2_4x4: 300,          // 5 min ("4×/5× 4'")
+  vo2_4020: 60,          // 1 min ("40/20's")
+  vo2_microbursts: 25,   // 15 sec-microbursts
+  vo2_kort: 120,         // 2 min (grootste variant: "8× 90\"")
+  vo2_lang: 540,         // 9 min ("3× 8'")
+  vo2_oplopend: 300,     // 5 min ("4× 4'")
+  vo2_klim: 270,         // 4.5 min ("5× 3'30\"")
+
+  // ── sprint_neuraal — neuraal, geen metabole belasting: 10-20 sec ──
+  sprint_kort: 20,       // ("6× 12\"")
+  sprint_lang: 30,       // ("5× 20\"")
+  sprint_ingebed: 20,    // embedded sprints van 8-12 sec
+
+  // ── z6_anaeroob ──
+  z6_standaard: 60,      // ("4× 50\"")
+
+  // ── gemengd (vrijheidsessies — één variant, meerdere werkzones per archetype) ──
+  alles_mag: { Z7: 15, Z5: 150, Z4: 270, Z3: 540 },
+  raketstart: { Z7: 20, Z3: 1320 },
+  omgekeerde_wereld: { Z5: 270, Z3: 990 },
+  pieken_en_dalen: { Z3: 540, Z4: 540 },
+  klim_simulator: { Z3: 150, Z5: 45, Z7: 15 },
+  negatieve_vermoeidheid: { Z4: 330, Z5: 150 },
+  race_simulatie: { Z4: 210, Z6: 75, Z3: 990, Z5: 150, Z7: 45 },
+};
+
+// Vangnet voor een werkzone die niet expliciet in de tabel hierboven staat
+// (zou niet moeten voorkomen — alle huidige archetypes zijn gecatalogiseerd),
+// zodat een toekomstig vergeten archetype nooit stilzwijgend ongelimiteerd blijft.
+const GENERIEKE_MAXIMUM_PER_ZONE = { Z3: 900, Z4: 480, Z5: 300, Z6: 90, Z7: 20 };
+
+/**
+ * Bepaalt de maximum blokduur (seconden) voor een werkblok, of null als er
+ * geen maximum geldt (z2_duur in zijn geheel, en Z1/Z2-blokken in elk archetype).
+ */
+export function bepaalMaximumBlokduur(sessietype, archetypeId, blok) {
+  // Geen archetype-context meegegeven (bv. een losse unit-test van schaalVariant()
+  // met alleen een variant-object) -> geen maximum. Het generieke vangnet hieronder
+  // is uitsluitend voor een archetype-id die we WEL kennen maar nog niet
+  // gecatalogiseerd hebben — niet voor "we weten het archetype niet".
+  if (!archetypeId) return null;
+  if (sessietype === "z2_duur") return null;
+  if (blok.zone === "Z1" || blok.zone === "Z2") return null;
+  const entry = MAXIMUM_BLOKDUUR_PER_ARCHETYPE[archetypeId];
+  if (entry == null) return GENERIEKE_MAXIMUM_PER_ZONE[blok.zone] ?? null;
+  if (typeof entry === "number") return entry;
+  return entry[blok.zone] ?? GENERIEKE_MAXIMUM_PER_ZONE[blok.zone] ?? null;
+}
+
 /**
  * Zoekt de concrete variantendata voor een archetype-id (uit sessie-archetypes.js)
  * binnen het gegeven sessietype. Retourneert null als er geen variantendata is
@@ -37,16 +132,59 @@ function normaliseerCadans(cadansRpm) {
  * een volgehouden inspanning). Een 90s-vloer op zulke blokken zou een 10s
  * sprint of 20×40s-interval fors oprekken en de sessie 11-42% laten
  * overschieten (gemeten over de datasetset).
+ *
+ * Maxima (bepaalMaximumBlokduur): werkblokken van interval-achtige archetypes
+ * mogen niet onbeperkt meeschalen met een lange doelDuurSec — anders wordt een
+ * "4× 5' kracht"-blok bij een 3-uurs sessie een 24-minuten krachtsblok
+ * (fysiologisch een heel ander soort inspanning). z2_duur en Z1/Z2-blokken
+ * hebben geen maximum (duurgericht, per definitie onschuldig). Het "teveel"
+ * dat een gecapt werkblok niet meer kwijt kan, wordt herverdeeld over de
+ * herstelblokken van dezelfde variant (proportioneel, zelf zonder maximum) —
+ * zo blijft de totale sessieduur gelijk aan doelDuurSec.
+ *
+ * @param {object} variant
+ * @param {number} doelDuurSec
+ * @param {string} [sessietype] - voor de z2_duur-uitzondering en archetype-lookup
+ * @param {string} [archetypeId] - voor de per-archetype maximum-lookup
  */
-export function schaalVariant(variant, doelDuurSec) {
+export function schaalVariant(variant, doelDuurSec, sessietype = null, archetypeId = null) {
   const som = variant.blokken.reduce((s, b) => s + b.duur_pct * (b.reps ?? 1), 0) || 1;
-  return variant.blokken.map(b => {
+  let totaalOvertollig = 0;
+
+  const begrensd = variant.blokken.map(b => {
     const genormaliseerd = b.duur_pct / som;
     const ruw = Math.round(genormaliseerd * doelDuurSec);
-    if ((b.reps ?? 1) > 1 || b.zone === "Z7") return { ...b, blokDuurSeconden: Math.max(1, ruw) };
-    const minimum = b.type === "herstel" ? HERSTEL_MIN_SEC : WERK_MIN_SEC;
-    return { ...b, blokDuurSeconden: Math.max(minimum, ruw) };
+    const isKortInherent = (b.reps ?? 1) > 1 || b.zone === "Z7";
+    const naMinimum = isKortInherent
+      ? Math.max(1, ruw)
+      : Math.max(b.type === "herstel" ? HERSTEL_MIN_SEC : WERK_MIN_SEC, ruw);
+
+    const maximum = bepaalMaximumBlokduur(sessietype, archetypeId, b);
+    if (maximum != null && naMinimum > maximum) {
+      totaalOvertollig += (naMinimum - maximum) * (b.reps ?? 1);
+      return { ...b, blokDuurSeconden: maximum };
+    }
+    return { ...b, blokDuurSeconden: naMinimum };
   });
+
+  if (totaalOvertollig > 0) {
+    const herstelIdxs = begrensd.map((b, i) => ({ b, i })).filter(x => x.b.type === "herstel").map(x => x.i);
+    if (herstelIdxs.length > 0) {
+      const totaalGewicht = herstelIdxs.reduce((s, i) => s + begrensd[i].blokDuurSeconden * (begrensd[i].reps ?? 1), 0);
+      for (const i of herstelIdxs) {
+        const reps = begrensd[i].reps ?? 1;
+        const gewicht = begrensd[i].blokDuurSeconden * reps;
+        const aandeel = totaalGewicht > 0 ? gewicht / totaalGewicht : 1 / herstelIdxs.length;
+        const extraPerInstantie = (totaalOvertollig * aandeel) / reps;
+        begrensd[i] = { ...begrensd[i], blokDuurSeconden: Math.round(begrensd[i].blokDuurSeconden + extraPerInstantie) };
+      }
+    }
+    // Geen herstelblok om het teveel in op te vangen zou niet moeten voorkomen
+    // (elk archetype eindigt met een herstelblok) — in dat randgeval blijft de
+    // sessie iets korter dan doelDuurSec in plaats van te crashen.
+  }
+
+  return begrensd;
 }
 
 /**
@@ -244,7 +382,7 @@ function voegWarmingUpToe(geschaaldeBlokken, doelDuurSec) {
  */
 export function genereerSessieDeterministisch({ dagIntentie, archetype, variant, doelDuurMin, ftp, sessietype }) {
   const t0 = Date.now();
-  let geschaald = schaalVariant(variant, doelDuurMin * 60);
+  let geschaald = schaalVariant(variant, doelDuurMin * 60, sessietype, archetype.id);
   if (sessietype !== "z2_duur") {
     geschaald = voegWarmingUpToe(geschaald, doelDuurMin * 60);
   }

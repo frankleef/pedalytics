@@ -8,6 +8,7 @@ import {
   selecteerVariantOpDagvorm,
   genereerSessieDeterministisch,
   vindArchetypeMetVarianten,
+  bepaalMaximumBlokduur,
 } from '../sessie-generatie.js'
 import { SESSIE_ARCHETYPES as VARIANT_ARCHETYPES } from '../sessie-varianten.js'
 
@@ -381,5 +382,79 @@ describe('genereerSessieDeterministisch — warming-up (bugfix: sessie start dir
       }
     }
     expect(nietOpgewarmd).toEqual([])
+  })
+})
+
+describe('schaalVariant — maximum blokduur (bugfix: 24-minuten krachtsblok bij lange sessieduur)', () => {
+  it('reproduceert en fixt het gerapporteerde geval: kracht_std_4x5 @ 180 min blijft binnen zijn archetype-maximum', () => {
+    const archetype = vindArchetypeMetVarianten('kracht_lage_cadans', 'kracht_standaard')
+    const variant = archetype.varianten.find(v => v.id === 'kracht_std_4x5')
+
+    // Vóór de fix: schaalVariant(variant, 10800) zonder cap gaf hier 1436s (~24 min)
+    const zonderContext = schaalVariant(variant, 180 * 60)
+    expect(Math.round(zonderContext[0].blokDuurSeconden / 60)).toBe(24) // oude, ongecapte gedrag nog aantoonbaar zonder archetype-context
+
+    const sessie = genereerSessieDeterministisch({
+      dagIntentie: null, archetype, variant, doelDuurMin: 180, ftp: 265, sessietype: 'kracht_lage_cadans',
+    })
+    const krachtBlokken = sessie.segmenten.filter(s => s.zone === 'Z3' || s.zone === 'Z4')
+    for (const b of krachtBlokken) {
+      expect(b.blokDuurSeconden).toBeLessThanOrEqual(360) // kracht_standaard-maximum: 6 min
+    }
+  })
+
+  it('elk interval-achtig sessietype: bij een extreme sessieduur (4 uur) overschrijdt geen enkel werkblok zijn eigen archetype-maximum', () => {
+    const overtredingen = []
+    for (const [sessietype, archetypes] of Object.entries(VARIANT_ARCHETYPES)) {
+      if (sessietype === 'z2_duur') continue // bewust geen maximum, zie aparte test hieronder
+      for (const archetype of archetypes) {
+        for (const variant of archetype.varianten) {
+          const sessie = genereerSessieDeterministisch({
+            dagIntentie: null, archetype, variant, doelDuurMin: 240, ftp: 265, sessietype,
+          })
+          for (const seg of sessie.segmenten) {
+            const maxSec = bepaalMaximumBlokduur(sessietype, archetype.id, seg)
+            if (maxSec != null && seg.blokDuurSeconden > maxSec) {
+              overtredingen.push(`${sessietype}/${archetype.id}/${variant.id}: ${seg.zone} ${seg.blokDuurSeconden}s > ${maxSec}s`)
+            }
+          }
+        }
+      }
+    }
+    expect(overtredingen).toEqual([])
+  })
+
+  it('z2_duur blijft ongewijzigd bij een extreme sessieduur (4 uur) — geen cap, blokken schalen vrij mee', () => {
+    const archetype = vindArchetypeMetVarianten('z2_duur', 'z2_progressief')
+    const variant = archetype.varianten[0]
+    const sessie = genereerSessieDeterministisch({
+      dagIntentie: null, archetype, variant, doelDuurMin: 240, ftp: 265, sessietype: 'z2_duur',
+    })
+    const totaalMin = sessie.segmenten.reduce((s, b) => s + b.blokDuurSeconden, 0) / 60
+    expect(Math.round(totaalMin)).toBeCloseTo(240, -1)
+    // Elk blok schaalt evenredig mee — bij 3 gelijke delen dus rond de 80 min per blok
+    expect(sessie.segmenten[0].blokDuurSeconden / 60).toBeGreaterThan(60)
+  })
+
+  it('totale sessieduur blijft dicht bij de gevraagde doelduur ondanks herverdeling van "teveel" naar herstelblokken', () => {
+    const archetype = vindArchetypeMetVarianten('kracht_lage_cadans', 'kracht_standaard')
+    const variant = archetype.varianten.find(v => v.id === 'kracht_std_4x5')
+    const sessie = genereerSessieDeterministisch({
+      dagIntentie: null, archetype, variant, doelDuurMin: 180, ftp: 265, sessietype: 'kracht_lage_cadans',
+    })
+    const totaalMin = sessie.segmenten.reduce((s, b) => s + b.blokDuurSeconden, 0) / 60
+    expect(Math.abs(totaalMin - 180)).toBeLessThan(5) // binnen 5 min van de gevraagde 180 min
+  })
+
+  it('regressie: normale sessieduur (90 min, cap wordt niet geraakt) levert hetzelfde resultaat op als vóór de fix', () => {
+    const archetype = vindArchetypeMetVarianten('sweetspot_intervallen', 'ss_standaard')
+    const variant = archetype.varianten.find(v => v.id === 'ss_std_3x15')
+    // ss_std_3x15 @ 90 min: werkblok ruw = round(0.225*5400) = 1215s, ruim onder het
+    // archetype-maximum van 1560s — cap/herverdeling raakt hier niet in werking, dus
+    // schaalVariant() met archetype-context geeft hetzelfde resultaat als zonder.
+    const metContext = schaalVariant(variant, 90 * 60, 'sweetspot_intervallen', 'ss_standaard')
+    const zonderContext = schaalVariant(variant, 90 * 60)
+    expect(metContext).toEqual(zonderContext)
+    expect(metContext[0].blokDuurSeconden).toBe(1215)
   })
 })
