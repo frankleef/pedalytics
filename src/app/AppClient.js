@@ -14,6 +14,10 @@ import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
 import LegeKoppelStaat from "./components/LegeKoppelStaat";
 import { demoProfiel, demoSeizoensplan, demoWellness, demoRitten } from "@/lib/demoData";
 import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
+import { detecteerWeekConflicten, degradeerSessie, corrigeerWeekBudget } from "@/lib/sessie/conflictResolutie";
+import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
+import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
+import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
 
 const PROFIEL_DEFAULT = { ftp: 265, lt_hr: 184, max_hr: 200, gewicht: 90, hrv_basislijn: 58, hr_basislijn: 49, doel: "31+ km/u gemiddeld solo in Z2" };
 
@@ -574,54 +578,96 @@ export default function Page() {
     }
   }, [seizoensplan, weekSessies, wellenessHuidig, dagelijkseData, voortgang]);
 
-  const checkImpact = useCallback(async (gewijzigdeDatums, actueleSessies) => {
+  // Reactief conflict-vangnet: scant na elke sessie-wijziging de hele week (vast +
+  // gewijzigd) op (a) twee zware sessies binnen 48u, (b) week-TSS >15% boven doel.
+  // Lost dit deterministisch op — geen Claude, geen job-omweg — door de
+  // conflicterende dag te degraderen naar een lichtere variant (48u-conflict) of
+  // door pasBudgetToe()'s kortingslogica over de hele week toe te passen
+  // (budget-conflict). Als geen van beide het conflict daadwerkelijk oplost, wordt
+  // dat expliciet gelogd i.p.v. stil (of via een LLM) opgevangen.
+  const hersolveWeekConflicten = useCallback(async (gewijzigdeDatums, actueleSessies) => {
     const sessies = actueleSessies || weekSessies?.sessies || [];
     if (sessies.length < 2) return;
 
     const weekNr = weeknummerVoorDatum(new Date(), seizoensplan.startdatum);
     const kaderWeek = seizoensplan.kader?.find(w => w.week === weekNr) || seizoensplan.kader?.[0];
-    const tssTarget = kaderWeek?.tss_doel || 300;
 
-    const zwareSessies = sessies.filter(s => ["sweetspot", "interval", "drempel", "vo2max"].includes(s.type));
-    const conflicten = new Set();
-
-    for (const s of zwareSessies) {
-      if (!s.datum) continue;
-      const d = new Date(s.datum);
-      for (const andere of zwareSessies) {
-        if (andere === s || !andere.datum) continue;
-        const verschilUren = Math.abs(d - new Date(andere.datum)) / 3600000;
-        if (verschilUren > 0 && verschilUren < 48) {
-          const later = s.datum > andere.datum ? s.datum : andere.datum;
-          if (gewijzigdeDatums.includes(later)) conflicten.add(later);
-        }
-      }
-    }
-
-    const weekTss = sessies.reduce((s, sess) => s + (sess.tss || 0), 0);
-    if (weekTss > tssTarget * 1.15) {
-      const laatstGepland = sessies.filter(s => !s.voltooid && gewijzigdeDatums.includes(s.datum)).sort((a, b) => (b.tss || 0) - (a.tss || 0))[0];
-      if (laatstGepland) conflicten.add(laatstGepland.datum);
-    }
+    const { conflictDatums, budgetConflictDatum, tssTarget } = detecteerWeekConflicten(sessies, kaderWeek, gewijzigdeDatums);
+    if (conflictDatums.length === 0) return;
 
     let huidigeSessies = [...sessies];
-    for (const datum of conflicten) {
+    const teVerwijderenEventIds = [];
+    const onopgelost = [];
+
+    const syncNaarIntervals = async (sessie) => {
+      try {
+        await fetch("/api/intervals/events", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessies: [sessie], ftp: PROFIEL.ftp }),
+        });
+      } catch (e) { console.warn("[Conflict] Intervals-sync mislukt:", e); }
+    };
+
+    // 48u-conflicten: degradeer naar de lichtste variant van hetzelfde archetype.
+    const dagen48u = conflictDatums.filter(d => d !== budgetConflictDatum);
+    for (const datum of dagen48u) {
       const sessie = huidigeSessies.find(s => s.datum === datum);
-      if (sessie && !sessie.voltooid) {
-        const dagNaam = DAGNAMEN[new Date(datum).getDay()];
-        const uren = urenPerDag[dagNaam] || 1.5;
-        const nieuweSessie = await genereerSessieDagViaJob(datum, dagNaam, uren, { oudeSessie: sessie, aanleiding: "fase_2_conflict" });
-        if (nieuweSessie) {
-          huidigeSessies = [...huidigeSessies.filter(s => s.datum !== datum), nieuweSessie];
-          const nieuweWeekSessies = { ...weekSessies, sessies: huidigeSessies };
-          setWeekSessies(nieuweWeekSessies);
-          const bijgewerkt = { ...seizoensplan, weekSessies: nieuweWeekSessies };
-          setSeizoensplan(bijgewerkt);
-          fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bijgewerkt) });
-        }
+      if (!sessie || sessie.voltooid) continue;
+
+      const nieuweSessie = degradeerSessie(sessie, PROFIEL.ftp);
+      if (nieuweSessie) {
+        normaliseerSessieSegmenten(nieuweSessie);
+        voegVerwachtRpeToe(nieuweSessie);
+        corrigeerSessieTss(nieuweSessie);
+        huidigeSessies = [...huidigeSessies.filter(s => s.datum !== datum), nieuweSessie];
+        console.log("[Conflict] 48u-conflict opgelost door degraderen:", datum, sessie.variant_id, "→", nieuweSessie.variant_id);
+        await syncNaarIntervals(nieuweSessie);
+      } else {
+        onopgelost.push(`${datum} (48u-conflict, geen lichtere variant beschikbaar)`);
       }
     }
-  }, [weekSessies, seizoensplan, urenPerDag, genereerSessieDagViaJob]);
+
+    // Budget-conflict: kort over de hele week (vast + gewijzigd), zelfde
+    // kortingsvolgorde als pasBudgetToe (korte Z2-dagen eerst, kernstimulus/
+    // secundair nooit op duur gekort).
+    if (budgetConflictDatum) {
+      const resultaten = corrigeerWeekBudget(huidigeSessies, tssTarget);
+      for (const { datum, actie, sessie: nieuweSessie } of resultaten) {
+        if (actie === "ongewijzigd") continue;
+        const oude = huidigeSessies.find(s => s.datum === datum);
+        if (actie === "verwijderd") {
+          if (oude?.intervalsEventId) teVerwijderenEventIds.push(oude.intervalsEventId);
+          huidigeSessies = huidigeSessies.filter(s => s.datum !== datum);
+          console.log("[Conflict] Budget-conflict: dag verwijderd (onder minimumduur na korten):", datum);
+        } else if (actie === "gekort") {
+          normaliseerSessieSegmenten(nieuweSessie);
+          voegVerwachtRpeToe(nieuweSessie);
+          corrigeerSessieTss(nieuweSessie);
+          huidigeSessies = [...huidigeSessies.filter(s => s.datum !== datum), nieuweSessie];
+          console.log("[Conflict] Budget-conflict: dag gekort:", datum, oude?.duur_min, "→", nieuweSessie.duur_min);
+          await syncNaarIntervals(nieuweSessie);
+        }
+      }
+      const nieuweWeekTss = huidigeSessies.reduce((s, x) => s + (x.tss || 0), 0);
+      if (nieuweWeekTss > tssTarget * 1.15) {
+        onopgelost.push(`${budgetConflictDatum} (budget-conflict, ${nieuweWeekTss} > ${Math.round(tssTarget * 1.15)} zelfs na korten)`);
+      }
+    }
+
+    teVerwijderenEventIds.forEach(id => {
+      fetch(`/api/intervals/events/${id}`, { method: "DELETE" }).catch(() => {});
+    });
+
+    if (onopgelost.length > 0) {
+      console.warn("[Conflict] Onopgeloste conflicten (geen automatische fix mogelijk):", onopgelost.join(", "));
+    }
+
+    const nieuweWeekSessies = { ...weekSessies, sessies: huidigeSessies };
+    setWeekSessies(nieuweWeekSessies);
+    const bijgewerkt = { ...seizoensplan, weekSessies: nieuweWeekSessies };
+    setSeizoensplan(bijgewerkt);
+    fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bijgewerkt) });
+  }, [weekSessies, seizoensplan]);
 
   const handleBeschikbaarheidOpslaan = useCallback(async (data) => {
     const generatieId = `${Date.now()}-${Math.random()}`;
@@ -994,9 +1040,9 @@ export default function Page() {
     } catch (e) { console.error("[BeschikbaarheidAanvullen] mislukt:", e); }
 
     if (gewijzigdeDatums.length > 0) {
-      checkImpact(gewijzigdeDatums, lokaalSessies).catch(e => console.error("Impact check:", e));
+      hersolveWeekConflicten(gewijzigdeDatums, lokaalSessies).catch(e => console.error("Conflict-resolutie:", e));
     }
-  }, [beschikbaar, urenPerDag, seizoensplan, weekSessies, genereerSessieDagViaJob, checkImpact]);
+  }, [beschikbaar, urenPerDag, seizoensplan, weekSessies, genereerSessieDagViaJob, hersolveWeekConflicten]);
 
   const openProfiel = useCallback(() => {
     if (typeof window !== "undefined") history.pushState({ modal: "profiel" }, "", window.location.pathname);
