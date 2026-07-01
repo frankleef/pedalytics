@@ -3,43 +3,18 @@ import { getKV } from "@/lib/kv";
 import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet, intervalsPost, intervalsDelete } from "@/lib/intervals";
 import { vandaagISO } from "@/lib/datum";
-import { bouwSessieDagPrompt } from "@/lib/promptBuilder";
-import { claudeCall } from "@/lib/claude";
-import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
-import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
-import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
-import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
 import { segmentenNaarZwo } from "@/lib/workoutZwo";
-import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
+import { weeknummerVoorDatum, kaderWeekVoorDatum, weekInFaseVoorKaderWeek } from "@/lib/weekgrenzen";
+import { genereerSessieDag } from "@/lib/sessie/genereren";
 import {
-  getArchetypesVoorSessietype,
-  getRecenteArchetypes,
-  slaArchetypeOp,
   migreerZ2VariabelNaarDuur,
   migreesSessietype,
-  TEST_SESSIETYPES,
-  HERSTEL_SESSIETYPES,
 } from "@/lib/sessie-archetypes";
 
 export const maxDuration = 300;
 
 const ADMIN_EMAIL = "fr.levering@gmail.com";
 const VRIJHEID_FASEN = new Set(['sweetspot', 'drempel', 'vo2max']);
-
-function weekInFaseVoorDatum(datum, kader, startdatum) {
-  if (!kader || !startdatum) return 1;
-  const weekNr = weeknummerVoorDatum(datum, startdatum);
-  const kaderWeek = kader.find(w => w.week === weekNr) || kader[0];
-  if (!kaderWeek) return 1;
-  const fase = kaderWeek.fase;
-  const sorted = [...kader].sort((a, b) => a.week - b.week);
-  let teller = 0;
-  for (const w of sorted) {
-    if (w.fase === fase) teller++;
-    if (w.week === kaderWeek.week) return teller;
-  }
-  return 1;
-}
 
 export async function POST(request) {
   const authHeader = request.headers.get("authorization");
@@ -105,6 +80,8 @@ export async function POST(request) {
   } catch (e) {
     console.warn('[regenereer-toekomstige-sessies] Profiel ophalen mislukt:', e.message);
   }
+
+  const hrvProfiel = await kv.get(`hrv-profiel:${userId}`);
 
   const resultaten = [];
 
@@ -188,24 +165,10 @@ export async function POST(request) {
 
       const overigeSessies = sessies.filter(s => s.datum !== datum && !s.voltooid);
 
-      const promptData = bouwSessieDagPrompt({
-        profiel,
-        wellness: null,
-        dagelijkseData: [],
-        voortgang: null,
-        seizoensplan: { ...plan, weekSessies: undefined },
-        overigeSessies,
-        datum,
-        dagNaam: sessie.dag || 'Maandag',
-        uren: (sessie.duur_min || 90) / 60,
-        oudeSessie: sessie,
-        aanleiding: "beschikbaarheid_nieuw",
-      });
-
-      // Archetype-selectie
-      const kaderWeek = plan.kader?.find(w => w.week === weeknummerVoorDatum(datum, plan.startdatum)) || plan.kader?.[0];
+      // Archetype-selectie: fase/week bepalen effectiefSessietype (incl. vrijheidsdag-override)
+      const kaderWeek = kaderWeekVoorDatum(datum, plan.kader, plan.startdatum);
       const huidigeFase = kaderWeek?.fase ?? 'basis';
-      const weekInFase = weekInFaseVoorDatum(datum, plan.kader, plan.startdatum);
+      const weekInFase = weekInFaseVoorKaderWeek(kaderWeek, plan.kader);
       const dagIntentie = sessie.intentie || null;
 
       const isVrijheidsdag = (
@@ -215,34 +178,15 @@ export async function POST(request) {
       );
       const effectiefSessietype = isVrijheidsdag ? 'gemengd' : (dagIntentie?.sessietype ?? null);
 
-      let gekozenArchetypeId = null;
-      if (TEST_SESSIETYPES.has(effectiefSessietype) || HERSTEL_SESSIETYPES.has(effectiefSessietype)) {
-        console.log(`[regenereer] ${datum}: sessietype ${effectiefSessietype} valt buiten archetypelogica (test/herstel)`);
-      }
-      if (effectiefSessietype) {
-        const archetypes = getArchetypesVoorSessietype(
-          effectiefSessietype,
-          huidigeFase,
-          weekInFase,
-          plan.seizoensdoel?.type ?? null
-        );
-        if (archetypes.length > 0) {
-          const recenteArchetypes = await getRecenteArchetypes(kv, userId, effectiefSessietype);
-          const isGemengd = effectiefSessietype === 'gemengd';
-          const sessieVariatieBlok = JSON.stringify({
-            beschikbare_archetypes: archetypes,
-            recente_archetypes: recenteArchetypes,
-            rotatie_instructie: isGemengd
-              ? 'Dit is een vrijheidsessie (gemengd). Kies een archetype dat NIET gelijk is aan recente_archetypes[0]. Maak de beschrijving motiverend en energiek. Geef gekozen_archetype_id terug als apart veld in je JSON-output.'
-              : 'Kies een archetype dat NIET gelijk is aan recente_archetypes[0]. Geef sterke voorkeur aan archetypes die niet in recente_archetypes staan. Schaal blokduur proportioneel naar beschikbare sessieduur. Geef gekozen_archetype_id terug als apart veld in je JSON-output.',
-          }, null, 2);
-          promptData.prompt += `\n\nSESSIEVARIATIE — VERPLICHT\n\nKies exact één archetype. Regels:\n1. Kies NOOIT hetzelfde archetype als recente_archetypes[0]\n2. Geef sterke voorkeur aan archetypes die niet in recente_archetypes staan\n3. Schaal blokduur proportioneel naar beschikbare sessieduur\n4. Geef gekozen_archetype_id terug als apart veld in je JSON-output\n\nTRAININGEN ZIJN LEUK EN AFWISSELEND:\nElke sessie heeft een herkenbare structuur — een progressie, een ritme of een spel.\n\nZ1-ZONE REGEL — HARDE CONSTRAINT:\nZ1 is verboden behalve in: sprint_neuraal, z6_anaeroob, kracht_lage_cadans.\n\n${sessieVariatieBlok}`;
-        }
-      }
-
-      const raw = await claudeCall(promptData);
-      const nieuweSessie = raw.sessie || raw.sessies?.[0] || raw;
-      if (!nieuweSessie.datum) nieuweSessie.datum = datum;
+      const nieuweSessie = await genereerSessieDag({
+        kv, userId, datum, dagNaam: sessie.dag || 'Maandag',
+        uren: (sessie.duur_min || 90) / 60,
+        profiel, wellness: null, plan,
+        oudeSessie: sessie, overigeSessies,
+        aanleiding: "beschikbaarheid_nieuw",
+        effectiefSessietype, huidigeFase, weekInFase,
+        hrvProfiel, piekSprint,
+      });
 
       // Safety net: behoud heeft_sprint_staartjes als de originele sessie die had
       if (sessie.intentie?.heeft_sprint_staartjes && nieuweSessie.intentie) {
@@ -253,27 +197,7 @@ export async function POST(request) {
         }
       }
 
-      gekozenArchetypeId = raw.gekozen_archetype_id ?? nieuweSessie.gekozen_archetype_id ?? null;
-      if (gekozenArchetypeId && effectiefSessietype) {
-        await slaArchetypeOp(kv, userId, effectiefSessietype, gekozenArchetypeId);
-      }
-
-      normaliseerSessieSegmenten(nieuweSessie);
-      voegVerwachtRpeToe(nieuweSessie);
-      corrigeerSessieTss(nieuweSessie);
-
-      // Vermogensbereik toepassen
-      if (profiel.power_zones && profiel.ftp) {
-        try {
-          const zones = bouwZonesUitProfiel(profiel.ftp, profiel.power_zones);
-          const sessietype = nieuweSessie.intentie?.sessietype || nieuweSessie.sessietype || nieuweSessie.type;
-          nieuweSessie.segmenten = (nieuweSessie.segmenten || []).map(seg =>
-            seg.zone ? berekenBlok(seg, zones, profiel.ftp, piekSprint, sessietype) : seg
-          );
-        } catch (e) {
-          console.warn(`[regenereer] Vermogensbereik mislukt voor ${datum}:`, e.message);
-        }
-      }
+      const gekozenArchetypeId = nieuweSessie.archetype_id ?? null;
 
       // Intervals event bijwerken
       if (creds) {

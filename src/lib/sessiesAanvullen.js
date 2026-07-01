@@ -5,22 +5,14 @@ import { vandaagISO, datumISO, DAGNAMEN } from "@/lib/datum";
 import { bouwSessieDagPrompt } from "@/lib/promptBuilder";
 import { maxTrainingsdagenPerWeek, heeftTeLangReeks } from "@/lib/trainingsfrequentie";
 import { segmentenNaarZwo } from "@/lib/workoutZwo";
-import { normaliseerSessieSegmenten, valideerKrachtRestrictie } from "@/lib/sessie/normaliseer";
+import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
 import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
 import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
-import { capSessieDuur } from "@/lib/sessie/duurCap";
 import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
 import { claudeCall } from "@/lib/claude";
 import { magSprintStaartje } from "@/lib/sessie/weekpatroon";
-import {
-  getArchetypesVoorSessietype,
-  getRecenteArchetypes,
-  slaArchetypeOp,
-  migreesSessietype,
-  TEST_SESSIETYPES,
-  HERSTEL_SESSIETYPES,
-} from "@/lib/sessie-archetypes";
+import { genereerSessieDag } from "@/lib/sessie/genereren";
 
 const VERBODEN_TYPES_VOLUMECORRECTIE = ["kracht_lage_cadans", "sprint_neuraal"];
 
@@ -174,6 +166,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
   } catch {}
 
   const piekSprint = await kv.get(`piek_sprint_vermogen:${userId}`) || Math.round((profiel.ftp || 265) * 1.8);
+  const hrvProfiel = await kv.get(`hrv-profiel:${userId}`);
 
   const tsb = wellness ? Math.round((wellness.ctl ?? 0) - (wellness.atl ?? 0)) : null;
 
@@ -184,97 +177,30 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       const overigeSessies = [...bestaandeSessies, ...aangevuld]
         .filter(s => s.datum !== datum && !s.voltooid);
 
-      const promptData = bouwSessieDagPrompt({
-        profiel,
-        wellness,
-        dagelijkseData: [],
-        voortgang: null,
-        seizoensplan: { ...plan, weekSessies: undefined },
-        overigeSessies,
-        datum,
-        dagNaam,
-        uren,
-        oudeSessie: null,
-        aanleiding: aerobeDagen.includes(datum) ? "volumecorrectie_aerobe" : tempoAfsluiters.includes(datum) ? "volumecorrectie_tempo_afsluiter" : "beschikbaarheid_nieuw",
-      });
-
+      let promptExtra = "";
       if (aerobeDagen.includes(datum)) {
-        promptData.prompt += "\n\nVOLUMECORRECTIE — AEROBE COMPENSATIE: Deze sessie wordt toegevoegd als aerobe volumecompensatie op basis van een volumecorrectie-evaluatie. Het doel is extra aerobe stimulus. Gebruik uitsluitend sessietypes die primair het aerobe systeem trainen: z2_duur of progressief. Gebruik geen kracht_lage_cadans, sprint_neuraal, microbursts of andere neuromusculaire sessietypes — die dienen een ander fysiologisch doel en zijn niet geschikt als volumecompensatie.";
+        promptExtra += "\n\nVOLUMECORRECTIE — AEROBE COMPENSATIE: Deze sessie wordt toegevoegd als aerobe volumecompensatie op basis van een volumecorrectie-evaluatie. Het doel is extra aerobe stimulus. Gebruik uitsluitend sessietypes die primair het aerobe systeem trainen: z2_duur of progressief. Gebruik geen kracht_lage_cadans, sprint_neuraal, microbursts of andere neuromusculaire sessietypes — die dienen een ander fysiologisch doel en zijn niet geschikt als volumecompensatie.";
       }
-
       if (tempoAfsluiters.includes(datum)) {
         const maxMinuten = Math.round(uren * 60);
-        promptData.prompt += `\n\nVOLUMECORRECTIE — TEMPO-AFSLUITER (harde instructie): Voeg aan het einde van deze sessie een Z3-tempo-afsluiter toe van 15-20 minuten. Dit is een harde instructie vanuit de volumecorrectie-evaluatie — geen suggestie. De rest van de sessie blijft Z2. Zorg dat de totale sessieduur binnen ${maxMinuten} minuten blijft.`;
+        promptExtra += `\n\nVOLUMECORRECTIE — TEMPO-AFSLUITER (harde instructie): Voeg aan het einde van deze sessie een Z3-tempo-afsluiter toe van 15-20 minuten. Dit is een harde instructie vanuit de volumecorrectie-evaluatie — geen suggestie. De rest van de sessie blijft Z2. Zorg dat de totale sessieduur binnen ${maxMinuten} minuten blijft.`;
       }
 
-      // SESSIEVARIATIE — archetype-selectie vóór Claude-aanroep
+      // Fase/week — nodig voor de sprint-staartjes-check verderop. Nieuwe sessies
+      // hebben nog geen bestaande intentie, dus genereerSessieDag valt hier altijd
+      // terug op Claude (er is nog geen sessietype om een archetype op te kiezen).
       const kaderWeekVoorDag = kaderWeekVoorDatum(datum);
       const huidigeFase = kaderWeekVoorDag?.fase ?? 'basis';
       const weekInFase = weekInFaseVoorKaderWeek(kaderWeekVoorDag);
-      const dagIntentieVoorDag = null; // nieuwe sessies hebben geen bestaande intentie
 
-      // Vrijheidsdag: week 3 van intensieve fase, tweede intensiteitsdag
-      const isVrijheidsdag = (
-        weekInFase === 3 &&
-        dagIntentieVoorDag?.rol === 'tweede_intensiteit' &&
-        VRIJHEID_FASEN.has(huidigeFase)
-      );
-      const effectiefSessietype = isVrijheidsdag ? 'gemengd' : (dagIntentieVoorDag?.sessietype ?? null);
-      if (isVrijheidsdag) {
-        console.log(`[sessiesAanvullen] Vrijheidsdag geactiveerd: week ${weekInFase}, fase ${huidigeFase}, datum ${datum}`);
-      }
-
-      let gekozenArchetypeId = null;
-      if (effectiefSessietype) {
-        const archetypes = getArchetypesVoorSessietype(
-          effectiefSessietype,
-          huidigeFase,
-          weekInFase,
-          plan.seizoensdoel?.type ?? null
-        );
-        if (archetypes.length > 0) {
-          const recenteArchetypes = await getRecenteArchetypes(kv, userId, effectiefSessietype);
-          const isGemengd = effectiefSessietype === 'gemengd';
-          const sessieVariatieBlok = JSON.stringify({
-            beschikbare_archetypes: archetypes,
-            recente_archetypes: recenteArchetypes,
-            rotatie_instructie: isGemengd
-              ? 'Dit is een vrijheidsessie (gemengd). Kies een archetype dat NIET gelijk is aan recente_archetypes[0]. Maak de beschrijving motiverend en energiek — dit is de leukste training van de week. Geef gekozen_archetype_id terug als apart veld in je JSON-output.'
-              : 'Kies een archetype dat NIET gelijk is aan recente_archetypes[0]. Geef sterke voorkeur aan archetypes die niet in recente_archetypes staan. Schaal blokduur proportioneel naar beschikbare sessieduur. Geef gekozen_archetype_id terug als apart veld in je JSON-output.',
-          }, null, 2);
-          promptData.prompt += `\n\nSESSIEVARIATIE — VERPLICHT\n\nJe ontvangt beschikbare_archetypes voor het gevraagde sessietype.\nKies exact één archetype. Regels:\n1. Kies NOOIT hetzelfde archetype als recente_archetypes[0]\n2. Geef sterke voorkeur aan archetypes die niet in recente_archetypes staan\n3. Schaal blokduur proportioneel naar beschikbare sessieduur — verander niet de blokverhouding (bv. 3:1 werk/herstel blijft 3:1)\n4. Geef gekozen_archetype_id terug als apart veld in je JSON-output\n\nTRAININGEN ZIJN LEUK EN AFWISSELEND:\nElke sessie heeft een herkenbare structuur — een progressie, een ritme of een spel.\nGeen rechte lijnen. Gebruik de archetypestructuur als basis.\n\nZ1-ZONE REGEL — HARDE CONSTRAINT:\nZ1 is verboden behalve in: sprint_neuraal, z6_anaeroob, kracht_lage_cadans.\nGebruik Z2 als minimumzone voor opwarming, cooling-down en herstelblokken\nin alle andere sessietypes.\n\n${sessieVariatieBlok}`;
-        }
-      }
-
-      const raw = await claudeCall(promptData);
-      const sessie = raw.sessie || raw.sessies?.[0] || raw;
-      if (!sessie.datum) sessie.datum = datum;
-      if (!sessie.dag) sessie.dag = dagNaam;
-
-      // Sessietype-validatie: onverwacht sessietype in Claude-respons afvangen
-      {
-        const gegevenType = sessie.intentie?.sessietype || sessie.sessietype;
-        if (gegevenType) {
-          const gemigreerd = migreesSessietype(gegevenType);
-          if (gemigreerd !== gegevenType) {
-            const vervangen = gemigreerd ?? 'z2_duur';
-            console.warn(`[sessiesAanvullen] Onverwacht sessietype "${gegevenType}" → "${vervangen}" op ${datum}`);
-            if (sessie.intentie) sessie.intentie.sessietype = vervangen;
-          }
-        }
-      }
-
-      // Archetype opslaan na Claude-respons (STAP 4)
-      gekozenArchetypeId = raw.gekozen_archetype_id ?? sessie.gekozen_archetype_id ?? null;
-      if (gekozenArchetypeId && effectiefSessietype) {
-        await slaArchetypeOp(kv, userId, effectiefSessietype, gekozenArchetypeId);
-      } else if (effectiefSessietype && !TEST_SESSIETYPES.has(effectiefSessietype) && !HERSTEL_SESSIETYPES.has(effectiefSessietype)) {
-        console.warn(`[sessiesAanvullen] gekozen_archetype_id ontbreekt voor ${effectiefSessietype} op ${datum}`);
-      }
-
-      normaliseerSessieSegmenten(sessie);
-      voegVerwachtRpeToe(sessie);
-      corrigeerSessieTss(sessie);
+      const sessie = await genereerSessieDag({
+        kv, userId, datum, dagNaam, uren,
+        profiel, wellness, plan, overigeSessies,
+        oudeSessie: null,
+        aanleiding: aerobeDagen.includes(datum) ? "volumecorrectie_aerobe" : tempoAfsluiters.includes(datum) ? "volumecorrectie_tempo_afsluiter" : "beschikbaarheid_nieuw",
+        promptExtra, huidigeFase, weekInFase, hrvProfiel, piekSprint,
+        alleSessiesVoorKrachtCheck: [...bestaandeSessies, ...aangevuld],
+      });
 
       // Sprint-staartjes post-generatie check: z2_duur in basisfase
       if (
@@ -332,7 +258,9 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         }
       }
 
-      // Deterministisch vangnet: verboden sessietypes bij volumecorrectie
+      // Deterministisch vangnet: verboden sessietypes bij volumecorrectie.
+      // Dit vervangt segmenten NA genereerSessieDag's interne vermogensbereik-stap,
+      // dus het vervangende Z2-blok moet hier zelf opnieuw door berekenBlok.
       const isVolumeCorrectie = aerobeDagen.includes(datum) || tempoAfsluiters.includes(datum);
       if (isVolumeCorrectie) {
         const sessietype = sessie.intentie?.sessietype || sessie.sessietype || "";
@@ -358,34 +286,12 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
             sessietype: "z2_duur",
           }];
           corrigeerSessieTss(sessie);
-        }
-      }
-
-      // Centrale kracht-gate: max 1 kracht_lage_cadans per rollend 7-dagenvenster
-      {
-        const allesSessiesKracht = [...bestaandeSessies, ...aangevuld];
-        const krachtCheck = valideerKrachtRestrictie(sessie, allesSessiesKracht);
-        if (!krachtCheck.geldig) {
-          console.warn(`[sessiesAanvullen] ${userId} ${datum}: kracht geblokkeerd — ${krachtCheck.reden} → z2_duur`);
-          try {
-            await kv.set(`kracht_gate_fix:${userId}:${datum}`, { datum, reden: krachtCheck.reden, door: "z2_duur" }, { ex: 30 * 86400 });
-          } catch {}
-          sessie.type = "duur_variabel";
-          sessie.titel = "Z2 Duur — Kracht geblokkeerd";
-          if (sessie.intentie) {
-            sessie.intentie.sessietype = "z2_duur";
-            sessie.intentie.rol = "aerobe_dag";
-            sessie.intentie.toegestane_zones = ["Z2"];
+          if (profiel.power_zones && profiel.ftp) {
+            try {
+              const zones = bouwZonesUitProfiel(profiel.ftp, profiel.power_zones);
+              sessie.segmenten = sessie.segmenten.map(seg => berekenBlok(seg, zones, profiel.ftp, piekSprint, "z2_duur"));
+            } catch (e) { console.warn(`[sessiesAanvullen] Vermogensbereik mislukt voor ${datum}:`, e.message); }
           }
-          sessie.duur_min = Math.round(uren * 60);
-          sessie.segmenten = [{
-            zone: "Z2",
-            positie: "midden",
-            blokDuurSeconden: sessie.duur_min * 60,
-            isSpecifiek: false,
-            sessietype: "z2_duur",
-          }];
-          corrigeerSessieTss(sessie);
         }
       }
 
@@ -401,22 +307,12 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         sessie.volumecorrectie = { aanleiding: "tempo_afsluiter", beschikbareDagen: beschikbareDagenAantal, weekNr: aankomendeWeekNr };
       }
 
-      // Z1-validatie vóór berekenBlok (STAP 5)
+      // Z1-validatie (STAP 5) — vermogensbereik is al toegepast binnen genereerSessieDag
       {
         const sessietype = sessie.intentie?.sessietype || sessie.sessietype || sessie.type;
-        if (!valideerZ1Gebruik(sessie.segmenten, sessietype, gekozenArchetypeId)) {
+        if (!valideerZ1Gebruik(sessie.segmenten, sessietype, sessie.archetype_id ?? null)) {
           throw new Error(`Z1-validatie mislukt voor sessietype ${sessietype} op ${datum}`);
         }
-      }
-
-      if (profiel.power_zones && profiel.ftp) {
-        try {
-          const zones = bouwZonesUitProfiel(profiel.ftp, profiel.power_zones);
-          const sessietype = sessie.intentie?.sessietype || sessie.sessietype || sessie.type;
-          sessie.segmenten = (sessie.segmenten || []).map(seg =>
-            seg.zone ? berekenBlok(seg, zones, profiel.ftp, piekSprint, sessietype) : seg
-          );
-        } catch (e) { console.warn(`[sessiesAanvullen] Vermogensbereik mislukt voor ${datum}:`, e.message); }
       }
 
       try {
@@ -480,44 +376,21 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       const overigeSessies = [...bestaandeSessies, ...aangevuld]
         .filter(s => s.datum !== datum && !s.voltooid);
 
-      const promptData = bouwSessieDagPrompt({
-        profiel,
-        wellness,
-        dagelijkseData: [],
-        voortgang: null,
-        seizoensplan: { ...plan, weekSessies: undefined },
-        overigeSessies,
-        datum,
-        dagNaam: dagNaamV,
-        uren: urenV,
+      const kaderWeekVoorDag = kaderWeekVoorDatum(datum);
+      const huidigeFase = kaderWeekVoorDag?.fase ?? 'basis';
+      const weekInFase = weekInFaseVoorKaderWeek(kaderWeekVoorDag);
+      const promptExtra = `\n\nVOLUMECORRECTIE — VERLENGING (harde instructie): Verleng deze sessie van ${bestaandeSessie.duur_min || "?"}min naar maximaal ${maxMinuten}min. Behoud het sessietype en de intensiteitsstructuur. Voeg Z2-volume toe aan het einde. De totale sessieduur mag ${maxMinuten}min NIET overschrijden.`;
+
+      const sessie = await genereerSessieDag({
+        kv, userId, datum, dagNaam: dagNaamV, uren: urenV,
+        profiel, wellness, plan, overigeSessies,
         oudeSessie: bestaandeSessie,
         aanleiding: "beschikbaarheid_uren",
+        promptExtra, huidigeFase, weekInFase, hrvProfiel, piekSprint,
+        alleSessiesVoorKrachtCheck: [...bestaandeSessies, ...aangevuld],
       });
-      promptData.prompt += `\n\nVOLUMECORRECTIE — VERLENGING (harde instructie): Verleng deze sessie van ${bestaandeSessie.duur_min || "?"}min naar maximaal ${maxMinuten}min. Behoud het sessietype en de intensiteitsstructuur. Voeg Z2-volume toe aan het einde. De totale sessieduur mag ${maxMinuten}min NIET overschrijden.`;
-
-      const raw = await claudeCall(promptData);
-      const sessie = raw.sessie || raw.sessies?.[0] || raw;
-      if (!sessie.datum) sessie.datum = datum;
-      if (!sessie.dag) sessie.dag = dagNaamV;
       if (bestaandeSessie.intervalsEventId) sessie.intervalsEventId = bestaandeSessie.intervalsEventId;
       if (bestaandeSessie.intentie) sessie.intentie = { ...bestaandeSessie.intentie, ...sessie.intentie };
-
-      normaliseerSessieSegmenten(sessie);
-      voegVerwachtRpeToe(sessie);
-      corrigeerSessieTss(sessie);
-
-      // Deterministisch duur-vangnet via gedeelde capSessieDuur
-      capSessieDuur(sessie, maxMinuten, `sessiesAanvullen verleng_sessie ${datum}`);
-
-      if (profiel.power_zones && profiel.ftp) {
-        try {
-          const zones = bouwZonesUitProfiel(profiel.ftp, profiel.power_zones);
-          const sessietype = sessie.intentie?.sessietype || sessie.sessietype || sessie.type;
-          sessie.segmenten = (sessie.segmenten || []).map(seg =>
-            seg.zone ? berekenBlok(seg, zones, profiel.ftp, piekSprint, sessietype) : seg
-          );
-        } catch (e) { console.warn(`[sessiesAanvullen] Vermogensbereik mislukt voor verlengd ${datum}:`, e.message); }
-      }
 
       sessie.volumecorrectie = { aanleiding: "verleng_sessie", weekNr: aankomendeWeekNr };
 

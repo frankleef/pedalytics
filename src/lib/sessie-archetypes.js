@@ -268,6 +268,14 @@ export const SESSIE_ARCHETYPES = {
       fase_beschikbaar: ['vo2max', 'consolidatie'],
       week_in_fase_min: 2,
     },
+    {
+      id: 'vo2_4020',
+      naam: "40/20's",
+      structuur: '20× [40 sec @ 120% FTP + 20 sec Z2] — snel Z5 in en uit',
+      tss_range: [60, 80],
+      fase_beschikbaar: ['vo2max', 'consolidatie'],
+      week_in_fase_min: 2,
+    },
   ],
 
   sprint_neuraal: [
