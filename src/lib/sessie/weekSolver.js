@@ -69,10 +69,18 @@ export function berekenZ2AandeelSessietype(sessietype, archetypeId) {
  * fase-namen voor toekomstige weken met doelprofielen.js's namen). FASE_ALIAS
  * hieronder vertaalt die rijke namen terug naar de generieke sleutel. Waar één
  * doelprofielen-doel de generieke "drempel"-periode in meerdere sub-fases
- * opdeelt (klimmen: "Drempel + VO2max" + "Klimspecifiek"), is dat hier bewust
- * samengevoegd tot één generieke entry — de standaard kader-opbouw kan die
- * twee sub-fases sowieso niet als aparte kaderWeek.fase-waarden onderscheiden.
+ * opdeelt (klimmen: "Drempel + VO2max" + "Klimspecifiek"), wordt dat NIET meer
+ * hier samengevoegd — zie KLIMMEN_DREMPEL_MEERDERHEID/_LAATSTE_WEEK en
+ * haalPrioriteitOp()'s weekInFase-gebaseerde sub-splitsing verderop.
  */
+// klimmen's generieke "drempel"-fase dekt twee sub-fases uit doelprofielen.js met
+// OMGEKEERDE kernstimulus/secundair: "Drempel + VO2max" (meerderheid van de
+// periode) en, in de laatste week, "Klimspecifiek" (vo2max_intervallen wordt dan
+// kernstimulus, drempel_intervallen secundair). Zie haalPrioriteitOp() verderop
+// voor de weekInFase-gebaseerde keuze tussen deze twee.
+const KLIMMEN_DREMPEL_MEERDERHEID = { kernstimulus: ['drempel_intervallen'], secundair: 'vo2max_intervallen', eerstLatenVallen: ['sprint_neuraal', 'gemengd'] };
+const KLIMMEN_DREMPEL_LAATSTE_WEEK = { kernstimulus: ['vo2max_intervallen'], secundair: 'drempel_intervallen', eerstLatenVallen: ['sprint_neuraal', 'gemengd'] };
+
 export const PRIORITEIT_PER_FASE = {
   ftp: {
     basis:         { kernstimulus: null,                     secundair: null,                 eerstLatenVallen: [] },
@@ -86,9 +94,8 @@ export const PRIORITEIT_PER_FASE = {
     basis:         { kernstimulus: null,                     secundair: null,                 eerstLatenVallen: [] },
     sweetspot:     { kernstimulus: ['sweetspot_intervallen'], secundair: null,                 eerstLatenVallen: ['drempel_intervallen', 'sprint_neuraal', 'gemengd'] },
     overgangsfase: { kernstimulus: ['sweetspot_intervallen'], secundair: null,                 eerstLatenVallen: ['drempel_intervallen', 'sprint_neuraal', 'gemengd'] },
-    // Dekt zowel "Drempel + VO2max" (weken 9,10 — meerderheid, representatief
-    // gekozen) als "Klimspecifiek" (week 11, samengevoegd zie boven).
-    drempel:       { kernstimulus: ['drempel_intervallen'], secundair: 'vo2max_intervallen', eerstLatenVallen: ['sprint_neuraal', 'gemengd'] },
+    // Fallback zonder periode-info (zie haalPrioriteitOp voor de echte splitsing).
+    drempel:       KLIMMEN_DREMPEL_MEERDERHEID,
     consolidatie:  { kernstimulus: ['sweetspot_intervallen'], secundair: null,                 eerstLatenVallen: ['vo2max_intervallen', 'gemengd'] },
     test:          { kernstimulus: null,                      secundair: null,                 eerstLatenVallen: [] },
   },
@@ -169,7 +176,33 @@ function normaliseerFase(seizoensdoel, fase) {
     : FASE_ALIAS_PER_DOEL[seizoensdoel]?.[genormaliseerd];
 }
 
-export function haalPrioriteitOp(seizoensdoel, fase) {
+// klimmen's generieke "drempel"-fase dekt in doelprofielen.js twee sub-fases met
+// OMGEKEERDE kernstimulus/secundair: "Drempel + VO2max" (meerderheid van de periode)
+// en, in de laatste week van diezelfde periode, "Klimspecifiek" (vo2max_intervallen
+// wordt dan kernstimulus, drempel_intervallen secundair). De generieke kaderopbouw
+// kent geen aparte fasenaam voor die laatste week — dit wordt hier onderscheiden via
+// weekInFase/aantalWekenInFase (positie binnen de fase-periode), niet via de fasenaam.
+function isLaatsteWeekVanPeriode(weekInFase, aantalWekenInFase) {
+  return aantalWekenInFase != null && weekInFase != null && weekInFase >= aantalWekenInFase;
+}
+
+/**
+ * Haalt de prioriteit-entry op voor een seizoensdoel × fase. Accepteert zowel de
+ * generieke kader-fasenamen (het normale geval) als de rijke doelprofielen-namen
+ * (na een wijzig-doel-actie), via FASE_ALIAS_PER_DOEL.
+ *
+ * @param {string} seizoensdoel
+ * @param {string} fase
+ * @param {{weekInFase?: number, aantalWekenInFase?: number}} [periode] - voor de
+ *   klimmen+drempel sub-fase-splitsing (zie isLaatsteWeekVanPeriode). Optioneel en
+ *   backward-compatible: zonder periode-info valt klimmen+drempel terug op de
+ *   meerderheidsvariant ("Drempel + VO2max"), zoals vóór deze fix.
+ *
+ * Gooit een expliciete fout bij een onbekende combinatie — geen stille fallback,
+ * zodat een ontbrekende beleidsbeslissing zichtbaar blijft, en gooit VOORDAT er
+ * enige dagtoewijzing gebeurt (aangeroepen als eerste stap in solveWeek()).
+ */
+export function haalPrioriteitOp(seizoensdoel, fase, periode = {}) {
   const tabel = PRIORITEIT_PER_FASE[seizoensdoel];
   if (!tabel) {
     throw new Error(
@@ -177,6 +210,13 @@ export function haalPrioriteitOp(seizoensdoel, fase) {
     );
   }
   const generiekeFase = normaliseerFase(seizoensdoel, fase);
+
+  if (seizoensdoel === 'klimmen' && generiekeFase === 'drempel') {
+    return isLaatsteWeekVanPeriode(periode.weekInFase, periode.aantalWekenInFase)
+      ? KLIMMEN_DREMPEL_LAATSTE_WEEK
+      : KLIMMEN_DREMPEL_MEERDERHEID;
+  }
+
   const entry = generiekeFase ? tabel[generiekeFase] : undefined;
   if (!entry) {
     throw new Error(

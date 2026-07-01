@@ -981,9 +981,11 @@ export default function Page() {
       if (aanvulResp.ok) {
         const planResp = await fetch("/api/plan");
         if (planResp.ok) {
-          const bijgewerktPlan = await planResp.json();
-          if (bijgewerktPlan?.weekSessies) setWeekSessies(bijgewerktPlan.weekSessies);
-          if (bijgewerktPlan) setSeizoensplan(bijgewerktPlan);
+          const pd = await planResp.json();
+          if (pd?.success && pd?.data) {
+            if (pd.data.weekSessies) setWeekSessies(pd.data.weekSessies);
+            setSeizoensplan(pd.data);
+          }
         }
       }
     } catch (e) { console.error("[BeschikbaarheidAanvullen] mislukt:", e); }

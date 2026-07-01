@@ -11,9 +11,9 @@ function dagen(...specs) {
 }
 
 describe('solveWeek', () => {
-  it('scenario 1: volledig lege week, sweetspot-fase, ftp-doel, 5 dagen -> 1 kernstimulus, 1 secundair, rest z2', () => {
+  it('scenario 1: volledig lege week, klimmen-doel, Drempel+VO2max-fase, 5 dagen -> 1 kernstimulus, 1 secundair, rest z2', () => {
     const resultaat = solveWeek({
-      fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
+      fase: 'drempel', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'klimmen',
       weekTssDoel: 400, vasteDagen: [],
       openDagen: dagen('2026-07-06:3', '2026-07-08:1.5', '2026-07-10:2', '2026-07-12:1.5', '2026-07-13:2.5'),
       alGeleverd: {}, tsb: 0,
@@ -24,14 +24,14 @@ describe('solveWeek', () => {
     expect(paden.filter(p => p === 'secundair')).toHaveLength(1)
     expect(paden.filter(p => p === 'z2')).toHaveLength(3)
     const kernstimulus = resultaat.find(r => r.pad === 'kernstimulus')
-    expect(kernstimulus.sessietype).toBe('sweetspot_intervallen')
+    expect(kernstimulus.sessietype).toBe('drempel_intervallen')
     const secundair = resultaat.find(r => r.pad === 'secundair')
     expect(secundair.sessietype).toBe('vo2max_intervallen')
     // Kernstimulus krijgt de dag met de meeste beschikbare uren
     expect(kernstimulus.beschikbareUren).toBe(3)
   })
 
-  it('scenario 2: 1 vaste sweetspot-dag deze week -> geen tweede sweetspot, val terug op volgende kandidaat', () => {
+  it('scenario 2: 1 vaste sweetspot-dag deze week (ftp) -> geen tweede sweetspot, geen fallback-type binnen dezelfde fase', () => {
     const resultaat = solveWeek({
       fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
       weekTssDoel: 400,
@@ -39,14 +39,16 @@ describe('solveWeek', () => {
       openDagen: dagen('2026-07-06:3', '2026-07-08:1.5', '2026-07-10:2', '2026-07-12:1.5'),
       alGeleverd: { tss: 80 }, tsb: 0,
     })
+    // ftp's Sweetspot-fase heeft maar één kernstimulus-kandidaat (sweetspot_intervallen)
+    // en geen secundair — als die al geleverd is, wordt er geen ander intensiteitstype
+    // ingevuld, alle open dagen worden z2_duur.
     expect(resultaat.some(r => r.sessietype === 'sweetspot_intervallen')).toBe(false)
-    const kernstimulus = resultaat.find(r => r.pad === 'kernstimulus')
-    expect(kernstimulus?.sessietype).toBe('drempel_intervallen')
+    expect(resultaat.every(r => r.sessietype === 'z2_duur')).toBe(true)
   })
 
-  it('scenario 3: week 3 van de fase -> vrijheidsessie (gemengd) op het secundair-slot', () => {
+  it('scenario 3: week 3 van de fase (klimmen, Drempel+VO2max) -> vrijheidsessie (gemengd) op het secundair-slot', () => {
     const resultaat = solveWeek({
-      fase: 'sweetspot', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'ftp',
+      fase: 'drempel', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'klimmen',
       weekTssDoel: 400, vasteDagen: [],
       openDagen: dagen('2026-07-06:3', '2026-07-08:1.5', '2026-07-10:2', '2026-07-12:1.5', '2026-07-13:2.5'),
       alGeleverd: {}, tsb: 0,
@@ -59,7 +61,7 @@ describe('solveWeek', () => {
 
   it('scenario 4a: maar 2 open dagen, beide naast elkaar -> adjacency toegestaan (geen alternatief)', () => {
     const resultaat = solveWeek({
-      fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
+      fase: 'drempel', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'klimmen',
       weekTssDoel: 400, vasteDagen: [],
       openDagen: dagen('2026-07-06:3', '2026-07-07:2'),
       alGeleverd: {}, tsb: 0,
@@ -69,7 +71,7 @@ describe('solveWeek', () => {
 
   it('scenario 4b: kernstimulus + 2 kandidaten, één aangrenzend één niet -> secundair kiest de niet-aangrenzende dag', () => {
     const resultaat = solveWeek({
-      fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
+      fase: 'drempel', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'klimmen',
       weekTssDoel: 400, vasteDagen: [],
       // 07-06 krijgt kernstimulus (meeste uren). 07-07 is aangrenzend, 07-10 niet.
       openDagen: dagen('2026-07-06:3', '2026-07-07:2', '2026-07-10:2'),
@@ -101,11 +103,87 @@ describe('solveWeek', () => {
     })).not.toThrow()
   })
 
-  it('gooit door de haalPrioriteitOp-fout voor onbekend seizoensdoel (bv. sprint)', () => {
+  it('gooit door de haalPrioriteitOp-fout voor een onbekend seizoensdoel', () => {
     expect(() => solveWeek({
-      fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'sprint',
+      fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'onbekend_doel',
       weekTssDoel: 200, vasteDagen: [], openDagen: dagen('2026-07-06:2'),
     })).toThrow(/geen prioriteitstabel/)
+  })
+
+  it('ftp in de Drempel-fase (niet vo2max) -> correcte kernstimulus drempel_intervallen', () => {
+    const resultaat = solveWeek({
+      fase: 'drempel', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
+      weekTssDoel: 300, vasteDagen: [],
+      openDagen: dagen('2026-07-06:3', '2026-07-08:1.5', '2026-07-10:2'),
+      alGeleverd: {}, tsb: 0,
+    })
+    const kernstimulus = resultaat.find(r => r.pad === 'kernstimulus')
+    expect(kernstimulus.sessietype).toBe('drempel_intervallen')
+  })
+
+  it('accepteert ook de rijke doelprofielen-fasenaam via alias (na wijzig-doel)', () => {
+    const generiek = solveWeek({
+      fase: 'drempel', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'klimmen',
+      weekTssDoel: 300, vasteDagen: [], openDagen: dagen('2026-07-06:3', '2026-07-08:1.5'), alGeleverd: {}, tsb: 0,
+    })
+    const rijkeNaam = solveWeek({
+      fase: 'Drempel + VO2max', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'klimmen',
+      weekTssDoel: 300, vasteDagen: [], openDagen: dagen('2026-07-06:3', '2026-07-08:1.5'), alGeleverd: {}, tsb: 0,
+    })
+    expect(rijkeNaam.find(r => r.pad === 'kernstimulus').sessietype).toBe(generiek.find(r => r.pad === 'kernstimulus').sessietype)
+
+    const klimspecifiek = solveWeek({
+      fase: 'Klimspecifiek', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'klimmen',
+      weekTssDoel: 300, vasteDagen: [], openDagen: dagen('2026-07-06:3', '2026-07-08:1.5'), alGeleverd: {}, tsb: 0,
+    })
+    expect(klimspecifiek.find(r => r.pad === 'kernstimulus').sessietype).toBe('drempel_intervallen')
+  })
+
+  it('aerobe_basis en uithoudingsvermogen: kracht_lage_cadans staat nooit toe op z2-toewijzingen', () => {
+    for (const doel of ['aerobe_basis', 'uithoudingsvermogen']) {
+      const resultaat = solveWeek({
+        fase: 'basis', weekInFase: 1, weektype: 'opbouw', seizoensdoel: doel,
+        weekTssDoel: 200, vasteDagen: [],
+        openDagen: dagen('2026-07-06:2', '2026-07-08:1.5', '2026-07-10:2'),
+        alGeleverd: {}, tsb: 0,
+      })
+      for (const t of resultaat.filter(r => r.sessietype === 'z2_duur')) {
+        expect(t.krachtLageCadansToegestaan).toBe(false)
+      }
+    }
+    // Ter vergelijking: bij ftp blijft het bestaande gedrag (toegestaan)
+    const ftpResultaat = solveWeek({
+      fase: 'basis', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
+      weekTssDoel: 200, vasteDagen: [], openDagen: dagen('2026-07-06:2'), alGeleverd: {}, tsb: 0,
+    })
+    expect(ftpResultaat[0].krachtLageCadansToegestaan).toBe(true)
+  })
+
+  it('sprint, Sprintkracht-fase: max 2 sprint_neuraal-dagen, nooit aangrenzend', () => {
+    const resultaat = solveWeek({
+      fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'sprint',
+      weekTssDoel: 300, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2', '2026-07-07:1.5', '2026-07-10:2', '2026-07-12:1.5'),
+      alGeleverd: {}, tsb: 0,
+    })
+    const sprintDagen = resultaat.filter(r => r.sessietype === 'sprint_neuraal')
+    expect(sprintDagen.length).toBeLessThanOrEqual(2)
+    if (sprintDagen.length === 2) {
+      const [a, b] = sprintDagen.map(d => d.datum).sort()
+      const diff = Math.abs(new Date(a) - new Date(b))
+      expect(diff).toBeGreaterThan(86400000)
+    }
+  })
+
+  it('sprint: geen extra sprint_neuraal-dag als er al één deze week geleverd is (vaste dag)', () => {
+    const resultaat = solveWeek({
+      fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'sprint',
+      weekTssDoel: 300,
+      vasteDagen: [{ datum: '2026-07-05', sessietype: 'sprint_neuraal', tss_doel: 40, status: 'voltooid' }],
+      openDagen: dagen('2026-07-06:2', '2026-07-08:1.5', '2026-07-10:2'),
+      alGeleverd: { tss: 40 }, tsb: 0,
+    })
+    expect(resultaat.filter(r => r.sessietype === 'sprint_neuraal')).toHaveLength(0)
   })
 })
 
@@ -148,12 +226,28 @@ describe('haalPrioriteitOp', () => {
     }
   })
 
-  it('gooit een expliciete fout voor seizoensdoel "sprint" (nog geen policy vastgesteld)', () => {
-    expect(() => haalPrioriteitOp('sprint', 'sweetspot')).toThrow(/geen prioriteitstabel/)
+  it('gooit een expliciete fout voor een onbekend seizoensdoel', () => {
+    expect(() => haalPrioriteitOp('onbekend_doel', 'sweetspot')).toThrow(/geen prioriteitstabel/)
   })
 
   it('gooit een expliciete fout voor een onbekende fase binnen een bekend doel', () => {
-    expect(() => haalPrioriteitOp('ftp', 'onbekende_fase')).toThrow(/geen prioriteit-entry/)
+    expect(() => haalPrioriteitOp('ftp', 'onbekende_fase')).toThrow(/geen prioriteitsdefinitie/)
+  })
+
+  it('voor elk van de vijf seizoensdoelen, voor elke generieke fase: nooit undefined', () => {
+    const doelen = ['ftp', 'klimmen', 'aerobe_basis', 'uithoudingsvermogen', 'sprint']
+    const generiekeFases = ['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test']
+    for (const doel of doelen) {
+      for (const fase of generiekeFases) {
+        expect(haalPrioriteitOp(doel, fase)).toBeDefined()
+      }
+    }
+  })
+
+  it('klimmen in de fase "Drempel + VO2max" -> kernstimulus drempel_intervallen, secundair vo2max_intervallen', () => {
+    const entry = haalPrioriteitOp('klimmen', 'Drempel + VO2max')
+    expect(entry.kernstimulus).toContain('drempel_intervallen')
+    expect(entry.secundair).toBe('vo2max_intervallen')
   })
 })
 
