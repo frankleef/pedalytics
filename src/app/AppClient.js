@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import SeizoenWizard from "./components/SeizoenWizard";
 import HomeTab from "./components/HomeTab";
 import VoortgangTab from "./components/VoortgangTab";
-import CoachTab from "./components/CoachTab";
 import BottomNav from "./components/BottomNav";
 import BeschikbaarheidScherm from "./components/BeschikbaarheidScherm";
 import SchemaTab from "./components/SchemaTab";
@@ -140,7 +139,6 @@ export default function Page() {
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("tab") === "ochtend" || params.get("tab") === "vandaag") setTab(0);
-    if (params.get("tab") === "coach") setTab(3);
     if (params.get("tab") === "voortgang" || params.get("tab") === "vorm") setTab(2);
     if (params.get("tab") === "schema" || params.get("tab") === "sessie") {
       setTab(1);
@@ -903,6 +901,18 @@ export default function Page() {
             }
           }
 
+          // Geen herbruikbare intentie (geen bestaande sessie, geen match uit de
+          // verplaatsingspool) — dit betekent dat het sessietype nog niet bekend
+          // is. Dat besliste voorheen Claude; genereerSessieDagViaJob doet dat
+          // niet meer (genereerSessieDag gooit nu een fout zonder intentie). Deze
+          // dag wordt in plaats daarvan server-side ingevuld door de deterministische
+          // solveWeek()-gebaseerde /api/sessies/aanvullen-aanroep aan het einde van
+          // deze functie (die loopt hoe dan ook altijd, zie verderop).
+          if (!oudeSessie) {
+            console.log(`[Beschikbaarheid] ${datum} (${dag}): geen herbruikbare intentie — wordt server-side ingevuld via /api/sessies/aanvullen`);
+            continue;
+          }
+
           const sessie = await genereerSessieDagViaJob(datum, dag, uren, { overigeSessies: overigeSessiesVoorGeneratie, oudeSessie, aanleiding: beschAanleiding });
           if (sessie) {
             lokaalSessies = [...lokaalSessies.filter(s => s.datum !== datum), sessie];
@@ -953,13 +963,6 @@ export default function Page() {
           }
         }
       } catch (e) { console.error("[Weekpatroon] Validatie mislukt:", e); }
-
-      // Waarom-teksten van buurdagen vernieuwen
-      try {
-        const { vernieuwWaaromTekstenWeek } = await import("@/lib/sessie/waaromTekst");
-        const bijgewerkt = await vernieuwWaaromTekstenWeek(lokaalSessies, gewijzigdeDatums);
-        if (bijgewerkt.length > 0) console.log("[WaaromTekst] Vernieuwd voor:", bijgewerkt.join(", "));
-      } catch (e) { console.error("[WaaromTekst] Vernieuwing mislukt:", e); }
     }
 
     if (beschikbaarheidGeneratieIdRef.current !== generatieId) {
@@ -1085,13 +1088,6 @@ export default function Page() {
           }
         }
       } catch (e) { console.error("[Alternatief] Weekpatroon-validatie mislukt:", e); }
-
-      // Waarom-teksten buurdagen vernieuwen
-      try {
-        const { vernieuwWaaromTekstenWeek } = await import("@/lib/sessie/waaromTekst");
-        const bijgewerkt = await vernieuwWaaromTekstenWeek(lokaalSessies, [datum]);
-        if (bijgewerkt.length > 0) console.log("[Alternatief] WaaromTekst vernieuwd:", bijgewerkt.join(", "));
-      } catch (e) { console.error("[Alternatief] WaaromTekst mislukt:", e); }
     }
 
     const eindWeekSessies = { ...weekSessies, sessies: lokaalSessies };
@@ -1248,13 +1244,6 @@ export default function Page() {
               voortgang={voortgang}
               seizoensplan={seizoensplan}
               weekSessies={weekSessies}
-              onOpenProfiel={openProfiel}
-            />
-          )}
-
-          {tab === 3 && (
-            <CoachTab
-              seizoensplan={seizoensplan}
               onOpenProfiel={openProfiel}
             />
           )}

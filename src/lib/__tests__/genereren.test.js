@@ -1,25 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { genereerSessieDag } from '../sessie/genereren.js'
-
-vi.mock('../claude.js', () => ({
-  claudeCall: vi.fn(async () => ({
-    sessie: {
-      type: 'duur_variabel',
-      titel: 'Claude-gegenereerd',
-      tss: 60,
-      duur_min: 90,
-      segmenten: [{ zone: 'Z2', positie: 'midden', blokDuurSeconden: 5400, isSpecifiek: false, sessietype: 'z2_duur' }],
-      intentie: { sessietype: 'z2_duur', rol: 'aerobe_dag', toegestane_zones: ['Z2'] },
-    },
-  })),
-}))
-
-vi.mock('../promptBuilder.js', () => ({
-  bouwSessieDagPrompt: vi.fn(() => ({ prompt: 'basisprompt', system: 'systeem' })),
-}))
-
-import { claudeCall } from '../claude.js'
-import { bouwSessieDagPrompt } from '../promptBuilder.js'
 
 function maakKv(seed = {}) {
   const store = new Map(Object.entries(seed))
@@ -42,12 +22,8 @@ const basisCtx = {
   weekInFase: 1,
 }
 
-beforeEach(() => {
-  vi.clearAllMocks()
-})
-
-describe('genereerSessieDag — deterministisch pad', () => {
-  it('genereert deterministisch zonder Claude aan te roepen als archetype+variant beschikbaar zijn', async () => {
+describe('genereerSessieDag — volledig deterministisch, geen Claude meer', () => {
+  it('genereert deterministisch als archetype+variant beschikbaar zijn', async () => {
     // Forceer z2_progressief door alle andere z2_duur-archetypes als 'recent' te seeden
     const kv = maakKv({
       'sessie_archetypes:test_user:z2_duur': [
@@ -66,57 +42,59 @@ describe('genereerSessieDag — deterministisch pad', () => {
     expect(sessie.variant_id).toBeTruthy()
     expect(sessie.intentie.sessietype).toBe('z2_duur')
     expect(sessie.datum).toBe('2026-07-10')
-    expect(claudeCall).not.toHaveBeenCalled()
 
     const opgeslagen = await kv.get('sessie_archetypes:test_user:z2_duur')
     expect(opgeslagen[0]).toBe('z2_progressief')
   })
 
-  it('valt terug op Claude als het gekozen archetype geen variantendata heeft', async () => {
-    // Forceer z2_heuvel (geen variantendata) door alle andere te seeden als recent
-    const kv = maakKv({
-      'sessie_archetypes:test_user:z2_duur': [
-        'z2_progressief', 'z2_negatief_split', 'z2_variabel_blokken', 'z2_golf', 'z2_tempo_blokken', 'z2_cadans', 'z2_tempo_teugjes',
-      ],
-    })
-    const sessie = await genereerSessieDag({
-      ...basisCtx,
-      kv,
-      effectiefSessietype: 'z2_duur',
-      oudeSessie: { intentie: { sessietype: 'z2_duur' } },
-    })
+  // De oude "valt terug op Claude als het gekozen archetype geen variantendata heeft"-
+  // test is verwijderd: z2_heuvel/z2_tempo_teugjes/vo2_microbursts/race_simulatie
+  // hebben nu allemaal variantendata (zie sessie-varianten.js) — dit scenario kan met
+  // een echt archetype-id niet meer voorkomen.
 
-    expect(claudeCall).toHaveBeenCalledTimes(1)
-    expect(sessie.titel).toBe('Claude-gegenereerd')
-    // Archetype-hint moet in de prompt zitten
-    const promptGebruikt = claudeCall.mock.calls[0][0].prompt
-    expect(promptGebruikt).toContain('SESSIEVARIATIE')
-    expect(promptGebruikt).toContain('z2_heuvel')
-  })
-
-  it('gebruikt Claude direct als er geen sessietype vooraf bekend is (nieuwe dag)', async () => {
+  it('gooit een expliciete fout als er geen sessietype bekend is (geen Claude-fallback meer)', async () => {
     const kv = maakKv()
-    const sessie = await genereerSessieDag({
+    await expect(genereerSessieDag({
       ...basisCtx,
       kv,
       effectiefSessietype: null,
       oudeSessie: null,
-    })
-    expect(claudeCall).toHaveBeenCalledTimes(1)
-    expect(bouwSessieDagPrompt).toHaveBeenCalledTimes(1)
-    expect(sessie.titel).toBe('Claude-gegenereerd')
+    })).rejects.toThrow(/geen sessietype bekend/)
   })
 
-  it('past capSessieDuur toe wanneer duur_min het beschikbaarheidsmaximum overschrijdt', async () => {
-    claudeCall.mockResolvedValueOnce({
-      sessie: {
-        type: 'sweetspot', titel: 'Te lang', tss: 90, duur_min: 150,
-        segmenten: [{ zone: 'Z3', positie: 'midden', blokDuurSeconden: 9000, isSpecifiek: false, sessietype: 'sweetspot_intervallen' }],
-        intentie: { sessietype: 'sweetspot_intervallen' },
-      },
-    })
+  it('gooit een expliciete fout voor een sessietype zonder enig archetype in de gevraagde fase', async () => {
     const kv = maakKv()
-    const sessie = await genereerSessieDag({ ...basisCtx, kv, uren: 1.5, effectiefSessietype: null })
-    expect(sessie.duur_min).toBe(90) // 1.5 uur = 90 min max
+    await expect(genereerSessieDag({
+      ...basisCtx,
+      kv,
+      effectiefSessietype: 'vo2max_intervallen',
+      huidigeFase: 'basis', // vo2max-archetypes zijn hier niet beschikbaar in de basisfase
+      oudeSessie: { intentie: { sessietype: 'vo2max_intervallen' } },
+    })).rejects.toThrow(/geen archetypes beschikbaar/)
+  })
+
+  // De oude "past capSessieDuur toe"-test simuleerde een Claude-response met een
+  // duur_min die niet bij de opgegeven uren paste. Het deterministische pad zet
+  // duur_min altijd gelijk aan Math.round(uren*60) (schaalVariant schaalt daar al
+  // naar), dus capSessieDuur triggert hier per constructie nooit meer — dat gedrag
+  // is nu niet meer zinvol los te testen op dit niveau.
+
+  it('respecteert de kracht-restrictie ook op het deterministische pad', async () => {
+    const kv = maakKv()
+    const zwareSessies = [
+      { datum: '2026-07-09', type: 'kracht_lage_cadans', intentie: { sessietype: 'kracht_lage_cadans' } },
+      { datum: '2026-07-08', type: 'kracht_lage_cadans', intentie: { sessietype: 'kracht_lage_cadans' } },
+    ]
+    const sessie = await genereerSessieDag({
+      ...basisCtx,
+      kv,
+      effectiefSessietype: 'kracht_lage_cadans',
+      oudeSessie: { intentie: { sessietype: 'kracht_lage_cadans' } },
+      alleSessiesVoorKrachtCheck: zwareSessies,
+    })
+    // Binnen de rollend-7-dagenrestrictie is een derde kracht_lage_cadans-dag
+    // niet toegestaan — het deterministische pad moet net als voorheen naar
+    // z2_duur omschakelen.
+    expect(sessie.intentie.sessietype).toBe('z2_duur')
   })
 })

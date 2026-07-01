@@ -142,6 +142,45 @@ describe('berekenWattagesVanBlokken', () => {
     const [b] = berekenWattagesVanBlokken(blokken, 265, 'kracht_lage_cadans')
     expect(b.cadans_rpm).toEqual({ min: 45, max: 55 })
   })
+
+  it('bugfix: interleaved werk/herstel i.p.v. alle werk-reps eerst en dan alle herstel-reps (auteursformaat: twee opeenvolgende entries met gelijke reps)', () => {
+    const blokken = [
+      { type: 'werk', zone: 'Z3', pct_ftp: 90, blokDuurSeconden: 300, reps: 4 },
+      { type: 'herstel', zone: 'Z2', pct_ftp: 63, blokDuurSeconden: 120, reps: 4 },
+      { type: 'herstel', zone: 'Z2', pct_ftp: 63, blokDuurSeconden: 600 },
+    ]
+    const resultaat = berekenWattagesVanBlokken(blokken, 265, 'kracht_lage_cadans')
+    expect(resultaat).toHaveLength(9) // 4x werk + 4x herstel + 1 afsluitende herstel-tail
+    const types = resultaat.map(b => b.type)
+    expect(types).toEqual(['werk', 'herstel', 'werk', 'herstel', 'werk', 'herstel', 'werk', 'herstel', 'herstel'])
+  })
+
+  it('bugfix: een enkel reps-blok zonder aangrenzend paar wordt gewoon N keer herhaald (geen regressie)', () => {
+    const blokken = [{ type: 'werk', zone: 'Z5', pct_ftp: 120, blokDuurSeconden: 40, reps: 3 }]
+    const resultaat = berekenWattagesVanBlokken(blokken, 265, 'vo2max_intervallen')
+    expect(resultaat.map(b => b.type)).toEqual(['werk', 'werk', 'werk'])
+  })
+
+  it('bugfix over de volledige dataset: berekenWattagesVanBlokken volgt exact dezelfde set-structuur als groeperenInSets (onafhankelijke kruisverificatie)', () => {
+    // groeperenInSets() is de reeds vertrouwde, apart geteste bron van waarheid voor
+    // "hoeveel sets, hoeveel reps, wat zit er in elke set" (UI plan_sets). Als
+    // berekenWattagesVanBlokken() een andere volgorde oplevert dan wat die sets
+    // impliceren (elke set `reps` keer herhaald, in dezelfde interne volgorde),
+    // is de expansie niet correct geïnterleaved.
+    for (const [sessietype, archetypes] of Object.entries(VARIANT_ARCHETYPES)) {
+      for (const archetype of archetypes) {
+        for (const variant of archetype.varianten) {
+          const geschaald = schaalVariant(variant, 3600)
+          const sets = groeperenInSets(geschaald)
+          const verwachteTypes = sets.flatMap(set =>
+            Array.from({ length: set.reps }, () => set.blokken.map(b => b.type)).flat()
+          )
+          const resultaat = berekenWattagesVanBlokken(geschaald, 265, sessietype)
+          expect(resultaat.map(b => b.type), `${sessietype}/${archetype.id}/${variant.id}`).toEqual(verwachteTypes)
+        }
+      }
+    }
+  })
 })
 
 describe('berekenTssVanBlokken / berekenZonedistributie', () => {
@@ -235,8 +274,14 @@ describe('vindArchetypeMetVarianten', () => {
     expect(gevonden.varianten.length).toBeGreaterThan(0)
   })
 
-  it('retourneert null voor een archetype zonder variantendata (fallback naar Claude)', () => {
-    expect(vindArchetypeMetVarianten('z2_duur', 'z2_heuvel')).toBeNull()
+  it('z2_heuvel, z2_tempo_teugjes, vo2_microbursts en race_simulatie hebben nu allemaal variantendata (voorheen de enige 4 Claude-fallback-gevallen)', () => {
+    expect(vindArchetypeMetVarianten('z2_duur', 'z2_heuvel')?.varianten.length).toBeGreaterThan(0)
+    expect(vindArchetypeMetVarianten('z2_duur', 'z2_tempo_teugjes')?.varianten.length).toBeGreaterThan(0)
+    expect(vindArchetypeMetVarianten('vo2max_intervallen', 'vo2_microbursts')?.varianten.length).toBeGreaterThan(0)
+    expect(vindArchetypeMetVarianten('gemengd', 'race_simulatie')?.varianten.length).toBeGreaterThan(0)
+  })
+
+  it('retourneert null voor een niet-bestaand archetype-id', () => {
     expect(vindArchetypeMetVarianten('z2_duur', 'bestaat_niet')).toBeNull()
   })
 })

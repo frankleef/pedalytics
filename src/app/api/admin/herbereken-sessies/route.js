@@ -2,12 +2,8 @@ import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet } from "@/lib/intervals";
-import { bouwSessieDagPrompt } from "@/lib/promptBuilder";
-import { claudeCall } from "@/lib/claude";
-import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
-import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
-import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
-import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
+import { genereerSessieDag } from "@/lib/sessie/genereren";
+import { kaderWeekVoorDatum, weekInFaseVoorKaderWeek } from "@/lib/weekgrenzen";
 import { DAGNAMEN } from "@/lib/datum";
 
 export const maxDuration = 300;
@@ -51,6 +47,9 @@ export async function POST(request) {
       profiel = { ftp: plan.huidige_ftp || 265, lt_hr: 184, max_hr: 200, gewicht: 90, hrv_basislijn: 58, hr_basislijn: 49, power_zones: null };
     }
 
+    const hrvProfiel = await kv.get(`hrv-profiel:${userId}`);
+    const piekSprint = await kv.get(`piek_sprint_vermogen:${userId}`) || Math.round((profiel.ftp || 265) * 1.8);
+
     const sessies = plan.weekSessies.sessies;
     let bijgewerkt = false;
 
@@ -59,38 +58,21 @@ export async function POST(request) {
       if (sessie.voltooid) continue;
       if (!sessie.intentie) continue;
 
-      await new Promise(r => setTimeout(r, 500));
-
       try {
         const dagNaam = DAGNAMEN[new Date(sessie.datum).getDay()];
         const uren = plan.urenPerDag?.[dagNaam] || 1.5;
         const overigeSessies = sessies.filter(s => s.datum !== sessie.datum && !s.voltooid);
+        const kaderWeek = kaderWeekVoorDatum(sessie.datum, plan.kader, plan.startdatum);
+        const huidigeFase = kaderWeek?.fase ?? "basis";
+        const weekInFase = weekInFaseVoorKaderWeek(kaderWeek, plan.kader);
 
-        const promptData = bouwSessieDagPrompt({
-          profiel, wellness: null, dagelijkseData: [], voortgang: null,
-          seizoensplan: { ...plan, weekSessies: undefined },
-          overigeSessies, datum: sessie.datum, dagNaam, uren,
+        const result = await genereerSessieDag({
+          kv, userId, datum: sessie.datum, dagNaam, uren,
+          profiel, wellness: null, plan, overigeSessies,
           oudeSessie: sessie, aanleiding: "methode_herberekening",
+          huidigeFase, weekInFase, hrvProfiel, piekSprint,
+          alleSessiesVoorKrachtCheck: sessies,
         });
-
-        const raw = await claudeCall(promptData);
-        const result = raw.sessie || raw.sessies?.[0] || raw;
-        if (!result.datum) result.datum = sessie.datum;
-        if (!result.dag) result.dag = dagNaam;
-        normaliseerSessieSegmenten(result);
-        voegVerwachtRpeToe(result);
-        corrigeerSessieTss(result);
-
-        if (profiel.power_zones && profiel.ftp) {
-          try {
-            const zones = bouwZonesUitProfiel(profiel.ftp, profiel.power_zones);
-            const piekSprint = await kv.get(`piek_sprint_vermogen:${userId}`) || Math.round(profiel.ftp * 1.8);
-            const sessietype = result.intentie?.sessietype || result.sessietype || result.type;
-            result.segmenten = (result.segmenten || []).map(seg =>
-              seg.zone ? berekenBlok(seg, zones, profiel.ftp, piekSprint, sessietype) : seg
-            );
-          } catch {}
-        }
 
         if (sessie.intervalsEventId) result.intervalsEventId = sessie.intervalsEventId;
         const idx = sessies.indexOf(sessie);

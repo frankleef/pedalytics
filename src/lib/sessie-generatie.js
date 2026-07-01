@@ -53,10 +53,19 @@ export function schaalVariant(variant, doelDuurSec) {
  * Berekent vermogen (watts) en cadans per blok, direct uit de auteurswaarde pct_ftp
  * (elk blok in sessie-varianten.js draagt een exacte pct_ftp — geen positie-veld).
  * Gebruikt dezelfde spread-/cadanslogica als berekenBlok() voor consistentie met
- * de rest van de codebase. Expandeert reps naar losse, gelijke blokken.
+ * de rest van de codebase.
+ *
+ * Expandeert reps EN interleavet: de auteursdata modelleert "4× [werk, herstel]"
+ * als twee opeenvolgende platte entries (werk met reps:4, herstel met reps:4) —
+ * zie groeperenInSets() hieronder, die deze twee-op-een-rij-dezelfde-reps-groepering
+ * al correct herkent voor de UI (plan_sets). Een naïeve flatMap-per-entry zou echter
+ * ALLE werk-herhalingen eerst plaatsen en pas daarna ALLE herstel-herhalingen
+ * (kracht/werk-blok - kracht/werk-blok - ... - Z2 - Z2 - ...) i.p.v. de bedoelde
+ * afwisseling (werk - herstel - werk - herstel - ...). Groepeer daarom eerst
+ * opeenvolgende entries met dezelfde reps-waarde en interleave die per herhaling.
  */
 export function berekenWattagesVanBlokken(blokken, ftp, sessietype) {
-  return blokken.flatMap(b => {
+  const berekenEnkelBlok = (b) => {
     const midden = ftp * (b.pct_ftp / 100);
     const spread = berekenSpread(midden, b.isSpecifiek ?? false);
     const vermogenMin = Math.round(midden - spread / 2);
@@ -64,7 +73,7 @@ export function berekenWattagesVanBlokken(blokken, ftp, sessietype) {
     const cadans = cadansVoorBlok(sessietype, b.blokDuurSeconden, b.zone, b.positie);
     const cadansRpm = normaliseerCadans(b.cadans_rpm) || { min: cadans.min, max: cadans.max };
 
-    const blok = {
+    return {
       type: b.type,
       zone: b.zone,
       blokDuurSeconden: b.blokDuurSeconden,
@@ -77,10 +86,27 @@ export function berekenWattagesVanBlokken(blokken, ftp, sessietype) {
       cadans_rpm: cadansRpm,
       sessietype,
     };
+  };
 
-    const reps = b.reps ?? 1;
-    return Array.from({ length: reps }, () => ({ ...blok }));
-  });
+  const resultaat = [];
+  let i = 0;
+  while (i < blokken.length) {
+    const reps = blokken[i].reps ?? 1;
+    if (reps > 1) {
+      const groep = [];
+      while (i < blokken.length && (blokken[i].reps ?? 1) === reps) {
+        groep.push(blokken[i]);
+        i++;
+      }
+      for (let r = 0; r < reps; r++) {
+        for (const b of groep) resultaat.push(berekenEnkelBlok(b));
+      }
+    } else {
+      resultaat.push(berekenEnkelBlok(blokken[i]));
+      i++;
+    }
+  }
+  return resultaat;
 }
 
 export function berekenTssVanBlokken(blokkenMetWattages, ftp) {

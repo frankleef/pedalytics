@@ -304,6 +304,127 @@ export const SESSIE_ARCHETYPES = {
         },
       ]
     },
+
+    {
+      id: 'z2_heuvel',
+      naam: 'Heuvelsimulatie',
+      tss_range: [60, 95],
+      fase_beschikbaar: ['basis','sweetspot','drempel','vo2max','consolidatie','taper'],
+      varianten: [
+        {
+          id: 'z2_heuvel_licht',
+          zwaartegewicht: 1,
+          naam: '6× [6\'/5\'] licht',
+          blokken: [
+            { type: 'werk', zone: 'Z2', pct_ftp: 68, duur_pct: 0.091 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 62, duur_pct: 0.076 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 68, duur_pct: 0.091 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 62, duur_pct: 0.076 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 68, duur_pct: 0.091 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 62, duur_pct: 0.076 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 68, duur_pct: 0.091 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 62, duur_pct: 0.076 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 68, duur_pct: 0.091 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 62, duur_pct: 0.076 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 68, duur_pct: 0.091 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 62, duur_pct: 0.076 },
+          ]
+        },
+        {
+          id: 'z2_heuvel_standaard',
+          zwaartegewicht: 2,
+          naam: '6× [6\'/5\'] standaard',
+          blokken: [
+            { type: 'werk', zone: 'Z2', pct_ftp: 72, duur_pct: 0.091 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 64, duur_pct: 0.076 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 72, duur_pct: 0.091 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 64, duur_pct: 0.076 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 72, duur_pct: 0.091 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 64, duur_pct: 0.076 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 72, duur_pct: 0.091 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 64, duur_pct: 0.076 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 72, duur_pct: 0.091 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 64, duur_pct: 0.076 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 72, duur_pct: 0.091 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 64, duur_pct: 0.076 },
+          ]
+        },
+        {
+          id: 'z2_heuvel_zwaar',
+          zwaartegewicht: 3,
+          naam: '6× [6\'/5\'] zwaar',
+          blokken: [
+            { type: 'werk', zone: 'Z2', pct_ftp: 76, duur_pct: 0.091 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 65, duur_pct: 0.076 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 76, duur_pct: 0.091 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 65, duur_pct: 0.076 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 76, duur_pct: 0.091 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 65, duur_pct: 0.076 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 76, duur_pct: 0.091 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 65, duur_pct: 0.076 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 76, duur_pct: 0.091 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 65, duur_pct: 0.076 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 76, duur_pct: 0.091 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 65, duur_pct: 0.076 },
+          ]
+        },
+      ]
+    },
+
+    {
+      id: 'z2_tempo_teugjes',
+      naam: 'Tempo-teugjes',
+      tss_range: [65, 95],
+      fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
+      vereist_lage_decoupling: true,
+      varianten: [
+        {
+          id: 'z2_teugjes_licht',
+          zwaartegewicht: 1,
+          naam: '4× [10\'/8\'] licht',
+          blokken: [
+            { type: 'werk', zone: 'Z3', pct_ftp: 78, duur_pct: 0.139 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 60, duur_pct: 0.111 },
+            { type: 'werk', zone: 'Z3', pct_ftp: 78, duur_pct: 0.139 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 60, duur_pct: 0.111 },
+            { type: 'werk', zone: 'Z3', pct_ftp: 78, duur_pct: 0.139 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 60, duur_pct: 0.111 },
+            { type: 'werk', zone: 'Z3', pct_ftp: 78, duur_pct: 0.139 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 60, duur_pct: 0.111 },
+          ]
+        },
+        {
+          id: 'z2_teugjes_standaard',
+          zwaartegewicht: 2,
+          naam: '4× [10\'/8\'] standaard',
+          blokken: [
+            { type: 'werk', zone: 'Z3', pct_ftp: 80, duur_pct: 0.139 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 62, duur_pct: 0.111 },
+            { type: 'werk', zone: 'Z3', pct_ftp: 80, duur_pct: 0.139 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 62, duur_pct: 0.111 },
+            { type: 'werk', zone: 'Z3', pct_ftp: 80, duur_pct: 0.139 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 62, duur_pct: 0.111 },
+            { type: 'werk', zone: 'Z3', pct_ftp: 80, duur_pct: 0.139 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 62, duur_pct: 0.111 },
+          ]
+        },
+        {
+          id: 'z2_teugjes_zwaar',
+          zwaartegewicht: 3,
+          naam: '4× [10\'/8\'] zwaar',
+          blokken: [
+            { type: 'werk', zone: 'Z3', pct_ftp: 82, duur_pct: 0.139 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 64, duur_pct: 0.111 },
+            { type: 'werk', zone: 'Z3', pct_ftp: 82, duur_pct: 0.139 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 64, duur_pct: 0.111 },
+            { type: 'werk', zone: 'Z3', pct_ftp: 82, duur_pct: 0.139 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 64, duur_pct: 0.111 },
+            { type: 'werk', zone: 'Z3', pct_ftp: 82, duur_pct: 0.139 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 64, duur_pct: 0.111 },
+          ]
+        },
+      ]
+    },
   ],
 
   // ─── CATEGORIE 2: SWEETSPOT ──────────────────────────────────────────────
@@ -1297,6 +1418,46 @@ export const SESSIE_ARCHETYPES = {
     },
 
     {
+      id: 'vo2_microbursts',
+      naam: 'Microbursts',
+      tss_range: [60, 85],
+      fase_beschikbaar: ['vo2max','consolidatie'],
+      week_in_fase_min: 2,
+      varianten: [
+        {
+          id: 'vo2_microbursts_15rep',
+          zwaartegewicht: 1,
+          naam: '15× [15"+15"]',
+          blokken: [
+            { type: 'werk',   zone: 'Z5', pct_ftp: 120, duur_pct: 0.015, reps: 15 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.015, reps: 15 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.550 },
+          ]
+        },
+        {
+          id: 'vo2_microbursts_18rep',
+          zwaartegewicht: 2,
+          naam: '18× [15"+15"]',
+          blokken: [
+            { type: 'werk',   zone: 'Z5', pct_ftp: 125, duur_pct: 0.015, reps: 18 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.015, reps: 18 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.460 },
+          ]
+        },
+        {
+          id: 'vo2_microbursts_20rep',
+          zwaartegewicht: 3,
+          naam: '20× [15"+15"] zwaarder',
+          blokken: [
+            { type: 'werk',   zone: 'Z5', pct_ftp: 130, duur_pct: 0.015, reps: 20 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.015, reps: 20 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.400 },
+          ]
+        },
+      ]
+    },
+
+    {
       id: 'vo2_kort',
       naam: 'Korte intervallen',
       tss_range: [55, 80],
@@ -1807,6 +1968,45 @@ export const SESSIE_ARCHETYPES = {
             { type: 'werk',   zone: 'Z5', pct_ftp: 110,duur_pct: 0.033, reps: 4 },
             { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.033, reps: 4 },
             { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.216 },
+          ]
+        },
+      ]
+    },
+
+    {
+      id: 'race_simulatie',
+      naam: 'Race simulatie',
+      tss_range: [75, 100],
+      fase_beschikbaar: ['sweetspot','drempel','vo2max'],
+      varianten: [
+        {
+          // Structuur (sessie-archetypes.js): 10' Z2 -> 2x [3' drempel + 1' sprint]
+          // -> 15' sweetspot -> 2x [2' VO2max + 30" sprint] -> 10' Z2 uitrollen.
+          id: 'race_sim_standaard',
+          zwaartegewicht: 2,
+          naam: 'Standaard',
+          blokken: [
+            { type: 'werk',    zone: 'Z2', pct_ftp: 65,  duur_pct: 0.208 },
+            { type: 'werk',    zone: 'Z4', pct_ftp: 98,  duur_pct: 0.0625, reps: 2 },
+            { type: 'werk',    zone: 'Z6', pct_ftp: 150, duur_pct: 0.0208, reps: 2 },
+            { type: 'werk',    zone: 'Z3', pct_ftp: 90,  duur_pct: 0.3125 },
+            { type: 'werk',    zone: 'Z5', pct_ftp: 108, duur_pct: 0.0417, reps: 2 },
+            { type: 'werk',    zone: 'Z7', pct_ftp: 175, duur_pct: 0.0104, reps: 2 },
+            { type: 'herstel', zone: 'Z2', pct_ftp: 60,  duur_pct: 0.208 },
+          ]
+        },
+        {
+          id: 'race_sim_licht',
+          zwaartegewicht: 1,
+          naam: 'Licht',
+          blokken: [
+            { type: 'werk',    zone: 'Z2', pct_ftp: 65,  duur_pct: 0.208 },
+            { type: 'werk',    zone: 'Z4', pct_ftp: 95,  duur_pct: 0.0625, reps: 2 },
+            { type: 'werk',    zone: 'Z6', pct_ftp: 140, duur_pct: 0.0208, reps: 2 },
+            { type: 'werk',    zone: 'Z3', pct_ftp: 87,  duur_pct: 0.3125 },
+            { type: 'werk',    zone: 'Z5', pct_ftp: 104, duur_pct: 0.0417, reps: 2 },
+            { type: 'werk',    zone: 'Z7', pct_ftp: 165, duur_pct: 0.0104, reps: 2 },
+            { type: 'herstel', zone: 'Z2', pct_ftp: 60,  duur_pct: 0.208 },
           ]
         },
       ]

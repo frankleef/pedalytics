@@ -411,9 +411,9 @@ describe('berekenZ2AandeelSessietype', () => {
   it('z2_duur ligt dicht bij 1.0, behalve archetypes met bewust ingebouwde Z3-snippers', () => {
     for (const archetype of VARIANT_ARCHETYPES.z2_duur) {
       const fractie = berekenZ2AandeelSessietype('z2_duur', archetype.id)
-      if (archetype.id === 'z2_tempo_blokken') {
+      if (archetype.id === 'z2_tempo_blokken' || archetype.id === 'z2_tempo_teugjes') {
         // "ingekapselde Z3-blokken" — bewust geen zuivere Z2-rit, zie archetype-structuur
-        expect(fractie).toBeGreaterThan(0.5)
+        expect(fractie).toBeGreaterThan(0.3)
         expect(fractie).toBeLessThan(0.9)
       } else {
         expect(fractie).toBeGreaterThan(0.9)
@@ -437,7 +437,6 @@ describe('berekenZ2AandeelSessietype', () => {
 
   it('gooit een duidelijke error bij een onbekende combinatie, geen silent 0', () => {
     expect(() => berekenZ2AandeelSessietype('z2_duur', 'bestaat_niet')).toThrow(/geen variantendata/)
-    expect(() => berekenZ2AandeelSessietype('z2_duur', 'z2_heuvel')).toThrow(/geen variantendata/) // metadata bestaat, variantendata niet
     expect(() => berekenZ2AandeelSessietype('onbekend_type', 'iets')).toThrow(/geen variantendata/)
   })
 
