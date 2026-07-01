@@ -24,6 +24,25 @@ export async function GET() {
   return NextResponse.json({ error: "Gebruik POST (via QStash)" }, { status: 405 });
 }
 
+// Deze cron-run leest het plan van een gebruiker één keer aan het begin en houdt
+// die referentie dan urenlang (relatief) vast over een lange keten van sequentiële
+// intervals.icu-aanroepen, om er later meerdere keren delen van terug te schrijven.
+// Als de gebruiker in die tussentijd zelf iets opslaat (bv. beschikbaarheid via
+// /api/plan PUT), overschrijft een latere kv.set(planKey, plan) hier stilzwijgend
+// die wijziging met de verouderde snapshot — een lost-update-race. Elke plek die
+// daadwerkelijk terugschrijft haalt daarom via deze helper vlak vóór het schrijven
+// een verse kopie op en past alleen zijn eigen specifieke mutatie daarop toe, i.p.v.
+// de lang vastgehouden `plan`-variabele blind terug te zetten. `plan` zelf blijft
+// elders in dit bestand prima bruikbaar voor beslissingen (lezen), alleen schrijven
+// gaat via hier.
+async function bijwerkPlanVeilig(kv, planKey, muteer) {
+  const versPlan = await kv.get(planKey);
+  if (!versPlan) return null;
+  muteer(versPlan);
+  await kv.set(planKey, versPlan);
+  return versPlan;
+}
+
 export async function POST(request) {
   const geldig = await verifyQStash(request);
   if (!geldig) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -50,22 +69,28 @@ export async function POST(request) {
         if (!(await kv.get(tssMigratieKey))) {
           try {
             const sessies = plan?.weekSessies?.sessies || [];
-            let bijgewerkt = 0;
+            const bijgewerkteEvents = [];
             for (const s of sessies) {
               if (!s.intervalsEventId || s.tss_bron === "intervals_icu" || s.voltooid) continue;
               try {
                 const evt = await intervalsGet(`/events/${s.intervalsEventId}`, {}, { apiKey, athleteId });
                 if (evt?.icu_training_load) {
-                  s.tss = evt.icu_training_load;
-                  s.tss_bron = "intervals_icu";
-                  bijgewerkt++;
+                  bijgewerkteEvents.push({ intervalsEventId: s.intervalsEventId, tss: evt.icu_training_load });
                 }
                 await new Promise(r => setTimeout(r, 100));
               } catch {}
             }
-            if (bijgewerkt > 0) {
-              await kv.set(planKey, plan);
-              console.log(`[tss-migratie] ${bijgewerkt} sessies bijgewerkt voor ${userId}`);
+            if (bijgewerkteEvents.length > 0) {
+              await bijwerkPlanVeilig(kv, planKey, (versPlan) => {
+                for (const upd of bijgewerkteEvents) {
+                  const versSessie = versPlan.weekSessies?.sessies?.find(x => x.intervalsEventId === upd.intervalsEventId);
+                  if (versSessie && versSessie.tss_bron !== "intervals_icu") {
+                    versSessie.tss = upd.tss;
+                    versSessie.tss_bron = "intervals_icu";
+                  }
+                }
+              });
+              console.log(`[tss-migratie] ${bijgewerkteEvents.length} sessies bijgewerkt voor ${userId}`);
             }
             await kv.set(tssMigratieKey, true, { ex: 365 * 86400 });
           } catch (e) { console.warn(`[tss-migratie] mislukt voor ${userId}:`, e.message); }
@@ -216,7 +241,7 @@ export async function POST(request) {
           try {
             const urenPerWeek = berekenGemiddeldeUrenPerWeek(ritten);
             const ctlHuidig = ritten.length > 0 ? (ritten[ritten.length - 1].icu_training_load || null) : null;
-            plan.start_profiel = {
+            const startProfielData = {
               historisch_uren_per_week: urenPerWeek ? Math.round(urenPerWeek * 10) / 10 : null,
               ctl_bij_start: ctlHuidig ? Math.round(ctlHuidig) : null,
               gewicht_kg: null,
@@ -225,8 +250,10 @@ export async function POST(request) {
               gemigreerd: true,
               migratie_datum: new Date().toISOString(),
             };
-            await kv.set(planKey, plan);
-            console.log(`[sync] start_profiel gemigreerd voor ${userId}: TSS ${plan.start_profiel.start_tss_week}`);
+            const versPlan = await bijwerkPlanVeilig(kv, planKey, (versPlan) => {
+              if (!versPlan.start_profiel) versPlan.start_profiel = startProfielData;
+            });
+            if (versPlan) console.log(`[sync] start_profiel gemigreerd voor ${userId}: TSS ${versPlan.start_profiel.start_tss_week}`);
           } catch (e) {
             console.warn(`[sync] start_profiel migratie mislukt voor ${userId}:`, e.message);
           }
@@ -245,7 +272,7 @@ export async function POST(request) {
 
           // Markeer sessie als voltooid + bereken uitvoeringsscore
           if (sessie && !sessie.voltooid) {
-            sessie.voltooid = true;
+            let scoreData = null;
 
             // Bereken uitvoeringsscore alleen voor geplande ritten
             if (sessie.intentie) {
@@ -271,8 +298,7 @@ export async function POST(request) {
                 );
 
                 if (resultaat !== null) {
-                  const scoreData = { ...resultaat, activiteitId: nieuwste.id, berekendOp: new Date().toISOString() };
-                  sessie.uitvoeringsScore = scoreData;
+                  scoreData = { ...resultaat, activiteitId: nieuwste.id, berekendOp: new Date().toISOString() };
                   await kv.set(`uitvoering:${userId}:${nieuwste.id}`, scoreData, { ex: 365 * 86400 });
                 }
               } catch (e) {
@@ -280,7 +306,14 @@ export async function POST(request) {
               }
             }
 
-            await kv.set(planKey, plan);
+            await bijwerkPlanVeilig(kv, planKey, (versPlan) => {
+              const versSessie = versPlan.weekSessies?.sessies?.find(s => s.datum === ritDatum);
+              if (versSessie && !versSessie.voltooid) {
+                versSessie.voltooid = true;
+                if (scoreData) versSessie.uitvoeringsScore = scoreData;
+              }
+            });
+            sessie.voltooid = true; // lokale referentie ook bijwerken voor de rest van dit blok
           }
           if (sessie?.intentie?.rol === "ftp_test") {
             try {
@@ -301,13 +334,15 @@ export async function POST(request) {
             if (sessie.intentie.sessietype === "ramp_test" && !plan.seizoen_afgerond) {
               const huidigeWeek = plan.startdatum ? weeknummerVoorDatum(new Date(), plan.startdatum) : 1;
               if (huidigeWeek >= (plan.tijdshorizon_weken || 13)) {
-                if (!plan.start_ftp) {
-                  const oudsteFtp = (plan.ftp_historie || []).sort((a, b) => a.datum.localeCompare(b.datum))[0];
-                  if (oudsteFtp) plan.start_ftp = oudsteFtp.ftp;
-                  else if (plan.seizoensdoel?.doel_ftp) plan.start_ftp = plan.seizoensdoel.doel_ftp;
-                }
-                plan.seizoen_afgerond = true;
-                await kv.set(planKey, plan);
+                await bijwerkPlanVeilig(kv, planKey, (versPlan) => {
+                  if (versPlan.seizoen_afgerond) return; // al afgerond (concurrent), niet opnieuw
+                  if (!versPlan.start_ftp) {
+                    const oudsteFtp = (versPlan.ftp_historie || []).sort((a, b) => a.datum.localeCompare(b.datum))[0];
+                    if (oudsteFtp) versPlan.start_ftp = oudsteFtp.ftp;
+                    else if (versPlan.seizoensdoel?.doel_ftp) versPlan.start_ftp = versPlan.seizoensdoel.doel_ftp;
+                  }
+                  versPlan.seizoen_afgerond = true;
+                });
                 await sendPush(userId, {
                   title: "Seizoen afgerond",
                   body: "Je eindtest is binnen. Bekijk je resultaten en start een nieuw seizoen.",
@@ -515,31 +550,32 @@ export async function POST(request) {
 
                     if (uitstel) {
                       console.log(`[sync] Fase-overgang uitgesteld voor ${userId}: mediaan decoupling ${mediaan}%`);
-                      plan.fase_verlengd_count = aantalVerlengingen + 1;
-                      plan.fase_verlengd = true;
 
-                      // Verschuif kader: voeg extra opbouwweek in vóór de herstelweek
-                      if (plan.kader) {
-                        const herstelIdx = plan.kader.findIndex((w, i) => i >= weekNr - 1 && w.weektype === "herstel");
-                        if (herstelIdx > 0) {
-                          const vorigeWeek = plan.kader[herstelIdx - 1];
-                          const extraWeek = {
-                            ...vorigeWeek,
-                            week: vorigeWeek.week + 0.5,
-                            tss_doel: vorigeWeek.tss_doel,
-                            fase: vorigeWeek.fase,
-                            weektype: "opbouw",
-                          };
-                          plan.kader.splice(herstelIdx, 0, extraWeek);
-                          // Hernummer alle weken na de invoeging
-                          for (let k = 0; k < plan.kader.length; k++) {
-                            plan.kader[k].week = k + 1;
+                      await bijwerkPlanVeilig(kv, planKey, (versPlan) => {
+                        versPlan.fase_verlengd_count = (versPlan.fase_verlengd_count || 0) + 1;
+                        versPlan.fase_verlengd = true;
+
+                        // Verschuif kader: voeg extra opbouwweek in vóór de herstelweek
+                        if (versPlan.kader) {
+                          const herstelIdx = versPlan.kader.findIndex((w, i) => i >= weekNr - 1 && w.weektype === "herstel");
+                          if (herstelIdx > 0) {
+                            const vorigeWeek = versPlan.kader[herstelIdx - 1];
+                            const extraWeek = {
+                              ...vorigeWeek,
+                              week: vorigeWeek.week + 0.5,
+                              tss_doel: vorigeWeek.tss_doel,
+                              fase: vorigeWeek.fase,
+                              weektype: "opbouw",
+                            };
+                            versPlan.kader.splice(herstelIdx, 0, extraWeek);
+                            // Hernummer alle weken na de invoeging
+                            for (let k = 0; k < versPlan.kader.length; k++) {
+                              versPlan.kader[k].week = k + 1;
+                            }
+                            versPlan.tijdshorizon_weken = versPlan.kader.length;
                           }
-                          plan.tijdshorizon_weken = plan.kader.length;
                         }
-                      }
-
-                      await kv.set(planKey, plan);
+                      });
 
                       await sendPush(userId, {
                         title: "Extra opbouwweek",
