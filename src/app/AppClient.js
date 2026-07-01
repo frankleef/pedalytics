@@ -1076,11 +1076,14 @@ export default function Page() {
     if (!sessie?.intentie) return;
 
     const { bepaalNieuweIntentie } = await import("@/lib/sessie/alternatief");
+    const { weekInFaseVoorKaderWeek } = await import("@/lib/weekgrenzen");
     const weekNr = seizoensplan?.startdatum ? weeknummerVoorDatum(datum, seizoensplan.startdatum) : 1;
     const kaderWeek = seizoensplan?.kader?.find(w => w.week === weekNr) || seizoensplan?.kader?.[0];
     const fase = kaderWeek?.fase || "basis";
+    const weekInFase = weekInFaseVoorKaderWeek(kaderWeek, seizoensplan?.kader);
+    const seizoensdoel = seizoensplan?.seizoensdoel?.type ?? null;
 
-    const nieuweIntentie = bepaalNieuweIntentie(sessie.intentie, reden, fase, sessie.hrv_zone ?? null);
+    const nieuweIntentie = bepaalNieuweIntentie(sessie.intentie, reden, fase, sessie.hrv_zone ?? null, weekInFase, seizoensdoel);
     if (!nieuweIntentie) return;
 
     const DAGNAMEN_LOC = ["Zondag", "Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag"];

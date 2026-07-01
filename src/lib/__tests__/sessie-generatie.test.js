@@ -325,3 +325,61 @@ describe('genereerSessieDeterministisch', () => {
     expect(Date.now() - t0).toBeLessThan(200)
   })
 })
+
+describe('genereerSessieDeterministisch — warming-up (bugfix: sessie start direct met werk)', () => {
+  it('kracht_lage_cadans begint met een Z2-inrijblok, niet direct met het kracht-blok', () => {
+    const archetype = vindArchetypeMetVarianten('kracht_lage_cadans', 'kracht_standaard')
+    const variant = archetype.varianten.find(v => v.id === 'kracht_std_4x5')
+    const sessie = genereerSessieDeterministisch({
+      dagIntentie: null, archetype, variant, doelDuurMin: 90, ftp: 265, sessietype: 'kracht_lage_cadans',
+    })
+    expect(sessie.segmenten[0].zone).toBe('Z2')
+    expect(sessie.segmenten[0].cadans_rpm).not.toEqual({ min: 45, max: 55 }) // geen lage-cadans op het inrijblok
+    expect(sessie.segmenten[0].blokDuurSeconden).toBeGreaterThanOrEqual(5 * 60)
+    // Totale sessieduur blijft gelijk aan de doelduur, ondanks het toegevoegde inrijblok
+    const totaalSec = sessie.segmenten.reduce((s, b) => s + b.blokDuurSeconden, 0)
+    expect(Math.round(totaalSec / 60)).toBeCloseTo(90, -1)
+  })
+
+  it('z2_duur krijgt geen extra inrijblok (de hele sessie is al Z2)', () => {
+    const archetype = vindArchetypeMetVarianten('z2_duur', 'z2_progressief')
+    const variant = archetype.varianten[0]
+    const sessie = genereerSessieDeterministisch({
+      dagIntentie: null, archetype, variant, doelDuurMin: 90, ftp: 265, sessietype: 'z2_duur',
+    })
+    // z2_progressief's eigen eerste blok is al Z2 — geen apart, dubbel inrijblok nodig
+    expect(sessie.segmenten[0].zone).toBe('Z2')
+  })
+
+  it('een archetype dat al met Z2 begint (pieken_en_dalen) wordt niet dubbel opgewarmd', () => {
+    const archetype = vindArchetypeMetVarianten('gemengd', 'pieken_en_dalen')
+    const variant = archetype.varianten[0]
+    const sessieMetOpwarming = genereerSessieDeterministisch({
+      dagIntentie: null, archetype, variant, doelDuurMin: 90, ftp: 265, sessietype: 'gemengd',
+    })
+    // Het originele eerste blok (Z2 @ 66%) blijft het eerste segment — geen extra blok ervoor
+    const eersteBlokPct = variant.blokken[0].pct_ftp
+    expect(sessieMetOpwarming.segmenten[0].zone).toBe('Z2')
+    const verwachtVermogen = Math.round(265 * eersteBlokPct / 100)
+    const marge = 20 // spread-tolerantie
+    expect(Math.abs(sessieMetOpwarming.segmenten[0].vermogenMax - verwachtVermogen)).toBeLessThan(marge * 3)
+  })
+
+  it('dataset-breed: elk niet-z2_duur/al-rustig-beginnend archetype start nu met Z1/Z2 i.p.v. direct met het werkblok', () => {
+    const nietOpgewarmd = []
+    for (const [sessietype, archetypes] of Object.entries(VARIANT_ARCHETYPES)) {
+      if (sessietype === 'z2_duur') continue
+      for (const archetype of archetypes) {
+        for (const variant of archetype.varianten) {
+          const sessie = genereerSessieDeterministisch({
+            dagIntentie: null, archetype, variant, doelDuurMin: 90, ftp: 265, sessietype,
+          })
+          if (!['Z1', 'Z2'].includes(sessie.segmenten[0].zone)) {
+            nietOpgewarmd.push(`${sessietype}/${archetype.id}/${variant.id}`)
+          }
+        }
+      }
+    }
+    expect(nietOpgewarmd).toEqual([])
+  })
+})

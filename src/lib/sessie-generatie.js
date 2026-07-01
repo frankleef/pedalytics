@@ -204,12 +204,50 @@ const LEGACY_TYPE_MAP = {
   sprint_neuraal: "sprint_neuraal",
 };
 
+// Elk niet-z2_duur archetype in sessie-varianten.js begint (op een handvol
+// bewuste uitzonderingen na, bv. pieken_en_dalen) direct met het eerste
+// werkblok op vol vermogen/lage cadans — geen inrijtijd. Dat geldt vooral voor
+// kracht_lage_cadans (hoog vermogen + lage cadans zonder opwarming is
+// gewrichtsbelastend), maar evengoed voor sweetspot/drempel/vo2max/sprint/
+// gemengd. In plaats van dit in te bouwen in elke variant afzonderlijk
+// (~100 varianten, foutgevoelig te onderhouden), wordt hier centraal een
+// Z2-inrijblok toegevoegd vóór de eerste rep — de rest van de sessie krimpt
+// naar rato mee zodat de totale doelduur ongewijzigd blijft. z2_duur zelf
+// wordt overgeslagen (de hele sessie is al Z2/lage intensiteit — er is niets
+// "op te warmen naar"), en archetypes die al met Z1/Z2 beginnen (zoals
+// pieken_en_dalen) worden niet dubbel opgewarmd.
+const WARMING_UP_MIN_SEC = 5 * 60;
+const WARMING_UP_MAX_SEC = 12 * 60;
+const WARMING_UP_FRACTIE = 0.12;
+const WARMING_UP_PCT_FTP = 60;
+const WARMT_AL_ROSTIG_OP = new Set(["Z1", "Z2"]);
+
+function voegWarmingUpToe(geschaaldeBlokken, doelDuurSec) {
+  if (geschaaldeBlokken.length === 0) return geschaaldeBlokken;
+  if (WARMT_AL_ROSTIG_OP.has(geschaaldeBlokken[0].zone)) return geschaaldeBlokken;
+
+  const warmingUpSec = Math.round(Math.min(WARMING_UP_MAX_SEC, Math.max(WARMING_UP_MIN_SEC, doelDuurSec * WARMING_UP_FRACTIE)));
+  const restSec = Math.max(0, doelDuurSec - warmingUpSec);
+  // schaalVariant() levert per blok-entry één blokDuurSeconden, nog niet
+  // geëxpandeerd naar reps (dat gebeurt pas in berekenWattagesVanBlokken) — de
+  // werkelijke totale duur van een reps-entry is blokDuurSeconden * reps.
+  const huidigTotaalSec = geschaaldeBlokken.reduce((s, b) => s + b.blokDuurSeconden * (b.reps ?? 1), 0);
+  const ratio = huidigTotaalSec > 0 ? restSec / huidigTotaalSec : 0;
+
+  const ingekort = geschaaldeBlokken.map(b => ({ ...b, blokDuurSeconden: Math.max(1, Math.round(b.blokDuurSeconden * ratio)) }));
+  const warmingUpBlok = { type: "werk", zone: "Z2", pct_ftp: WARMING_UP_PCT_FTP, blokDuurSeconden: warmingUpSec };
+  return [warmingUpBlok, ...ingekort];
+}
+
 /**
  * Genereert een volledige sessie deterministisch, zonder Claude-aanroep.
  */
 export function genereerSessieDeterministisch({ dagIntentie, archetype, variant, doelDuurMin, ftp, sessietype }) {
   const t0 = Date.now();
-  const geschaald = schaalVariant(variant, doelDuurMin * 60);
+  let geschaald = schaalVariant(variant, doelDuurMin * 60);
+  if (sessietype !== "z2_duur") {
+    geschaald = voegWarmingUpToe(geschaald, doelDuurMin * 60);
+  }
   const segmenten = berekenWattagesVanBlokken(geschaald, ftp, sessietype);
   const tss = berekenTssVanBlokken(segmenten, ftp);
   const zonedist = berekenZonedistributie(segmenten);

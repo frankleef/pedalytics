@@ -1,35 +1,56 @@
+import { getArchetypesVoorSessietype } from "../sessie-archetypes";
+
 const HERSTELGERELATEERDE_REDENEN = ["hitte", "vermoeid"];
 
-const SESSIETYPES_PER_ROL_EN_FASE = {
-  intensiteitsdag: {
-    basis: ["sweetspot_intervallen", "drempel_intervallen", "progressief"],
-    sweetspot: ["sweetspot_lang", "sweetspot_intervallen", "drempel_intervallen"],
-    drempel: ["drempel_intervallen", "vo2max_lang", "vo2max_kort"],
-    consolidatie: ["race_simulatie", "drempel_intervallen"],
-    _default: ["sweetspot_intervallen", "drempel_intervallen"],
-  },
-  variabele_dag: {
-    _default: ["progressief", "z2_duur", "microbursts", "kracht_lage_cadans"],
-  },
-  aerobe_dag: {
-    _default: ["z2_duur", "z2_heuvel", "z2_lang", "progressief"],
-  },
-  hersteldag: {
-    _default: ["herstel_actief", "herstel_mobiliteit"],
-  },
+// Kandidaten per rol — uitsluitend sessietypes die daadwerkelijk als categorie
+// bestaan in het deterministische archetype-systeem (sessie-archetypes.js /
+// sessie-varianten.js): z2_duur, sweetspot_intervallen, kracht_lage_cadans,
+// drempel_intervallen, vo2max_intervallen, sprint_neuraal, z6_anaeroob, gemengd.
+// Eerdere versie noemde hier ook archetype-ids (z2_heuvel, race_simulatie),
+// legacy/niet-gemigreerde namen (progressief, sweetspot_lang, vo2max_lang,
+// vo2max_kort, microbursts, z2_lang) en types zonder archetypedata
+// (herstel_actief, herstel_mobiliteit) — geen daarvan bestaat als
+// sessietype-categorie, dus getArchetypesVoorSessietype() gaf altijd [] terug
+// en genereerSessieDag() gooide een fout (vóór de Claude-fallback-verwijdering
+// werd dat stilzwijgend door Claude opgevangen).
+//
+// Reikbaarheid voor de actuele fase/week/doel wordt hierna alsnog expliciet
+// gecheckt via getArchetypesVoorSessietype — geen enkele kandidaat hier wordt
+// dus blind teruggegeven als er voor de huidige context geen archetype
+// beschikbaar is. z2_duur is de gegarandeerde laatste terugval (bereikbaar in
+// alle zes generieke fasen, zie de fase-dekkingsfix).
+const KANDIDATEN_PER_ROL = {
+  intensiteitsdag: ["sweetspot_intervallen", "drempel_intervallen", "vo2max_intervallen", "gemengd", "sprint_neuraal", "kracht_lage_cadans"],
+  variabele_dag: ["gemengd", "kracht_lage_cadans", "z2_duur"],
+  aerobe_dag: ["z2_duur"],
+  hersteldag: ["z2_duur"],
 };
 
-function kiesAlternatiefSessietype(origineelType, rol, fase) {
-  const opties = (
-    SESSIETYPES_PER_ROL_EN_FASE[rol]?.[fase] ??
-    SESSIETYPES_PER_ROL_EN_FASE[rol]?._default ??
-    ["z2_duur"]
-  ).filter(t => t !== origineelType);
+function kiesAlternatiefSessietype(origineelType, rol, fase, weekInFase, seizoensdoel) {
+  const kandidaten = (KANDIDATEN_PER_ROL[rol] ?? ["z2_duur"]).filter(t => t !== origineelType);
 
-  return opties[0] ?? "z2_duur";
+  for (const kandidaat of kandidaten) {
+    if (getArchetypesVoorSessietype(kandidaat, fase, weekInFase, seizoensdoel).length > 0) {
+      return kandidaat;
+    }
+  }
+  // Niets uit de kandidatenlijst is bereikbaar in deze context — val terug op
+  // z2_duur (altijd bereikbaar), tenzij dat toevallig het origineletype was.
+  if (origineelType !== "z2_duur" && getArchetypesVoorSessietype("z2_duur", fase, weekInFase, seizoensdoel).length > 0) {
+    return "z2_duur";
+  }
+  return origineelType;
 }
 
-export function bepaalNieuweIntentie(origineleIntentie, reden, fase, hrvZone) {
+/**
+ * @param {object} origineleIntentie
+ * @param {string|null} reden
+ * @param {string} fase
+ * @param {string|null} hrvZone
+ * @param {number} [weekInFase] - voor de fase-reikbaarheidscheck; default 1
+ * @param {string} [seizoensdoel] - voor doel_beperking-filtering; optioneel
+ */
+export function bepaalNieuweIntentie(origineleIntentie, reden, fase, hrvZone, weekInFase = 1, seizoensdoel = null) {
   if (!origineleIntentie) return null;
 
   const effectieveReden = reden ?? (hrvZone === "rood" ? "vermoeid" : null);
@@ -52,7 +73,9 @@ export function bepaalNieuweIntentie(origineleIntentie, reden, fase, hrvZone) {
   const alternatief = kiesAlternatiefSessietype(
     origineleIntentie.sessietype,
     origineleIntentie.rol,
-    fase
+    fase,
+    weekInFase,
+    seizoensdoel
   );
 
   return {
