@@ -43,9 +43,10 @@ describe('solveWeek', () => {
     })
     // ftp's Sweetspot-fase heeft maar één kernstimulus-kandidaat (sweetspot_intervallen)
     // en geen secundair — als die al geleverd is, wordt er geen ander intensiteitstype
-    // ingevuld, alle open dagen worden z2_duur.
+    // ingevuld, alle open dagen worden z2_duur (of, sinds fix 2, evt. één daarvan
+    // kracht_lage_cadans — ftp/sweetspot staat dat 1x/week toe).
     expect(resultaat.some(r => r.sessietype === 'sweetspot_intervallen')).toBe(false)
-    expect(resultaat.every(r => r.sessietype === 'z2_duur')).toBe(true)
+    expect(resultaat.every(r => r.sessietype === 'z2_duur' || r.sessietype === 'kracht_lage_cadans')).toBe(true)
   })
 
   it('scenario 3: week 3 van de fase (klimmen, Drempel+VO2max) -> vrijheidsessie (gemengd) op het secundair-slot', () => {
@@ -220,8 +221,8 @@ describe('solveWeek', () => {
   })
 
   it('een kracht_lage_cadans-toewijzing komt zonder enige Claude-afhankelijkheid tot stand (solveWeek importeert geen claude-module)', () => {
-    const bron = require('fs').readFileSync(require.resolve('../weekSolver.js'), 'utf8')
-    expect(bron).not.toMatch(/claude/i)
+    const bron = readFileSync(fileURLToPath(new URL('../weekSolver.js', import.meta.url)), 'utf8')
+    expect(bron).not.toMatch(/from\s+["'][^"']*claude[^"']*["']/i)
   })
 
   it('sprint, Sprintkracht-fase: max 2 sprint_neuraal-dagen, nooit aangrenzend', () => {

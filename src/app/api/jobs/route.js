@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
+import { getSessionUser } from "@/lib/auth";
 import { bouwSeizoensplanPrompt, bouwWeekSessiesPrompt } from "@/lib/promptBuilder";
 import { valideerSeizoensPlan } from "@/lib/seizoen/valideer";
 import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
@@ -30,8 +31,11 @@ export async function POST(request) {
 
   console.log(`[Job ${jobId}] Start: type=${type}${type === "sessieDag" ? ` datum=${params.datum} aanleiding=${params.aanleiding || "?"}` : ""}`);
 
-  const laatsteKey = `laatstejob:${type}:${params.datum || "all"}`;
-  await kv.set(laatsteKey, jobId, { ex: 600 });
+  const sessionUser = await getSessionUser();
+  if (sessionUser?.id) {
+    const laatsteKey = `laatstejob:${sessionUser.id}:${type}:${params.datum || "all"}`;
+    await kv.set(laatsteKey, jobId, { ex: 600 });
+  }
 
   try {
     let result;
