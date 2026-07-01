@@ -1120,7 +1120,13 @@ export default function Page() {
         const validatie = valideerWeekpatroon(weekSessiesLijst, kaderWeek);
         if (!validatie.geldig && validatie.ontbrekendeRollen.length > 0) {
           console.log("[Alternatief] Weekpatroon mist:", validatie.ontbrekendeRollen);
-          const kandidaat = kiesBesteDagVoorRol(weekSessiesLijst, validatie.ontbrekendeRollen[0], urenPerDag);
+          // De net gewijzigde dag zelf mag nooit als kandidaat teruggegeven worden —
+          // anders wordt het expliciete alternatiefverzoek van de gebruiker binnen
+          // dezelfde actie stilzwijgend teruggedraaid (waargenomen in productie:
+          // alternatief_verzoek zet een dag naar z2_duur, en drie seconden later zet
+          // weekpatroon_correctie diezelfde dag terug naar kracht_lage_cadans).
+          const kandidatenPool = weekSessiesLijst.filter(s => s.datum !== datum);
+          const kandidaat = kiesBesteDagVoorRol(kandidatenPool, validatie.ontbrekendeRollen[0], urenPerDag);
           if (kandidaat) {
             const rolIntentie = bepaalIntentieVoorRol(validatie.ontbrekendeRollen[0], fase);
             const kandidaatDag = DAGNAMEN_LOC[new Date(kandidaat.datum).getDay()];
