@@ -249,6 +249,63 @@ describe('haalPrioriteitOp', () => {
     expect(entry.kernstimulus).toContain('drempel_intervallen')
     expect(entry.secundair).toBe('vo2max_intervallen')
   })
+
+  describe('klimmen + drempel: sub-fase-splitsing op basis van weekInFase', () => {
+    it('eerste en tweede week van de periode -> meerderheidsvariant (Drempel + VO2max)', () => {
+      const eersteWeek = haalPrioriteitOp('klimmen', 'drempel', { weekInFase: 1, aantalWekenInFase: 3 })
+      const tweedeWeek = haalPrioriteitOp('klimmen', 'drempel', { weekInFase: 2, aantalWekenInFase: 3 })
+      for (const entry of [eersteWeek, tweedeWeek]) {
+        expect(entry.kernstimulus).toEqual(['drempel_intervallen'])
+        expect(entry.secundair).toBe('vo2max_intervallen')
+      }
+    })
+
+    it('laatste week van de periode -> omgedraaid (Klimspecifiek: vo2max kernstimulus, drempel secundair)', () => {
+      const laatsteWeek = haalPrioriteitOp('klimmen', 'drempel', { weekInFase: 3, aantalWekenInFase: 3 })
+      expect(laatsteWeek.kernstimulus).toEqual(['vo2max_intervallen'])
+      expect(laatsteWeek.secundair).toBe('drempel_intervallen')
+    })
+
+    it('zonder periode-info (backward-compatible) -> valt terug op de meerderheidsvariant', () => {
+      const zonderInfo = haalPrioriteitOp('klimmen', 'drempel')
+      expect(zonderInfo.kernstimulus).toEqual(['drempel_intervallen'])
+      expect(zonderInfo.secundair).toBe('vo2max_intervallen')
+    })
+
+    it('andere doelen/fases blijven ongewijzigd door periode-info te negeren', () => {
+      const ftpMetPeriode = haalPrioriteitOp('ftp', 'drempel', { weekInFase: 3, aantalWekenInFase: 3 })
+      const ftpZonderPeriode = haalPrioriteitOp('ftp', 'drempel')
+      expect(ftpMetPeriode).toBe(ftpZonderPeriode)
+    })
+
+    it('solveWeek() geeft de omgedraaide toewijzing door in de laatste week van de periode', () => {
+      // weekInFase 2 van 2 (niet 3) om niet te botsen met de losstaande
+      // vrijheidsdag-uitzondering, die zelf ook op weekInFase===3 triggert.
+      const resultaat = solveWeek({
+        fase: 'drempel', weekInFase: 2, aantalWekenInFase: 2, weektype: 'opbouw', seizoensdoel: 'klimmen',
+        weekTssDoel: 300, vasteDagen: [],
+        openDagen: dagen('2026-07-06:3', '2026-07-08:1.5', '2026-07-10:2'),
+        alGeleverd: {}, tsb: 0,
+      })
+      const kernstimulus = resultaat.find(r => r.pad === 'kernstimulus')
+      expect(kernstimulus.sessietype).toBe('vo2max_intervallen')
+      const secundair = resultaat.find(r => r.pad === 'secundair')
+      expect(secundair.sessietype).toBe('drempel_intervallen')
+    })
+
+    it('let op: bij een 3-weekse periode valt de laatste week (weekInFase=3) samen met de losstaande vrijheidsdag-uitzondering — secundair-slot wordt dan gemengd, niet drempel_intervallen', () => {
+      const resultaat = solveWeek({
+        fase: 'drempel', weekInFase: 3, aantalWekenInFase: 3, weektype: 'opbouw', seizoensdoel: 'klimmen',
+        weekTssDoel: 300, vasteDagen: [],
+        openDagen: dagen('2026-07-06:3', '2026-07-08:1.5', '2026-07-10:2'),
+        alGeleverd: {}, tsb: 0,
+      })
+      const kernstimulus = resultaat.find(r => r.pad === 'kernstimulus')
+      expect(kernstimulus.sessietype).toBe('vo2max_intervallen') // reversal werkt nog steeds
+      const vrijheid = resultaat.find(r => r.pad === 'vrijheidsessie')
+      expect(vrijheid.sessietype).toBe('gemengd') // maar het secundair-slot is hier vrijheidsdag
+    })
+  })
 })
 
 // LET OP — afwijking van de oorspronkelijke validatiescenario's:

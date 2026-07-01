@@ -197,6 +197,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
     const kaderWeekVoorDeze = kaderWeekVoorDatum(normaleDagen[0].datum);
     const huidigeFaseVoorDeze = kaderWeekVoorDeze?.fase ?? 'basis';
     const weekInFaseVoorDeze = weekInFaseVoorKaderWeek(kaderWeekVoorDeze);
+    const aantalWekenInFaseVoorDeze = (plan.kader || []).filter(w => w.fase === huidigeFaseVoorDeze).length || undefined;
     const vasteDagenDezeWeek = [...bestaandeSessies, ...aangevuld]
       .filter(s => weekMaandagISO(s.datum) === mISO)
       .map(s => ({
@@ -214,6 +215,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         weektype: kaderWeekVoorDeze?.weektype || 'opbouw',
         seizoensdoel: plan.seizoensdoel?.type ?? 'ftp',
         weekTssDoel: kaderWeekVoorDeze?.tss_doel ?? 0,
+        aantalWekenInFase: aantalWekenInFaseVoorDeze,
         vasteDagen: vasteDagenDezeWeek,
         openDagen: normaleDagen.map(d => ({ datum: d.datum, beschikbareUren: d.uren })),
         alGeleverd, tsb,

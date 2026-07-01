@@ -322,6 +322,9 @@ function bouwToewijzing({ datum, beschikbareUren }, sessietype, { fase, weekInFa
  * @param {number} ctx.weekInFase
  * @param {string} ctx.weektype - 'opbouw'|'herstel'
  * @param {string} ctx.seizoensdoel - 'ftp'|'klimmen'|'aerobe_basis'|'uithoudingsvermogen'|'sprint' (zie haalPrioriteitOp)
+ * @param {number} [ctx.aantalWekenInFase] - totaal aantal weken in de huidige fase-periode
+ *   (bv. plan.kader.filter(w => w.fase === huidigeFase).length) — alleen nodig voor de
+ *   klimmen+drempel sub-fase-splitsing (zie haalPrioriteitOp); optioneel elders.
  * @param {number} ctx.weekTssDoel
  * @param {number} [ctx.belastingscap] - harde bovengrens; standaard gelijk aan weekTssDoel
  * @param {Array}  [ctx.vasteDagen] - [{ datum, sessietype, tss_doel, status }]
@@ -331,12 +334,12 @@ function bouwToewijzing({ datum, beschikbareUren }, sessietype, { fase, weekInFa
  * @returns {Array<{datum, sessietype, tss_doel, toegestane_zones, archetype_hint, gedegradeerd, pad}>}
  */
 export function solveWeek({
-  fase, weekInFase, weektype, seizoensdoel, weekTssDoel, belastingscap,
+  fase, weekInFase, weektype, seizoensdoel, weekTssDoel, belastingscap, aantalWekenInFase,
   vasteDagen = [], openDagen = [], alGeleverd = {}, tsb = null,
 }) {
   const cap = belastingscap ?? weekTssDoel;
   const alGeleverdTss = alGeleverd.tss ?? 0;
-  const prioriteit = haalPrioriteitOp(seizoensdoel, fase);
+  const prioriteit = haalPrioriteitOp(seizoensdoel, fase, { weekInFase, aantalWekenInFase });
 
   const isHerstelAchtig = weektype === "herstel";
   const bestaandeSessietypesDezeWeek = new Set(vasteDagen.map(d => d.sessietype).filter(Boolean));
