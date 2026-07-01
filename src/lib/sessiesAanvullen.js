@@ -114,7 +114,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
     geplandPerWeek[mISO] = (geplandPerWeek[mISO] || 0) + 1;
   }
 
-  for (let i = 1; i <= 10; i++) {
+  for (let i = 1; i <= 7; i++) {
     const d = new Date(nu);
     d.setDate(nu.getDate() + i);
     const iso = datumISO(d);
@@ -161,16 +161,31 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
     profiel = { ftp: plan.huidige_ftp || 265, lt_hr: 184, max_hr: 200, gewicht: 90, hrv_basislijn: 58, hr_basislijn: 49, power_zones: null };
   }
 
-  let wellness = null;
-  try {
-    const wData = await intervalsGet("/wellness", { oldest: vandaag, newest: vandaag }, creds);
-    if (wData?.length > 0) wellness = wData[0];
-  } catch {}
-
   const piekSprint = await kv.get(`piek_sprint_vermogen:${userId}`) || Math.round((profiel.ftp || 265) * 1.8);
   const hrvProfiel = await kv.get(`hrv-profiel:${userId}`);
 
-  const tsb = wellness ? Math.round((wellness.ctl ?? 0) - (wellness.atl ?? 0)) : null;
+  // Bug 2 uit het diagnoserapport: wellness/TSB werd één keer opgehaald voor
+  // "vandaag" en vervolgens hergebruikt voor élke in te vullen dag, ook dagen
+  // in een andere kalenderweek. Nu per kalenderweek opnieuw opgehaald, met de
+  // eerste ontbrekende dag van die week als referentiedatum (kan een
+  // toekomstige datum zijn — intervals.icu kan daarvoor een geprojecteerde
+  // CTL/ATL teruggeven op basis van al geplande activiteiten).
+  const wellnessPerWeek = {};
+  async function haalWellnessVoorWeek(mISO, referentieDatum) {
+    if (mISO in wellnessPerWeek) return wellnessPerWeek[mISO];
+    let w = null;
+    try {
+      const wData = await intervalsGet("/wellness", { oldest: referentieDatum, newest: referentieDatum }, creds);
+      if (wData?.length > 0) w = wData[0];
+    } catch (e) {
+      console.warn(`[sessiesAanvullen] wellness-ophalen mislukt voor week ${mISO}:`, e.message);
+    }
+    wellnessPerWeek[mISO] = w;
+    return w;
+  }
+  function tsbVanWellness(w) {
+    return w ? Math.round((w.ctl ?? 0) - (w.atl ?? 0)) : null;
+  }
 
   const aangevuld = [];
 
@@ -189,6 +204,11 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
 
   const toewijzingPerDatum = {};
   for (const [mISO, dagenDezeWeek] of Object.entries(ontbrekendPerWeek)) {
+    // Wellness per week ophalen vóór de volumecorrectie-filter, zodat ook
+    // weken die uitsluitend volumecorrectie-dagen bevatten (zie continue
+    // hieronder) een gecachte waarde hebben voor de per-dag-loop verderop.
+    await haalWellnessVoorWeek(mISO, dagenDezeWeek[0].datum);
+
     const normaleDagen = dagenDezeWeek.filter(
       d => !aerobeDagen.includes(d.datum) && !tempoAfsluiters.includes(d.datum)
     );
@@ -206,6 +226,14 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         tss_doel: s.tss ?? 0,
         status: s.voltooid ? 'voltooid' : (s.status || 'gepland'),
       }));
+    // Bug 1 uit het diagnoserapport: TSS van reeds bestaande, nog niet gereden
+    // sessies deze week (bv. uit een eerdere weekSessies-job-run) telde nergens
+    // mee in het budget. 'voltooid'-dagen uitgesloten — die zitten al in
+    // alGeleverd.tss (via bepaalAlGeleverd's intervals.icu-activiteiten-query),
+    // meetellen zou dubbeltelling zijn.
+    const vasteDagenTss = vasteDagenDezeWeek
+      .filter(d => d.status !== 'voltooid')
+      .reduce((s, d) => s + (d.tss_doel ?? 0), 0);
 
     // Fix 2: kracht_lage_cadans-frequentiegate heeft het weeknummer nodig waarin
     // dat sessietype voor het laatst is toegewezen, om het interval (1x/week,
@@ -219,6 +247,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
 
     try {
       const alGeleverd = await bepaalAlGeleverd(userId, mISO);
+      const tsbDezeWeek = tsbVanWellness(wellnessPerWeek[mISO]);
       const ruweToewijzingen = solveWeek({
         fase: huidigeFaseVoorDeze,
         weekInFase: weekInFaseVoorDeze,
@@ -230,9 +259,9 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         laatsteKrachtLageCadansWeek: laatsteKrachtLageCadansWeek ?? null,
         vasteDagen: vasteDagenDezeWeek,
         openDagen: normaleDagen.map(d => ({ datum: d.datum, beschikbareUren: d.uren })),
-        alGeleverd, tsb,
+        alGeleverd, tsb: tsbDezeWeek,
       });
-      const toewijzingen = pasBudgetToe(ruweToewijzingen, kaderWeekVoorDeze?.tss_doel ?? 0, alGeleverd.tss);
+      const toewijzingen = pasBudgetToe(ruweToewijzingen, kaderWeekVoorDeze?.tss_doel ?? 0, alGeleverd.tss, vasteDagenTss);
       for (const t of toewijzingen) toewijzingPerDatum[t.datum] = t;
     } catch (e) {
       console.error(`[sessiesAanvullen] solveWeek mislukt voor week ${mISO}:`, e.message);
@@ -257,6 +286,9 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       const kaderWeekVoorDag = kaderWeekVoorDatum(datum);
       const huidigeFase = kaderWeekVoorDag?.fase ?? 'basis';
       const weekInFase = weekInFaseVoorKaderWeek(kaderWeekVoorDag);
+      const mISOVoorDag = weekMaandagISO(datum);
+      const wellnessVoorDezeDag = wellnessPerWeek[mISOVoorDag] ?? null;
+      const tsbVoorDezeDag = tsbVanWellness(wellnessVoorDezeDag);
 
       const isVolumeCorrectieDag = aerobeDagen.includes(datum) || tempoAfsluiters.includes(datum);
       let oudeSessieVoorGeneratie = null;
@@ -275,7 +307,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
 
       const sessie = await genereerSessieDag({
         kv, userId, datum, dagNaam, uren,
-        profiel, wellness, plan, overigeSessies,
+        profiel, wellness: wellnessVoorDezeDag, plan, overigeSessies,
         oudeSessie: oudeSessieVoorGeneratie,
         aanleiding: aerobeDagen.includes(datum) ? "volumecorrectie_aerobe" : tempoAfsluiters.includes(datum) ? "volumecorrectie_tempo_afsluiter" : "beschikbaarheid_nieuw",
         promptExtra, huidigeFase, weekInFase, hrvProfiel, piekSprint,
@@ -288,9 +320,9 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         kaderWeekVoorDag?.weektype !== 'herstel' &&
         (sessie.intentie?.sessietype === 'z2_duur' || sessie.intentie?.sessietype === 'z2_heuvel') &&
         !sessie.intentie?.heeft_sprint_staartjes &&
-        (tsb === null || tsb >= -25)
+        (tsbVoorDezeDag === null || tsbVoorDezeDag >= -25)
       ) {
-        const mISO = weekMaandagISO(datum);
+        const mISO = mISOVoorDag;
         const alleWeekSessies = [
           ...bestaandeSessies.filter(s => weekMaandagISO(s.datum) === mISO),
           ...aangevuld.filter(s => weekMaandagISO(s.datum) === mISO),
@@ -300,7 +332,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         const heeftAlSprintVlag = alleWeekSessies.some(
           s => s.datum !== datum && s.intentie?.heeft_sprint_staartjes === true
         );
-        if (!heeftAlSprintVlag && magSprintStaartje({ ...kaderWeekVoorDag, dagen: alleWeekSessies }, { ...sessie, datum }, tsb)) {
+        if (!heeftAlSprintVlag && magSprintStaartje({ ...kaderWeekVoorDag, dagen: alleWeekSessies }, { ...sessie, datum }, tsbVoorDezeDag)) {
           const sprintIntentie = {
             ...sessie.intentie,
             heeft_sprint_staartjes: true,
@@ -309,7 +341,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
               : [...(sessie.intentie?.toegestane_zones || ['Z2']), 'Z7'],
           };
           const sprintPromptData = bouwSessieDagPrompt({
-            profiel, wellness, dagelijkseData: [], voortgang: null,
+            profiel, wellness: wellnessVoorDezeDag, dagelijkseData: [], voortgang: null,
             seizoensplan: { ...plan, weekSessies: undefined },
             overigeSessies: [...bestaandeSessies, ...aangevuld].filter(s => s.datum !== datum && !s.voltooid),
             datum, dagNaam, uren,
@@ -459,11 +491,12 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       const kaderWeekVoorDag = kaderWeekVoorDatum(datum);
       const huidigeFase = kaderWeekVoorDag?.fase ?? 'basis';
       const weekInFase = weekInFaseVoorKaderWeek(kaderWeekVoorDag);
+      const wellnessVoorDezeDag = await haalWellnessVoorWeek(weekMaandagISO(datum), datum);
       const promptExtra = `\n\nVOLUMECORRECTIE — VERLENGING (harde instructie): Verleng deze sessie van ${bestaandeSessie.duur_min || "?"}min naar maximaal ${maxMinuten}min. Behoud het sessietype en de intensiteitsstructuur. Voeg Z2-volume toe aan het einde. De totale sessieduur mag ${maxMinuten}min NIET overschrijden.`;
 
       const sessie = await genereerSessieDag({
         kv, userId, datum, dagNaam: dagNaamV, uren: urenV,
-        profiel, wellness, plan, overigeSessies,
+        profiel, wellness: wellnessVoorDezeDag, plan, overigeSessies,
         oudeSessie: bestaandeSessie,
         aanleiding: "beschikbaarheid_uren",
         promptExtra, huidigeFase, weekInFase, hrvProfiel, piekSprint,

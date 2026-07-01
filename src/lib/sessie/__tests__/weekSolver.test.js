@@ -253,6 +253,29 @@ describe('solveWeek', () => {
   })
 })
 
+describe('regressie: herstelweek-budget genegeerd door vasteDagen (diagnoserapport-scenario)', () => {
+  it('herstelweek (tss_doel 144) met 100 TSS aan reeds-vaste, nog niet gereden sessies -> totale weekTSS (vast + nieuw) blijft binnen de cap, niet 3x zo hoog', () => {
+    const vasteDagen = [
+      { datum: '2026-07-07', sessietype: 'z2_duur', tss_doel: 60, status: 'gepland' },
+      { datum: '2026-07-09', sessietype: 'z2_duur', tss_doel: 40, status: 'gepland' },
+    ]
+    const vasteDagenTss = vasteDagen.reduce((s, d) => s + (d.tss_doel ?? 0), 0) // 100
+
+    const ruweToewijzingen = solveWeek({
+      fase: 'basis', weekInFase: 2, weektype: 'herstel', seizoensdoel: 'ftp',
+      weekTssDoel: 144, vasteDagen,
+      openDagen: dagen('2026-07-08:1.5', '2026-07-10:2', '2026-07-11:1.5'),
+      alGeleverd: {}, tsb: -7,
+    })
+
+    const toewijzingen = pasBudgetToe(ruweToewijzingen, 144, 0, vasteDagenTss)
+    const nieuweTss = toewijzingen.filter(t => t.sessietype !== 'rust').reduce((s, t) => s + t.tss_doel, 0)
+    const totaalWeekTss = vasteDagenTss + nieuweTss
+
+    expect(totaalWeekTss).toBeLessThanOrEqual(144)
+  })
+})
+
 describe('degradeerBijLageTsb', () => {
   it('geen degradatie ruim boven de drempel', () => {
     const result = degradeerBijLageTsb('vo2max_intervallen', 5)
@@ -497,5 +520,34 @@ describe('pasBudgetToe', () => {
     expect(resultaat).toEqual(toewijzingen) // niks aangepast, ook z2Lang niet
     expect(warnSpy).toHaveBeenCalled()
     warnSpy.mockRestore()
+  })
+
+  describe('vasteDagenTss (fix: budget hield geen rekening met reeds bestaande, niet-gereden sessies)', () => {
+    it('vasteDagenTss van 100 tegen cap 144 -> nieuwe z2-toewijzingen worden geschaald naar hooguit 44', () => {
+      // Alleen z2-toewijzingen (herstelweek-scenario: geen kernstimulus/secundair)
+      const nieuweZ2 = [
+        { datum: '2026-07-08', sessietype: 'z2_duur', tss_doel: 90, beschikbareUren: 2, pad: 'z2' },
+        { datum: '2026-07-10', sessietype: 'z2_duur', tss_doel: 54, beschikbareUren: 1.2, pad: 'z2' },
+      ]
+      const resultaat = pasBudgetToe(nieuweZ2, 144, 0, 100)
+      const totaal = resultaat.filter(t => t.sessietype !== 'rust').reduce((s, t) => s + t.tss_doel, 0)
+      expect(totaal).toBeLessThanOrEqual(44)
+    })
+
+    it('lege vasteDagen (default 0) -> ongewijzigd gedrag t.o.v. voor de fix', () => {
+      const toewijzingen = [kernstimulus, z2Lang, z2Kort1, z2Kort2]
+      const metDefault = pasBudgetToe(toewijzingen, 290, 0)
+      const metExpliciet0 = pasBudgetToe(toewijzingen, 290, 0, 0)
+      expect(metDefault).toEqual(metExpliciet0)
+    })
+
+    it('vasteDagenTss + alGeleverdTss + kernstimulus/secundair overschrijden het budget alleen al -> gelogd, niet aangepast', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const toewijzingen = [kernstimulus, z2Lang] // kernstimulus.tss_doel = 90
+      const resultaat = pasBudgetToe(toewijzingen, 100, 0, 50) // 90 + 50 > 100
+      expect(resultaat).toEqual(toewijzingen)
+      expect(warnSpy).toHaveBeenCalled()
+      warnSpy.mockRestore()
+    })
   })
 })

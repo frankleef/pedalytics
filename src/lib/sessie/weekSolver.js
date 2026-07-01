@@ -511,28 +511,33 @@ function schrapToewijzing(toewijzing) {
  * tekort wordt herverdeeld over de overgebleven Z2-dagen.
  *
  * Kernstimulus/secundair/vrijheidsessie-toewijzingen (pad !== 'z2') worden hier
- * nooit aangepast. Als die alleen al (samen met alGeleverdTss) het budget
- * overschrijden, is dat een inputfout uit solveWeek — wordt gelogd, niet
- * stilzwijgend overschreven.
+ * nooit aangepast. Als die alleen al (samen met alGeleverdTss + vasteDagenTss)
+ * het budget overschrijden, is dat een inputfout uit solveWeek — wordt gelogd,
+ * niet stilzwijgend overschreven.
  *
  * @param {Array} toewijzingen - output van solveWeek()
  * @param {number} belastingscap
- * @param {number} [alGeleverdTss]
+ * @param {number} [alGeleverdTss] - TSS van daadwerkelijk gereden activiteiten deze week
+ * @param {number} [vasteDagenTss] - TSS van reeds bestaande, nog NIET gereden sessies
+ *   deze week (bv. uit een eerdere weekSessies-job-run) — de caller moet dagen die al
+ *   in alGeleverdTss zijn meegeteld (status 'voltooid') hier uitsluiten om dubbeltelling
+ *   te voorkomen (zie sessiesAanvullen.js)
  * @returns {Array} nieuwe array, zelfde vorm als toewijzingen
  */
-export function pasBudgetToe(toewijzingen, belastingscap, alGeleverdTss = 0) {
+export function pasBudgetToe(toewijzingen, belastingscap, alGeleverdTss = 0, vasteDagenTss = 0) {
+  const alVerbruikt = alGeleverdTss + vasteDagenTss;
   const nietZ2 = toewijzingen.filter(t => t.pad !== "z2");
   const nietZ2Tss = nietZ2.reduce((s, t) => s + (t.tss_doel ?? 0), 0);
 
-  if (alGeleverdTss + nietZ2Tss > belastingscap) {
+  if (alVerbruikt + nietZ2Tss > belastingscap) {
     console.warn(
-      `[pasBudgetToe] kernstimulus/secundair (+ al geleverd) overschrijden het budget alleen al (${alGeleverdTss + nietZ2Tss} > ${belastingscap}) — zou niet moeten voorkomen na TSB-degradatie in solveWeek. Kernstimulus/secundair worden nooit aangepast; input controleren.`
+      `[pasBudgetToe] kernstimulus/secundair (+ al geleverd + al vast gepland) overschrijden het budget alleen al (${alVerbruikt + nietZ2Tss} > ${belastingscap}) — zou niet moeten voorkomen na TSB-degradatie in solveWeek. Kernstimulus/secundair worden nooit aangepast; input controleren.`
     );
     return toewijzingen;
   }
 
   const z2 = toewijzingen.filter(t => t.pad === "z2").map(t => ({ ...t }));
-  const beschikbaarVoorZ2 = belastingscap - alGeleverdTss - nietZ2Tss;
+  const beschikbaarVoorZ2 = belastingscap - alVerbruikt - nietZ2Tss;
   const huidigeZ2Tss = () => z2.filter(t => t.sessietype !== "rust").reduce((s, t) => s + t.tss_doel, 0);
 
   if (huidigeZ2Tss() <= beschikbaarVoorZ2) {
