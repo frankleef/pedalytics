@@ -5,7 +5,8 @@ import WorkoutViz from "../WorkoutViz";
 import {
   SESSIETYPE_LABELS, GELDIGE_SESSIETYPES_LIJST, ZONES, MAX_EFFORT_ZONES, ZONE_REPRESENTATIEVE_PCT,
   leegBlok, groepeerBlokkenTotSets, blokkenNaarOpslagformaat, opslagformaatNaarBlokken,
-  formatDuur, nieuwBlokId, ZONE_LABELS,
+  zwoBlokkenNaarBuilderBlokken, berekenPctTotaal, PCT_TOTAAL_TOLERANTIE,
+  formatDuur, ZONE_LABELS,
 } from "./archetypeAdmin";
 
 const GENERIEKE_FASES = ["basis", "sweetspot", "overgangsfase", "drempel", "consolidatie", "test"];
@@ -40,10 +41,11 @@ export default function ArchetypeBuilder({ sessietype, onSessietypeChange, arche
   const [faseBeschikbaar, setFaseBeschikbaar] = useState(archetypeInitial?.fase_beschikbaar ?? [...GENERIEKE_FASES]);
   const [doelBeperking, setDoelBeperking] = useState(archetypeInitial?.doel_beperking ?? []);
   const [voorbeeldDuurMin, setVoorbeeldDuurMin] = useState(STANDAARD_VOORBEELDDUUR_MIN);
+  const [maxBlokduurSec, setMaxBlokduurSec] = useState(archetypeInitial?.max_blokduur_sec ?? "");
 
   const [varianten, setVarianten] = useState(() => {
     const bestaande = archetypeInitial?.varianten?.length
-      ? archetypeInitial.varianten.map(v => ({ ...v, blokken: opslagformaatNaarBlokken(v.blokken, STANDAARD_VOORBEELDDUUR_MIN * 60) }))
+      ? archetypeInitial.varianten.map(v => ({ ...v, blokken: opslagformaatNaarBlokken(v.blokken) }))
       : [];
     return autoNieuweVariant ? [...bestaande, nieuweVariant()] : (bestaande.length ? bestaande : [nieuweVariant()]);
   });
@@ -69,7 +71,7 @@ export default function ArchetypeBuilder({ sessietype, onSessietypeChange, arche
   }
 
   function voegBlokToe(type) {
-    zetBlokken([...blokken, { ...leegBlok(), type, zone: type === "herstel" ? "Z2" : "Z3", pct_ftp: type === "herstel" ? 60 : 85, duurSec: type === "herstel" ? 120 : 300 }]);
+    zetBlokken([...blokken, { ...leegBlok(), type, zone: type === "herstel" ? "Z2" : "Z3", pct_ftp: type === "herstel" ? 60 : 85, pct: type === "herstel" ? 5 : 10 }]);
   }
 
   function verwijderBlok(idx) {
@@ -97,6 +99,10 @@ export default function ArchetypeBuilder({ sessietype, onSessietypeChange, arche
   function toggleMaximaleInspanning(idx, aan) {
     const blok = blokken[idx];
     wijzigBlok(idx, { maximaal: aan, pct_ftp: ZONE_REPRESENTATIEVE_PCT[blok.zone] });
+  }
+
+  function toggleIsSpecifiek(idx, aan) {
+    wijzigBlok(idx, { isSpecifiek: aan });
   }
 
   function voegVariantToe() {
@@ -150,8 +156,7 @@ export default function ArchetypeBuilder({ sessietype, onSessietypeChange, arche
       });
       const data = await resp.json();
       if (!data.success) { setLokaleFout(data.error); return; }
-      const nieuweBlokken = data.data.blokken.map(b => ({ _id: nieuwBlokId(), type: b.type, zone: b.zone, pct_ftp: b.pct_ftp, duurSec: b.duurSec, reps: b.reps ?? 1, maximaal: false }));
-      zetBlokken(nieuweBlokken);
+      zetBlokken(zwoBlokkenNaarBuilderBlokken(data.data.blokken));
       setZwoWaarschuwingen(data.data.waarschuwingen || []);
       if (!naam && data.data.naam) setNaam(data.data.naam);
     } catch (err) { setLokaleFout(err.message); }
@@ -164,6 +169,16 @@ export default function ArchetypeBuilder({ sessietype, onSessietypeChange, arche
       setLokaleFout("Id, naam en motiverende tekst zijn verplicht.");
       return;
     }
+
+    const gevuldeVarianten = varianten.filter(v => v.blokken.length > 0);
+    for (const v of gevuldeVarianten) {
+      const totaal = berekenPctTotaal(v.blokken);
+      if (Math.abs(totaal - 100) > PCT_TOTAAL_TOLERANTIE) {
+        setLokaleFout(`Variant "${v.naam || v.id || "?"}": aandelen tellen op tot ${totaal.toFixed(1)}% i.p.v. 100%.`);
+        return;
+      }
+    }
+
     setOpslaan(true);
     try {
       const getResp = await fetch("/api/admin/archetypes");
@@ -178,8 +193,8 @@ export default function ArchetypeBuilder({ sessietype, onSessietypeChange, arche
         fase_beschikbaar: faseBeschikbaar,
         ...(weekInFaseMin > 1 ? { week_in_fase_min: Number(weekInFaseMin) } : {}),
         ...(doelBeperking.length > 0 ? { doel_beperking: doelBeperking } : {}),
-        varianten: varianten
-          .filter(v => v.blokken.length > 0)
+        ...(maxBlokduurSec !== "" && maxBlokduurSec != null ? { max_blokduur_sec: Number(maxBlokduurSec) } : {}),
+        varianten: gevuldeVarianten
           .map((v, i) => ({
             id: v.id.trim() || `${id.trim()}_v${i + 1}`,
             naam: v.naam.trim() || undefined,
@@ -236,9 +251,7 @@ export default function ArchetypeBuilder({ sessietype, onSessietypeChange, arche
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 400px", gap: 20, alignItems: "start" }} className="archetype-builder-grid">
-        {/* LEFT: formulier + blokken */}
-        <div>
+      <div>
           <Sectie titel="Basisgegevens">
             <div style={{ display: "flex", gap: 12 }}>
               <Veld label="Naam" style={{ flex: 1 }}>
@@ -278,6 +291,12 @@ export default function ArchetypeBuilder({ sessietype, onSessietypeChange, arche
                 <input type="number" min={1} value={weekInFaseMin} onChange={e => setWeekInFaseMin(e.target.value)} disabled={archetypeVeldenVastgezet} style={inputStyle(archetypeVeldenVastgezet)} />
               </Veld>
             </div>
+
+            <Veld label="Maximum bloklengte (seconden, optioneel)" style={{ maxWidth: 260 }}>
+              <input type="number" min={0} value={maxBlokduurSec} onChange={e => setMaxBlokduurSec(e.target.value)} disabled={archetypeVeldenVastgezet} style={inputStyle(archetypeVeldenVastgezet)} placeholder="leeg = automatisch (per zone)" />
+              <div style={helperStyle}>Voorkomt dat een werkblok bij een lange sessie fysiologisch te ver oprekt (bv. "4× 5' kracht" dat bij 3 uur geen 24-minuten-blok wordt). Geldt voor alle werkblokken buiten Z1/Z2. Leeg = generieke grens per zone.</div>
+            </Veld>
+
             <Veld label="Beschikbaar in fase(n)">
               <ChipSelectie opties={GENERIEKE_FASES} geselecteerd={faseBeschikbaar} onWijzig={setFaseBeschikbaar} disabled={archetypeVeldenVastgezet} />
             </Veld>
@@ -287,7 +306,7 @@ export default function ArchetypeBuilder({ sessietype, onSessietypeChange, arche
 
             <Veld label="Voorbeeldduur voor preview (minuten)" style={{ maxWidth: 220 }}>
               <input type="number" value={voorbeeldDuurMin} onChange={e => setVoorbeeldDuurMin(Number(e.target.value) || STANDAARD_VOORBEELDDUUR_MIN)} style={inputStyle()} />
-              <div style={helperStyle}>Alleen voor blokken die als "% van totaal" zijn opgeslagen, en voor de grafiekschaal.</div>
+              <div style={helperStyle}>Alle blokken zijn een percentage van de totale sessieduur — dit veld bepaalt alleen hoe die percentages omgerekend worden voor de "≈ min"-hints en de live preview hieronder.</div>
             </Veld>
           </Sectie>
 
@@ -335,12 +354,16 @@ export default function ArchetypeBuilder({ sessietype, onSessietypeChange, arche
                             onVerwijder={() => verwijderBlok(offset + i)}
                             onVerplaats={(richting) => verplaatsBlok(offset + i, richting)}
                             onToggleMax={(aan) => toggleMaximaleInspanning(offset + i, aan)}
+                            onToggleSpecifiek={(aan) => toggleIsSpecifiek(offset + i, aan)}
+                            voorbeeldDuurMin={voorbeeldDuurMin}
                           />
                         ))}
                       </div>
                     );
                   })}
                 </div>
+
+                <PctTotaalIndicator blokken={blokken} />
 
                 <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
                   <button onClick={() => voegBlokToe("werk")} style={addBlokKnopStyle("#3E7A57")}>+ Werkblok</button>
@@ -359,8 +382,7 @@ export default function ArchetypeBuilder({ sessietype, onSessietypeChange, arche
           </Sectie>
         </div>
 
-        {/* RIGHT: live preview, sticky */}
-        <div style={{ position: "sticky", top: 20 }}>
+        <div>
           <Sectie titel="Live preview">
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 16 }}>
               <StatTile label="Duur" waarde={preview ? `${preview.duurMin}m` : "–"} />
@@ -396,7 +418,6 @@ export default function ArchetypeBuilder({ sessietype, onSessietypeChange, arche
             </div>
           </Sectie>
         </div>
-      </div>
     </div>
   );
 }
@@ -467,8 +488,9 @@ function ChipSelectie({ opties, geselecteerd, onWijzig, disabled }) {
   );
 }
 
-function BlokRij({ blok, idx, totaal, onWijzig, onWijzigZone, onVerwijder, onVerplaats, onToggleMax }) {
+function BlokRij({ blok, idx, totaal, onWijzig, onWijzigZone, onVerwijder, onVerplaats, onToggleMax, onToggleSpecifiek, voorbeeldDuurMin }) {
   const isMaxEffortZone = MAX_EFFORT_ZONES.has(blok.zone);
+  const voorbeeldSec = ((blok.pct ?? 0) / 100) * voorbeeldDuurMin * 60;
   return (
     <div style={{ padding: "12px 12px 12px 14px", borderRadius: 14, background: T.subtleFill, border: `1px solid ${T.cardBorder}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -491,21 +513,37 @@ function BlokRij({ blok, idx, totaal, onWijzig, onWijzigZone, onVerwijder, onVer
         <Veldje label="Intensiteit (%FTP)">
           <input type="number" value={blok.maximaal ? "" : blok.pct_ftp} disabled={blok.maximaal} placeholder={blok.maximaal ? "max" : ""} onChange={e => onWijzig({ pct_ftp: Number(e.target.value) })} style={inputStyle(blok.maximaal)} />
         </Veldje>
-        <Veldje label="Duur (sec)">
-          <input type="number" value={blok.duurSec} onChange={e => onWijzig({ duurSec: Number(e.target.value) })} style={inputStyle()} />
+        <Veldje label={`Aandeel (%)${blok.reps > 1 ? " per keer" : ""}`}>
+          <input type="number" min={0} step={0.1} value={blok.pct ?? 0} onChange={e => onWijzig({ pct: Number(e.target.value) })} style={inputStyle()} />
         </Veldje>
         <Veldje label="Herhalingen">
           <input type="number" min={1} value={blok.reps ?? 1} onChange={e => onWijzig({ reps: Number(e.target.value) })} style={inputStyle()} />
         </Veldje>
       </div>
 
-      {isMaxEffortZone && (
-        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: T.textSec, marginTop: 8 }}>
-          <input type="checkbox" checked={!!blok.maximaal} onChange={e => onToggleMax(e.target.checked)} />
-          Maximale inspanning (geen vast %FTP — gebaseerd op pieksprintcapaciteit)
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 8 }}>
+        {isMaxEffortZone && (
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: T.textSec }}>
+            <input type="checkbox" checked={!!blok.maximaal} onChange={e => onToggleMax(e.target.checked)} />
+            Maximale inspanning (geen vast %FTP — gebaseerd op pieksprintcapaciteit)
+          </label>
+        )}
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: T.textSec }}>
+          <input type="checkbox" checked={!!blok.isSpecifiek} onChange={e => onToggleSpecifiek(e.target.checked)} />
+          Nauwe marge (±8,5% i.p.v. ±10% rond de intensiteit)
         </label>
-      )}
-      <div style={{ fontSize: 10.5, color: T.textTert, marginTop: 6 }}>≈ {formatDuur(blok.duurSec)}</div>
+      </div>
+      <div style={{ fontSize: 10.5, color: T.textTert, marginTop: 6 }}>≈ {formatDuur(voorbeeldSec)} bij een sessie van {voorbeeldDuurMin} min{blok.reps > 1 ? ` (× ${blok.reps})` : ""}</div>
+    </div>
+  );
+}
+
+function PctTotaalIndicator({ blokken }) {
+  const totaal = berekenPctTotaal(blokken);
+  const ok = Math.abs(totaal - 100) <= PCT_TOTAAL_TOLERANTIE;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 12.5, fontWeight: 700, color: ok ? "#2F9468" : "#c2410c" }}>
+      {ok ? "✓" : "⚠"} Totaal: {totaal.toFixed(1)}%{!ok && " — moet 100% zijn"}
     </div>
   );
 }

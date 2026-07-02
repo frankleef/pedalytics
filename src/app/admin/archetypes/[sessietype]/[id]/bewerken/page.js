@@ -20,15 +20,17 @@ export default function ArchetypeBewerken() {
     }).catch(e => setFout(e.message));
   }, [sessietype, id]);
 
-  if (fout) return <div style={{ padding: 40, textAlign: "center", color: "#dc2626" }}>{fout}</div>;
-  if (archetype === undefined) return <div style={{ padding: 40, textAlign: "center", color: T.textTert }}>Laden…</div>;
-  if (archetype === null) return <div style={{ padding: 40, textAlign: "center", color: T.textSec }}>Archetype "{id}" niet gevonden in sessietype "{sessietype}".</div>;
+  if (fout) return <div style={{ minHeight: "100vh", background: T.bg, padding: 40, textAlign: "center", color: "#dc2626" }}>{fout}</div>;
+  if (archetype === undefined) return <div style={{ minHeight: "100vh", background: T.bg, padding: 40, textAlign: "center", color: T.textTert }}>Laden…</div>;
+  if (archetype === null) return <div style={{ minHeight: "100vh", background: T.bg, padding: 40, textAlign: "center", color: T.textSec }}>Archetype "{id}" niet gevonden in sessietype "{sessietype}".</div>;
 
   return (
-    <ArchetypeBuilder
-      sessietype={sessietype}
-      archetypeInitial={archetype}
-      onOpgeslagen={() => router.push("/admin/archetypes")}
-    />
+    <div style={{ minHeight: "100vh", background: T.bg }}>
+      <ArchetypeBuilder
+        sessietype={sessietype}
+        archetypeInitial={archetype}
+        onOpgeslagen={() => router.push("/admin/archetypes")}
+      />
+    </div>
   );
 }

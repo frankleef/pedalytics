@@ -404,6 +404,28 @@ describe('schaalVariant — maximum blokduur (bugfix: 24-minuten krachtsblok bij
     }
   })
 
+  it('archetype.max_blokduur_sec (admin-geconfigureerd, via KV) wint van de hardcoded tabel', () => {
+    const archetype = vindArchetypeMetVarianten(ARCHETYPES_FIXTURE['kracht_lage_cadans'], 'kracht_standaard')
+    const variant = archetype.varianten.find(v => v.id === 'kracht_std_4x5')
+
+    // Zonder override: hardcoded max van 360s (6 min) geldt.
+    const zonderOverride = genereerSessieDeterministisch({
+      dagIntentie: null, archetype, variant, doelDuurMin: 180, ftp: 265, sessietype: 'kracht_lage_cadans',
+    })
+    const krachtZonder = zonderOverride.segmenten.filter(s => s.zone === 'Z3' || s.zone === 'Z4')
+    expect(Math.max(...krachtZonder.map(b => b.blokDuurSeconden))).toBeLessThanOrEqual(360)
+
+    // Met override: archetype.max_blokduur_sec (bv. 180s) wint van de hardcoded 360s.
+    const archetypeMetOverride = { ...archetype, max_blokduur_sec: 180 }
+    const metOverride = genereerSessieDeterministisch({
+      dagIntentie: null, archetype: archetypeMetOverride, variant, doelDuurMin: 180, ftp: 265, sessietype: 'kracht_lage_cadans',
+    })
+    const krachtMet = metOverride.segmenten.filter(s => s.zone === 'Z3' || s.zone === 'Z4')
+    for (const b of krachtMet) {
+      expect(b.blokDuurSeconden).toBeLessThanOrEqual(180)
+    }
+  })
+
   it('elk interval-achtig sessietype: bij een extreme sessieduur (4 uur) overschrijdt geen enkel werkblok zijn eigen archetype-maximum', () => {
     const overtredingen = []
     for (const [sessietype, archetypes] of Object.entries(VARIANT_ARCHETYPES)) {

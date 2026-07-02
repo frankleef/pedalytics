@@ -3,6 +3,10 @@ import { getKV } from "@/lib/kv";
 import { getSessionUser } from "@/lib/auth";
 import { GELDIGE_SESSIETYPES, valideerZ1Gebruik, invalideerArchetypeCache } from "@/lib/sessie-archetypes";
 
+// Tolerantie in duur_pct-eenheden (0-1) — 0.005 komt overeen met de 0,5%-tolerantie
+// die de builder-UI (PCT_TOTAAL_TOLERANTIE) client-side al hanteert.
+const DUUR_PCT_TOTAAL_TOLERANTIE = 0.005;
+
 function valideerArchetypesArray(sessietype, archetypes) {
   if (!Array.isArray(archetypes)) {
     return "Body moet een array van archetypes zijn";
@@ -22,6 +26,10 @@ function valideerArchetypesArray(sessietype, archetypes) {
       return `Archetype "${archetype.id}": structuur (tekstuele omschrijving) mag niet leeg zijn`;
     }
 
+    if (archetype.max_blokduur_sec != null && (typeof archetype.max_blokduur_sec !== "number" || archetype.max_blokduur_sec <= 0)) {
+      return `Archetype "${archetype.id}": max_blokduur_sec moet een positief getal zijn`;
+    }
+
     if (!Array.isArray(archetype.varianten) || archetype.varianten.length === 0) {
       return `Archetype "${archetype.id}": minstens 1 variant met blokken vereist`;
     }
@@ -35,6 +43,11 @@ function valideerArchetypesArray(sessietype, archetypes) {
       }
       if (!valideerZ1Gebruik(variant.blokken, sessietype, archetype.id)) {
         return `Archetype "${archetype.id}"/variant "${variant.id}": bevat een Z1-blok dat niet is toegestaan voor sessietype "${sessietype}"`;
+      }
+
+      const duurPctTotaal = variant.blokken.reduce((s, b) => s + (b.duur_pct ?? 0) * (b.reps ?? 1), 0);
+      if (Math.abs(duurPctTotaal - 1) > DUUR_PCT_TOTAAL_TOLERANTIE) {
+        return `Archetype "${archetype.id}"/variant "${variant.id}": duur_pct-som is ${(duurPctTotaal * 100).toFixed(1)}% i.p.v. 100%`;
       }
     }
   }

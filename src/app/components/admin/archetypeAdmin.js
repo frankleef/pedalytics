@@ -28,18 +28,22 @@ export const ZONE_REPRESENTATIEVE_PCT = { Z1: 45, Z2: 65, Z3: 83, Z4: 98, Z5: 11
 // Blokken van Z6/Z7 zijn neuraal/anaeroob-maximaal — "% van FTP" is daar geen
 // zinvolle maat om precies te bepalen. De "Maximale inspanning"-checkbox is een
 // builder-UI-concept (zet het Intensiteit-veld vast op een representatieve
-// waarde i.p.v. handmatig bewerkbaar) — het opgeslagen archetype krijgt gewoon
+// waarde i.p.v. handmatig bewerkbaar). Het opgeslagen archetype krijgt gewoon
 // die numerieke pct_ftp, want genereerSessieDeterministisch/berekenWattagesVanBlokken
 // gebruiken altijd pct_ftp, ook voor Z6/Z7 (geen aparte "null = max"-representatie
 // in de echte data).
 export const MAX_EFFORT_ZONES = new Set(["Z6", "Z7"]);
+
+// Tolerantie voor de "moet op 100% uitkomen"-check — handmatige invoer/afronding
+// zal zelden exact 100,000% zijn.
+export const PCT_TOTAAL_TOLERANTIE = 0.5;
 
 export function nieuwBlokId() {
   return `b_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export function leegBlok() {
-  return { _id: nieuwBlokId(), type: "werk", zone: "Z3", pct_ftp: 83, duurSec: 300, reps: 1, maximaal: false };
+  return { _id: nieuwBlokId(), type: "werk", zone: "Z3", pct_ftp: 83, pct: 10, reps: 1, maximaal: false, isSpecifiek: false };
 }
 
 /**
@@ -67,32 +71,57 @@ export function groepeerBlokkenTotSets(blokken) {
   return sets;
 }
 
-/** Blokken (met _id/duurSec/maximaal, builder-intern) -> opslagformaat (duur_pct, geen builder-only velden). */
+/**
+ * Som van het aandeel (%) over alle blokken, elk vermenigvuldigd met zijn reps
+ * — moet 100 zijn voordat een variant een geldige sessie voorstelt (zelfde
+ * optelsom als schaalVariant() intern gebruikt: duur_pct * reps).
+ */
+export function berekenPctTotaal(blokken) {
+  return (blokken || []).reduce((s, b) => s + (b.pct ?? 0) * (b.reps ?? 1), 0);
+}
+
+/** Blokken (met _id/pct/maximaal, builder-intern) -> opslagformaat (duur_pct, geen builder-only velden). */
 export function blokkenNaarOpslagformaat(blokken) {
-  const totaalSec = blokken.reduce((s, b) => s + b.duurSec * (b.reps ?? 1), 0) || 1;
-  return blokken.map(({ _id, duurSec, reps, maximaal, ...rest }) => ({
+  return (blokken || []).map(({ _id, pct, reps, maximaal, isSpecifiek, ...rest }) => ({
     ...rest,
-    duur_pct: (duurSec * (reps ?? 1)) / totaalSec / (reps ?? 1),
+    duur_pct: (pct ?? 0) / 100,
     ...(reps && reps > 1 ? { reps } : {}),
+    ...(isSpecifiek ? { isSpecifiek: true } : {}),
   }));
 }
 
-/** Opslagformaat -> builder-interne blokken (duurSec afgeleid uit duur_pct × standaardtestduur). */
-export function opslagformaatNaarBlokken(blokken, testduurSec = 3600) {
+/** Opslagformaat -> builder-interne blokken (pct rechtstreeks uit duur_pct × 100). */
+export function opslagformaatNaarBlokken(blokken) {
   return (blokken || []).map(b => ({
     _id: nieuwBlokId(),
     type: b.type,
     zone: b.zone,
     pct_ftp: b.pct_ftp,
-    duurSec: Math.round(b.duur_pct * testduurSec),
+    pct: Math.round((b.duur_pct ?? 0) * 1000) / 10, // 1 decimaal
     reps: b.reps ?? 1,
     maximaal: false,
+    isSpecifiek: b.isSpecifiek ?? false,
     ...(b.cadans_rpm != null ? { cadans_rpm: b.cadans_rpm } : {}),
   }));
 }
 
+/** ZWO-parser-blokken (duurSec-gebaseerd, zie parseZwo.js) -> builder-interne blokken (pct). */
+export function zwoBlokkenNaarBuilderBlokken(zwoBlokken) {
+  const totaalSec = (zwoBlokken || []).reduce((s, b) => s + b.duurSec * (b.reps ?? 1), 0) || 1;
+  return (zwoBlokken || []).map(b => ({
+    _id: nieuwBlokId(),
+    type: b.type,
+    zone: b.zone,
+    pct_ftp: b.pct_ftp,
+    pct: Math.round(((b.duurSec * (b.reps ?? 1)) / totaalSec / (b.reps ?? 1)) * 1000) / 10,
+    reps: b.reps ?? 1,
+    maximaal: false,
+    isSpecifiek: false,
+  }));
+}
+
 export function formatDuur(sec) {
-  if (sec < 60) return `${sec}s`;
+  if (sec < 60) return `${Math.round(sec)}s`;
   const min = sec / 60;
   return Number.isInteger(min) ? `${min}'` : `${min.toFixed(1)}'`;
 }

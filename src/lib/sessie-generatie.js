@@ -91,8 +91,16 @@ const GENERIEKE_MAXIMUM_PER_ZONE = { Z3: 900, Z4: 480, Z5: 300, Z6: 90, Z7: 20 }
 /**
  * Bepaalt de maximum blokduur (seconden) voor een werkblok, of null als er
  * geen maximum geldt (z2_duur in zijn geheel, en Z1/Z2-blokken in elk archetype).
+ *
+ * @param {string} sessietype
+ * @param {string} archetypeId
+ * @param {object} blok
+ * @param {number|null} [archetypeMaxBlokduurSec] - admin-geconfigureerde override
+ *   (archetype.max_blokduur_sec, via de KV-data zelf) — wint altijd van de
+ *   hardcoded tabel hieronder, zodat een via de admin-UI aangemaakt archetype
+ *   niet afhankelijk is van een code-wijziging voor een getunede max.
  */
-export function bepaalMaximumBlokduur(sessietype, archetypeId, blok) {
+export function bepaalMaximumBlokduur(sessietype, archetypeId, blok, archetypeMaxBlokduurSec = null) {
   // Geen archetype-context meegegeven (bv. een losse unit-test van schaalVariant()
   // met alleen een variant-object) -> geen maximum. Het generieke vangnet hieronder
   // is uitsluitend voor een archetype-id die we WEL kennen maar nog niet
@@ -100,6 +108,7 @@ export function bepaalMaximumBlokduur(sessietype, archetypeId, blok) {
   if (!archetypeId) return null;
   if (sessietype === "z2_duur") return null;
   if (blok.zone === "Z1" || blok.zone === "Z2") return null;
+  if (archetypeMaxBlokduurSec != null) return archetypeMaxBlokduurSec;
   const entry = MAXIMUM_BLOKDUUR_PER_ARCHETYPE[archetypeId];
   if (entry == null) return GENERIEKE_MAXIMUM_PER_ZONE[blok.zone] ?? null;
   if (typeof entry === "number") return entry;
@@ -152,8 +161,10 @@ function normaliseerCadans(cadansRpm) {
  * @param {number} doelDuurSec
  * @param {string} [sessietype] - voor de z2_duur-uitzondering en archetype-lookup
  * @param {string} [archetypeId] - voor de per-archetype maximum-lookup
+ * @param {number|null} [archetypeMaxBlokduurSec] - admin-geconfigureerde max-override,
+ *   zie bepaalMaximumBlokduur
  */
-export function schaalVariant(variant, doelDuurSec, sessietype = null, archetypeId = null) {
+export function schaalVariant(variant, doelDuurSec, sessietype = null, archetypeId = null, archetypeMaxBlokduurSec = null) {
   const som = variant.blokken.reduce((s, b) => s + b.duur_pct * (b.reps ?? 1), 0) || 1;
   let totaalOvertollig = 0;
 
@@ -165,7 +176,7 @@ export function schaalVariant(variant, doelDuurSec, sessietype = null, archetype
       ? Math.max(1, ruw)
       : Math.max(b.type === "herstel" ? HERSTEL_MIN_SEC : WERK_MIN_SEC, ruw);
 
-    const maximum = bepaalMaximumBlokduur(sessietype, archetypeId, b);
+    const maximum = bepaalMaximumBlokduur(sessietype, archetypeId, b, archetypeMaxBlokduurSec);
     if (maximum != null && naMinimum > maximum) {
       totaalOvertollig += (naMinimum - maximum) * (b.reps ?? 1);
       return { ...b, blokDuurSeconden: maximum };
@@ -388,7 +399,7 @@ function voegWarmingUpToe(geschaaldeBlokken, doelDuurSec) {
  */
 export function genereerSessieDeterministisch({ dagIntentie, archetype, variant, doelDuurMin, ftp, sessietype }) {
   const t0 = Date.now();
-  let geschaald = schaalVariant(variant, doelDuurMin * 60, sessietype, archetype.id);
+  let geschaald = schaalVariant(variant, doelDuurMin * 60, sessietype, archetype.id, archetype.max_blokduur_sec ?? null);
   if (sessietype !== "z2_duur") {
     geschaald = voegWarmingUpToe(geschaald, doelDuurMin * 60);
   }
