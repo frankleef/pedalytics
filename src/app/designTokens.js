@@ -37,7 +37,9 @@ export const T = {
   z2: '#5E94CE', // 56-75%
   z3: '#3FB488', // 76-90%
   z4: '#C79A3C', // 91-106%
-  z5: '#B45A44', // >106%
+  z5: '#B45A44', // 107-120%
+  z6: '#8B3D2E', // 121-150% (anaeroob)
+  z7: '#6B2B22', // >150% (neuromusculair/sprint)
 };
 
 // Herstelstatus — 4 niveaus
@@ -107,10 +109,14 @@ export function getStatus(score) {
   return 'rust';
 }
 
+// Grenzen komen overeen met afleidZonePositie.js (migratie/ZWO-import) — één
+// bron van waarheid voor waar een %FTP-waarde in welke zone valt.
 export function zoneKleur(pctFtp) {
   if (pctFtp < 56) return T.z1;
   if (pctFtp <= 75) return T.z2;
   if (pctFtp <= 90) return T.z3;
   if (pctFtp <= 106) return T.z4;
-  return T.z5;
+  if (pctFtp <= 120) return T.z5;
+  if (pctFtp <= 150) return T.z6;
+  return T.z7;
 }

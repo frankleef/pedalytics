@@ -1,9 +1,22 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { genereerSessieDag } from '../sessie/genereren.js'
 import { PRIORITEIT_PER_FASE } from '../sessie/weekSolver.js'
+import { _wisArchetypeCacheVoorTests } from '../sessie-archetypes.js'
+import { ARCHETYPES_FIXTURE } from './fixtures/archetypesFixture.js'
+
+// De module-level archetype-cache (sessie-archetypes.js) moet vóór elke test
+// leeg zijn — anders lekt de mock-KV-data van de ene test naar de volgende
+// (TTL is 5 min, ruim langer dan het hele testbestand duurt).
+beforeEach(() => { _wisArchetypeCacheVoorTests() })
 
 function maakKv(seed = {}) {
-  const store = new Map(Object.entries(seed))
+  // archetypes:{sessietype} is sinds de KV-migratie de enige databron voor
+  // getArchetypesVoorSessietypeRaw() — elke mock-KV krijgt de fixture als
+  // basis, tenzij seed die sleutel expliciet overschrijft.
+  const archetypeSeed = Object.fromEntries(
+    Object.entries(ARCHETYPES_FIXTURE).map(([sessietype, archetypes]) => [`archetypes:${sessietype}`, archetypes])
+  )
+  const store = new Map(Object.entries({ ...archetypeSeed, ...seed }))
   return {
     store,
     get: async (k) => store.get(k) ?? null,

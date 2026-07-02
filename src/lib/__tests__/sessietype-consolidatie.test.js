@@ -4,6 +4,7 @@ import {
   getArchetypesVoorSessietype,
   SESSIE_ARCHETYPES,
 } from '../sessie-archetypes.js'
+import { ARCHETYPES_FIXTURE } from './fixtures/archetypesFixture.js'
 
 const GELDIGE_KERN_TYPES = [
   'z2_duur',
@@ -90,7 +91,7 @@ describe('deprecated types zijn nu archetypes in hun ouder-sessietype', () => {
 describe('over_under beschikbaarheid per fase en week', () => {
   it('sweetspot week 1-4: ou_standaard niet beschikbaar', () => {
     for (let w = 1; w <= 4; w++) {
-      const archetypes = getArchetypesVoorSessietype('drempel_intervallen', 'sweetspot', w)
+      const archetypes = getArchetypesVoorSessietype(ARCHETYPES_FIXTURE['drempel_intervallen'], 'sweetspot', w)
       const ids = archetypes.map(a => a.id)
       expect(ids).not.toContain('ou_standaard')
       expect(ids).not.toContain('ou_lang')
@@ -99,19 +100,19 @@ describe('over_under beschikbaarheid per fase en week', () => {
 
   it('sweetspot week 5+: ou_standaard beschikbaar (in drempel_intervallen met sweetspot-fase)', () => {
     // ou_standaard zit in drempel_intervallen, beschikbaar in sweetspot-fase vanaf week 5
-    const archetypes = getArchetypesVoorSessietype('drempel_intervallen', 'sweetspot', 5)
+    const archetypes = getArchetypesVoorSessietype(ARCHETYPES_FIXTURE['drempel_intervallen'], 'sweetspot', 5)
     const ids = archetypes.map(a => a.id)
     expect(ids).toContain('ou_standaard')
   })
 
   it('drempel week 1: ou_standaard beschikbaar', () => {
-    const archetypes = getArchetypesVoorSessietype('drempel_intervallen', 'drempel', 1)
+    const archetypes = getArchetypesVoorSessietype(ARCHETYPES_FIXTURE['drempel_intervallen'], 'drempel', 1)
     const ids = archetypes.map(a => a.id)
     expect(ids).toContain('ou_standaard')
   })
 
   it('consolidatie week 1: ou_standaard beschikbaar', () => {
-    const archetypes = getArchetypesVoorSessietype('drempel_intervallen', 'consolidatie', 1)
+    const archetypes = getArchetypesVoorSessietype(ARCHETYPES_FIXTURE['drempel_intervallen'], 'consolidatie', 1)
     const ids = archetypes.map(a => a.id)
     expect(ids).toContain('ou_standaard')
   })
@@ -132,7 +133,7 @@ describe('alle kern-sessietypes hebben minstens 1 archetype in elke relevante fa
   for (const [type, fasen] of Object.entries(typesMetFasen)) {
     for (const fase of fasen) {
       it(`${type} × ${fase} → minstens 1 archetype`, () => {
-        const archetypes = getArchetypesVoorSessietype(type, fase, 1)
+        const archetypes = getArchetypesVoorSessietype(ARCHETYPES_FIXTURE[type], fase, 1)
         expect(archetypes.length).toBeGreaterThan(0)
       })
     }

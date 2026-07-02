@@ -1,5 +1,6 @@
 import { getKV } from "../kv";
 import { registreerHrvObservatie } from "./leerdata";
+import { getAlleArchetypesRaw } from "../sessie-archetypes";
 
 export async function verwerkSchrappen(userId, datum, dag, seizoensplan) {
   const kv = getKV();
@@ -38,7 +39,8 @@ export async function verwerkVerlichten(userId, datum, dag, seizoensplan) {
 
   if (sessie) {
     const { bepaalNieuweIntentie } = await import("../sessie/alternatief");
-    const nieuweIntentie = bepaalNieuweIntentie(sessie.intentie, "vermoeid", dag?.fase || "basis", "rood");
+    const archetypesData = await getAlleArchetypesRaw();
+    const nieuweIntentie = bepaalNieuweIntentie(archetypesData, sessie.intentie, "vermoeid", dag?.fase || "basis", "rood");
 
     if (nieuweIntentie) {
       sessie.intentie = nieuweIntentie;

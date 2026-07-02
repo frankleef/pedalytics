@@ -1,3 +1,11 @@
+import { getKV } from "./kv";
+
+// SESSIE_ARCHETYPES is vanaf de KV-migratie (admin sessie-archetype-beheer) geen
+// runtime-databron meer — de enige bron is KV (archetypes:{sessietype}), gevuld
+// door /api/admin/migreer-archetypes-naar-kv. Deze constante blijft uitsluitend
+// bestaan als (a) seed-data voor dat migratiescript en (b) fixture voor de
+// 125-varianten-regressietest (sectie 46, samen met sessie-varianten.js) — geen
+// enkel generatiepad importeert 'm nog.
 export const SESSIE_ARCHETYPES = {
   z2_duur: [
     {
@@ -468,12 +476,78 @@ export function valideerZ1Gebruik(blokken, sessietype, archetypeId = null) {
   return true;
 }
 
+// ─── KV-cache-laag (admin sessie-archetype-beheer) ──────────────────────────
+// Archetypes zijn globale content (geen userId in de sleutel) — de cache is dus
+// module-level en gedeeld over alle gebruikers binnen één serverless-instance.
+const archetypeCache = new Map();
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
 /**
- * Geeft gefilterde archetypes voor sessietype + fase + weekInFase.
- * Filtert ook op doel_beperking als seizoensdoel meegegeven.
+ * Haalt de archetypes voor één sessietype op uit KV (cache-first, TTL 5 min).
+ * Elk element bevat zowel metadata (fase_beschikbaar, tss_range, ...) als de
+ * concrete varianten/blokken — samengevoegd door het migratiescript.
+ * Lege/ontbrekende KV-waarde -> lege array, nooit een crash (bestaande,
+ * afgehandelde situatie in de rotatielogica hieronder).
+ *
+ * @param {string} sessietype
+ * @param {object} [kv] - injectable KV-client (default: getKV()) — zelfde
+ *   patroon als getRecenteArchetypes/slaArchetypeOp hieronder, zodat tests een
+ *   in-memory mock kunnen meegeven i.p.v. de echte KV te raken.
  */
-export function getArchetypesVoorSessietype(sessietype, fase, weekInFase = 1, seizoensdoel = null) {
-  const alle = SESSIE_ARCHETYPES[sessietype] ?? [];
+export async function getArchetypesVoorSessietypeRaw(sessietype, kv = getKV()) {
+  const cached = archetypeCache.get(sessietype);
+  if (cached && Date.now() - cached.opgehaaldOp < CACHE_TTL_MS) {
+    return cached.data;
+  }
+  const data = (await kv.get(`archetypes:${sessietype}`)) ?? [];
+  archetypeCache.set(sessietype, { data, opgehaaldOp: Date.now() });
+  return data;
+}
+
+/**
+ * Haalt alle 8 sessietypes in één keer op (cache-first per sessietype) — voor
+ * callers die met meerdere sessietypes tegelijk werken (bv. de client-side
+ * alternatief-/weeksolver-logica, die zelf pure/sync blijft en deze data als
+ * parameter meekrijgt via GET /api/archetypes in plaats van zelf KV te lezen).
+ * @param {object} [kv] - injectable KV-client (default: getKV())
+ * @returns {Promise<Object<string, Array>>}
+ */
+export async function getAlleArchetypesRaw(kv = getKV()) {
+  const paren = await Promise.all(
+    [...GELDIGE_SESSIETYPES].map(async (t) => [t, await getArchetypesVoorSessietypeRaw(t, kv)])
+  );
+  return Object.fromEntries(paren);
+}
+
+/** Forceert een verse KV-read bij de volgende aanroep voor dit sessietype. */
+export function invalideerArchetypeCache(sessietype) {
+  archetypeCache.delete(sessietype);
+}
+
+/**
+ * Wist de volledige cache (alle sessietypes) — uitsluitend voor testgebruik,
+ * zodat opeenvolgende tests met verschillende mock-KV-instances elkaars
+ * gecachete resultaten niet lekken (de cache is module-level en overleeft
+ * anders de TTL (5 min) ruimschoots binnen één testbestand).
+ */
+export function _wisArchetypeCacheVoorTests() {
+  archetypeCache.clear();
+}
+
+/**
+ * Filtert archetypes (al opgehaald voor één sessietype, zie
+ * getArchetypesVoorSessietypeRaw) op fase + weekInFase + seizoensdoel.
+ * Pure, synchrone functie — geen KV-afhankelijkheid — zodat 'm ook
+ * client-side (browser) aanroepbaar blijft zonder server-omweg. De caller is
+ * verantwoordelijk voor het aanleveren van de juiste, al-opgehaalde array.
+ *
+ * @param {Array} archetypes - archetypes voor één sessietype (uit KV of fixture)
+ * @param {string} fase
+ * @param {number} [weekInFase]
+ * @param {string|null} [seizoensdoel]
+ */
+export function getArchetypesVoorSessietype(archetypes, fase, weekInFase = 1, seizoensdoel = null) {
+  const alle = archetypes ?? [];
   return alle.filter(a => {
     if (!a.fase_beschikbaar.includes(fase)) return false;
     // Over-unders: sweetspot alleen vanaf week 5, drempel/vo2max/consolidatie altijd

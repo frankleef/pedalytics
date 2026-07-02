@@ -11,6 +11,7 @@ import {
   bepaalMaximumBlokduur,
 } from '../sessie-generatie.js'
 import { SESSIE_ARCHETYPES as VARIANT_ARCHETYPES } from '../sessie-varianten.js'
+import { ARCHETYPES_FIXTURE } from './fixtures/archetypesFixture.js'
 
 describe('schaalVariant — volledige dataset', () => {
   it('blijft voor alle 114 varianten binnen 10% van de doelduur op 45/60/90/120 min', () => {
@@ -270,25 +271,25 @@ describe('selecteerVariantOpDagvorm', () => {
 
 describe('vindArchetypeMetVarianten', () => {
   it('vindt een bestaand archetype met variantendata', () => {
-    const gevonden = vindArchetypeMetVarianten('z2_duur', 'z2_progressief')
+    const gevonden = vindArchetypeMetVarianten(ARCHETYPES_FIXTURE['z2_duur'], 'z2_progressief')
     expect(gevonden).not.toBeNull()
     expect(gevonden.varianten.length).toBeGreaterThan(0)
   })
 
   it('z2_heuvel, z2_tempo_teugjes, vo2_microbursts en race_simulatie hebben nu allemaal variantendata (voorheen de enige 4 Claude-fallback-gevallen)', () => {
-    expect(vindArchetypeMetVarianten('z2_duur', 'z2_heuvel')?.varianten.length).toBeGreaterThan(0)
-    expect(vindArchetypeMetVarianten('z2_duur', 'z2_tempo_teugjes')?.varianten.length).toBeGreaterThan(0)
-    expect(vindArchetypeMetVarianten('vo2max_intervallen', 'vo2_microbursts')?.varianten.length).toBeGreaterThan(0)
-    expect(vindArchetypeMetVarianten('gemengd', 'race_simulatie')?.varianten.length).toBeGreaterThan(0)
+    expect(vindArchetypeMetVarianten(ARCHETYPES_FIXTURE['z2_duur'], 'z2_heuvel')?.varianten.length).toBeGreaterThan(0)
+    expect(vindArchetypeMetVarianten(ARCHETYPES_FIXTURE['z2_duur'], 'z2_tempo_teugjes')?.varianten.length).toBeGreaterThan(0)
+    expect(vindArchetypeMetVarianten(ARCHETYPES_FIXTURE['vo2max_intervallen'], 'vo2_microbursts')?.varianten.length).toBeGreaterThan(0)
+    expect(vindArchetypeMetVarianten(ARCHETYPES_FIXTURE['gemengd'], 'race_simulatie')?.varianten.length).toBeGreaterThan(0)
   })
 
   it('retourneert null voor een niet-bestaand archetype-id', () => {
-    expect(vindArchetypeMetVarianten('z2_duur', 'bestaat_niet')).toBeNull()
+    expect(vindArchetypeMetVarianten(ARCHETYPES_FIXTURE['z2_duur'], 'bestaat_niet')).toBeNull()
   })
 })
 
 describe('genereerSessieDeterministisch', () => {
-  const archetype = vindArchetypeMetVarianten('z2_duur', 'z2_progressief')
+  const archetype = vindArchetypeMetVarianten(ARCHETYPES_FIXTURE['z2_duur'], 'z2_progressief')
   const variant = archetype.varianten[0]
 
   it('genereert een volledige sessie met de juiste metadata', () => {
@@ -329,7 +330,7 @@ describe('genereerSessieDeterministisch', () => {
 
 describe('genereerSessieDeterministisch — warming-up (bugfix: sessie start direct met werk)', () => {
   it('kracht_lage_cadans begint met een Z2-inrijblok, niet direct met het kracht-blok', () => {
-    const archetype = vindArchetypeMetVarianten('kracht_lage_cadans', 'kracht_standaard')
+    const archetype = vindArchetypeMetVarianten(ARCHETYPES_FIXTURE['kracht_lage_cadans'], 'kracht_standaard')
     const variant = archetype.varianten.find(v => v.id === 'kracht_std_4x5')
     const sessie = genereerSessieDeterministisch({
       dagIntentie: null, archetype, variant, doelDuurMin: 90, ftp: 265, sessietype: 'kracht_lage_cadans',
@@ -343,7 +344,7 @@ describe('genereerSessieDeterministisch — warming-up (bugfix: sessie start dir
   })
 
   it('z2_duur krijgt geen extra inrijblok (de hele sessie is al Z2)', () => {
-    const archetype = vindArchetypeMetVarianten('z2_duur', 'z2_progressief')
+    const archetype = vindArchetypeMetVarianten(ARCHETYPES_FIXTURE['z2_duur'], 'z2_progressief')
     const variant = archetype.varianten[0]
     const sessie = genereerSessieDeterministisch({
       dagIntentie: null, archetype, variant, doelDuurMin: 90, ftp: 265, sessietype: 'z2_duur',
@@ -353,7 +354,7 @@ describe('genereerSessieDeterministisch — warming-up (bugfix: sessie start dir
   })
 
   it('een archetype dat al met Z2 begint (pieken_en_dalen) wordt niet dubbel opgewarmd', () => {
-    const archetype = vindArchetypeMetVarianten('gemengd', 'pieken_en_dalen')
+    const archetype = vindArchetypeMetVarianten(ARCHETYPES_FIXTURE['gemengd'], 'pieken_en_dalen')
     const variant = archetype.varianten[0]
     const sessieMetOpwarming = genereerSessieDeterministisch({
       dagIntentie: null, archetype, variant, doelDuurMin: 90, ftp: 265, sessietype: 'gemengd',
@@ -387,7 +388,7 @@ describe('genereerSessieDeterministisch — warming-up (bugfix: sessie start dir
 
 describe('schaalVariant — maximum blokduur (bugfix: 24-minuten krachtsblok bij lange sessieduur)', () => {
   it('reproduceert en fixt het gerapporteerde geval: kracht_std_4x5 @ 180 min blijft binnen zijn archetype-maximum', () => {
-    const archetype = vindArchetypeMetVarianten('kracht_lage_cadans', 'kracht_standaard')
+    const archetype = vindArchetypeMetVarianten(ARCHETYPES_FIXTURE['kracht_lage_cadans'], 'kracht_standaard')
     const variant = archetype.varianten.find(v => v.id === 'kracht_std_4x5')
 
     // Vóór de fix: schaalVariant(variant, 10800) zonder cap gaf hier 1436s (~24 min)
@@ -425,7 +426,7 @@ describe('schaalVariant — maximum blokduur (bugfix: 24-minuten krachtsblok bij
   })
 
   it('z2_duur blijft ongewijzigd bij een extreme sessieduur (4 uur) — geen cap, blokken schalen vrij mee', () => {
-    const archetype = vindArchetypeMetVarianten('z2_duur', 'z2_progressief')
+    const archetype = vindArchetypeMetVarianten(ARCHETYPES_FIXTURE['z2_duur'], 'z2_progressief')
     const variant = archetype.varianten[0]
     const sessie = genereerSessieDeterministisch({
       dagIntentie: null, archetype, variant, doelDuurMin: 240, ftp: 265, sessietype: 'z2_duur',
@@ -437,7 +438,7 @@ describe('schaalVariant — maximum blokduur (bugfix: 24-minuten krachtsblok bij
   })
 
   it('totale sessieduur blijft dicht bij de gevraagde doelduur ondanks herverdeling van "teveel" naar herstelblokken', () => {
-    const archetype = vindArchetypeMetVarianten('kracht_lage_cadans', 'kracht_standaard')
+    const archetype = vindArchetypeMetVarianten(ARCHETYPES_FIXTURE['kracht_lage_cadans'], 'kracht_standaard')
     const variant = archetype.varianten.find(v => v.id === 'kracht_std_4x5')
     const sessie = genereerSessieDeterministisch({
       dagIntentie: null, archetype, variant, doelDuurMin: 180, ftp: 265, sessietype: 'kracht_lage_cadans',
@@ -447,7 +448,7 @@ describe('schaalVariant — maximum blokduur (bugfix: 24-minuten krachtsblok bij
   })
 
   it('regressie: normale sessieduur (90 min, cap wordt niet geraakt) levert hetzelfde resultaat op als vóór de fix', () => {
-    const archetype = vindArchetypeMetVarianten('sweetspot_intervallen', 'ss_standaard')
+    const archetype = vindArchetypeMetVarianten(ARCHETYPES_FIXTURE['sweetspot_intervallen'], 'ss_standaard')
     const variant = archetype.varianten.find(v => v.id === 'ss_std_3x15')
     // ss_std_3x15 @ 90 min: werkblok ruw = round(0.225*5400) = 1215s, ruim onder het
     // archetype-maximum van 1560s — cap/herverdeling raakt hier niet in werking, dus

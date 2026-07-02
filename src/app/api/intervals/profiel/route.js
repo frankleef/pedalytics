@@ -3,14 +3,30 @@ import { intervalsGet, intervalsAuth } from "@/lib/intervals";
 import { getKV } from "@/lib/kv";
 import { vandaagISO, datumOffset } from "@/lib/datum";
 import { getUserIntervalsConfig, NietGekoppeldError } from "@/lib/auth";
+import { invalidateCredsCache } from "@/lib/users";
 
 export async function GET() {
   try {
-    const creds = await getUserIntervalsConfig();
-    const resp = await fetch(`https://intervals.icu/api/v1/athlete/${creds.athleteId}`, {
+    let creds = await getUserIntervalsConfig();
+    let resp = await fetch(`https://intervals.icu/api/v1/athlete/${creds.athleteId}`, {
       headers: { Authorization: intervalsAuth(creds.apiKey) },
       next: { revalidate: 0 },
     });
+
+    if (resp.status === 401 || resp.status === 403) {
+      // Kan een stale in-memory credentials-cache zijn (24u TTL) — één keer verse creds proberen
+      // vóórdat we de gebruiker om een nieuwe key vragen.
+      invalidateCredsCache(creds.userId);
+      creds = await getUserIntervalsConfig();
+      resp = await fetch(`https://intervals.icu/api/v1/athlete/${creds.athleteId}`, {
+        headers: { Authorization: intervalsAuth(creds.apiKey) },
+        next: { revalidate: 0 },
+      });
+      if (resp.status === 401 || resp.status === 403) {
+        return NextResponse.json({ success: false, intervalsAuthFailed: true });
+      }
+    }
+
     if (!resp.ok) throw new Error(`Intervals API ${resp.status}`);
     const athlete = await resp.json();
 

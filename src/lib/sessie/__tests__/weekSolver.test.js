@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { berekenZ2AandeelSessietype, haalPrioriteitOp, PRIORITEIT_PER_FASE, degradeerBijLageTsb, solveWeek, pasBudgetToe } from '../weekSolver.js'
 import { SESSIE_ARCHETYPES as VARIANT_ARCHETYPES } from '../../sessie-varianten.js'
+import { ARCHETYPES_FIXTURE } from '../../__tests__/fixtures/archetypesFixture.js'
 
 function dagen(...specs) {
   // specs: ['2026-07-06:2', ...] -> { datum, beschikbareUren }
@@ -15,6 +16,7 @@ function dagen(...specs) {
 describe('solveWeek', () => {
   it('scenario 1: volledig lege week, klimmen-doel, Drempel+VO2max-fase, 5 dagen -> 1 kernstimulus, 1 secundair, rest z2', () => {
     const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'drempel', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'klimmen',
       weekTssDoel: 400, vasteDagen: [],
       openDagen: dagen('2026-07-06:3', '2026-07-08:1.5', '2026-07-10:2', '2026-07-12:1.5', '2026-07-13:2.5'),
@@ -35,6 +37,7 @@ describe('solveWeek', () => {
 
   it('scenario 2: 1 vaste sweetspot-dag deze week (ftp) -> geen tweede sweetspot, geen fallback-type binnen dezelfde fase', () => {
     const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
       weekTssDoel: 400,
       vasteDagen: [{ datum: '2026-07-05', sessietype: 'sweetspot_intervallen', tss_doel: 80, status: 'voltooid' }],
@@ -51,6 +54,7 @@ describe('solveWeek', () => {
 
   it('scenario 3: week 3 van de fase (klimmen, Drempel+VO2max) -> vrijheidsessie (gemengd) op het secundair-slot', () => {
     const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'drempel', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'klimmen',
       weekTssDoel: 400, vasteDagen: [],
       openDagen: dagen('2026-07-06:3', '2026-07-08:1.5', '2026-07-10:2', '2026-07-12:1.5', '2026-07-13:2.5'),
@@ -64,6 +68,7 @@ describe('solveWeek', () => {
 
   it('scenario 4a: maar 2 open dagen, beide naast elkaar -> adjacency toegestaan (geen alternatief)', () => {
     const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'drempel', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'klimmen',
       weekTssDoel: 400, vasteDagen: [],
       openDagen: dagen('2026-07-06:3', '2026-07-07:2'),
@@ -74,6 +79,7 @@ describe('solveWeek', () => {
 
   it('scenario 4b: kernstimulus + 2 kandidaten, één aangrenzend één niet -> secundair kiest de niet-aangrenzende dag', () => {
     const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'drempel', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'klimmen',
       weekTssDoel: 400, vasteDagen: [],
       // 07-06 krijgt kernstimulus (meeste uren). 07-07 is aangrenzend, 07-10 niet.
@@ -88,6 +94,7 @@ describe('solveWeek', () => {
 
   it('scenario 5: herstelweek -> geen kernstimulus/secundair, alleen z2_duur', () => {
     const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'sweetspot', weekInFase: 2, weektype: 'herstel', seizoensdoel: 'ftp',
       weekTssDoel: 150, vasteDagen: [],
       openDagen: dagen('2026-07-06:2', '2026-07-08:1.5', '2026-07-10:2'),
@@ -99,6 +106,7 @@ describe('solveWeek', () => {
 
   it('null/ontbrekende tsb crasht niet', () => {
     expect(() => solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'basis', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
       weekTssDoel: 200, vasteDagen: [],
       openDagen: dagen('2026-07-06:2', '2026-07-08:1.5'),
@@ -108,6 +116,7 @@ describe('solveWeek', () => {
 
   it('gooit door de haalPrioriteitOp-fout voor een onbekend seizoensdoel', () => {
     expect(() => solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'onbekend_doel',
       weekTssDoel: 200, vasteDagen: [], openDagen: dagen('2026-07-06:2'),
     })).toThrow(/geen prioriteitstabel/)
@@ -115,6 +124,7 @@ describe('solveWeek', () => {
 
   it('ftp in de Drempel-fase (niet vo2max) -> correcte kernstimulus drempel_intervallen', () => {
     const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'drempel', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
       weekTssDoel: 300, vasteDagen: [],
       openDagen: dagen('2026-07-06:3', '2026-07-08:1.5', '2026-07-10:2'),
@@ -126,16 +136,19 @@ describe('solveWeek', () => {
 
   it('accepteert ook de rijke doelprofielen-fasenaam via alias (na wijzig-doel)', () => {
     const generiek = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'drempel', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'klimmen',
       weekTssDoel: 300, vasteDagen: [], openDagen: dagen('2026-07-06:3', '2026-07-08:1.5'), alGeleverd: {}, tsb: 0,
     })
     const rijkeNaam = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'Drempel + VO2max', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'klimmen',
       weekTssDoel: 300, vasteDagen: [], openDagen: dagen('2026-07-06:3', '2026-07-08:1.5'), alGeleverd: {}, tsb: 0,
     })
     expect(rijkeNaam.find(r => r.pad === 'kernstimulus').sessietype).toBe(generiek.find(r => r.pad === 'kernstimulus').sessietype)
 
     const klimspecifiek = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'Klimspecifiek', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'klimmen',
       weekTssDoel: 300, vasteDagen: [], openDagen: dagen('2026-07-06:3', '2026-07-08:1.5'), alGeleverd: {}, tsb: 0,
     })
@@ -147,6 +160,7 @@ describe('solveWeek', () => {
     for (const doel of ['aerobe_basis', 'uithoudingsvermogen', 'sprint']) {
       for (const fase of generiekeFases) {
         const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
           fase, weekInFase: 1, weektype: 'opbouw', seizoensdoel: doel,
           weekTssDoel: 200, vasteDagen: [],
           openDagen: dagen('2026-07-06:2', '2026-07-08:1.5', '2026-07-10:2'),
@@ -159,6 +173,7 @@ describe('solveWeek', () => {
 
   it('ftp/basis: zonder bekende historie wordt de eerste Z2-dag kracht_lage_cadans (1x/2 weken, geen eerdere toewijzing bekend)', () => {
     const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'basis', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
       weekTssDoel: 200, vasteDagen: [],
       openDagen: dagen('2026-07-06:2', '2026-07-08:1.5'),
@@ -169,6 +184,7 @@ describe('solveWeek', () => {
 
   it('ftp/basis (1x/2 weken): binnen het interval sinds de laatste toewijzing -> geen nieuwe kracht_lage_cadans', () => {
     const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'basis', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
       weekTssDoel: 200, vasteDagen: [],
       openDagen: dagen('2026-07-06:2', '2026-07-08:1.5'),
@@ -180,6 +196,7 @@ describe('solveWeek', () => {
 
   it('ftp/basis (1x/2 weken): interval verstreken -> weer toegestaan', () => {
     const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'basis', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
       weekTssDoel: 200, vasteDagen: [],
       openDagen: dagen('2026-07-06:2', '2026-07-08:1.5'),
@@ -191,6 +208,7 @@ describe('solveWeek', () => {
 
   it('klimmen/sweetspot (1x/week): elke week opnieuw toegestaan', () => {
     const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'klimmen',
       weekTssDoel: 300, vasteDagen: [],
       openDagen: dagen('2026-07-06:2', '2026-07-08:1.5'),
@@ -204,6 +222,7 @@ describe('solveWeek', () => {
     for (const doel of ['klimmen', 'ftp']) {
       for (const fase of ['overgangsfase', 'consolidatie', 'test']) {
         const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
           fase, weekInFase: 1, weektype: 'opbouw', seizoensdoel: doel,
           weekTssDoel: 200, vasteDagen: [], openDagen: dagen('2026-07-06:2'), alGeleverd: {}, tsb: 0,
         })
@@ -214,6 +233,7 @@ describe('solveWeek', () => {
 
   it('herstelweek: kracht_lage_cadans wordt niet toegewezen, ook niet als de fase het normaal toestaat', () => {
     const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'basis', weekInFase: 1, weektype: 'herstel', seizoensdoel: 'ftp',
       weekTssDoel: 100, vasteDagen: [], openDagen: dagen('2026-07-06:2'), alGeleverd: {}, tsb: 0,
     })
@@ -227,6 +247,7 @@ describe('solveWeek', () => {
 
   it('sprint, Sprintkracht-fase: max 2 sprint_neuraal-dagen, nooit aangrenzend', () => {
     const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'sprint',
       weekTssDoel: 300, vasteDagen: [],
       openDagen: dagen('2026-07-06:2', '2026-07-07:1.5', '2026-07-10:2', '2026-07-12:1.5'),
@@ -243,6 +264,7 @@ describe('solveWeek', () => {
 
   it('sprint: geen extra sprint_neuraal-dag als er al één deze week geleverd is (vaste dag)', () => {
     const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'sprint',
       weekTssDoel: 300,
       vasteDagen: [{ datum: '2026-07-05', sessietype: 'sprint_neuraal', tss_doel: 40, status: 'voltooid' }],
@@ -262,6 +284,7 @@ describe('regressie: herstelweek-budget genegeerd door vasteDagen (diagnoserappo
     const vasteDagenTss = vasteDagen.reduce((s, d) => s + (d.tss_doel ?? 0), 0) // 100
 
     const ruweToewijzingen = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
       fase: 'basis', weekInFase: 2, weektype: 'herstel', seizoensdoel: 'ftp',
       weekTssDoel: 144, vasteDagen,
       openDagen: dagen('2026-07-08:1.5', '2026-07-10:2', '2026-07-11:1.5'),
@@ -371,6 +394,7 @@ describe('haalPrioriteitOp', () => {
       // weekInFase 2 van 2 (niet 3) om niet te botsen met de losstaande
       // vrijheidsdag-uitzondering, die zelf ook op weekInFase===3 triggert.
       const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
         fase: 'drempel', weekInFase: 2, aantalWekenInFase: 2, weektype: 'opbouw', seizoensdoel: 'klimmen',
         weekTssDoel: 300, vasteDagen: [],
         openDagen: dagen('2026-07-06:3', '2026-07-08:1.5', '2026-07-10:2'),
@@ -384,6 +408,7 @@ describe('haalPrioriteitOp', () => {
 
     it('let op: bij een 3-weekse periode valt de laatste week (weekInFase=3) samen met de losstaande vrijheidsdag-uitzondering — secundair-slot wordt dan gemengd, niet drempel_intervallen', () => {
       const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
         fase: 'drempel', weekInFase: 3, aantalWekenInFase: 3, weektype: 'opbouw', seizoensdoel: 'klimmen',
         weekTssDoel: 300, vasteDagen: [],
         openDagen: dagen('2026-07-06:3', '2026-07-08:1.5', '2026-07-10:2'),
@@ -410,7 +435,7 @@ describe('haalPrioriteitOp', () => {
 describe('berekenZ2AandeelSessietype', () => {
   it('z2_duur ligt dicht bij 1.0, behalve archetypes met bewust ingebouwde Z3-snippers', () => {
     for (const archetype of VARIANT_ARCHETYPES.z2_duur) {
-      const fractie = berekenZ2AandeelSessietype('z2_duur', archetype.id)
+      const fractie = berekenZ2AandeelSessietype(ARCHETYPES_FIXTURE, 'z2_duur', archetype.id)
       if (archetype.id === 'z2_tempo_blokken' || archetype.id === 'z2_tempo_teugjes') {
         // "ingekapselde Z3-blokken" — bewust geen zuivere Z2-rit, zie archetype-structuur
         expect(fractie).toBeGreaterThan(0.3)
@@ -422,28 +447,28 @@ describe('berekenZ2AandeelSessietype', () => {
   })
 
   it('vo2max_intervallen/vo2_5x5 ligt tussen 0.5 en 0.7 (5min werk/5min Z2-herstel, ~1:1)', () => {
-    const fractie = berekenZ2AandeelSessietype('vo2max_intervallen', 'vo2_5x5')
+    const fractie = berekenZ2AandeelSessietype(ARCHETYPES_FIXTURE, 'vo2max_intervallen', 'vo2_5x5')
     expect(fractie).toBeGreaterThanOrEqual(0.5)
     expect(fractie).toBeLessThanOrEqual(0.7)
   })
 
   it('sweetspot_intervallen: alleen de Z2-hersteltijd tussen blokken, geen warmup/cooldown in de blokdata', () => {
     for (const archetype of VARIANT_ARCHETYPES.sweetspot_intervallen) {
-      const fractie = berekenZ2AandeelSessietype('sweetspot_intervallen', archetype.id)
+      const fractie = berekenZ2AandeelSessietype(ARCHETYPES_FIXTURE, 'sweetspot_intervallen', archetype.id)
       expect(fractie).toBeGreaterThan(0.15)
       expect(fractie).toBeLessThan(0.5)
     }
   })
 
   it('gooit een duidelijke error bij een onbekende combinatie, geen silent 0', () => {
-    expect(() => berekenZ2AandeelSessietype('z2_duur', 'bestaat_niet')).toThrow(/geen variantendata/)
-    expect(() => berekenZ2AandeelSessietype('onbekend_type', 'iets')).toThrow(/geen variantendata/)
+    expect(() => berekenZ2AandeelSessietype(ARCHETYPES_FIXTURE, 'z2_duur', 'bestaat_niet')).toThrow(/geen variantendata/)
+    expect(() => berekenZ2AandeelSessietype(ARCHETYPES_FIXTURE, 'onbekend_type', 'iets')).toThrow(/geen variantendata/)
   })
 
   it('geen NaN of >1.0 voor alle 42 archetypes', () => {
     for (const [sessietype, archetypes] of Object.entries(VARIANT_ARCHETYPES)) {
       for (const archetype of archetypes) {
-        const fractie = berekenZ2AandeelSessietype(sessietype, archetype.id)
+        const fractie = berekenZ2AandeelSessietype(ARCHETYPES_FIXTURE, sessietype, archetype.id)
         expect(Number.isNaN(fractie)).toBe(false)
         expect(fractie).toBeGreaterThanOrEqual(0)
         expect(fractie).toBeLessThanOrEqual(1.0)

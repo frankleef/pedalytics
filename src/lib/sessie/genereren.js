@@ -17,11 +17,12 @@ import { corrigeerSessieTss } from "./tssValidatie";
 import { capSessieDuur } from "./duurCap";
 import {
   getArchetypesVoorSessietype,
+  getArchetypesVoorSessietypeRaw,
   getRecenteArchetypes,
   selecteerArchetype,
   slaArchetypeOp,
 } from "../sessie-archetypes";
-import { vindArchetypeMetVarianten, selecteerVariantOpDagvorm, genereerSessieDeterministisch } from "../sessie-generatie";
+import { selecteerVariantOpDagvorm, genereerSessieDeterministisch } from "../sessie-generatie";
 import { bepaalHrvZone } from "../hrv/zone";
 
 /**
@@ -65,7 +66,8 @@ export async function genereerSessieDag(ctx) {
     );
   }
 
-  const archetypes = getArchetypesVoorSessietype(effectiefSessietype, huidigeFase, weekInFase, plan?.seizoensdoel?.type ?? null);
+  const archetypesVoorType = await getArchetypesVoorSessietypeRaw(effectiefSessietype, kv);
+  const archetypes = getArchetypesVoorSessietype(archetypesVoorType, huidigeFase, weekInFase, plan?.seizoensdoel?.type ?? null);
   if (archetypes.length === 0) {
     throw new Error(
       `genereerSessieDag: geen archetypes beschikbaar voor sessietype "${effectiefSessietype}" (fase "${huidigeFase}", week ${weekInFase}) op ${datum}.`
@@ -73,12 +75,14 @@ export async function genereerSessieDag(ctx) {
   }
 
   const recenteArchetypes = await getRecenteArchetypes(kv, userId, effectiefSessietype);
+  // getArchetypesVoorSessietype() filtert al vanuit KV-data waarin metadata en
+  // varianten/blokken samengevoegd zijn (zie migratiescript) — gekozenArchetype
+  // draagt dus al .varianten, geen aparte vindArchetypeMetVarianten-lookup nodig.
   const gekozenArchetype = selecteerArchetype(archetypes, recenteArchetypes);
-  const archetypeMetVarianten = gekozenArchetype ? vindArchetypeMetVarianten(effectiefSessietype, gekozenArchetype.id) : null;
 
-  if (!archetypeMetVarianten?.varianten?.length) {
+  if (!gekozenArchetype?.varianten?.length) {
     throw new Error(
-      `genereerSessieDag: geen variantendata voor archetype "${gekozenArchetype?.id}" (sessietype "${effectiefSessietype}") op ${datum} — elk bekend archetype hoort variantendata te hebben in sessie-varianten.js.`
+      `genereerSessieDag: geen variantendata voor archetype "${gekozenArchetype?.id}" (sessietype "${effectiefSessietype}") op ${datum} — elk bekend archetype hoort variantendata te hebben (KV: archetypes:${effectiefSessietype}).`
     );
   }
 
@@ -87,7 +91,7 @@ export async function genereerSessieDag(ctx) {
   const rpeTrend = (await kv.get(`rpe_trend:${userId}`)) ?? 0;
   const dagvorm = { tsb, hrv: hrvZone, rpeDeltaTrend: rpeTrend };
 
-  const { variant, doelGewicht } = await selecteerVariantOpDagvorm(kv, archetypeMetVarianten, userId, dagvorm);
+  const { variant, doelGewicht } = await selecteerVariantOpDagvorm(kv, gekozenArchetype, userId, dagvorm);
 
   const sessie = genereerSessieDeterministisch({
     dagIntentie,

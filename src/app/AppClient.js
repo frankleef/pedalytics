@@ -90,6 +90,10 @@ export default function Page() {
   const [weerData, setWeerData] = useState(null);
   const [checkinScore, setCheckinScore] = useState(undefined);
   const [toastZichtbaar, setToastZichtbaar] = useState(false);
+  // Eén keer opgehaald bij het laden van de app — nodig als parameter voor de
+  // pure, client-side archetype-functies (bepaalNieuweIntentie/degradeerSessie/
+  // solveWeek), die zelf geen KV-toegang hebben. Zie sessie-archetypes.js.
+  const [archetypesData, setArchetypesData] = useState(null);
 
   const tabHistoryRef = useRef([]);
   const backPressTimerRef = useRef(null);
@@ -177,6 +181,10 @@ export default function Page() {
     navigator.serviceWorker?.addEventListener("message", swHandler);
 
     fetch("/api/intervals/profiel").then(r => r.json()).then(d => {
+      if (d.intervalsAuthFailed) {
+        window.location.href = "/onboarding/intervals?herstel=1";
+        return;
+      }
       if (d.success && d.data) {
         setProfiel(p => ({ ...p, ...d.data }));
         // Profiel OK → laad plan
@@ -204,6 +212,7 @@ export default function Page() {
     }).catch(() => {});
     laadDagelijkseData();
     laadRecenteRitten();
+    fetch("/api/archetypes").then(r => r.json()).then(d => { if (d.success) setArchetypesData(d.data); }).catch(() => {});
     fetch("/api/weer").then(r => r.json()).then(d => { if (d.success) setWeerData(d.data); }).catch(() => {});
     fetch("/api/checkin").then(r => r.json()).then(d => { setCheckinScore(d.success && d.data ? d.data.score : null); }).catch(() => { setCheckinScore(null); });
 
@@ -621,7 +630,7 @@ export default function Page() {
       const sessie = huidigeSessies.find(s => s.datum === datum);
       if (!sessie || sessie.voltooid) continue;
 
-      const nieuweSessie = degradeerSessie(sessie, PROFIEL.ftp);
+      const nieuweSessie = degradeerSessie(archetypesData, sessie, PROFIEL.ftp);
       if (nieuweSessie) {
         normaliseerSessieSegmenten(nieuweSessie);
         voegVerwachtRpeToe(nieuweSessie);
@@ -674,7 +683,7 @@ export default function Page() {
     const bijgewerkt = { ...seizoensplan, weekSessies: nieuweWeekSessies };
     setSeizoensplan(bijgewerkt);
     fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bijgewerkt) });
-  }, [weekSessies, seizoensplan]);
+  }, [weekSessies, seizoensplan, archetypesData]);
 
   const handleBeschikbaarheidOpslaan = useCallback(async (data) => {
     const generatieId = `${Date.now()}-${Math.random()}`;
@@ -1090,7 +1099,7 @@ export default function Page() {
     const weekInFase = weekInFaseVoorKaderWeek(kaderWeek, seizoensplan?.kader);
     const seizoensdoel = seizoensplan?.seizoensdoel?.type ?? null;
 
-    const nieuweIntentie = bepaalNieuweIntentie(sessie.intentie, reden, fase, sessie.hrv_zone ?? null, weekInFase, seizoensdoel);
+    const nieuweIntentie = bepaalNieuweIntentie(archetypesData, sessie.intentie, reden, fase, sessie.hrv_zone ?? null, weekInFase, seizoensdoel);
     if (!nieuweIntentie) return;
 
     const DAGNAMEN_LOC = ["Zondag", "Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag"];
@@ -1157,7 +1166,7 @@ export default function Page() {
     const eindPlan = { ...seizoensplan, weekSessies: eindWeekSessies };
     setSeizoensplan(eindPlan);
     fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(eindPlan) });
-  }, [weekSessies, seizoensplan, urenPerDag, genereerSessieDagViaJob]);
+  }, [weekSessies, seizoensplan, urenPerDag, genereerSessieDagViaJob, archetypesData]);
 
   return (
     <div style={{ minHeight: "100vh", fontFamily: "var(--font-nunito), 'Nunito', sans-serif" }}>

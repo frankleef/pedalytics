@@ -1,9 +1,19 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function IntervalsOnboardingPage() {
-  const [stap, setStap] = useState(1);
+  return (
+    <Suspense fallback={null}>
+      <IntervalsOnboardingInner />
+    </Suspense>
+  );
+}
+
+function IntervalsOnboardingInner() {
+  const searchParams = useSearchParams();
+  const isHerstel = searchParams.get("herstel") === "1";
+  const [stap, setStap] = useState(isHerstel ? 2 : 1);
   const [heeftAccount, setHeeftAccount] = useState(null);
   const [apiKey, setApiKey] = useState("");
   const [toonKey, setToonKey] = useState(false);
@@ -12,6 +22,7 @@ export default function IntervalsOnboardingPage() {
   const router = useRouter();
 
   useEffect(() => {
+    if (isHerstel) return;
     fetch("/api/onboarding/intervals").then(r => r.json()).then(d => {
       if (d.success && d.heeftKey) router.push("/");
     }).catch(() => {});
@@ -90,8 +101,8 @@ export default function IntervalsOnboardingPage() {
           <div style={{ width: 72, height: 72, borderRadius: 22, background: "linear-gradient(140deg, oklch(0.64 0.14 248), oklch(0.79 0.14 168))", margin: "0 auto 20px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 10px 28px rgba(40,90,140,0.3)" }}>
             <svg width="34" height="34" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="#fff" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </div>
-          <h1 style={{ margin: "0 0 8px", font: "800 26px var(--font-nunito), sans-serif", color: "oklch(0.27 0.02 70)" }}>Welkom, {statusData?.naam || "atleet"}!</h1>
-          <p style={{ margin: 0, font: "600 15px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.5 0.02 74)" }}>Je coach staat klaar. Laten we je eerste doel instellen.</p>
+          <h1 style={{ margin: "0 0 8px", font: "800 26px var(--font-nunito), sans-serif", color: "oklch(0.27 0.02 70)" }}>{isHerstel ? "Koppeling hersteld" : `Welkom, ${statusData?.naam || "atleet"}!`}</h1>
+          <p style={{ margin: 0, font: "600 15px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.5 0.02 74)" }}>{isHerstel ? "Je intervals.icu-koppeling werkt weer. Je gaat terug naar je overzicht." : "Je coach staat klaar. Laten we je eerste doel instellen."}</p>
         </div>
       </div>
     );
@@ -102,23 +113,28 @@ export default function IntervalsOnboardingPage() {
       {/* Header */}
       <div style={{ flexShrink: 0, padding: "16px 22px 0" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-          <div onClick={() => stap === 2 ? setStap(1) : router.back()} style={{ width: 42, height: 42, borderRadius: "50%", background: "oklch(0.99 0.006 84)", border: "1px solid oklch(0.91 0.012 82)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 2px 8px rgba(60,45,20,0.05)" }}>
+          <div onClick={() => (stap === 2 && !isHerstel) ? setStap(1) : router.back()} style={{ width: 42, height: 42, borderRadius: "50%", background: "oklch(0.99 0.006 84)", border: "1px solid oklch(0.91 0.012 82)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 2px 8px rgba(60,45,20,0.05)" }}>
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M15 5l-7 7 7 7" stroke="oklch(0.3 0.02 70)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </div>
-          <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: "oklch(0.5 0.02 74)" }}>Stap {stap} van 2</span>
-          <span onClick={handleOverslaan} style={{ font: "700 13px var(--font-nunito), sans-serif", color: "oklch(0.55 0.13 200)", cursor: "pointer" }}>Overslaan</span>
+          <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: "oklch(0.5 0.02 74)" }}>{isHerstel ? "Koppeling herstellen" : `Stap ${stap} van 2`}</span>
+          {!isHerstel && <span onClick={handleOverslaan} style={{ font: "700 13px var(--font-nunito), sans-serif", color: "oklch(0.55 0.13 200)", cursor: "pointer" }}>Overslaan</span>}
+          {isHerstel && <span style={{ width: 60 }} />}
         </div>
         {/* Progress */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
-          <div style={{ flex: 1, height: 6, borderRadius: 999, background: "linear-gradient(90deg, oklch(0.62 0.14 248), oklch(0.79 0.14 168))" }} />
-          <div style={{ flex: 1, height: 6, borderRadius: 999, background: stap === 2 ? "linear-gradient(90deg, oklch(0.62 0.14 248), oklch(0.79 0.14 168))" : "oklch(0.9 0.012 82)" }} />
-        </div>
-        <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.6, color: "oklch(0.6 0.02 75)" }}>INTERVALS.ICU KOPPELEN</span>
+        {!isHerstel && (
+          <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+            <div style={{ flex: 1, height: 6, borderRadius: 999, background: "linear-gradient(90deg, oklch(0.62 0.14 248), oklch(0.79 0.14 168))" }} />
+            <div style={{ flex: 1, height: 6, borderRadius: 999, background: stap === 2 ? "linear-gradient(90deg, oklch(0.62 0.14 248), oklch(0.79 0.14 168))" : "oklch(0.9 0.012 82)" }} />
+          </div>
+        )}
+        <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.6, color: "oklch(0.6 0.02 75)" }}>{isHerstel ? "INTERVALS.ICU HERSTELLEN" : "INTERVALS.ICU KOPPELEN"}</span>
         <h1 style={{ margin: "6px 0 8px", font: "800 26px/1.2 var(--font-nunito), sans-serif", letterSpacing: -0.5, color: "oklch(0.27 0.02 70)" }}>
-          {stap === 1 ? "Kopieer je API-sleutel" : "Plak je API-sleutel"}
+          {isHerstel ? "Verbind opnieuw" : stap === 1 ? "Kopieer je API-sleutel" : "Plak je API-sleutel"}
         </h1>
         <p style={{ margin: "0 0 4px", font: "600 14px/1.45 var(--font-nunito), sans-serif", color: "oklch(0.5 0.02 74)" }}>
-          {stap === 1 ? "We gebruiken je intervals.icu-account om trainingsdata en herstelgegevens op te halen." : "Plak de API-sleutel die je zojuist hebt gekopieerd."}
+          {isHerstel
+            ? "Je intervals.icu-koppeling werkt niet meer — bijvoorbeeld na het regenereren van je API-sleutel. Haal een nieuwe sleutel op en plak die hieronder."
+            : stap === 1 ? "We gebruiken je intervals.icu-account om trainingsdata en herstelgegevens op te halen." : "Plak de API-sleutel die je zojuist hebt gekopieerd."}
         </p>
       </div>
 
@@ -174,6 +190,13 @@ export default function IntervalsOnboardingPage() {
 
         {stap === 2 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {isHerstel && (
+              <a href="https://intervals.icu/settings" target="_blank" rel="noopener"
+                style={{ textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 9, padding: 14, borderRadius: 999, background: "oklch(0.24 0.012 70)", color: "oklch(0.97 0.01 84)", font: "800 14.5px var(--font-nunito), sans-serif", letterSpacing: 0.2 }}>
+                Open intervals.icu-instellingen
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M14 4h6v6M20 4l-9 9M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" stroke="oklch(0.97 0.01 84)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </a>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
               <label style={{ font: "800 12.5px var(--font-nunito), sans-serif", letterSpacing: 0.3, color: "oklch(0.4 0.02 72)" }}>API-sleutel</label>
               <div style={{ position: "relative", display: "flex", gap: 8 }}>
@@ -242,24 +265,26 @@ export default function IntervalsOnboardingPage() {
       </div>
 
       {/* Footer */}
-      <div style={{ flexShrink: 0, padding: "14px 22px 22px", background: "oklch(0.99 0.006 84)", borderTop: "1px solid oklch(0.91 0.012 82)" }}>
-        <div style={{ display: "flex", gap: 11 }}>
-          {stap === 2 && (
-            <button onClick={() => setStap(1)} style={{ flexShrink: 0, padding: "15px 22px", borderRadius: 999, border: "1.5px solid oklch(0.86 0.014 80)", background: "transparent", color: "oklch(0.4 0.02 72)", font: "800 15px var(--font-nunito), sans-serif", cursor: "pointer" }}>Terug</button>
-          )}
-          <button onClick={stap === 1 ? () => setStap(2) : isConnected ? handleKlaar : handleOverslaan}
-            style={{ flex: 1, border: "none", cursor: "pointer", padding: 15, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              background: (stap === 1 || isConnected) ? "oklch(0.24 0.012 70)" : "transparent",
-              color: (stap === 1 || isConnected) ? "oklch(0.97 0.01 84)" : "oklch(0.5 0.02 74)",
-              font: "800 15.5px var(--font-nunito), sans-serif", letterSpacing: 0.2,
-            }}>
-            {stap === 1 ? "Volgende" : isConnected ? "Klaar" : "Sla over voor nu"}
-            {(stap === 1 || isConnected) && (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 5l7 7-7 7" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      {(!isHerstel || isConnected) && (
+        <div style={{ flexShrink: 0, padding: "14px 22px 22px", background: "oklch(0.99 0.006 84)", borderTop: "1px solid oklch(0.91 0.012 82)" }}>
+          <div style={{ display: "flex", gap: 11 }}>
+            {stap === 2 && !isHerstel && (
+              <button onClick={() => setStap(1)} style={{ flexShrink: 0, padding: "15px 22px", borderRadius: 999, border: "1.5px solid oklch(0.86 0.014 80)", background: "transparent", color: "oklch(0.4 0.02 72)", font: "800 15px var(--font-nunito), sans-serif", cursor: "pointer" }}>Terug</button>
             )}
-          </button>
+            <button onClick={stap === 1 ? () => setStap(2) : isConnected ? handleKlaar : handleOverslaan}
+              style={{ flex: 1, border: "none", cursor: "pointer", padding: 15, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                background: (stap === 1 || isConnected) ? "oklch(0.24 0.012 70)" : "transparent",
+                color: (stap === 1 || isConnected) ? "oklch(0.97 0.01 84)" : "oklch(0.5 0.02 74)",
+                font: "800 15.5px var(--font-nunito), sans-serif", letterSpacing: 0.2,
+              }}>
+              {stap === 1 ? "Volgende" : isConnected ? "Klaar" : "Sla over voor nu"}
+              {(stap === 1 || isConnected) && (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 5l7 7-7 7" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              )}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }

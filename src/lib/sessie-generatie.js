@@ -1,10 +1,12 @@
 // Deterministische sessiegeneratie op basis van archetype + variant (sectie 46).
-// Varianten (concrete blokken, pct_ftp, duur_pct) staan in sessie-varianten.js.
-// Archetype-metadata (fase/week-filtering, rotatie) staat in sessie-archetypes.js.
+// Archetypes (metadata + concrete blokken/varianten samengevoegd) komen sinds de
+// KV-migratie (admin sessie-archetype-beheer) niet meer uit een statische import
+// hier, maar worden door de caller aangeleverd (KV-gelezen server-side, of
+// eenmalig client-side opgehaald via GET /api/archetypes) — zie
+// vindArchetypeMetVarianten hieronder.
 
 import { berekenSpread, cadansVoorBlok } from "./vermogensbereik";
 import { berekenVerwachtRpe } from "./sessie/rpe";
-import { SESSIE_ARCHETYPES as VARIANT_ARCHETYPES } from "./sessie-varianten";
 
 const HERSTEL_MIN_SEC = 60;
 const WERK_MIN_SEC = 90;
@@ -105,14 +107,18 @@ export function bepaalMaximumBlokduur(sessietype, archetypeId, blok) {
 }
 
 /**
- * Zoekt de concrete variantendata voor een archetype-id (uit sessie-archetypes.js)
- * binnen het gegeven sessietype. Retourneert null als er geen variantendata is
- * (bv. z2_heuvel, z2_tempo_teugjes, race_simulatie, vo2_microbursts) — dan moet
- * de aanroeper terugvallen op Claude.
+ * Zoekt één archetype (met samengevoegde metadata + varianten/blokken) op id,
+ * binnen een array die de caller al heeft opgehaald voor één sessietype (server:
+ * getArchetypesVoorSessietypeRaw(sessietype); client: archetypesData[sessietype]
+ * uit de eenmalige GET /api/archetypes-fetch). Pure, synchrone lookup — geen
+ * KV-afhankelijkheid, dus ook client-side aanroepbaar.
+ *
+ * @param {Array} archetypes - archetypes voor één sessietype
+ * @param {string} archetypeId
+ * @returns {object|null}
  */
-export function vindArchetypeMetVarianten(sessietype, archetypeId) {
-  const kandidaten = VARIANT_ARCHETYPES[sessietype] || [];
-  return kandidaten.find(a => a.id === archetypeId) || null;
+export function vindArchetypeMetVarianten(archetypes, archetypeId) {
+  return (archetypes || []).find(a => a.id === archetypeId) || null;
 }
 
 function normaliseerCadans(cadansRpm) {

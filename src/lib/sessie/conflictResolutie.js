@@ -80,15 +80,17 @@ function kiesLichtsteVariant(archetype) {
  * gevonden kan worden, of de sessie al de lichtste variant heeft — de caller
  * moet dit als "onopgelost conflict" behandelen (loggen, niet crashen).
  *
+ * @param {Object<string, Array>} archetypesData - alle archetypes per sessietype
+ *   (server: getAlleArchetypesRaw(); client: eenmalige GET /api/archetypes-fetch)
  * @param {object} sessie - bestaande sessie (moet .archetype_id, .intentie.sessietype hebben)
  * @param {number} ftp
  * @returns {object|null} nieuwe, lichtere sessie, of null als degraderen niet mogelijk is
  */
-export function degradeerSessie(sessie, ftp) {
+export function degradeerSessie(archetypesData, sessie, ftp) {
   const sessietype = sessie.intentie?.sessietype || sessie.type;
   if (!sessie.archetype_id || !sessietype) return null;
 
-  const archetype = vindArchetypeMetVarianten(sessietype, sessie.archetype_id);
+  const archetype = vindArchetypeMetVarianten(archetypesData?.[sessietype] ?? [], sessie.archetype_id);
   if (!archetype) return null;
 
   const lichtsteVariant = kiesLichtsteVariant(archetype);

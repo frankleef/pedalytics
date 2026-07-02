@@ -26,23 +26,25 @@ const KANDIDATEN_PER_ROL = {
   hersteldag: ["z2_duur"],
 };
 
-function kiesAlternatiefSessietype(origineelType, rol, fase, weekInFase, seizoensdoel) {
+function kiesAlternatiefSessietype(archetypesData, origineelType, rol, fase, weekInFase, seizoensdoel) {
   const kandidaten = (KANDIDATEN_PER_ROL[rol] ?? ["z2_duur"]).filter(t => t !== origineelType);
 
   for (const kandidaat of kandidaten) {
-    if (getArchetypesVoorSessietype(kandidaat, fase, weekInFase, seizoensdoel).length > 0) {
+    if (getArchetypesVoorSessietype(archetypesData?.[kandidaat] ?? [], fase, weekInFase, seizoensdoel).length > 0) {
       return kandidaat;
     }
   }
   // Niets uit de kandidatenlijst is bereikbaar in deze context — val terug op
   // z2_duur (altijd bereikbaar), tenzij dat toevallig het origineletype was.
-  if (origineelType !== "z2_duur" && getArchetypesVoorSessietype("z2_duur", fase, weekInFase, seizoensdoel).length > 0) {
+  if (origineelType !== "z2_duur" && getArchetypesVoorSessietype(archetypesData?.["z2_duur"] ?? [], fase, weekInFase, seizoensdoel).length > 0) {
     return "z2_duur";
   }
   return origineelType;
 }
 
 /**
+ * @param {Object<string, Array>} archetypesData - alle archetypes per sessietype
+ *   (server: getAlleArchetypesRaw(); client: eenmalige GET /api/archetypes-fetch)
  * @param {object} origineleIntentie
  * @param {string|null} reden
  * @param {string} fase
@@ -50,7 +52,7 @@ function kiesAlternatiefSessietype(origineelType, rol, fase, weekInFase, seizoen
  * @param {number} [weekInFase] - voor de fase-reikbaarheidscheck; default 1
  * @param {string} [seizoensdoel] - voor doel_beperking-filtering; optioneel
  */
-export function bepaalNieuweIntentie(origineleIntentie, reden, fase, hrvZone, weekInFase = 1, seizoensdoel = null) {
+export function bepaalNieuweIntentie(archetypesData, origineleIntentie, reden, fase, hrvZone, weekInFase = 1, seizoensdoel = null) {
   if (!origineleIntentie) return null;
 
   const effectieveReden = reden ?? (hrvZone === "rood" ? "vermoeid" : null);
@@ -71,6 +73,7 @@ export function bepaalNieuweIntentie(origineleIntentie, reden, fase, hrvZone, we
   }
 
   const alternatief = kiesAlternatiefSessietype(
+    archetypesData,
     origineleIntentie.sessietype,
     origineleIntentie.rol,
     fase,

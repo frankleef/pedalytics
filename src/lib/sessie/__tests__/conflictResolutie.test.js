@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { detecteerWeekConflicten, degradeerSessie, corrigeerWeekBudget } from '../conflictResolutie.js'
+import { ARCHETYPES_FIXTURE } from '../../__tests__/fixtures/archetypesFixture.js'
 
 describe('detecteerWeekConflicten', () => {
   const kaderWeek = { tss_doel: 300 }
@@ -63,7 +64,7 @@ describe('degradeerSessie', () => {
       variant_id: 'ss_std_3x20', // gewicht 2, niet de lichtste
       duur_min: 90,
     }
-    const resultaat = degradeerSessie(sessie, 265)
+    const resultaat = degradeerSessie(ARCHETYPES_FIXTURE, sessie, 265)
     expect(resultaat).not.toBeNull()
     expect(resultaat.archetype_id).toBe('ss_standaard')
     expect(resultaat.variant_id).toBe('ss_std_3x15') // gewicht 1, de lichtste
@@ -79,17 +80,17 @@ describe('degradeerSessie', () => {
       variant_id: 'ss_std_3x15', // al de lichtste
       duur_min: 90,
     }
-    expect(degradeerSessie(sessie, 265)).toBeNull()
+    expect(degradeerSessie(ARCHETYPES_FIXTURE, sessie, 265)).toBeNull()
   })
 
   it('retourneert null zonder archetype_id (kan niet degraderen)', () => {
     const sessie = { datum: '2026-07-07', intentie: { sessietype: 'sweetspot_intervallen' }, duur_min: 90 }
-    expect(degradeerSessie(sessie, 265)).toBeNull()
+    expect(degradeerSessie(ARCHETYPES_FIXTURE, sessie, 265)).toBeNull()
   })
 
   it('retourneert null voor een onbekend archetype_id', () => {
     const sessie = { datum: '2026-07-07', intentie: { sessietype: 'sweetspot_intervallen' }, archetype_id: 'bestaat_niet', duur_min: 90 }
-    expect(degradeerSessie(sessie, 265)).toBeNull()
+    expect(degradeerSessie(ARCHETYPES_FIXTURE, sessie, 265)).toBeNull()
   })
 })
 

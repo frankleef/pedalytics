@@ -14,6 +14,7 @@ import { genereerSessieDag } from "@/lib/sessie/genereren";
 import { voegSprintStaartjesToe, voegTempoAfsluiterToe } from "@/lib/sessie/segmentStaart";
 import { solveWeek, pasBudgetToe } from "@/lib/sessie/weekSolver";
 import { bepaalAlGeleverd } from "@/lib/sessie/context";
+import { getAlleArchetypesRaw } from "@/lib/sessie-archetypes";
 
 const VERBODEN_TYPES_VOLUMECORRECTIE = ["kracht_lage_cadans", "sprint_neuraal"];
 
@@ -52,6 +53,10 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
 
   const creds = await getIntervalsCredentials(userId);
   if (!creds) return { status: "geen_credentials" };
+
+  // Eén keer opgehaald (cache-first, zie sessie-archetypes.js) — solveWeek()
+  // wijst binnen deze run mogelijk meerdere weken/sessietypes toe.
+  const archetypesData = await getAlleArchetypesRaw();
 
   const vandaag = vandaagISO();
   const beschikbareDagen = Object.entries(plan.beschikbaarheid).filter(([, v]) => v).map(([k]) => k);
@@ -248,6 +253,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       const alGeleverd = await bepaalAlGeleverd(userId, mISO);
       const tsbDezeWeek = tsbVanWellness(wellnessPerWeek[mISO]);
       const ruweToewijzingen = solveWeek({
+        archetypesData,
         fase: huidigeFaseVoorDeze,
         weekInFase: weekInFaseVoorDeze,
         weektype: kaderWeekVoorDeze?.weektype || 'opbouw',

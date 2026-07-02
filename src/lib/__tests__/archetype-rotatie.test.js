@@ -5,6 +5,7 @@ import {
   getRecenteArchetypes,
   slaArchetypeOp,
 } from '../sessie-archetypes.js'
+import { ARCHETYPES_FIXTURE } from './fixtures/archetypesFixture.js'
 
 function maakKvMock() {
   const store = new Map()
@@ -75,7 +76,7 @@ describe('selecteerArchetype — pure rotatielogica', () => {
 
 describe('selecteerArchetype — rotatie over meerdere sessies', () => {
   it('over 5 sessies sweetspot week 1: minstens 3 verschillende archetypes gekozen', () => {
-    const archetypes = getArchetypesVoorSessietype('sweetspot_intervallen', 'sweetspot', 1)
+    const archetypes = getArchetypesVoorSessietype(ARCHETYPES_FIXTURE['sweetspot_intervallen'], 'sweetspot', 1)
     expect(archetypes.length).toBeGreaterThanOrEqual(3)
 
     const recent = []
@@ -93,7 +94,7 @@ describe('selecteerArchetype — rotatie over meerdere sessies', () => {
   })
 
   it('over 5 drempel-sessies: nooit twee keer hetzelfde achter elkaar', () => {
-    const archetypes = getArchetypesVoorSessietype('drempel_intervallen', 'drempel', 2)
+    const archetypes = getArchetypesVoorSessietype(ARCHETYPES_FIXTURE['drempel_intervallen'], 'drempel', 2)
     expect(archetypes.length).toBeGreaterThanOrEqual(2)
 
     const recent = []
@@ -112,7 +113,7 @@ describe('selecteerArchetype — rotatie over meerdere sessies', () => {
   })
 
   it('6 gemengd-sessies in vrijheidsfase: minstens 4 unieke archetypes', () => {
-    const archetypes = getArchetypesVoorSessietype('gemengd', 'drempel', 3)
+    const archetypes = getArchetypesVoorSessietype(ARCHETYPES_FIXTURE['gemengd'], 'drempel', 3)
     expect(archetypes.length).toBeGreaterThanOrEqual(4)
 
     const recent = []
@@ -145,7 +146,7 @@ describe('KV-rotatiestroom — slaArchetypeOp + getRecenteArchetypes', () => {
 
   it('tweede sessie: kiest nooit hetzelfde als de eerste (via KV)', async () => {
     const kv = maakKvMock()
-    const archetypes = getArchetypesVoorSessietype('z2_duur', 'basis', 1)
+    const archetypes = getArchetypesVoorSessietype(ARCHETYPES_FIXTURE['z2_duur'], 'basis', 1)
     expect(archetypes.length).toBeGreaterThanOrEqual(2)
 
     const recent1 = await getRecenteArchetypes(kv, USER_ID, 'z2_duur')
