@@ -390,6 +390,15 @@ export default function ProfielScherm({ profiel, seizoensplan, weerData, initial
           {checkin && <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.5 0.13 162)", marginTop: 10 }}>Tik opnieuw om aan te passen</div>}
         </div>
 
+        {/* Admin — alleen zichtbaar voor de beheerder */}
+        {profiel?.isAdmin && (
+          <a href="/admin/archetypes"
+            style={{ width: "100%", border: `1.5px solid ${T.cardBorder}`, borderRadius: 20, background: T.cardBg, cursor: "pointer", padding: 15, display: "flex", alignItems: "center", justifyContent: "center", gap: 9, marginBottom: 16, textDecoration: "none", boxSizing: "border-box" }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" stroke={T.textSec} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke={T.textSec} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <span style={{ font: "800 14.5px var(--font-nunito), sans-serif", color: T.textSec }}>Sessie-archetypes beheren</span>
+          </a>
+        )}
+
         {/* Uitloggen */}
         <button onClick={onUitloggen}
           style={{ width: "100%", border: "1px solid oklch(0.88 0.04 28)", borderRadius: 20, background: "oklch(0.98 0.015 30)", cursor: "pointer", padding: 15, display: "flex", alignItems: "center", justifyContent: "center", gap: 9 }}>

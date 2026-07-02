@@ -53,6 +53,7 @@ export async function GET() {
       resting_hr: athlete.icu_resting_hr || null,
       hrv_basislijn: hrvWaarden.length > 0 ? Math.round(hrvWaarden.reduce((s, v) => s + v, 0) / hrvWaarden.length) : null,
       hr_basislijn: hrWaarden.length > 0 ? Math.round(hrWaarden.reduce((s, v) => s + v, 0) / hrWaarden.length) : null,
+      isAdmin: creds.userId === "u_frank_001",
     };
 
     if (profiel.ftp && creds.userId) {
