@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { getSessionUser } from "@/lib/auth";
-import { bouwSeizoensplanPrompt, bouwWeekSessiesPrompt } from "@/lib/promptBuilder";
+import { bouwWeekSessiesPrompt } from "@/lib/promptBuilder";
 import { valideerSeizoensPlan } from "@/lib/seizoen/valideer";
 import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
 import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
@@ -72,9 +72,7 @@ export async function POST(request) {
 
     // 1. Prompt bouwen
     let promptData;
-    if (type === "seizoensplan") {
-      promptData = bouwSeizoensplanPrompt(params);
-    } else if (type === "weekSessies") {
+    if (type === "weekSessies") {
       promptData = bouwWeekSessiesPrompt(params);
       if (!promptData) {
         console.log(`[Job ${jobId}] Geen dagen te plannen — leeg resultaat`);
@@ -92,27 +90,18 @@ export async function POST(request) {
     console.log(`[Job ${jobId}] Claude response ontvangen`);
 
     // 3. Resultaat verwerken
-    if (type === "weekSessies") {
-      result = raw;
-      result.voltooideDatams = promptData.voltooideDatams;
-      (result.sessies || []).forEach(s => { normaliseerSessieSegmenten(s); voegVerwachtRpeToe(s); corrigeerSessieTss(s); });
-      console.log(`[Job ${jobId}] ${(result.sessies || []).length} sessies gegenereerd`);
-    } else {
-      result = raw;
-      (result.detail_weken || []).forEach(w => (w.sessies || []).forEach(s => { normaliseerSessieSegmenten(s); voegVerwachtRpeToe(s); corrigeerSessieTss(s); }));
-    }
+    result = raw;
+    result.voltooideDatams = promptData.voltooideDatams;
+    (result.sessies || []).forEach(s => { normaliseerSessieSegmenten(s); voegVerwachtRpeToe(s); corrigeerSessieTss(s); });
+    console.log(`[Job ${jobId}] ${(result.sessies || []).length} sessies gegenereerd`);
 
     // 4. Validatie
-    if (type === "seizoensplan" || type === "weekSessies") {
-      const planVoorValidatie = type === "seizoensplan"
-        ? { ...params, ...result }
-        : { kader: params.seizoensplan?.kader, weekSessies: { sessies: result.sessies } };
-      const { geldig, fouten } = valideerSeizoensPlan(planVoorValidatie);
-      if (!geldig) console.warn(`[Job ${jobId}] Validatiefouten:`, fouten);
-    }
+    const planVoorValidatie = { kader: params.seizoensplan?.kader, weekSessies: { sessies: result.sessies } };
+    const { geldig, fouten } = valideerSeizoensPlan(planVoorValidatie);
+    if (!geldig) console.warn(`[Job ${jobId}] Validatiefouten:`, fouten);
 
     // 5. Vermogensbereik
-    if (type === "weekSessies" && params.profiel?.power_zones && params.profiel?.ftp) {
+    if (params.profiel?.power_zones && params.profiel?.ftp) {
       try {
         const zones = bouwZonesUitProfiel(params.profiel.ftp, params.profiel.power_zones);
         const piekSprint = await kv.get(`piek_sprint_vermogen:${params.userId || ""}`) || Math.round(params.profiel.ftp * 1.8);

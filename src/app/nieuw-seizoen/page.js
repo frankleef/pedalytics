@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { T } from "../designTokens";
 import BeschikbaarheidEditor from "../components/BeschikbaarheidEditor";
 import PlanGenereren from "../components/PlanGenereren";
-import { startJob, pollJob } from "@/lib/jobClient";
 
 const DOELEN = [
   { id: "ftp", icon: "⚡", naam: "FTP verhogen", beschrijving: "Meer wattage aan de drempel" },
@@ -61,6 +60,7 @@ export default function NieuwSeizoensPage() {
         startdatum: new Date().toISOString().slice(0, 10),
         beschikbaarheid: beschikbaarheidData?.beschikbaar || {},
         urenPerDag: beschikbaarheidData?.uren || {},
+        planStatus: "genereren",
       };
 
       await fetch("/api/plan", {

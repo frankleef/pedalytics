@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { getSessionUser } from "@/lib/auth";
 import { DOELPROFIELEN, faseVoorWeek } from "@/lib/seizoen/doelprofielen";
+import { genereerSeizoensMetadata } from "@/lib/seizoen/metadata";
 import { sendPush } from "@/lib/pushNotify";
 
 export async function POST(request) {
@@ -49,6 +50,21 @@ export async function POST(request) {
           focus: faseInfo.sessietypes.slice(0, 3).join(", "),
         };
       });
+    }
+
+    try {
+      const metadata = genereerSeizoensMetadata({
+        seizoensdoel: plan.seizoensdoel,
+        kader: plan.kader,
+        ervaringsniveau: plan.ervaringsniveau,
+        ftp: plan.huidige_ftp,
+        startProfiel: plan.start_profiel,
+        urenPerDag: plan.urenPerDag,
+      });
+      plan.samenvatting = metadata.samenvatting;
+      plan.streefwaarde = metadata.streefwaarde;
+    } catch (e) {
+      console.warn("Metadata-herberekening mislukt:", e.message);
     }
 
     await kv.set(planKey, plan);

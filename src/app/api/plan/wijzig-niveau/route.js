@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { getSessionUser } from "@/lib/auth";
+import { genereerSeizoensMetadata } from "@/lib/seizoen/metadata";
 import { sendPush } from "@/lib/pushNotify";
 
 const NIVEAU_PARAMS = {
@@ -51,6 +52,21 @@ export async function POST(request) {
         vorigOpbouwTss = tss;
         return { ...week, tss_doel: tss, z1z2_doel: params.z1_z2_aandeel, max_intensiteit: params.max_intensiteit };
       });
+    }
+
+    try {
+      const metadata = genereerSeizoensMetadata({
+        seizoensdoel: plan.seizoensdoel,
+        kader: plan.kader,
+        ervaringsniveau: plan.ervaringsniveau,
+        ftp: plan.huidige_ftp,
+        startProfiel: plan.start_profiel,
+        urenPerDag: plan.urenPerDag,
+      });
+      plan.samenvatting = metadata.samenvatting;
+      plan.streefwaarde = metadata.streefwaarde;
+    } catch (e) {
+      console.warn("Metadata-herberekening mislukt:", e.message);
     }
 
     await kv.set(planKey, plan);

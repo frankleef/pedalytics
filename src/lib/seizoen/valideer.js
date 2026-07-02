@@ -38,27 +38,6 @@ export function valideerSeizoensPlan(plan) {
     }
   }
 
-  // Valideer sessies in detail_weken (als aanwezig, bij seizoensgeneratie)
-  if (plan.detail_weken && Array.isArray(plan.detail_weken)) {
-    for (const week of plan.detail_weken) {
-      if (!week.sessies) continue;
-      for (const sessie of week.sessies) {
-        if (!sessie.intentie) {
-          fouten.push(`Week ${week.week}, ${sessie.dag || sessie.datum}: trainingsdag zonder intentie`);
-        } else {
-          if (!sessie.intentie.rol) fouten.push(`Week ${week.week}, ${sessie.dag || sessie.datum}: intentie.rol ontbreekt`);
-          if (!sessie.intentie.sessietype) fouten.push(`Week ${week.week}, ${sessie.dag || sessie.datum}: intentie.sessietype ontbreekt`);
-          if (!sessie.intentie.toegestane_zones || sessie.intentie.toegestane_zones.length === 0) {
-            fouten.push(`Week ${week.week}, ${sessie.dag || sessie.datum}: intentie.toegestane_zones ontbreekt`);
-          }
-          if (!sessie.intentie.tss_range || typeof sessie.intentie.tss_range.min !== "number") {
-            fouten.push(`Week ${week.week}, ${sessie.dag || sessie.datum}: intentie.tss_range ontbreekt`);
-          }
-        }
-      }
-    }
-  }
-
   // Valideer sessies in weekSessies (bij weeksessie-generatie)
   if (plan.weekSessies?.sessies && Array.isArray(plan.weekSessies.sessies)) {
     for (const sessie of plan.weekSessies.sessies) {

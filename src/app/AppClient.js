@@ -10,10 +10,11 @@ import PlanGenereren from "./components/PlanGenereren";
 import SeizoensplanOverzicht from "./components/SeizoensplanOverzicht";
 import ProfielScherm from "./components/ProfielScherm";
 import { startJob, startJobRobuust, pollJob } from "@/lib/jobClient";
+import { genereerSeizoensMetadata } from "@/lib/seizoen/metadata";
 import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
 import LegeKoppelStaat from "./components/LegeKoppelStaat";
 import { demoProfiel, demoSeizoensplan, demoWellness, demoRitten } from "@/lib/demoData";
-import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
+import { weeknummerVoorDatum, tssDoelWeek1 } from "@/lib/weekgrenzen";
 import { detecteerWeekConflicten, degradeerSessie, corrigeerWeekBudget } from "@/lib/sessie/conflictResolutie";
 import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
 import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
@@ -407,7 +408,7 @@ export default function Page() {
       } else if (wk.fase === "test") {
         tss_doel = Math.round(piekTss * 0.40);
       } else {
-        tss_doel = wk.weeknummer === 1 ? baseTss : Math.round(vorigOpbouwTss * (1 + opbouwPct));
+        tss_doel = wk.weeknummer === 1 ? tssDoelWeek1(baseTss, doelConfig.startdatum) : Math.round(vorigOpbouwTss * (1 + opbouwPct));
         tss_doel = Math.min(tss_doel, Math.round(baseTss * 1.8));
         vorigOpbouwTss = tss_doel;
         piekTss = Math.max(piekTss, tss_doel);
@@ -459,8 +460,14 @@ export default function Page() {
       } catch (e) { console.warn("Start-profiel berekening mislukt:", e); }
 
       setPlanVoortgang(2);
-      const job = await startJob("seizoensplan", { profiel: PROFIEL, doelConfig, kader });
-      const plan = job.result || await pollJob(job.jobId, { interval: 5000 });
+      const plan = genereerSeizoensMetadata({
+        seizoensdoel: doelConfig.seizoensdoel,
+        kader,
+        ervaringsniveau: doelConfig.ervaringsniveau,
+        ftp: doelConfig.huidige_ftp,
+        startProfiel,
+        urenPerDag: doelConfig.urenPerDag,
+      });
       setPlanVoortgang(3);
       const volledigPlan = { ...doelConfig, kader, ...plan, ...(startProfiel ? { start_profiel: startProfiel } : {}), planStatus: undefined };
       setSeizoensplan(volledigPlan);

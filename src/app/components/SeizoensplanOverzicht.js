@@ -26,10 +26,9 @@ export default function SeizoensplanOverzicht({ plan, onDoorGaan }) {
   const ftp = plan.huidige_ftp || 265;
   const weken = plan.tijdshorizon_weken || 12;
 
-  const streef = plan.streefwaarde || `${Math.round(ftp * 1.05)}-${Math.round(ftp * 1.1)}W`;
-  const rangeMatch = streef.match(/(\d+)\s*[-–]\s*(\d+)\s*W/i);
-  const doelFtp = rangeMatch ? Math.max(Number(rangeMatch[1]), Number(rangeMatch[2])) : Math.round(ftp * 1.1);
-  const verschil = doelFtp - ftp;
+  const streefLabel = typeof plan.streefwaarde === "string"
+    ? plan.streefwaarde
+    : plan.streefwaarde?.label ?? "";
 
   const fasen = [];
   let huidige = null;
@@ -65,14 +64,13 @@ export default function SeizoensplanOverzicht({ plan, onDoorGaan }) {
       <div style={{ background: "oklch(0.345 0.035 245)", borderRadius: 24, padding: "17px 19px", boxShadow: "0 10px 26px rgba(30,40,70,0.22)", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           <span style={{ font: "800 10.5px var(--font-nunito), sans-serif", letterSpacing: 1.3, color: "oklch(0.74 0.05 200)" }}>SEIZOENSDOEL · FTP</span>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", rowGap: 4 }}>
             <span style={{ font: "600 15px var(--font-nunito), sans-serif", color: "oklch(0.78 0.03 210)" }}>{ftp}W</span>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12h13M13 6l6 6-6 6" stroke="oklch(0.79 0.1 168)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            <span style={{ font: "600 26px var(--font-fredoka), sans-serif", lineHeight: 1, color: "#fff" }}>{doelFtp}W</span>
+            <span style={{ font: "600 20px var(--font-fredoka), sans-serif", lineHeight: 1.15, color: "#fff" }}>{streefLabel}</span>
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-          <span style={{ font: "600 22px var(--font-fredoka), sans-serif", lineHeight: 1, color: "#fff" }}>+{verschil}W</span>
           <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: "oklch(0.74 0.05 200)" }}>in {weken} weken</span>
         </div>
       </div>
