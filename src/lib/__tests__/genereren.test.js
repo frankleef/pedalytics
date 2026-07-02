@@ -149,3 +149,49 @@ describe('genereerSessieDag x solveWeek() — volledige fase-dekking (regressiet
     }
   }
 })
+
+describe('genereerSessieDag — min_duur_min (feature: "deze sessie kan alleen vanaf 1u30")', () => {
+  it('een archetype met min_duur_min hoger dan de beschikbare tijd wordt nooit gekozen', async () => {
+    // z2_progressief krijgt hier een min_duur_min van 120 min — bij een 1u-dag
+    // (60 min) moet genereerSessieDag terugvallen op een ander z2_duur-archetype
+    // i.p.v. dit ontoereikende archetype te kiezen.
+    const z2Archetypes = ARCHETYPES_FIXTURE.z2_duur.map(a =>
+      a.id === 'z2_progressief' ? { ...a, min_duur_min: 120 } : a
+    )
+    const kv = maakKv({ 'archetypes:z2_duur': z2Archetypes })
+    const sessie = await genereerSessieDag({
+      ...basisCtx, kv, uren: 1, // 60 min, ruim onder de 120 min van z2_progressief
+      effectiefSessietype: 'z2_duur',
+      oudeSessie: { intentie: { sessietype: 'z2_duur' } },
+    })
+    expect(sessie.archetype_id).not.toBe('z2_progressief')
+  })
+
+  it('bij voldoende tijd blijft het archetype gewoon beschikbaar (>=, niet >)', async () => {
+    const z2Archetypes = ARCHETYPES_FIXTURE.z2_duur.map(a =>
+      a.id === 'z2_progressief' ? { ...a, min_duur_min: 60 } : a
+    )
+    const kv = maakKv({
+      'archetypes:z2_duur': z2Archetypes,
+      // forceer alle andere z2-archetypes als 'recent' zodat rotatie wel bij
+      // z2_progressief uitkomt als die daadwerkelijk nog in de kandidatenlijst zit
+      'sessie_archetypes:test_user:z2_duur': z2Archetypes.filter(a => a.id !== 'z2_progressief').map(a => a.id),
+    })
+    const sessie = await genereerSessieDag({
+      ...basisCtx, kv, uren: 1, // exact 60 min
+      effectiefSessietype: 'z2_duur',
+      oudeSessie: { intentie: { sessietype: 'z2_duur' } },
+    })
+    expect(sessie.archetype_id).toBe('z2_progressief')
+  })
+
+  it('gooit een duidelijke fout als ALLE kandidaten meer tijd vereisen dan beschikbaar', async () => {
+    const krachtArchetypes = ARCHETYPES_FIXTURE.kracht_lage_cadans.map(a => ({ ...a, min_duur_min: 200 }))
+    const kv = maakKv({ 'archetypes:kracht_lage_cadans': krachtArchetypes })
+    await expect(genereerSessieDag({
+      ...basisCtx, kv, uren: 1,
+      effectiefSessietype: 'kracht_lage_cadans',
+      oudeSessie: { intentie: { sessietype: 'kracht_lage_cadans' } },
+    })).rejects.toThrow(/min_duur_min/)
+  })
+})

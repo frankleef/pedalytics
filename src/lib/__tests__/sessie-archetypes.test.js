@@ -123,3 +123,37 @@ describe('getArchetypesVoorSessietype', () => {
     expect(resultaten.some(a => a.id === 'drempel_standaard')).toBe(false)
   })
 })
+
+describe('getArchetypesVoorSessietype — min_duur_min (feature: "deze sessie kan alleen vanaf 1u30")', () => {
+  const archetypes = [
+    { id: 'kort', naam: 'Kort', fase_beschikbaar: ['basis'], min_duur_min: 30 },
+    { id: 'lang', naam: 'Lang', fase_beschikbaar: ['basis'], min_duur_min: 90 },
+    { id: 'zonder_grens', naam: 'Zonder grens', fase_beschikbaar: ['basis'] },
+  ]
+
+  it('geen beschikbareDuurMin meegegeven -> geen duurfilter, backward-compatible', () => {
+    const resultaten = getArchetypesVoorSessietype(archetypes, 'basis', 1, null)
+    expect(resultaten.map(a => a.id)).toEqual(['kort', 'lang', 'zonder_grens'])
+  })
+
+  it('beschikbareDuurMin onder het minimum van een archetype -> valt weg', () => {
+    const resultaten = getArchetypesVoorSessietype(archetypes, 'basis', 1, null, 45)
+    expect(resultaten.map(a => a.id)).toEqual(['kort', 'zonder_grens'])
+  })
+
+  it('beschikbareDuurMin exact op het minimum -> archetype blijft beschikbaar (>=, niet >)', () => {
+    const resultaten = getArchetypesVoorSessietype(archetypes, 'basis', 1, null, 90)
+    expect(resultaten.map(a => a.id)).toContain('lang')
+  })
+
+  it('archetypes zonder min_duur_min zijn nooit onderhevig aan de duurfilter', () => {
+    const resultaten = getArchetypesVoorSessietype(archetypes, 'basis', 1, null, 1)
+    expect(resultaten.map(a => a.id)).toEqual(['zonder_grens'])
+  })
+
+  it('ou_standaard/ou_lang (die de generieke week_in_fase_min/doel_beperking-check overslaan) respecteren de duurfilter wél', () => {
+    const ouArchetype = [{ id: 'ou_standaard', naam: 'OU', fase_beschikbaar: ['drempel'], min_duur_min: 60 }]
+    const resultaten = getArchetypesVoorSessietype(ouArchetype, 'drempel', 1, null, 30)
+    expect(resultaten).toEqual([])
+  })
+})

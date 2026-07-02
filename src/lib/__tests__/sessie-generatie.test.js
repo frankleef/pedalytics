@@ -481,3 +481,119 @@ describe('schaalVariant — maximum blokduur (bugfix: 24-minuten krachtsblok bij
     expect(metContext[0].blokDuurSeconden).toBe(1215)
   })
 })
+
+describe('schaalVariant — vaste blokduur (duur_sec_vast, feature: "precies 30 minuten Z2")', () => {
+  it('een vast blok krijgt letterlijk zijn opgegeven duur, ongeacht doelDuurSec', () => {
+    const variant = {
+      blokken: [
+        { type: 'werk', zone: 'Z2', pct_ftp: 65, duur_sec_vast: 1800 }, // altijd 30 min
+        { type: 'werk', zone: 'Z3', pct_ftp: 85, duur_pct: 0.5 },
+        { type: 'herstel', zone: 'Z2', pct_ftp: 60, duur_pct: 0.5 },
+      ],
+    }
+    for (const doelMin of [45, 90, 180]) {
+      const resultaat = schaalVariant(variant, doelMin * 60)
+      expect(resultaat[0].blokDuurSeconden).toBe(1800)
+    }
+  })
+
+  it('de resterende (duur_pct-)blokken verdelen alleen de tijd NA aftrek van de vaste blokken', () => {
+    const variant = {
+      blokken: [
+        { type: 'werk', zone: 'Z2', pct_ftp: 65, duur_sec_vast: 1800 }, // 30 min vast
+        { type: 'werk', zone: 'Z3', pct_ftp: 85, duur_pct: 1.0 }, // de rest
+      ],
+    }
+    const resultaat = schaalVariant(variant, 60 * 60) // 60 min totaal -> 30 min rest voor het pct-blok
+    expect(resultaat[0].blokDuurSeconden).toBe(1800)
+    expect(resultaat[1].blokDuurSeconden).toBeCloseTo(1800, -1)
+  })
+
+  it('vaste blokken doen niet mee in de duur_pct-normalisatie van de overige blokken', () => {
+    const metVast = schaalVariant({
+      blokken: [
+        { type: 'werk', zone: 'Z2', pct_ftp: 65, duur_sec_vast: 600 },
+        { type: 'werk', zone: 'Z3', pct_ftp: 85, duur_pct: 0.6 },
+        { type: 'herstel', zone: 'Z2', pct_ftp: 60, duur_pct: 0.4 },
+      ],
+    }, 3600)
+    // De twee duur_pct-blokken (0.6/0.4, som=1.0) verdelen de resterende 3000s
+    expect(metVast[1].blokDuurSeconden).toBeCloseTo(1800, -1) // 0.6 * 3000
+    expect(metVast[2].blokDuurSeconden).toBeCloseTo(1200, -1) // 0.4 * 3000
+  })
+
+  it('vaste blokken worden nooit begrensd door bepaalMaximumBlokduur — de opgegeven waarde staat vast', () => {
+    // kracht_standaard heeft een hardcoded maximum van 360s — een vast blok van 900s
+    // (buiten die grens) moet toch letterlijk 900s blijven.
+    const variant = {
+      blokken: [
+        { type: 'werk', zone: 'Z3', pct_ftp: 90, duur_sec_vast: 900, reps: 1 },
+        { type: 'herstel', zone: 'Z2', pct_ftp: 63, duur_pct: 1.0 },
+      ],
+    }
+    const resultaat = schaalVariant(variant, 180 * 60, 'kracht_lage_cadans', 'kracht_standaard')
+    expect(resultaat[0].blokDuurSeconden).toBe(900)
+  })
+
+  it('vaste herstelblokken worden nooit gebruikt om overschot van gecapte werkblokken op te vangen', () => {
+    const variant = {
+      blokken: [
+        { type: 'werk', zone: 'Z3', pct_ftp: 90, duur_pct: 1.0, reps: 4 }, // wordt gecapt
+        { type: 'herstel', zone: 'Z2', pct_ftp: 63, duur_sec_vast: 60 }, // vast — mag niet groeien
+      ],
+    }
+    const resultaat = schaalVariant(variant, 180 * 60, 'kracht_lage_cadans', 'kracht_standaard')
+    expect(resultaat[1].blokDuurSeconden).toBe(60) // ongewijzigd, ondanks overschot van blok 0
+  })
+
+  it('reps werken hetzelfde voor vaste blokken: duur_sec_vast is per instantie', () => {
+    const variant = {
+      blokken: [
+        { type: 'werk', zone: 'Z4', pct_ftp: 100, duur_sec_vast: 120, reps: 4 },
+        { type: 'herstel', zone: 'Z2', pct_ftp: 60, duur_pct: 1.0 },
+      ],
+    }
+    const resultaat = schaalVariant(variant, 60 * 60)
+    expect(resultaat[0].blokDuurSeconden).toBe(120)
+    // 4 * 120s vast = 480s, rest (3120s - 480s = 3120s... 3600-480=3120) gaat naar het pct-blok
+    expect(resultaat[1].blokDuurSeconden).toBeCloseTo(3600 - 4 * 120, -1)
+  })
+
+  it('genereerSessieDeterministisch respecteert een vast Z2-blok van precies 30 minuten, ook bij 45 of 180 min sessieduur', () => {
+    const archetype = { id: 'test_vast', naam: 'Test' }
+    const variant = {
+      id: 'v1',
+      blokken: [
+        { type: 'werk', zone: 'Z2', pct_ftp: 65, duur_sec_vast: 1800 },
+        { type: 'werk', zone: 'Z3', pct_ftp: 85, duur_pct: 0.5 },
+        { type: 'herstel', zone: 'Z2', pct_ftp: 60, duur_pct: 0.5 },
+      ],
+    }
+    for (const doelMin of [45, 180]) {
+      const sessie = genereerSessieDeterministisch({
+        dagIntentie: null, archetype, variant, doelDuurMin: doelMin, ftp: 265, sessietype: 'sweetspot_intervallen',
+      })
+      const vastBlok = sessie.segmenten.find(s => s.zone === 'Z2' && s.type === 'werk')
+      expect(vastBlok.blokDuurSeconden).toBe(1800)
+    }
+  })
+
+  it('warm-up-injectie krimpt een vast blok nooit — alleen de schaalbare blokken maken ruimte', () => {
+    // Archetype dat NIET met Z1/Z2 begint (dus warm-up-injectie triggert),
+    // met een vast Z2-blok ergens middenin dat exact 10 min moet blijven.
+    const archetype = { id: 'test_vast_warmup', naam: 'Test' }
+    const variant = {
+      id: 'v1',
+      blokken: [
+        { type: 'werk', zone: 'Z3', pct_ftp: 85, duur_pct: 0.5 },
+        { type: 'werk', zone: 'Z2', pct_ftp: 65, duur_sec_vast: 600 }, // altijd 10 min
+        { type: 'herstel', zone: 'Z2', pct_ftp: 60, duur_pct: 0.5 },
+      ],
+    }
+    const sessie = genereerSessieDeterministisch({
+      dagIntentie: null, archetype, variant, doelDuurMin: 60, ftp: 265, sessietype: 'sweetspot_intervallen',
+    })
+    const vastBlok = sessie.segmenten.find(s => s.blokDuurSeconden === 600 && s.zone === 'Z2')
+    expect(vastBlok).toBeDefined()
+  })
+})

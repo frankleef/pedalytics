@@ -536,27 +536,33 @@ export function _wisArchetypeCacheVoorTests() {
 
 /**
  * Filtert archetypes (al opgehaald voor één sessietype, zie
- * getArchetypesVoorSessietypeRaw) op fase + weekInFase + seizoensdoel.
- * Pure, synchrone functie — geen KV-afhankelijkheid — zodat 'm ook
- * client-side (browser) aanroepbaar blijft zonder server-omweg. De caller is
- * verantwoordelijk voor het aanleveren van de juiste, al-opgehaalde array.
+ * getArchetypesVoorSessietypeRaw) op fase + weekInFase + seizoensdoel +
+ * beschikbareDuurMin. Pure, synchrone functie — geen KV-afhankelijkheid —
+ * zodat 'm ook client-side (browser) aanroepbaar blijft zonder server-omweg.
+ * De caller is verantwoordelijk voor het aanleveren van de juiste,
+ * al-opgehaalde array.
  *
  * @param {Array} archetypes - archetypes voor één sessietype (uit KV of fixture)
  * @param {string} fase
  * @param {number} [weekInFase]
  * @param {string|null} [seizoensdoel]
+ * @param {number|null} [beschikbareDuurMin] - beschikbare tijd voor de dag; een
+ *   archetype met a.min_duur_min groter dan dit valt weg (bv. een archetype met
+ *   een vast blok van 30 min heeft simpelweg niet genoeg ruimte in 45 min).
+ *   null/ontbrekend = geen duurfilter (bestaand gedrag, backward-compatible).
  */
-export function getArchetypesVoorSessietype(archetypes, fase, weekInFase = 1, seizoensdoel = null) {
+export function getArchetypesVoorSessietype(archetypes, fase, weekInFase = 1, seizoensdoel = null, beschikbareDuurMin = null) {
   const alle = archetypes ?? [];
   return alle.filter(a => {
     if (!a.fase_beschikbaar.includes(fase)) return false;
     // Over-unders: sweetspot alleen vanaf week 5, drempel/vo2max/consolidatie altijd
     if (['ou_standaard', 'ou_lang'].includes(a.id)) {
       if (fase === 'sweetspot' && weekInFase < 5) return false;
-      return true;
+    } else {
+      if ((a.week_in_fase_min ?? 1) > weekInFase) return false;
+      if (a.doel_beperking && seizoensdoel && !a.doel_beperking.includes(seizoensdoel)) return false;
     }
-    if ((a.week_in_fase_min ?? 1) > weekInFase) return false;
-    if (a.doel_beperking && seizoensdoel && !a.doel_beperking.includes(seizoensdoel)) return false;
+    if (a.min_duur_min != null && beschikbareDuurMin != null && beschikbareDuurMin < a.min_duur_min) return false;
     return true;
   });
 }

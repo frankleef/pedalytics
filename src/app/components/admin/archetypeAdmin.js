@@ -43,7 +43,7 @@ export function nieuwBlokId() {
 }
 
 export function leegBlok() {
-  return { _id: nieuwBlokId(), type: "werk", zone: "Z3", pct_ftp: 83, pct: 10, reps: 1, maximaal: false, isSpecifiek: false };
+  return { _id: nieuwBlokId(), type: "werk", zone: "Z3", pct_ftp: 83, duurType: "pct", pct: 10, duurSecVast: 300, reps: 1, maximaal: false, isSpecifiek: false };
 }
 
 /**
@@ -72,40 +72,56 @@ export function groepeerBlokkenTotSets(blokken) {
 }
 
 /**
- * Som van het aandeel (%) over alle blokken, elk vermenigvuldigd met zijn reps
- * — moet 100 zijn voordat een variant een geldige sessie voorstelt (zelfde
- * optelsom als schaalVariant() intern gebruikt: duur_pct * reps).
+ * Som van het aandeel (%) over alle NIET-vaste blokken, elk vermenigvuldigd met
+ * zijn reps — puur informatief (zie PctTotaalIndicator): schaalVariant()
+ * normaliseert dit sowieso op de werkelijke som, en vaste blokken (duurType
+ * 'vast') horen hier niet bij, want die tellen niet mee in de 100%-pool.
  */
 export function berekenPctTotaal(blokken) {
-  return (blokken || []).reduce((s, b) => s + (b.pct ?? 0) * (b.reps ?? 1), 0);
+  return (blokken || []).filter(b => b.duurType !== "vast").reduce((s, b) => s + (b.pct ?? 0) * (b.reps ?? 1), 0);
 }
 
-/** Blokken (met _id/pct/maximaal, builder-intern) -> opslagformaat (duur_pct, geen builder-only velden). */
+/**
+ * Blokken (builder-intern) -> opslagformaat. Een blok is óf percentage-
+ * gebaseerd (duur_pct, schaalt mee met de sessieduur) óf vast (duur_sec_vast,
+ * altijd letterlijk zoveel seconden — bv. "dit Z2-blok is altijd precies 30
+ * minuten"), nooit beide.
+ */
 export function blokkenNaarOpslagformaat(blokken) {
-  return (blokken || []).map(({ _id, pct, reps, maximaal, isSpecifiek, ...rest }) => ({
+  return (blokken || []).map(({ _id, pct, duurSecVast, duurType, reps, maximaal, isSpecifiek, ...rest }) => ({
     ...rest,
-    duur_pct: (pct ?? 0) / 100,
+    ...(duurType === "vast" ? { duur_sec_vast: duurSecVast ?? 0 } : { duur_pct: (pct ?? 0) / 100 }),
     ...(reps && reps > 1 ? { reps } : {}),
     ...(isSpecifiek ? { isSpecifiek: true } : {}),
   }));
 }
 
-/** Opslagformaat -> builder-interne blokken (pct rechtstreeks uit duur_pct × 100). */
+/** Opslagformaat -> builder-interne blokken (duurType afgeleid uit welk veld aanwezig is). */
 export function opslagformaatNaarBlokken(blokken) {
-  return (blokken || []).map(b => ({
-    _id: nieuwBlokId(),
-    type: b.type,
-    zone: b.zone,
-    pct_ftp: b.pct_ftp,
-    pct: Math.round((b.duur_pct ?? 0) * 1000) / 10, // 1 decimaal
-    reps: b.reps ?? 1,
-    maximaal: false,
-    isSpecifiek: b.isSpecifiek ?? false,
-    ...(b.cadans_rpm != null ? { cadans_rpm: b.cadans_rpm } : {}),
-  }));
+  return (blokken || []).map(b => {
+    const isVast = b.duur_sec_vast != null;
+    return {
+      _id: nieuwBlokId(),
+      type: b.type,
+      zone: b.zone,
+      pct_ftp: b.pct_ftp,
+      duurType: isVast ? "vast" : "pct",
+      pct: isVast ? 0 : Math.round((b.duur_pct ?? 0) * 1000) / 10, // 1 decimaal
+      duurSecVast: isVast ? b.duur_sec_vast : 300,
+      reps: b.reps ?? 1,
+      maximaal: false,
+      isSpecifiek: b.isSpecifiek ?? false,
+      ...(b.cadans_rpm != null ? { cadans_rpm: b.cadans_rpm } : {}),
+    };
+  });
 }
 
-/** ZWO-parser-blokken (duurSec-gebaseerd, zie parseZwo.js) -> builder-interne blokken (pct). */
+/**
+ * ZWO-parser-blokken (duurSec-gebaseerd, zie parseZwo.js) -> builder-interne
+ * blokken. Wordt altijd als percentage geïmporteerd (een archetype is een
+ * duurflexibel sjabloon) — de admin kan een blok achteraf handmatig op "vast"
+ * zetten als de letterlijke ZWO-duur behouden moet blijven.
+ */
 export function zwoBlokkenNaarBuilderBlokken(zwoBlokken) {
   const totaalSec = (zwoBlokken || []).reduce((s, b) => s + b.duurSec * (b.reps ?? 1), 0) || 1;
   return (zwoBlokken || []).map(b => ({
@@ -113,7 +129,9 @@ export function zwoBlokkenNaarBuilderBlokken(zwoBlokken) {
     type: b.type,
     zone: b.zone,
     pct_ftp: b.pct_ftp,
+    duurType: "pct",
     pct: Math.round(((b.duurSec * (b.reps ?? 1)) / totaalSec / (b.reps ?? 1)) * 1000) / 10,
+    duurSecVast: b.duurSec,
     reps: b.reps ?? 1,
     maximaal: false,
     isSpecifiek: false,

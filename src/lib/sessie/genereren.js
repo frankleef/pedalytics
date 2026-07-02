@@ -67,10 +67,10 @@ export async function genereerSessieDag(ctx) {
   }
 
   const archetypesVoorType = await getArchetypesVoorSessietypeRaw(effectiefSessietype, kv);
-  const archetypes = getArchetypesVoorSessietype(archetypesVoorType, huidigeFase, weekInFase, plan?.seizoensdoel?.type ?? null);
+  const archetypes = getArchetypesVoorSessietype(archetypesVoorType, huidigeFase, weekInFase, plan?.seizoensdoel?.type ?? null, Math.round(uren * 60));
   if (archetypes.length === 0) {
     throw new Error(
-      `genereerSessieDag: geen archetypes beschikbaar voor sessietype "${effectiefSessietype}" (fase "${huidigeFase}", week ${weekInFase}) op ${datum}.`
+      `genereerSessieDag: geen archetypes beschikbaar voor sessietype "${effectiefSessietype}" (fase "${huidigeFase}", week ${weekInFase}, ${uren}u beschikbaar) op ${datum} — mogelijk vereisen alle kandidaten meer tijd dan beschikbaar (min_duur_min).`
     );
   }
 

@@ -145,6 +145,64 @@ describe('PUT /api/admin/archetypes/[sessietype]', () => {
     expect(body.data[0].max_blokduur_sec).toBe(300)
   })
 
+  it('400 bij een ongeldige min_duur_min (niet-positief)', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(ADMIN)
+    vi.mocked(getKV).mockReturnValue(maakKvMock())
+    const kandidaat = [{
+      id: 'test_archetype', naam: 'Test', structuur: 'x', tss_range: [50, 70],
+      fase_beschikbaar: ['basis'], min_duur_min: 0,
+      varianten: [{ id: 'v1', naam: 'V1', blokken: [{ type: 'werk', zone: 'Z2', pct_ftp: 65, duur_pct: 1.0 }] }],
+    }]
+    const resp = await PUT_sessietype(req(kandidaat), { params: Promise.resolve({ sessietype: 'z2_duur' }) })
+    const body = await resp.json()
+    expect(resp.status).toBe(400)
+    expect(body.error).toMatch(/min_duur_min/)
+  })
+
+  it('200 met een geldige min_duur_min en een blok met duur_sec_vast', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(ADMIN)
+    vi.mocked(getKV).mockReturnValue(maakKvMock())
+    const kandidaat = [{
+      id: 'test_archetype', naam: 'Test', structuur: 'x', tss_range: [50, 70],
+      fase_beschikbaar: ['basis'], min_duur_min: 90,
+      varianten: [{ id: 'v1', naam: 'V1', blokken: [
+        { type: 'werk', zone: 'Z2', pct_ftp: 65, duur_sec_vast: 1800 },
+        { type: 'werk', zone: 'Z3', pct_ftp: 85, duur_pct: 1.0 },
+      ] }],
+    }]
+    const resp = await PUT_sessietype(req(kandidaat), { params: Promise.resolve({ sessietype: 'z2_duur' }) })
+    const body = await resp.json()
+    expect(resp.status).toBe(200)
+    expect(body.data[0].min_duur_min).toBe(90)
+    expect(body.data[0].varianten[0].blokken[0].duur_sec_vast).toBe(1800)
+  })
+
+  it('400 als een blok zowel duur_sec_vast als duur_pct heeft', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(ADMIN)
+    vi.mocked(getKV).mockReturnValue(maakKvMock())
+    const kandidaat = [{
+      id: 'test_archetype', naam: 'Test', structuur: 'x', tss_range: [50, 70],
+      fase_beschikbaar: ['basis'],
+      varianten: [{ id: 'v1', naam: 'V1', blokken: [{ type: 'werk', zone: 'Z2', pct_ftp: 65, duur_sec_vast: 1800, duur_pct: 0.5 }] }],
+    }]
+    const resp = await PUT_sessietype(req(kandidaat), { params: Promise.resolve({ sessietype: 'z2_duur' }) })
+    const body = await resp.json()
+    expect(resp.status).toBe(400)
+    expect(body.error).toMatch(/duur_sec_vast.*duur_pct/)
+  })
+
+  it('400 als een blok geen duur_pct of duur_sec_vast heeft', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(ADMIN)
+    vi.mocked(getKV).mockReturnValue(maakKvMock())
+    const kandidaat = [{
+      id: 'test_archetype', naam: 'Test', structuur: 'x', tss_range: [50, 70],
+      fase_beschikbaar: ['basis'],
+      varianten: [{ id: 'v1', naam: 'V1', blokken: [{ type: 'werk', zone: 'Z2', pct_ftp: 65 }] }],
+    }]
+    const resp = await PUT_sessietype(req(kandidaat), { params: Promise.resolve({ sessietype: 'z2_duur' }) })
+    expect(resp.status).toBe(400)
+  })
+
   it('200 happy path: slaat op, invalideert de cache (directe GET erna toont nieuwe data, niet gecachet oud)', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(ADMIN)
     const oudeData = [{ id: 'oud_archetype', naam: 'Oud', structuur: 'x', tss_range: [1, 2], fase_beschikbaar: ['basis'], varianten: [{ id: 'v1', blokken: [{ type: 'werk', zone: 'Z2', pct_ftp: 60, duur_pct: 1 }] }] }]

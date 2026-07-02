@@ -25,6 +25,9 @@ function valideerArchetypesArray(sessietype, archetypes) {
     if (archetype.max_blokduur_sec != null && (typeof archetype.max_blokduur_sec !== "number" || archetype.max_blokduur_sec <= 0)) {
       return `Archetype "${archetype.id}": max_blokduur_sec moet een positief getal zijn`;
     }
+    if (archetype.min_duur_min != null && (typeof archetype.min_duur_min !== "number" || archetype.min_duur_min <= 0)) {
+      return `Archetype "${archetype.id}": min_duur_min moet een positief getal zijn`;
+    }
 
     if (!Array.isArray(archetype.varianten) || archetype.varianten.length === 0) {
       return `Archetype "${archetype.id}": minstens 1 variant met blokken vereist`;
@@ -39,6 +42,17 @@ function valideerArchetypesArray(sessietype, archetypes) {
       }
       if (!valideerZ1Gebruik(variant.blokken, sessietype, archetype.id)) {
         return `Archetype "${archetype.id}"/variant "${variant.id}": bevat een Z1-blok dat niet is toegestaan voor sessietype "${sessietype}"`;
+      }
+      for (const blok of variant.blokken) {
+        if (blok.duur_sec_vast != null && (typeof blok.duur_sec_vast !== "number" || blok.duur_sec_vast <= 0)) {
+          return `Archetype "${archetype.id}"/variant "${variant.id}": een blok heeft een ongeldige duur_sec_vast (moet een positief getal zijn)`;
+        }
+        if (blok.duur_sec_vast != null && blok.duur_pct != null) {
+          return `Archetype "${archetype.id}"/variant "${variant.id}": een blok heeft zowel duur_sec_vast als duur_pct — kies één van de twee`;
+        }
+        if (blok.duur_sec_vast == null && blok.duur_pct == null) {
+          return `Archetype "${archetype.id}"/variant "${variant.id}": een blok heeft geen duur_pct of duur_sec_vast`;
+        }
       }
       // Geen harde eis dat duur_pct optelt tot 100%: schaalVariant() normaliseert
       // altijd op de werkelijke som (zie sessie-generatie.js) — dat is expliciet

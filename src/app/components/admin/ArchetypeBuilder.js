@@ -42,6 +42,7 @@ export default function ArchetypeBuilder({ sessietype, onSessietypeChange, arche
   const [doelBeperking, setDoelBeperking] = useState(archetypeInitial?.doel_beperking ?? []);
   const [voorbeeldDuurMin, setVoorbeeldDuurMin] = useState(STANDAARD_VOORBEELDDUUR_MIN);
   const [maxBlokduurSec, setMaxBlokduurSec] = useState(archetypeInitial?.max_blokduur_sec ?? "");
+  const [minDuurMin, setMinDuurMin] = useState(archetypeInitial?.min_duur_min ?? "");
 
   const [varianten, setVarianten] = useState(() => {
     const bestaande = archetypeInitial?.varianten?.length
@@ -192,6 +193,7 @@ export default function ArchetypeBuilder({ sessietype, onSessietypeChange, arche
         ...(weekInFaseMin > 1 ? { week_in_fase_min: Number(weekInFaseMin) } : {}),
         ...(doelBeperking.length > 0 ? { doel_beperking: doelBeperking } : {}),
         ...(maxBlokduurSec !== "" && maxBlokduurSec != null ? { max_blokduur_sec: Number(maxBlokduurSec) } : {}),
+        ...(minDuurMin !== "" && minDuurMin != null ? { min_duur_min: Number(minDuurMin) } : {}),
         varianten: gevuldeVarianten
           .map((v, i) => ({
             id: v.id.trim() || `${id.trim()}_v${i + 1}`,
@@ -290,10 +292,16 @@ export default function ArchetypeBuilder({ sessietype, onSessietypeChange, arche
               </Veld>
             </div>
 
-            <Veld label="Maximum bloklengte (seconden, optioneel)" style={{ maxWidth: 260 }}>
-              <input type="number" min={0} value={maxBlokduurSec} onChange={e => setMaxBlokduurSec(e.target.value)} disabled={archetypeVeldenVastgezet} style={inputStyle(archetypeVeldenVastgezet)} placeholder="leeg = automatisch (per zone)" />
-              <div style={helperStyle}>Voorkomt dat een werkblok bij een lange sessie fysiologisch te ver oprekt (bv. "4× 5' kracht" dat bij 3 uur geen 24-minuten-blok wordt). Geldt voor alle werkblokken buiten Z1/Z2. Leeg = generieke grens per zone.</div>
-            </Veld>
+            <div style={{ display: "flex", gap: 12 }}>
+              <Veld label="Maximum bloklengte (seconden, optioneel)" style={{ flex: 1 }}>
+                <input type="number" min={0} value={maxBlokduurSec} onChange={e => setMaxBlokduurSec(e.target.value)} disabled={archetypeVeldenVastgezet} style={inputStyle(archetypeVeldenVastgezet)} placeholder="leeg = automatisch (per zone)" />
+                <div style={helperStyle}>Voorkomt dat een werkblok bij een lange sessie fysiologisch te ver oprekt (bv. "4× 5' kracht" dat bij 3 uur geen 24-minuten-blok wordt). Geldt voor alle werkblokken buiten Z1/Z2. Leeg = generieke grens per zone.</div>
+              </Veld>
+              <Veld label="Minimale sessieduur (minuten, optioneel)" style={{ flex: 1 }}>
+                <input type="number" min={0} value={minDuurMin} onChange={e => setMinDuurMin(e.target.value)} disabled={archetypeVeldenVastgezet} style={inputStyle(archetypeVeldenVastgezet)} placeholder="leeg = altijd bruikbaar" />
+                <div style={helperStyle}>Dit archetype wordt nooit gekozen op een dag met minder beschikbare tijd dan dit (bv. een archetype met een vast blok van 30 min past niet in een sessie van 45 min).</div>
+              </Veld>
+            </div>
 
             <Veld label="Beschikbaar in fase(n)">
               <ChipSelectie opties={GENERIEKE_FASES} geselecteerd={faseBeschikbaar} onWijzig={setFaseBeschikbaar} disabled={archetypeVeldenVastgezet} />
@@ -488,7 +496,8 @@ function ChipSelectie({ opties, geselecteerd, onWijzig, disabled }) {
 
 function BlokRij({ blok, idx, totaal, onWijzig, onWijzigZone, onVerwijder, onVerplaats, onToggleMax, onToggleSpecifiek, voorbeeldDuurMin }) {
   const isMaxEffortZone = MAX_EFFORT_ZONES.has(blok.zone);
-  const voorbeeldSec = ((blok.pct ?? 0) / 100) * voorbeeldDuurMin * 60;
+  const isVast = blok.duurType === "vast";
+  const voorbeeldSec = isVast ? (blok.duurSecVast ?? 0) : ((blok.pct ?? 0) / 100) * voorbeeldDuurMin * 60;
   return (
     <div style={{ padding: "12px 12px 12px 14px", borderRadius: 14, background: T.subtleFill, border: `1px solid ${T.cardBorder}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -511,13 +520,31 @@ function BlokRij({ blok, idx, totaal, onWijzig, onWijzigZone, onVerwijder, onVer
         <Veldje label="Intensiteit (%FTP)">
           <input type="number" value={blok.maximaal ? "" : blok.pct_ftp} disabled={blok.maximaal} placeholder={blok.maximaal ? "max" : ""} onChange={e => onWijzig({ pct_ftp: Number(e.target.value) })} style={inputStyle(blok.maximaal)} />
         </Veldje>
-        <Veldje label={`Aandeel (%)${blok.reps > 1 ? " per keer" : ""}`}>
-          <input type="number" min={0} step={0.1} value={blok.pct ?? 0} onChange={e => onWijzig({ pct: Number(e.target.value) })} style={inputStyle()} />
+        <Veldje label={isVast ? "Duur (sec, vast)" : `Aandeel (%)${blok.reps > 1 ? " per keer" : ""}`}>
+          <div style={{ display: "flex", gap: 4 }}>
+            {isVast ? (
+              <input type="number" min={0} value={blok.duurSecVast ?? 0} onChange={e => onWijzig({ duurSecVast: Number(e.target.value) })} style={inputStyle()} />
+            ) : (
+              <input type="number" min={0} step={0.1} value={blok.pct ?? 0} onChange={e => onWijzig({ pct: Number(e.target.value) })} style={inputStyle()} />
+            )}
+            <button
+              type="button"
+              onClick={() => onWijzig({ duurType: isVast ? "pct" : "vast" })}
+              title={isVast ? "Wissel naar percentage van de sessieduur" : "Wissel naar een vaste duur in seconden"}
+              style={{ ...miniKnopStyle, flexShrink: 0 }}
+            >⇄</button>
+          </div>
         </Veldje>
         <Veldje label="Herhalingen">
           <input type="number" min={1} value={blok.reps ?? 1} onChange={e => onWijzig({ reps: Number(e.target.value) })} style={inputStyle()} />
         </Veldje>
       </div>
+
+      {isVast && (
+        <div style={{ fontSize: 11.5, color: "#c2410c", marginTop: 6, fontWeight: 700 }}>
+          Vaste duur — schaalt nooit mee met de sessielengte en telt niet mee in het percentage-totaal hieronder.
+        </div>
+      )}
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 8 }}>
         {isMaxEffortZone && (
@@ -531,7 +558,11 @@ function BlokRij({ blok, idx, totaal, onWijzig, onWijzigZone, onVerwijder, onVer
           Nauwe marge (±8,5% i.p.v. ±10% rond de intensiteit)
         </label>
       </div>
-      <div style={{ fontSize: 10.5, color: T.textTert, marginTop: 6 }}>≈ {formatDuur(voorbeeldSec)} bij een sessie van {voorbeeldDuurMin} min{blok.reps > 1 ? ` (× ${blok.reps})` : ""}</div>
+      <div style={{ fontSize: 10.5, color: T.textTert, marginTop: 6 }}>
+        {isVast
+          ? `= ${formatDuur(voorbeeldSec)}, altijd (ongeacht sessieduur)${blok.reps > 1 ? ` (× ${blok.reps})` : ""}`
+          : `≈ ${formatDuur(voorbeeldSec)} bij een sessie van ${voorbeeldDuurMin} min${blok.reps > 1 ? ` (× ${blok.reps})` : ""}`}
+      </div>
     </div>
   );
 }

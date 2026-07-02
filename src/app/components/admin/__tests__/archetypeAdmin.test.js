@@ -59,6 +59,48 @@ describe('blokkenNaarOpslagformaat / opslagformaatNaarBlokken — round-trip', (
   })
 })
 
+describe('duurType "vast" — vaste blokduur in seconden (feature: "precies 30 minuten Z2")', () => {
+  it('een vast blok slaat duur_sec_vast op i.p.v. duur_pct', () => {
+    const blokken = [
+      { _id: 'a', type: 'werk', zone: 'Z2', pct_ftp: 65, duurType: 'vast', duurSecVast: 1800, reps: 1 },
+      { _id: 'b', type: 'werk', zone: 'Z3', pct_ftp: 85, duurType: 'pct', pct: 100, reps: 1 },
+    ]
+    const opgeslagen = blokkenNaarOpslagformaat(blokken)
+    expect(opgeslagen[0].duur_sec_vast).toBe(1800)
+    expect(opgeslagen[0]).not.toHaveProperty('duur_pct')
+    expect(opgeslagen[1].duur_pct).toBeCloseTo(1, 5)
+    expect(opgeslagen[1]).not.toHaveProperty('duur_sec_vast')
+  })
+
+  it('vaste blokken tellen niet mee in berekenPctTotaal', () => {
+    const blokken = [
+      { duurType: 'vast', duurSecVast: 1800, reps: 1 },
+      { duurType: 'pct', pct: 100, reps: 1 },
+    ]
+    expect(berekenPctTotaal(blokken)).toBe(100)
+  })
+
+  it('opslagformaatNaarBlokken herkent duur_sec_vast en zet duurType op "vast"', () => {
+    const terug = opslagformaatNaarBlokken([{ type: 'werk', zone: 'Z2', pct_ftp: 65, duur_sec_vast: 1800 }])
+    expect(terug[0].duurType).toBe('vast')
+    expect(terug[0].duurSecVast).toBe(1800)
+  })
+
+  it('opslagformaatNaarBlokken herkent duur_pct en zet duurType op "pct"', () => {
+    const terug = opslagformaatNaarBlokken([{ type: 'werk', zone: 'Z3', pct_ftp: 85, duur_pct: 0.5 }])
+    expect(terug[0].duurType).toBe('pct')
+    expect(terug[0].pct).toBeCloseTo(50, 5)
+  })
+
+  it('rondtrip: vast blok blijft vast na opslaan + terug laden', () => {
+    const origineel = [{ _id: 'a', type: 'werk', zone: 'Z2', pct_ftp: 65, duurType: 'vast', duurSecVast: 1800, reps: 1 }]
+    const opgeslagen = blokkenNaarOpslagformaat(origineel)
+    const terug = opslagformaatNaarBlokken(opgeslagen)
+    expect(terug[0].duurType).toBe('vast')
+    expect(terug[0].duurSecVast).toBe(1800)
+  })
+})
+
 describe('zwoBlokkenNaarBuilderBlokken', () => {
   it('converteert ZWO-parser-output (duurSec-gebaseerd) naar pct-gebaseerde builder-blokken die optellen tot 100', () => {
     const zwoBlokken = [

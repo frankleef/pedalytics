@@ -154,8 +154,15 @@ function normaliseerCadans(cadansRpm) {
  * (fysiologisch een heel ander soort inspanning). z2_duur en Z1/Z2-blokken
  * hebben geen maximum (duurgericht, per definitie onschuldig). Het "teveel"
  * dat een gecapt werkblok niet meer kwijt kan, wordt herverdeeld over de
- * herstelblokken van dezelfde variant (proportioneel, zelf zonder maximum) —
- * zo blijft de totale sessieduur gelijk aan doelDuurSec.
+ * niet-vaste herstelblokken van dezelfde variant (proportioneel, zelf zonder
+ * maximum) — zo blijft de totale sessieduur gelijk aan doelDuurSec.
+ *
+ * Vaste blokken (b.duur_sec_vast): een blok kan een letterlijke, niet-schalende
+ * duur declareren i.p.v. een percentage — bv. "dit Z2-blok is altijd precies 30
+ * minuten, ongeacht sessieduur". Zulke blokken doen niet mee in de duur_pct-
+ * normalisatie en krijgen nooit een minimum/maximum-correctie (de opgegeven
+ * waarde IS de bedoelde, exacte waarde). Hun tijd wordt eerst van doelDuurSec
+ * afgetrokken; de resterende (duur_pct-)blokken verdelen de rest zoals gewoonlijk.
  *
  * @param {object} variant
  * @param {number} doelDuurSec
@@ -165,12 +172,20 @@ function normaliseerCadans(cadansRpm) {
  *   zie bepaalMaximumBlokduur
  */
 export function schaalVariant(variant, doelDuurSec, sessietype = null, archetypeId = null, archetypeMaxBlokduurSec = null) {
-  const som = variant.blokken.reduce((s, b) => s + b.duur_pct * (b.reps ?? 1), 0) || 1;
+  const vasteSec = variant.blokken.reduce((s, b) => s + (b.duur_sec_vast != null ? b.duur_sec_vast * (b.reps ?? 1) : 0), 0);
+  const restDuurSec = Math.max(0, doelDuurSec - vasteSec);
+
+  const pctBlokken = variant.blokken.filter(b => b.duur_sec_vast == null);
+  const som = pctBlokken.reduce((s, b) => s + b.duur_pct * (b.reps ?? 1), 0) || 1;
   let totaalOvertollig = 0;
 
   const begrensd = variant.blokken.map(b => {
+    if (b.duur_sec_vast != null) {
+      return { ...b, blokDuurSeconden: b.duur_sec_vast };
+    }
+
     const genormaliseerd = b.duur_pct / som;
-    const ruw = Math.round(genormaliseerd * doelDuurSec);
+    const ruw = Math.round(genormaliseerd * restDuurSec);
     const isKortInherent = (b.reps ?? 1) > 1 || b.zone === "Z7";
     const naMinimum = isKortInherent
       ? Math.max(1, ruw)
@@ -185,7 +200,7 @@ export function schaalVariant(variant, doelDuurSec, sessietype = null, archetype
   });
 
   if (totaalOvertollig > 0) {
-    const herstelIdxs = begrensd.map((b, i) => ({ b, i })).filter(x => x.b.type === "herstel").map(x => x.i);
+    const herstelIdxs = begrensd.map((b, i) => ({ b, i })).filter(x => x.b.type === "herstel" && x.b.duur_sec_vast == null).map(x => x.i);
     if (herstelIdxs.length > 0) {
       const totaalGewicht = herstelIdxs.reduce((s, i) => s + begrensd[i].blokDuurSeconden * (begrensd[i].reps ?? 1), 0);
       for (const i of herstelIdxs) {
@@ -196,9 +211,9 @@ export function schaalVariant(variant, doelDuurSec, sessietype = null, archetype
         begrensd[i] = { ...begrensd[i], blokDuurSeconden: Math.round(begrensd[i].blokDuurSeconden + extraPerInstantie) };
       }
     }
-    // Geen herstelblok om het teveel in op te vangen zou niet moeten voorkomen
-    // (elk archetype eindigt met een herstelblok) — in dat randgeval blijft de
-    // sessie iets korter dan doelDuurSec in plaats van te crashen.
+    // Geen (niet-vast) herstelblok om het teveel in op te vangen zou niet moeten
+    // voorkomen — in dat randgeval blijft de sessie iets korter dan doelDuurSec
+    // in plaats van te crashen.
   }
 
   return begrensd;
@@ -386,10 +401,19 @@ function voegWarmingUpToe(geschaaldeBlokken, doelDuurSec) {
   // schaalVariant() levert per blok-entry één blokDuurSeconden, nog niet
   // geëxpandeerd naar reps (dat gebeurt pas in berekenWattagesVanBlokken) — de
   // werkelijke totale duur van een reps-entry is blokDuurSeconden * reps.
-  const huidigTotaalSec = geschaaldeBlokken.reduce((s, b) => s + b.blokDuurSeconden * (b.reps ?? 1), 0);
-  const ratio = huidigTotaalSec > 0 ? restSec / huidigTotaalSec : 0;
+  //
+  // Vaste blokken (duur_sec_vast) mogen door de warm-up-injectie nooit
+  // ingekort worden — dat zou "altijd precies 30 minuten" breken. Alleen de
+  // schaalbare (duur_pct-)blokken krimpen om ruimte te maken; vaste blokken
+  // tellen niet mee in de krimp-ratio en worden ongewijzigd doorgegeven.
+  const vasteSec = geschaaldeBlokken.reduce((s, b) => s + (b.duur_sec_vast != null ? b.blokDuurSeconden * (b.reps ?? 1) : 0), 0);
+  const schaalbaarRestSec = Math.max(0, restSec - vasteSec);
+  const huidigSchaalbaarTotaalSec = geschaaldeBlokken.reduce((s, b) => s + (b.duur_sec_vast == null ? b.blokDuurSeconden * (b.reps ?? 1) : 0), 0);
+  const ratio = huidigSchaalbaarTotaalSec > 0 ? schaalbaarRestSec / huidigSchaalbaarTotaalSec : 0;
 
-  const ingekort = geschaaldeBlokken.map(b => ({ ...b, blokDuurSeconden: Math.max(1, Math.round(b.blokDuurSeconden * ratio)) }));
+  const ingekort = geschaaldeBlokken.map(b =>
+    b.duur_sec_vast != null ? b : { ...b, blokDuurSeconden: Math.max(1, Math.round(b.blokDuurSeconden * ratio)) }
+  );
   const warmingUpBlok = { type: "werk", zone: "Z2", pct_ftp: WARMING_UP_PCT_FTP, blokDuurSeconden: warmingUpSec };
   return [warmingUpBlok, ...ingekort];
 }
