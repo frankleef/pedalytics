@@ -102,7 +102,7 @@ describe('PUT /api/admin/archetypes/[sessietype]', () => {
     expect(resp.status).toBe(400)
   })
 
-  it('400 als duur_pct van een variant niet optelt tot 100%', async () => {
+  it('200 ook als duur_pct van een variant niet optelt tot 100% (schaalVariant normaliseert dit altijd — geen harde eis, zie ook 45/125 bestaande varianten die hiervan afwijken)', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(ADMIN)
     vi.mocked(getKV).mockReturnValue(maakKvMock())
     const kandidaat = [{
@@ -114,9 +114,7 @@ describe('PUT /api/admin/archetypes/[sessietype]', () => {
       ] }],
     }]
     const resp = await PUT_sessietype(req(kandidaat), { params: Promise.resolve({ sessietype: 'z2_duur' }) })
-    const body = await resp.json()
-    expect(resp.status).toBe(400)
-    expect(body.error).toMatch(/90\.0%/)
+    expect(resp.status).toBe(200)
   })
 
   it('400 bij een ongeldige max_blokduur_sec (niet-positief)', async () => {

@@ -170,14 +170,12 @@ export default function ArchetypeBuilder({ sessietype, onSessietypeChange, arche
       return;
     }
 
+    // Geen harde blokkade op "moet 100% zijn": schaalVariant() normaliseert de
+    // aandelen altijd op hun werkelijke som, dus een afwijking is geen
+    // correctheidsprobleem (zie de toelichting bij PctTotaalIndicator hieronder)
+    // — een derde van de bestaande archetypes wijkt hier al af. De indicator
+    // blijft staan als hulp, opslaan blokkeren zou dat inconsistent maken.
     const gevuldeVarianten = varianten.filter(v => v.blokken.length > 0);
-    for (const v of gevuldeVarianten) {
-      const totaal = berekenPctTotaal(v.blokken);
-      if (Math.abs(totaal - 100) > PCT_TOTAAL_TOLERANTIE) {
-        setLokaleFout(`Variant "${v.naam || v.id || "?"}": aandelen tellen op tot ${totaal.toFixed(1)}% i.p.v. 100%.`);
-        return;
-      }
-    }
 
     setOpslaan(true);
     try {
@@ -538,12 +536,16 @@ function BlokRij({ blok, idx, totaal, onWijzig, onWijzigZone, onVerwijder, onVer
   );
 }
 
+// Puur informatief, geen harde eis: schaalVariant() normaliseert de aandelen
+// altijd op hun werkelijke som (zie handleOpslaan hierboven) — een afwijking
+// van 100% wordt dus automatisch gecorrigeerd bij generatie, geen fout. De
+// indicator helpt alleen om per ongeluk scheve verhoudingen te herkennen.
 function PctTotaalIndicator({ blokken }) {
   const totaal = berekenPctTotaal(blokken);
   const ok = Math.abs(totaal - 100) <= PCT_TOTAAL_TOLERANTIE;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 12.5, fontWeight: 700, color: ok ? "#2F9468" : "#c2410c" }}>
-      {ok ? "✓" : "⚠"} Totaal: {totaal.toFixed(1)}%{!ok && " — moet 100% zijn"}
+      {ok ? "✓" : "⚠"} Totaal: {totaal.toFixed(1)}%{!ok && " (wordt automatisch genormaliseerd — dit is alleen een hint)"}
     </div>
   );
 }

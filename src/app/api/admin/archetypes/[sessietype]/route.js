@@ -3,10 +3,6 @@ import { getKV } from "@/lib/kv";
 import { getSessionUser } from "@/lib/auth";
 import { GELDIGE_SESSIETYPES, valideerZ1Gebruik, invalideerArchetypeCache } from "@/lib/sessie-archetypes";
 
-// Tolerantie in duur_pct-eenheden (0-1) — 0.005 komt overeen met de 0,5%-tolerantie
-// die de builder-UI (PCT_TOTAAL_TOLERANTIE) client-side al hanteert.
-const DUUR_PCT_TOTAAL_TOLERANTIE = 0.005;
-
 function valideerArchetypesArray(sessietype, archetypes) {
   if (!Array.isArray(archetypes)) {
     return "Body moet een array van archetypes zijn";
@@ -44,11 +40,12 @@ function valideerArchetypesArray(sessietype, archetypes) {
       if (!valideerZ1Gebruik(variant.blokken, sessietype, archetype.id)) {
         return `Archetype "${archetype.id}"/variant "${variant.id}": bevat een Z1-blok dat niet is toegestaan voor sessietype "${sessietype}"`;
       }
-
-      const duurPctTotaal = variant.blokken.reduce((s, b) => s + (b.duur_pct ?? 0) * (b.reps ?? 1), 0);
-      if (Math.abs(duurPctTotaal - 1) > DUUR_PCT_TOTAAL_TOLERANTIE) {
-        return `Archetype "${archetype.id}"/variant "${variant.id}": duur_pct-som is ${(duurPctTotaal * 100).toFixed(1)}% i.p.v. 100%`;
-      }
+      // Geen harde eis dat duur_pct optelt tot 100%: schaalVariant() normaliseert
+      // altijd op de werkelijke som (zie sessie-generatie.js) — dat is expliciet
+      // zo gebouwd omdat auteursdata nooit exact is. Ruim een derde van de
+      // bestaande 125 varianten in sessie-varianten.js wijkt af (sommige tot
+      // 73%/150%) zonder dat dat een probleem is voor de generatie. Blokkeren op
+      // "niet 100%" zou legitieme bewerkingen aan bestaande archetypes breken.
     }
   }
   return null;
