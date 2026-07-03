@@ -490,6 +490,10 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         const totaalMinuten = (sessie.segmenten || []).reduce((som, seg) => som + (seg.blokDuurSeconden || seg.duur_min * 60 || 0), 0) / 60;
         if (totaalMinuten < 60) {
           console.warn(`[sessiesAanvullen] ${userId} ${datum}: sessie te kort (${Math.round(totaalMinuten)} min) — overgeslagen`);
+          logEvent("sessie_te_kort_overgeslagen", userId, {
+            sessietype: sessie.intentie?.sessietype ?? sessie.type ?? null,
+            datum, totaalMinuten: Math.round(totaalMinuten),
+          });
           continue;
         }
       }
