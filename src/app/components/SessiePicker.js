@@ -85,7 +85,7 @@ function formatDuur(min) {
   return u > 0 ? `${u}u ${String(m).padStart(2, "0")}m` : `${m}m`;
 }
 
-function Sheet({ titel, subtitel, onTerug, onSluiten, kinderen, hoogteHint }) {
+function Sheet({ titel, subtitel, onTerug, onSluiten, children }) {
   return (
     <div
       style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)", display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "0 0 env(safe-area-inset-bottom, 0px)" }}
@@ -106,7 +106,7 @@ function Sheet({ titel, subtitel, onTerug, onSluiten, kinderen, hoogteHint }) {
         )}
         {!onTerug && <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: T.textTert, textTransform: "uppercase" }}>SESSIE VERVANGEN</span>}
         <h2 style={{ margin: "5px 0 16px", font: "800 21px var(--font-nunito), sans-serif", color: T.text }}>{titel}</h2>
-        {kinderen}
+        {children}
       </div>
     </div>
   );
