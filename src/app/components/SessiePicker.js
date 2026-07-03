@@ -134,13 +134,21 @@ export default function SessiePicker({ datum, onGekozen, onAnnuleer }) {
 
   useEffect(() => {
     setLaden(true);
+    setFout(null);
     fetch(`/api/sessie/categorieen?datum=${datum}`)
-      .then(r => r.json())
-      .then(d => {
-        if (!d.success) { setFout(d.error || "Categorieën laden mislukt"); return; }
+      .then(async (r) => {
+        const d = await r.json().catch(() => null);
+        if (!r.ok || !d?.success) {
+          console.error("[SessiePicker] categorieën laden mislukt:", r.status, d?.error);
+          setFout(d?.error || `Categorieën laden mislukt (${r.status})`);
+          return;
+        }
         setCategorieen(d.data.categorieen);
       })
-      .catch(() => setFout("Categorieën laden mislukt"))
+      .catch((e) => {
+        console.error("[SessiePicker] categorieën laden mislukt:", e);
+        setFout("Categorieën laden mislukt");
+      })
       .finally(() => setLaden(false));
   }, [datum]);
 
@@ -148,15 +156,23 @@ export default function SessiePicker({ datum, onGekozen, onAnnuleer }) {
     setGekozenCategorie(categorie);
     setStap("varianten");
     setLaden(true);
+    setFout(null);
     setVarianten(null);
     fetch(`/api/sessie/varianten?datum=${datum}&categorie=${categorie}`)
-      .then(r => r.json())
-      .then(d => {
-        if (!d.success) { setFout(d.error || "Varianten laden mislukt"); return; }
+      .then(async (r) => {
+        const d = await r.json().catch(() => null);
+        if (!r.ok || !d?.success) {
+          console.error("[SessiePicker] varianten laden mislukt:", r.status, d?.error);
+          setFout(d?.error || `Varianten laden mislukt (${r.status})`);
+          return;
+        }
         setVarianten(d.data.varianten);
         setBeschikbareUren(d.data.beschikbareUren);
       })
-      .catch(() => setFout("Varianten laden mislukt"))
+      .catch((e) => {
+        console.error("[SessiePicker] varianten laden mislukt:", e);
+        setFout("Varianten laden mislukt");
+      })
       .finally(() => setLaden(false));
   }, [datum]);
 
@@ -190,6 +206,9 @@ export default function SessiePicker({ datum, onGekozen, onAnnuleer }) {
       <Sheet titel="Kies een type" onSluiten={onAnnuleer}>
         {laden && <p style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>Laden...</p>}
         {fout && <p style={{ font: "600 13px var(--font-nunito), sans-serif", color: "oklch(0.5 0.15 25)" }}>{fout}</p>}
+        {!laden && !fout && normaal.length === 0 && !tests && (
+          <p style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>Geen categorieën beschikbaar.</p>
+        )}
         {!laden && !fout && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {normaal.map(({ categorie }) => {

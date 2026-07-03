@@ -6,6 +6,8 @@ import { kaderWeekVoorDatum, weekInFaseVoorKaderWeek } from "@/lib/weekgrenzen";
 import { getArchetypesVoorSessietypeRaw, getArchetypesVoorSessietype, TEST_SESSIETYPES } from "@/lib/sessie-archetypes";
 import { genereerRampTestSessie } from "@/lib/sessie/rampTest";
 
+export const dynamic = "force-dynamic";
+
 // Sectie 51-D, chunk 2, stap 2: varianten binnen een gekozen categorie.
 //
 // "Past binnen beschikbare tijd" leunt op het bestaande, archetype-niveau

@@ -3,18 +3,35 @@ import { getKV } from "@/lib/kv";
 import { getSessionUser } from "@/lib/auth";
 import { kaderWeekVoorDatum, weekInFaseVoorKaderWeek } from "@/lib/weekgrenzen";
 import { GELDIGE_SESSIETYPES } from "@/lib/sessie-archetypes";
+import { DOELPROFIELEN, faseInstellingen } from "@/lib/seizoen/doelprofielen";
+
+export const dynamic = "force-dynamic";
 
 // Sectie 51-D, chunk 2, stap 1: fase-passende sessietypes voor een datum, plus
 // altijd de aparte "tests"-categorie (ongeacht fase — zie 51-D-motivatie: anders
 // zou een gebruiker in week 3 nooit zelf een ramp test kunnen kiezen).
 //
-// bouwKader() (sectie 49/51-C) heeft `kaderWeek.sessietypes` al berekend uit
-// faseInstellingen() op het moment van plangeneratie — dat is de bestaande,
-// autoritatieve bron voor "welke sessietypes passen bij deze fase", dus hier
-// niet opnieuw afgeleid. Alleen de types die ook daadwerkelijk archetype/variant-
-// data hebben (GELDIGE_SESSIETYPES) worden getoond — z1_herstel e.d. zijn bewust
-// uitgesloten van archetypelogica (zie sessie-archetypes.js) en hebben dus geen
-// varianten om uit te kiezen.
+// bouwKader() (sectie 49/51-C) berekent `kaderWeek.sessietypes` al bij
+// plangeneratie, maar dat is een SNAPSHOT op het moment van opslaan — plannen
+// die zijn opgeslagen vóórdat dat veld bestond (of die via een ander pad zijn
+// aangemaakt/bijgewerkt) kunnen het missen. Daarom hier een garantiefallback:
+// als het veld ontbreekt of leeg is, wordt het opnieuw afgeleid uit
+// faseInstellingen() — exact dezelfde berekening als bouwKader() zelf gebruikt.
+// Zonder deze fallback kon "Kies een type" volledig leeg blijven i.p.v. minimaal
+// z2_duur + tests te tonen.
+//
+// Alleen de types die ook daadwerkelijk archetype/variant-data hebben
+// (GELDIGE_SESSIETYPES) worden getoond — z1_herstel e.d. zijn bewust uitgesloten
+// van archetypelogica (zie sessie-archetypes.js) en hebben dus geen varianten
+// om uit te kiezen.
+function bepaalFaseSessietypes(plan, kaderWeek) {
+  if (kaderWeek?.sessietypes?.length) return kaderWeek.sessietypes;
+  const doelType = plan.seizoensdoel?.type || plan.doel || "ftp";
+  const doelProfiel = DOELPROFIELEN[doelType] || DOELPROFIELEN.ftp;
+  const faseInfo = kaderWeek?.fase ? faseInstellingen(doelProfiel, kaderWeek.fase) : null;
+  return faseInfo?.sessietypes || ["z2_duur", "z1_herstel"];
+}
+
 export async function GET(request) {
   try {
     const user = await getSessionUser();
@@ -29,7 +46,7 @@ export async function GET(request) {
     if (!plan) return NextResponse.json({ success: false, error: "Geen actief plan" }, { status: 404 });
 
     const kaderWeek = kaderWeekVoorDatum(datum, plan.kader, plan.startdatum);
-    const faseSessietypes = (kaderWeek?.sessietypes || []).filter(t => GELDIGE_SESSIETYPES.has(t));
+    const faseSessietypes = bepaalFaseSessietypes(plan, kaderWeek).filter(t => GELDIGE_SESSIETYPES.has(t));
 
     const categorieen = [
       ...faseSessietypes.map(sessietype => ({ categorie: sessietype, sessietype })),
