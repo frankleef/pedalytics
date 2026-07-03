@@ -31,9 +31,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  const userId = token.userId as string;
+
+  if (pathname.startsWith("/admin") && userId !== process.env.ADMIN_USER_ID) {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
   if (isOnboarding(pathname)) return NextResponse.next();
 
-  const userId = token.userId as string;
   const hasSetup = token.hasIntervalsKey || token.onboardingSkipped;
   if (userId && !hasSetup) {
     const redis = new Redis({
