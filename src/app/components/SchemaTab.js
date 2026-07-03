@@ -876,6 +876,15 @@ export default function SchemaTab({
             <div style={{ maxWidth: 306, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 24, padding: "19px 22px", boxShadow: T.cardShadow }}>
               <p style={{ margin: 0, font: "600 14.5px/1.5 var(--font-nunito), sans-serif", color: T.textSec, textWrap: "pretty" }}>Rust is waar je sterker wordt. Je laat de belasting van deze week landen — niets te doen vandaag, en dat is precies de bedoeling.</p>
             </div>
+            {onSessieGekozen && dayOffset >= 0 && (
+              <button
+                onClick={() => setToontSessiePicker(true)}
+                style={{ marginTop: 18, display: "flex", alignItems: "center", gap: 8, padding: "11px 18px", borderRadius: T.pillRadius, border: `1.5px solid ${T.cardBorder}`, background: T.cardBg, color: T.textSec, font: "700 13px var(--font-nunito), sans-serif", cursor: "pointer" }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke={T.textSec} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                Toch een training plannen
+              </button>
+            )}
           </div>
         )}
 
@@ -885,6 +894,7 @@ export default function SchemaTab({
       {toontSessiePicker && (
         <SessiePicker
           datum={cur.iso}
+          heeftBestaandeSessie={!!sessie}
           onGekozen={(nieuweSessie) => {
             setToontSessiePicker(false);
             onSessieGekozen(cur.iso, nieuweSessie);

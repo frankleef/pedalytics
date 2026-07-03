@@ -85,7 +85,7 @@ function formatDuur(min) {
   return u > 0 ? `${u}u ${String(m).padStart(2, "0")}m` : `${m}m`;
 }
 
-function Sheet({ titel, subtitel, onTerug, onSluiten, children }) {
+function Sheet({ titel, subtitel, eyebrow = "SESSIE VERVANGEN", onTerug, onSluiten, children }) {
   return (
     <div
       style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)", display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "0 0 env(safe-area-inset-bottom, 0px)" }}
@@ -104,7 +104,7 @@ function Sheet({ titel, subtitel, onTerug, onSluiten, children }) {
             <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: T.textTert, textTransform: "uppercase" }}>{subtitel}</span>
           </button>
         )}
-        {!onTerug && <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: T.textTert, textTransform: "uppercase" }}>SESSIE VERVANGEN</span>}
+        {!onTerug && <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: T.textTert, textTransform: "uppercase" }}>{eyebrow}</span>}
         <h2 style={{ margin: "5px 0 16px", font: "800 21px var(--font-nunito), sans-serif", color: T.text }}>{titel}</h2>
         {children}
       </div>
@@ -119,10 +119,13 @@ function Sheet({ titel, subtitel, onTerug, onSluiten, children }) {
  * systeem automatisch een alternatief bepaalt.
  *
  * @param {string} datum
+ * @param {boolean} [heeftBestaandeSessie] - stuurt alleen het eyebrow-label
+ *   (vervangen vs. toevoegen); functioneel identiek in beide gevallen — PUT
+ *   /api/sessie/kies overschrijft/creëert altijd, ongeacht of er al een sessie was
  * @param {(nieuweSessie: object) => void} onGekozen
  * @param {() => void} onAnnuleer
  */
-export default function SessiePicker({ datum, onGekozen, onAnnuleer }) {
+export default function SessiePicker({ datum, heeftBestaandeSessie = true, onGekozen, onAnnuleer }) {
   const [stap, setStap] = useState("categorieen");
   const [categorieen, setCategorieen] = useState(null);
   const [gekozenCategorie, setGekozenCategorie] = useState(null);
@@ -203,7 +206,7 @@ export default function SessiePicker({ datum, onGekozen, onAnnuleer }) {
     const normaal = (categorieen || []).filter(c => c.categorie !== "tests");
     const tests = (categorieen || []).find(c => c.categorie === "tests");
     return (
-      <Sheet titel="Kies een type" onSluiten={onAnnuleer}>
+      <Sheet titel="Kies een type" eyebrow={heeftBestaandeSessie ? "SESSIE VERVANGEN" : "SESSIE TOEVOEGEN"} onSluiten={onAnnuleer}>
         {laden && <p style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>Laden...</p>}
         {fout && <p style={{ font: "600 13px var(--font-nunito), sans-serif", color: "oklch(0.5 0.15 25)" }}>{fout}</p>}
         {!laden && !fout && normaal.length === 0 && !tests && (
