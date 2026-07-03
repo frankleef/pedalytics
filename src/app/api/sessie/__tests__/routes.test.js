@@ -123,6 +123,23 @@ describe('GET /api/sessie/categorieen', () => {
     expect(resp.status).toBe(400)
   })
 
+  it('migreert verouderde sessietype-namen in een oude plan-snapshot (bv. "z2_vlak" -> "z2_duur") i.p.v. ze stil te laten vallen', async () => {
+    const kv = maakKvMock({
+      'u_test:seizoensplan': bouwPlan({
+        // Simuleert een plan aangemaakt vóórdat z2_vlak -> z2_duur werd
+        // gemigreerd (zie SESSIETYPE_MIGRATIE) — kaderWeek.sessietypes is een
+        // snapshot en is nooit met terugwerkende kracht bijgewerkt.
+        kader: [{ week: 1, fase: 'basis', weektype: 'opbouw', tss_doel: 200, sessietypes: ['z2_vlak', 'kracht_lage_cadans', 'z1_herstel'] }],
+      }),
+    })
+    vi.mocked(getKV).mockReturnValue(kv)
+
+    const resp = await GET_categorieen(req('/api/sessie/categorieen?datum=2026-01-07'))
+    const body = await resp.json()
+    expect(resp.status).toBe(200)
+    expect(body.data.categorieen.map(c => c.categorie)).toEqual(['z2_duur', 'kracht_lage_cadans', 'tests'])
+  })
+
   it('valt terug op faseInstellingen() als kaderWeek.sessietypes ontbreekt (oudere/andere plan-opslag)', async () => {
     const kv = maakKvMock({
       'u_test:seizoensplan': bouwPlan({

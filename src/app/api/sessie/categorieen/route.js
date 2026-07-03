@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { getSessionUser } from "@/lib/auth";
 import { kaderWeekVoorDatum, weekInFaseVoorKaderWeek } from "@/lib/weekgrenzen";
-import { GELDIGE_SESSIETYPES } from "@/lib/sessie-archetypes";
+import { GELDIGE_SESSIETYPES, migreesSessietype } from "@/lib/sessie-archetypes";
 import { DOELPROFIELEN, faseInstellingen } from "@/lib/seizoen/doelprofielen";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +46,18 @@ export async function GET(request) {
     if (!plan) return NextResponse.json({ success: false, error: "Geen actief plan" }, { status: 404 });
 
     const kaderWeek = kaderWeekVoorDatum(datum, plan.kader, plan.startdatum);
-    const faseSessietypes = bepaalFaseSessietypes(plan, kaderWeek).filter(t => GELDIGE_SESSIETYPES.has(t));
+    // kaderWeek.sessietypes is een snapshot van op het moment van plangeneratie —
+    // plannen van vóór een sessietype-migratie (bv. het oude "z2_vlak" →
+    // "z2_duur", zie SESSIETYPE_MIGRATIE) dragen nog de OUDE naam. Die naam komt
+    // niet voor in GELDIGE_SESSIETYPES, dus zonder migratie hier vielen gemigreerde
+    // types stilzwijgend weg (waargenomen: alleen kracht_lage_cadans bleef over
+    // voor een basis-fase-week die ook z2_duur had moeten tonen). migreesSessietype()
+    // vertaalt oude namen naar de huidige en filtert tegelijk ongeldige types weg.
+    const faseSessietypes = [...new Set(
+      bepaalFaseSessietypes(plan, kaderWeek)
+        .map(t => migreesSessietype(t))
+        .filter(t => t && GELDIGE_SESSIETYPES.has(t))
+    )];
 
     const categorieen = [
       ...faseSessietypes.map(sessietype => ({ categorie: sessietype, sessietype })),
