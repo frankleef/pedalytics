@@ -14,6 +14,7 @@ import SharedHeader from "./SharedHeader";
 import { KerngetallenTiles, StatusBanner } from "./SessieUitkomstKaart";
 import AdaptatieScoreKaart from "./AdaptatieScoreKaart"; // TSS+fase kaart op Schema
 import SessiePicker from "./SessiePicker";
+import MarkeerAlsFtpTest from "./MarkeerAlsFtpTest";
 import HrvAdviesKaart, { bepaalKeuzes } from "./HrvAdviesKaart";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
@@ -161,7 +162,7 @@ function bouwBlockGroups(segmenten, ftp) {
   });
 }
 
-const SESSIE_LABELS = { duur_lang: "Duurrit", duur_variabel: "Variabele duurrit", duur_middel: "Duurrit", sweetspot: "Sweet spot", interval: "Interval", herstel: "Herstelrit", drempel: "Drempel", vo2max: "VO2max", tempo: "Tempo" };
+const SESSIE_LABELS = { duur_lang: "Duurrit", duur_variabel: "Variabele duurrit", duur_middel: "Duurrit", sweetspot: "Sweet spot", interval: "Interval", herstel: "Herstelrit", drempel: "Drempel", vo2max: "VO2max", tempo: "Tempo", ramp_test: "FTP-test (Ramp)" };
 
 function bepaalMode(offset, sessie, rit, planStartISO) {
   const isVerleden = offset < 0;
@@ -812,6 +813,14 @@ export default function SchemaTab({
 
             <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.6, color: T.textTert, textTransform: "uppercase" }}>GEDETECTEERD · {(ritCls?.label || "Rit").toUpperCase()}</span>
             <h1 style={{ margin: "5px 0 18px", font: "800 28px/1.18 var(--font-nunito), sans-serif", letterSpacing: -0.5, textWrap: "pretty", color: T.text }}>{gematchteRit?.naam || ritCls?.label || "Rit"}</h1>
+
+            {onSessieGekozen && (
+              <MarkeerAlsFtpTest
+                datum={cur.iso}
+                activiteitId={gematchteRit?.id}
+                onGemarkeerd={(nieuweSessie) => onSessieGekozen(cur.iso, nieuweSessie)}
+              />
+            )}
 
             {renderRitMetrics(false)}
             {renderWerkelijkGrafiek()}
