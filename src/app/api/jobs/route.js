@@ -8,7 +8,7 @@ import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
 import { claudeCall } from "@/lib/claude";
 import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
 import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
-import { genereerSessieDag } from "@/lib/sessie/genereren";
+import { genereerSessieDag, logSessieGegenereerd } from "@/lib/sessie/genereren";
 import { kaderWeekVoorDatum, weekInFaseVoorKaderWeek } from "@/lib/weekgrenzen";
 import { logEvent } from "@/lib/posthog";
 
@@ -66,6 +66,7 @@ export async function POST(request) {
       });
 
       console.log(`[Job ${jobId}] Resultaat: ${result.type} "${result.titel}" | ${result.duur_min}min | TSS ${result.tss} | ${result.segmenten?.length || 0} segmenten`);
+      if (result.intentie?.sessietype !== "ramp_test") logSessieGegenereerd(result, { userId, huidigeFase, weekInFase });
       await kv.set(`genjob:${jobId}`, { status: "done", type, result }, { ex: 300 });
       console.log(`[Job ${jobId}] Voltooid`);
       return NextResponse.json({ success: true, jobId, status: "done", result });

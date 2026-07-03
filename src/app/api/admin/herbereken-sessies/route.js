@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet } from "@/lib/intervals";
-import { genereerSessieDag } from "@/lib/sessie/genereren";
+import { genereerSessieDag, logSessieGegenereerd } from "@/lib/sessie/genereren";
 import { kaderWeekVoorDatum, weekInFaseVoorKaderWeek } from "@/lib/weekgrenzen";
 import { DAGNAMEN } from "@/lib/datum";
 
@@ -75,6 +75,7 @@ export async function POST(request) {
         });
 
         if (sessie.intervalsEventId) result.intervalsEventId = sessie.intervalsEventId;
+        logSessieGegenereerd(result, { userId, huidigeFase, weekInFase });
         const idx = sessies.indexOf(sessie);
         if (idx >= 0) sessies[idx] = result;
         bijgewerkt = true;

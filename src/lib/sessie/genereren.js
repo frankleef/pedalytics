@@ -148,16 +148,24 @@ export async function genereerSessieDag(ctx) {
     capSessieDuur(sessie, Math.round(uren * 60), `genereerSessieDag ${datum}`, userId);
   }
 
+  return sessie;
+}
+
+/**
+ * Logt sessie_gegenereerd — bewust NIET binnen genereerSessieDag() zelf, want
+ * niet elke aanroeper houdt het resultaat: sessiesAanvullen.js gooit sessies
+ * korter dan 60min na generatie alsnog weg. Callers loggen dus pas op het punt
+ * waar de sessie daadwerkelijk behouden/opgeslagen wordt.
+ */
+export function logSessieGegenereerd(sessie, { userId, huidigeFase, weekInFase }) {
   logEvent("sessie_gegenereerd", userId, {
-    sessietype: sessie.intentie?.sessietype ?? effectiefSessietype,
-    archetype_id: gekozenArchetype.id,
-    variant_id: variant.id,
+    sessietype: sessie.intentie?.sessietype ?? sessie.type ?? null,
+    archetype_id: sessie.archetype_id ?? null,
+    variant_id: sessie.variant_id ?? null,
     fase: huidigeFase,
     weekInFase,
     duur_min: sessie.duur_min,
     tss_doel: sessie.tss,
     gegenereerd_door: "deterministisch",
   });
-
-  return sessie;
 }

@@ -10,7 +10,7 @@ import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
 import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
 import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
 import { magSprintStaartje } from "@/lib/sessie/weekpatroon";
-import { genereerSessieDag } from "@/lib/sessie/genereren";
+import { genereerSessieDag, logSessieGegenereerd } from "@/lib/sessie/genereren";
 import { voegSprintStaartjesToe, voegTempoAfsluiterToe } from "@/lib/sessie/segmentStaart";
 import { solveWeek, pasBudgetToe } from "@/lib/sessie/weekSolver";
 import { bepaalAlGeleverd } from "@/lib/sessie/context";
@@ -534,6 +534,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         console.warn(`[sessiesAanvullen] Intervals sync mislukt voor ${datum}:`, e.message);
       }
 
+      if (toewijzing?.sessietype !== 'ramp_test') logSessieGegenereerd(sessie, { userId, huidigeFase, weekInFase });
       aangevuld.push(sessie);
       console.log(`[sessiesAanvullen] ${userId} ${datum}: ${sessie.type} ${sessie.duur_min}min`);
     } catch (e) {
@@ -611,6 +612,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         console.warn(`[sessiesAanvullen] Intervals sync mislukt voor verlengd ${datum}:`, e.message);
       }
 
+      logSessieGegenereerd(sessie, { userId, huidigeFase, weekInFase });
       verlengd.push(sessie);
       console.log(`[sessiesAanvullen] verleng_sessie ${userId} ${datum}: ${sessie.type} ${sessie.duur_min}min (max ${maxMinuten}min)`);
     } catch (e) {
