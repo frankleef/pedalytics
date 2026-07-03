@@ -12,7 +12,13 @@ async function hogql(query) {
     },
     body: JSON.stringify({ query: { kind: "HogQLQuery", query } }),
   });
-  const data = await res.json();
+  const raw = await res.text();
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    throw new Error(`Onverwacht antwoord (status ${res.status}, geen JSON): ${raw.slice(0, 200)}`);
+  }
   if (!res.ok) throw new Error(data?.detail || `HogQL-query mislukt (status ${res.status})`);
   // PostHog geeft { columns, results } terug — vouw om naar array van objecten.
   const columns = data.columns || [];
@@ -71,16 +77,17 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const entries = await Promise.all(
-    Object.entries(QUERIES).map(async ([naam, query]) => {
-      try {
-        return [naam, { data: await hogql(query) }];
-      } catch (e) {
-        console.error(`[admin/observability] query "${naam}" mislukt:`, e.message);
-        return [naam, { error: e.message }];
-      }
-    })
-  );
+  // Sequentieel i.p.v. Promise.all — 5 gelijktijdige requests naar PostHog
+  // triggerden soms een non-JSON (HTML) antwoord, vermoedelijk rate-limiting.
+  const entries = [];
+  for (const [naam, query] of Object.entries(QUERIES)) {
+    try {
+      entries.push([naam, { data: await hogql(query) }]);
+    } catch (e) {
+      console.error(`[admin/observability] query "${naam}" mislukt:`, e.message);
+      entries.push([naam, { error: e.message }]);
+    }
+  }
 
   return NextResponse.json(Object.fromEntries(entries));
 }
