@@ -8,8 +8,9 @@ import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
 import { claudeCall } from "@/lib/claude";
 import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
 import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
-import { genereerSessieDag } from "@/lib/sessie/genereren";
+import { genereerSessieDag, logSessieGegenereerd } from "@/lib/sessie/genereren";
 import { kaderWeekVoorDatum, weekInFaseVoorKaderWeek } from "@/lib/weekgrenzen";
+import { logEvent } from "@/lib/posthog";
 
 export const maxDuration = 120;
 
@@ -65,6 +66,7 @@ export async function POST(request) {
       });
 
       console.log(`[Job ${jobId}] Resultaat: ${result.type} "${result.titel}" | ${result.duur_min}min | TSS ${result.tss} | ${result.segmenten?.length || 0} segmenten`);
+      if (result.intentie?.sessietype !== "ramp_test") logSessieGegenereerd(result, { userId, huidigeFase, weekInFase });
       await kv.set(`genjob:${jobId}`, { status: "done", type, result }, { ex: 300 });
       console.log(`[Job ${jobId}] Voltooid`);
       return NextResponse.json({ success: true, jobId, status: "done", result });
@@ -122,6 +124,11 @@ export async function POST(request) {
 
   } catch (e) {
     console.error(`[Job ${jobId}] MISLUKT: ${e.message}`);
+    if (!e._observabilityLogged) {
+      logEvent("generatie_fout", sessionUser?.id || params?.userId || "", {
+        functie: type, foutcode: e.message, sessietype: params?.oudeSessie?.intentie?.sessietype ?? null, datum: params?.datum ?? null,
+      });
+    }
     await kv.set(`genjob:${jobId}`, { status: "failed", type, error: e.message }, { ex: 300 }).catch(() => {});
     return NextResponse.json({ success: true, jobId, status: "failed", error: e.message });
   }

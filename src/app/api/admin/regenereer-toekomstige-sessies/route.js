@@ -5,7 +5,7 @@ import { intervalsGet, intervalsPost, intervalsDelete } from "@/lib/intervals";
 import { vandaagISO } from "@/lib/datum";
 import { sessieNaarZwo } from "@/lib/workoutZwo";
 import { weeknummerVoorDatum, kaderWeekVoorDatum, weekInFaseVoorKaderWeek } from "@/lib/weekgrenzen";
-import { genereerSessieDag } from "@/lib/sessie/genereren";
+import { genereerSessieDag, logSessieGegenereerd } from "@/lib/sessie/genereren";
 import { genereerRampTestSessie } from "@/lib/sessie/rampTest";
 import {
   migreerZ2VariabelNaarDuur,
@@ -245,6 +245,8 @@ export async function POST(request) {
         ),
       };
       await kv.set(planKey, huidigPlan);
+
+      if (effectiefSessietype !== 'ramp_test') logSessieGegenereerd(nieuweSessie, { userId, huidigeFase, weekInFase });
 
       resultaten.push({
         datum,

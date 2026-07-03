@@ -15,6 +15,10 @@ function getClient() {
 }
 
 async function verstuur(event, userId, payload) {
+  // Zonder token (test-omgeving, lokale setup zonder .env.local) niets versturen —
+  // voorkomt zinloze netwerkcalls die tests zouden vertragen of laten hangen.
+  if (!process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN) return;
+
   try {
     await getClient().captureImmediate({
       distinctId: userId,

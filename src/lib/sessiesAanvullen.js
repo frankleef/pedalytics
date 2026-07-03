@@ -10,12 +10,13 @@ import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
 import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
 import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
 import { magSprintStaartje } from "@/lib/sessie/weekpatroon";
-import { genereerSessieDag } from "@/lib/sessie/genereren";
+import { genereerSessieDag, logSessieGegenereerd } from "@/lib/sessie/genereren";
 import { voegSprintStaartjesToe, voegTempoAfsluiterToe } from "@/lib/sessie/segmentStaart";
 import { solveWeek, pasBudgetToe } from "@/lib/sessie/weekSolver";
 import { bepaalAlGeleverd } from "@/lib/sessie/context";
 import { getAlleArchetypesRaw } from "@/lib/sessie-archetypes";
 import { genereerRampTestSessie } from "@/lib/sessie/rampTest";
+import { logEvent } from "@/lib/posthog";
 
 const VERBODEN_TYPES_VOLUMECORRECTIE = ["kracht_lage_cadans", "sprint_neuraal"];
 
@@ -325,7 +326,12 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         alGeleverd, tsb: tsbDezeWeek,
       });
       const toewijzingen = pasBudgetToe(ruweToewijzingen, kaderWeekVoorDeze?.tss_doel ?? 0, alGeleverd.tss, vasteDagenTss);
-      for (const t of toewijzingen) toewijzingPerDatum[t.datum] = t;
+      for (const t of toewijzingen) {
+        toewijzingPerDatum[t.datum] = t;
+        if (t.pad === "vrijheidsessie") {
+          logEvent("vrijheidsdag_getriggerd", userId, { fase: huidigeFaseVoorDeze, weekInFase: weekInFaseVoorDeze, archetype_hint: t.archetype_hint ?? null });
+        }
+      }
     } catch (e) {
       console.error(`[sessiesAanvullen] solveWeek mislukt voor week ${mISO}:`, e.message);
       // Geen toewijzingen voor deze week — dagen hieronder worden per stuk overgeslagen.
@@ -484,6 +490,10 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         const totaalMinuten = (sessie.segmenten || []).reduce((som, seg) => som + (seg.blokDuurSeconden || seg.duur_min * 60 || 0), 0) / 60;
         if (totaalMinuten < 60) {
           console.warn(`[sessiesAanvullen] ${userId} ${datum}: sessie te kort (${Math.round(totaalMinuten)} min) — overgeslagen`);
+          logEvent("sessie_te_kort_overgeslagen", userId, {
+            sessietype: sessie.intentie?.sessietype ?? sessie.type ?? null,
+            datum, totaalMinuten: Math.round(totaalMinuten),
+          });
           continue;
         }
       }
@@ -498,6 +508,10 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       {
         const sessietype = sessie.intentie?.sessietype || sessie.sessietype || sessie.type;
         if (!valideerZ1Gebruik(sessie.segmenten, sessietype, sessie.archetype_id ?? null)) {
+          logEvent("z1_validatie_fout", userId, {
+            sessietype, archetype_id: sessie.archetype_id ?? null,
+            blok: (sessie.segmenten || []).find(b => b.zone === "Z1") ?? null,
+          });
           throw new Error(`Z1-validatie mislukt voor sessietype ${sessietype} op ${datum}`);
         }
       }
@@ -524,6 +538,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         console.warn(`[sessiesAanvullen] Intervals sync mislukt voor ${datum}:`, e.message);
       }
 
+      if (toewijzing?.sessietype !== 'ramp_test') logSessieGegenereerd(sessie, { userId, huidigeFase, weekInFase });
       aangevuld.push(sessie);
       console.log(`[sessiesAanvullen] ${userId} ${datum}: ${sessie.type} ${sessie.duur_min}min`);
     } catch (e) {
@@ -601,6 +616,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         console.warn(`[sessiesAanvullen] Intervals sync mislukt voor verlengd ${datum}:`, e.message);
       }
 
+      logSessieGegenereerd(sessie, { userId, huidigeFase, weekInFase });
       verlengd.push(sessie);
       console.log(`[sessiesAanvullen] verleng_sessie ${userId} ${datum}: ${sessie.type} ${sessie.duur_min}min (max ${maxMinuten}min)`);
     } catch (e) {
