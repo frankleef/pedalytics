@@ -81,7 +81,7 @@ export async function PUT(request) {
       normaliseerSessieSegmenten(nieuweSessie);
       voegVerwachtRpeToe(nieuweSessie);
       corrigeerSessieTss(nieuweSessie);
-      if (uren) capSessieDuur(nieuweSessie, Math.round(uren * 60), "PUT /api/sessie/kies");
+      if (uren) capSessieDuur(nieuweSessie, Math.round(uren * 60), "PUT /api/sessie/kies", user.id);
     }
 
     // Bestaand intervals.icu-event voor deze dag opruimen vóórdat het nieuwe

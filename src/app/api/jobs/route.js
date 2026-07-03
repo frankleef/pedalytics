@@ -10,6 +10,7 @@ import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
 import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
 import { genereerSessieDag } from "@/lib/sessie/genereren";
 import { kaderWeekVoorDatum, weekInFaseVoorKaderWeek } from "@/lib/weekgrenzen";
+import { logEvent } from "@/lib/posthog";
 
 export const maxDuration = 120;
 
@@ -122,6 +123,11 @@ export async function POST(request) {
 
   } catch (e) {
     console.error(`[Job ${jobId}] MISLUKT: ${e.message}`);
+    if (!e._observabilityLogged) {
+      logEvent("generatie_fout", sessionUser?.id || params?.userId || "", {
+        functie: type, foutcode: e.message, sessietype: params?.oudeSessie?.intentie?.sessietype ?? null, datum: params?.datum ?? null,
+      });
+    }
     await kv.set(`genjob:${jobId}`, { status: "failed", type, error: e.message }, { ex: 300 }).catch(() => {});
     return NextResponse.json({ success: true, jobId, status: "failed", error: e.message });
   }

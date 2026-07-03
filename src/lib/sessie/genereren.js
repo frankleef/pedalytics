@@ -24,6 +24,7 @@ import {
 } from "../sessie-archetypes";
 import { selecteerVariantOpDagvorm, genereerSessieDeterministisch } from "../sessie-generatie";
 import { bepaalHrvZone } from "../hrv/zone";
+import { logEvent } from "../posthog";
 
 /**
  * Genereert één sessiedag, volledig deterministisch.
@@ -69,9 +70,12 @@ export async function genereerSessieDag(ctx) {
   const archetypesVoorType = await getArchetypesVoorSessietypeRaw(effectiefSessietype, kv);
   const archetypes = getArchetypesVoorSessietype(archetypesVoorType, huidigeFase, weekInFase, plan?.seizoensdoel?.type ?? null, Math.round(uren * 60));
   if (archetypes.length === 0) {
-    throw new Error(
+    logEvent("archetype_niet_gevonden", userId, { sessietype: effectiefSessietype, fase: huidigeFase, weekInFase });
+    const err = new Error(
       `genereerSessieDag: geen archetypes beschikbaar voor sessietype "${effectiefSessietype}" (fase "${huidigeFase}", week ${weekInFase}, ${uren}u beschikbaar) op ${datum} — mogelijk vereisen alle kandidaten meer tijd dan beschikbaar (min_duur_min).`
     );
+    err._observabilityLogged = true;
+    throw err;
   }
 
   const recenteArchetypes = await getRecenteArchetypes(kv, userId, effectiefSessietype);
@@ -81,9 +85,12 @@ export async function genereerSessieDag(ctx) {
   const gekozenArchetype = selecteerArchetype(archetypes, recenteArchetypes);
 
   if (!gekozenArchetype?.varianten?.length) {
-    throw new Error(
+    logEvent("archetype_niet_gevonden", userId, { sessietype: effectiefSessietype, fase: huidigeFase, weekInFase });
+    const err = new Error(
       `genereerSessieDag: geen variantendata voor archetype "${gekozenArchetype?.id}" (sessietype "${effectiefSessietype}") op ${datum} — elk bekend archetype hoort variantendata te hebben (KV: archetypes:${effectiefSessietype}).`
     );
+    err._observabilityLogged = true;
+    throw err;
   }
 
   const tsb = wellness ? Math.round((wellness.ctl ?? 0) - (wellness.atl ?? 0)) : 0;
@@ -138,8 +145,19 @@ export async function genereerSessieDag(ctx) {
   }
 
   if (uren) {
-    capSessieDuur(sessie, Math.round(uren * 60), `genereerSessieDag ${datum}`);
+    capSessieDuur(sessie, Math.round(uren * 60), `genereerSessieDag ${datum}`, userId);
   }
+
+  logEvent("sessie_gegenereerd", userId, {
+    sessietype: sessie.intentie?.sessietype ?? effectiefSessietype,
+    archetype_id: gekozenArchetype.id,
+    variant_id: variant.id,
+    fase: huidigeFase,
+    weekInFase,
+    duur_min: sessie.duur_min,
+    tss_doel: sessie.tss,
+    gegenereerd_door: "deterministisch",
+  });
 
   return sessie;
 }

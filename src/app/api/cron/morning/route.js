@@ -9,6 +9,7 @@ import { bepaalNotificatie, checkNotificatieLimiet, verhoogNotificatieTeller, bo
 import { bepaalOpportunistischeTraining } from "@/lib/hrv/opportunistisch";
 import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet } from "@/lib/intervals";
+import { logEvent } from "@/lib/posthog";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -74,11 +75,16 @@ async function verwerkHrvNotificatie(userId, kv, vandaag) {
     }
 
     const magSturen = await checkNotificatieLimiet(userId);
-    if (!magSturen) return "limiet_bereikt";
+    const checkIn = await kv.get(`${userId}:checkin:${vandaag}`);
+    if (!magSturen) {
+      logEvent("hrv_waarschuwing", userId, { niveau: notificatie.type, hrv_score: huidigHrv, check_in_score: checkIn?.score ?? null, actie_genomen: "limiet_bereikt" });
+      return "limiet_bereikt";
+    }
 
     const tekst = bouwNotificatieTekst(notificatie.type, sessie, hrvProfiel, huidigHrv);
     await sendPush(userId, { title: tekst.titel, body: tekst.body, url: "/", tag: "hrv-advies" });
     await verhoogNotificatieTeller(userId);
+    logEvent("hrv_waarschuwing", userId, { niveau: notificatie.type, hrv_score: huidigHrv, check_in_score: checkIn?.score ?? null, actie_genomen: "hrv_notificatie_gestuurd" });
     return "hrv_notificatie_gestuurd";
   }
   return "geen_sessies";

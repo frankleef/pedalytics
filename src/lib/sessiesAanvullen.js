@@ -16,6 +16,7 @@ import { solveWeek, pasBudgetToe } from "@/lib/sessie/weekSolver";
 import { bepaalAlGeleverd } from "@/lib/sessie/context";
 import { getAlleArchetypesRaw } from "@/lib/sessie-archetypes";
 import { genereerRampTestSessie } from "@/lib/sessie/rampTest";
+import { logEvent } from "@/lib/posthog";
 
 const VERBODEN_TYPES_VOLUMECORRECTIE = ["kracht_lage_cadans", "sprint_neuraal"];
 
@@ -325,7 +326,12 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         alGeleverd, tsb: tsbDezeWeek,
       });
       const toewijzingen = pasBudgetToe(ruweToewijzingen, kaderWeekVoorDeze?.tss_doel ?? 0, alGeleverd.tss, vasteDagenTss);
-      for (const t of toewijzingen) toewijzingPerDatum[t.datum] = t;
+      for (const t of toewijzingen) {
+        toewijzingPerDatum[t.datum] = t;
+        if (t.pad === "vrijheidsessie") {
+          logEvent("vrijheidsdag_getriggerd", userId, { fase: huidigeFaseVoorDeze, weekInFase: weekInFaseVoorDeze, archetype_hint: t.archetype_hint ?? null });
+        }
+      }
     } catch (e) {
       console.error(`[sessiesAanvullen] solveWeek mislukt voor week ${mISO}:`, e.message);
       // Geen toewijzingen voor deze week — dagen hieronder worden per stuk overgeslagen.
@@ -498,6 +504,10 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       {
         const sessietype = sessie.intentie?.sessietype || sessie.sessietype || sessie.type;
         if (!valideerZ1Gebruik(sessie.segmenten, sessietype, sessie.archetype_id ?? null)) {
+          logEvent("z1_validatie_fout", userId, {
+            sessietype, archetype_id: sessie.archetype_id ?? null,
+            blok: (sessie.segmenten || []).find(b => b.zone === "Z1") ?? null,
+          });
           throw new Error(`Z1-validatie mislukt voor sessietype ${sessietype} op ${datum}`);
         }
       }
