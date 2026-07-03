@@ -16,6 +16,7 @@ import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillSta
 import { haalRitTemperatuur, berekenTempBaseline, berekenHitteVlag, migreerHitteTemperatuur } from "@/lib/hitte";
 import { herberekenHrvProfiel, checkDataStatus } from "@/lib/hrv/profiel";
 import { isWekelijkseCheckVerschuldigd, voerWekelijkseEvaluatieUit, voerHerstelweekEvaluatieUit } from "@/lib/volumeCorrectie";
+import { logEvent } from "@/lib/posthog";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -314,6 +315,14 @@ export async function POST(request) {
               }
             });
             sessie.voltooid = true; // lokale referentie ook bijwerken voor de rest van dit blok
+
+            logEvent("sessie_voltooid", userId, {
+              uitvoeringsscore: scoreData?.score ?? null,
+              rpe: nieuwste.icu_rpe ?? null,
+              tss_werkelijk: nieuwste.icu_training_load ?? null,
+              tss_doel: sessie.tss ?? null,
+              archetype_id: sessie.archetype_id ?? null,
+            });
           }
           if (sessie?.intentie?.rol === "ftp_test") {
             try {
