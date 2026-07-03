@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { intervalsGet, intervalsPost, intervalsPut } from "@/lib/intervals";
-import { segmentenNaarZwo } from "@/lib/workoutZwo";
+import { sessieNaarZwo } from "@/lib/workoutZwo";
 import { vandaagISO, datumOffset } from "@/lib/datum";
 import { getUserIntervalsConfig, NietGekoppeldError } from "@/lib/auth";
 
@@ -41,7 +41,7 @@ export async function POST(request) {
 
     const resultaten = [];
     for (const sessie of sessies) {
-      const zwo = segmentenNaarZwo(sessie.segmenten, sessie.titel, ftp || 265);
+      const zwo = sessieNaarZwo(sessie, ftp || 265);
       const datum = sessie.datum?.includes("T") ? sessie.datum : `${sessie.datum}T08:00:00`;
       const datumDag = sessie.datum?.split("T")[0] || sessie.datum;
       const eventBody = {
@@ -65,7 +65,9 @@ export async function POST(request) {
         result = await intervalsPost("/events", eventBody, creds);
       }
 
-      if (result.id && zwo) {
+      // ramp_test heeft per definitie een variabele einduur (protocol i.p.v.
+      // segmenten) — de duur-mismatch-check hieronder is daar zinloos.
+      if (result.id && zwo && !sessie.protocol) {
         try {
           const segDuur = (sessie.segmenten || []).reduce((s, seg) => s + (seg.blokDuurSeconden || (seg.duur_min || 0) * 60), 0);
           const resolvedDuur = result.moving_time || result.workout_doc?.duration;

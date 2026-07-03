@@ -360,6 +360,9 @@ export function bepaalVolumeAanpassing({ plan, aankomendWeek, correctie, signale
   // Stap 2: verleng bestaande sessies (langste eerst, 48u-regel)
   const teVerlengeSessies = sessiesInWeek
     .filter(s => {
+      // Sectie 51-C: ramp_test is structureel onaantastbaar — vast protocol,
+      // geen archetype/segmenten om te verlengen (genereerSessieDag zou falen).
+      if (s.intentie?.sessietype === "ramp_test") return false;
       const naam = dagNaamVanDatum(s.datum);
       const maxUren = urenPerDag[naam] || 1.5;
       const huidigeUren = (s.duur_min || 90) / 60;

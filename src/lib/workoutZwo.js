@@ -91,3 +91,54 @@ function midpoint(seg, ftpW) {
 function escXml(str) {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
+
+// Sectie 51-B-I: ramp_test is het eerste sessietype dat in absolute watts is
+// gedefinieerd (start 100W, +20W/min) i.p.v. pct_ftp-relatief — alle andere
+// sessietypes lopen via segmentenNaarZwo() hierboven, ongewijzigd. ZWO's
+// Power-attribuut is altijd een FTP-fractie, dus elke stap wordt hier omgerekend
+// t.o.v. de FTP die de caller meegeeft (huidige intervals.icu-FTP, geen
+// hardcoded waarde).
+//
+// ZWO kent geen "ga door tot falen"-eindconditie: we genereren stappen ruim
+// voorbij een fysiologisch plausibel maximum (520W) zodat de rijder in de
+// praktijk altijd eerder stopt en de workout zelf op het apparaat beëindigt —
+// gangbare aanpak bij custom ramp-test-ZWO's.
+const RAMP_TEST_MAX_WATT = 520;
+
+export function rampTestNaarZwo(protocol, naam, ftpW = 265) {
+  if (!protocol) return null;
+  const { warmup, ramp, cooldown } = protocol;
+
+  const warmupDuur = (warmup?.duur_min ?? 5) * 60;
+  const cooldownDuur = (cooldown?.duur_min ?? 5) * 60;
+  const startWatt = ramp?.start_watt ?? 100;
+  const stapWatt = ramp?.increment_watt_per_min ?? 20;
+
+  const stappen = [];
+  for (let watt = startWatt; watt <= RAMP_TEST_MAX_WATT; watt += stapWatt) {
+    const fractie = +(watt / ftpW).toFixed(3);
+    stappen.push(`    <SteadyState Duration="60" Power="${fractie}" pace="0" />`);
+  }
+
+  return `<workout_file>
+  <author>Pedalytics</author>
+  <name>${escXml(naam || "Ramp Test")}</name>
+  <sportType>bike</sportType>
+  <workout>
+    <Warmup Duration="${warmupDuur}" PowerLow="0.5" PowerHigh="0.7" />
+${stappen.join("\n")}
+    <Cooldown Duration="${cooldownDuur}" PowerLow="0.5" PowerHigh="0.3" />
+  </workout>
+</workout_file>`;
+}
+
+/**
+ * Sessie → ZWO, met een aparte tak voor ramp_test (protocol-object, absolute
+ * watts) naast het bestaande segmenten-pad (pct_ftp-relatief). Alle bestaande
+ * callers van segmentenNaarZwo() kunnen hiernaar overstappen zonder gedragswijziging
+ * voor niet-ramp_test-sessies.
+ */
+export function sessieNaarZwo(sessie, ftpW = 265) {
+  if (sessie?.protocol) return rampTestNaarZwo(sessie.protocol, sessie.titel, ftpW);
+  return segmentenNaarZwo(sessie?.segmenten, sessie?.titel, ftpW);
+}

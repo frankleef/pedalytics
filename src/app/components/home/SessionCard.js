@@ -16,6 +16,7 @@ export default function SessionCard({ sessie, ftp, onOpen, beschikbaar, weer, we
   const dagLabel = isVandaag ? "Vandaag" : sessie.dag;
 
   const heeftSegmenten = sessie.segmenten && sessie.segmenten.length > 0;
+  const heeftProtocol = !!sessie.protocol;
   const duurStr = sessie.duur_min ? `${Math.floor(sessie.duur_min / 60)}u ${String(sessie.duur_min % 60).padStart(2, "0")}m` : null;
   const waaromTekst = sessie.waarom_vandaag || sessie.reden;
 
@@ -83,7 +84,25 @@ export default function SessionCard({ sessie, ftp, onOpen, beschikbaar, weer, we
       </div>
 
       {/* Workout viz */}
-      {heeftSegmenten ? (
+      {heeftProtocol ? (
+        <div style={{ background: T.subtleFill, borderRadius: T.tileRadius, padding: 14 }}>
+          {[
+            ["Warming-up", sessie.protocol.warmup],
+            ["Ramp", sessie.protocol.ramp],
+            ["Cooldown", sessie.protocol.cooldown],
+          ].filter(([, fase]) => fase).map(([label, fase], i) => (
+            <div key={label} style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              padding: "7px 0", borderTop: i > 0 ? `1px solid ${T.divider}` : "none",
+            }}>
+              <span style={{ font: "700 12.5px var(--font-nunito), sans-serif", color: T.text, flexShrink: 0, marginRight: 12 }}>{label}</span>
+              <span style={{ font: "600 11.5px/1.4 var(--font-nunito), sans-serif", color: T.textSec, textAlign: "right" }}>
+                {fase.omschrijving}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : heeftSegmenten ? (
         <div style={{ background: T.subtleFill, borderRadius: T.tileRadius, padding: "12px 12px 10px" }}>
           <WorkoutViz segmenten={sessie.segmenten} hoogte={90} ftp={ftp} />
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 11, paddingTop: 10, borderTop: `1px solid ${T.divider}` }}>

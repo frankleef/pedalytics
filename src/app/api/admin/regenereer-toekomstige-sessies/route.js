@@ -3,9 +3,10 @@ import { getKV } from "@/lib/kv";
 import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet, intervalsPost, intervalsDelete } from "@/lib/intervals";
 import { vandaagISO } from "@/lib/datum";
-import { segmentenNaarZwo } from "@/lib/workoutZwo";
+import { sessieNaarZwo } from "@/lib/workoutZwo";
 import { weeknummerVoorDatum, kaderWeekVoorDatum, weekInFaseVoorKaderWeek } from "@/lib/weekgrenzen";
 import { genereerSessieDag } from "@/lib/sessie/genereren";
+import { genereerRampTestSessie } from "@/lib/sessie/rampTest";
 import {
   migreerZ2VariabelNaarDuur,
   migreesSessietype,
@@ -178,15 +179,29 @@ export async function POST(request) {
       );
       const effectiefSessietype = isVrijheidsdag ? 'gemengd' : (dagIntentie?.sessietype ?? null);
 
-      const nieuweSessie = await genereerSessieDag({
-        kv, userId, datum, dagNaam: sessie.dag || 'Maandag',
-        uren: (sessie.duur_min || 90) / 60,
-        profiel, wellness: null, plan,
-        oudeSessie: sessie, overigeSessies,
-        aanleiding: "beschikbaarheid_nieuw",
-        effectiefSessietype, huidigeFase, weekInFase,
-        hrvProfiel, piekSprint,
-      });
+      // Sectie 51-B/C: ramp_test heeft geen archetype/variantendata (bewust
+      // uitgesloten, zie TEST_SESSIETYPES) — genereerSessieDag zou hier
+      // hard falen. Vast protocol i.p.v. het deterministische archetype-pad.
+      const nieuweSessie = effectiefSessietype === 'ramp_test'
+        ? (() => {
+            const rampTest = genereerRampTestSessie();
+            return {
+              ...rampTest,
+              type: 'ramp_test',
+              titel: sessie.titel || 'Tussentijdse FTP-test (Ramp Test)',
+              duur_min: rampTest.duur_min_geschat,
+              intentie: { ...dagIntentie, rol: 'ftp_test', sessietype: 'ramp_test' },
+            };
+          })()
+        : await genereerSessieDag({
+            kv, userId, datum, dagNaam: sessie.dag || 'Maandag',
+            uren: (sessie.duur_min || 90) / 60,
+            profiel, wellness: null, plan,
+            oudeSessie: sessie, overigeSessies,
+            aanleiding: "beschikbaarheid_nieuw",
+            effectiefSessietype, huidigeFase, weekInFase,
+            hrvProfiel, piekSprint,
+          });
 
       // Safety net: behoud heeft_sprint_staartjes als de originele sessie die had
       if (sessie.intentie?.heeft_sprint_staartjes && nieuweSessie.intentie) {
@@ -205,7 +220,7 @@ export async function POST(request) {
           if (sessie.intervalsEventId) {
             await intervalsDelete(`/events/${sessie.intervalsEventId}`, creds);
           }
-          const zwo = segmentenNaarZwo(nieuweSessie.segmenten, nieuweSessie.titel, profiel.ftp || 265);
+          const zwo = sessieNaarZwo(nieuweSessie, profiel.ftp || 265);
           const eventBody = {
             category: "WORKOUT",
             start_date_local: `${datum}T08:00:00`,

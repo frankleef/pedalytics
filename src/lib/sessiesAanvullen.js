@@ -3,7 +3,7 @@ import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet, intervalsPost } from "@/lib/intervals";
 import { vandaagISO, datumISO, DAGNAMEN } from "@/lib/datum";
 import { maxTrainingsdagenPerWeek, heeftTeLangReeks } from "@/lib/trainingsfrequentie";
-import { segmentenNaarZwo } from "@/lib/workoutZwo";
+import { sessieNaarZwo } from "@/lib/workoutZwo";
 import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
 import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
@@ -15,8 +15,51 @@ import { voegSprintStaartjesToe, voegTempoAfsluiterToe } from "@/lib/sessie/segm
 import { solveWeek, pasBudgetToe } from "@/lib/sessie/weekSolver";
 import { bepaalAlGeleverd } from "@/lib/sessie/context";
 import { getAlleArchetypesRaw } from "@/lib/sessie-archetypes";
+import { genereerRampTestSessie } from "@/lib/sessie/rampTest";
 
 const VERBODEN_TYPES_VOLUMECORRECTIE = ["kracht_lage_cadans", "sprint_neuraal"];
+
+// Sectie 51-C: maandag-eerst volgorde om de laatste trainingsdag van een week
+// te bepalen uit plan.beschikbaarheid (een wekelijks terugkerend dagpatroon,
+// niet per-week data) — zelfde volgorde als elders (AppClient.js, SessionCard.js).
+const DAGVOLGORDE_MAANDAG_EERST = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag", "Zondag"];
+
+/**
+ * Laatste (chronologisch) beschikbare trainingsdag van de week die op mISO
+ * (maandag, ISO-datum) begint, op basis van het wekelijkse beschikbaarheid-
+ * patroon. Retourneert null als er geen enkele trainingsdag is.
+ */
+function laatsteTrainingsdagVanWeek(mISO, beschikbareDagenNamen) {
+  const indices = beschikbareDagenNamen
+    .map((naam) => DAGVOLGORDE_MAANDAG_EERST.indexOf(naam))
+    .filter((i) => i >= 0);
+  if (indices.length === 0) return null;
+  const d = new Date(mISO);
+  d.setDate(d.getDate() + Math.max(...indices));
+  return datumISO(d);
+}
+
+/**
+ * Sectie 51-C/51-B: bouwt de volledige sessie-vorm rond genereerRampTestSessie()'s
+ * protocol-output. Geëxporteerd omdat sectie 51-D (handmatige sessie-picker,
+ * PUT /api/sessie/kies) dezelfde wrapping nodig heeft voor de "tests"-categorie.
+ */
+export function bouwRampTestSessie(datum, dagNaam) {
+  const rampTest = genereerRampTestSessie();
+  return {
+    ...rampTest,
+    type: "ramp_test",
+    titel: "Tussentijdse FTP-test (Ramp Test)",
+    duur_min: rampTest.duur_min_geschat,
+    datum,
+    dag: dagNaam,
+    intentie: {
+      rol: "ftp_test",
+      sessietype: "ramp_test",
+      tss_doel: null,
+    },
+  };
+}
 
 
 const Z1_TOEGESTANE_SESSIETYPES = new Set([
@@ -222,6 +265,21 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
     const huidigeFaseVoorDeze = kaderWeekVoorDeze?.fase ?? 'basis';
     const weekInFaseVoorDeze = weekInFaseVoorKaderWeek(kaderWeekVoorDeze);
     const aantalWekenInFaseVoorDeze = (plan.kader || []).filter(w => w.fase === huidigeFaseVoorDeze).length || undefined;
+
+    // Sectie 51-C: week met bevat_tussentijdse_ftp_test → laatste trainingsdag
+    // van die week gaat NIET door solveWeek() (dat kent geen ramp_test), maar
+    // wordt direct geforceerd. Alleen als die datum ook daadwerkelijk in deze
+    // run open staat (normaleDagen) — anders is 'm al eerder gepland/bestaat
+    // al, of valt buiten dit 7-dagen-venster; dan komt hij in een latere run.
+    const rampTestDatum = kaderWeekVoorDeze?.bevat_tussentijdse_ftp_test
+      ? laatsteTrainingsdagVanWeek(mISO, beschikbareDagen)
+      : null;
+    const rampTestDagDezeRun = rampTestDatum
+      ? normaleDagen.find(d => d.datum === rampTestDatum)
+      : null;
+    const dagenVoorSolver = rampTestDagDezeRun
+      ? normaleDagen.filter(d => d.datum !== rampTestDatum)
+      : normaleDagen;
     const vasteDagenDezeWeek = [...bestaandeSessies, ...aangevuld]
       .filter(s => weekMaandagISO(s.datum) === mISO)
       .map(s => ({
@@ -263,7 +321,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         weekNummerInSeizoen: kaderWeekVoorDeze?.week ?? null,
         laatsteKrachtLageCadansWeek: laatsteKrachtLageCadansWeek ?? null,
         vasteDagen: vasteDagenDezeWeek,
-        openDagen: normaleDagen.map(d => ({ datum: d.datum, beschikbareUren: d.uren })),
+        openDagen: dagenVoorSolver.map(d => ({ datum: d.datum, beschikbareUren: d.uren })),
         alGeleverd, tsb: tsbDezeWeek,
       });
       const toewijzingen = pasBudgetToe(ruweToewijzingen, kaderWeekVoorDeze?.tss_doel ?? 0, alGeleverd.tss, vasteDagenTss);
@@ -271,6 +329,22 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
     } catch (e) {
       console.error(`[sessiesAanvullen] solveWeek mislukt voor week ${mISO}:`, e.message);
       // Geen toewijzingen voor deze week — dagen hieronder worden per stuk overgeslagen.
+    }
+
+    // Buiten de try/catch: de ramp-test-dag is structureel onaantastbaar en
+    // hangt niet af van solveWeek()/pasBudgetToe() slagen — zelfde bescherming
+    // als een kernstimulus-sessie (nooit sluitpost, nooit budget-gekort).
+    if (rampTestDagDezeRun) {
+      toewijzingPerDatum[rampTestDatum] = {
+        datum: rampTestDatum,
+        sessietype: 'ramp_test',
+        tss_doel: null,
+        toegestane_zones: [],
+        archetype_hint: null,
+        gedegradeerd: false,
+        pad: 'ftp_test',
+        beschikbareUren: rampTestDagDezeRun.uren,
+      };
     }
   }
 
@@ -292,6 +366,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
 
       let oudeSessieVoorGeneratie = null;
       let effectiefSessietypeOverride;
+      let toewijzing = null;
       if (isVolumeCorrectieDag) {
         // Volumecorrectie-dagen krijgen altijd een aerobe z2_duur-kern —
         // voorheen een Claude-promptinstructie ("gebruik uitsluitend z2_duur
@@ -300,7 +375,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         // (voegTempoAfsluiterToe), ook deterministisch.
         effectiefSessietypeOverride = 'z2_duur';
       } else {
-        const toewijzing = toewijzingPerDatum[datum];
+        toewijzing = toewijzingPerDatum[datum];
         if (!toewijzing) {
           console.error(`[sessiesAanvullen] Geen weeksolver-toewijzing voor ${datum} — dag overgeslagen`);
           continue;
@@ -309,18 +384,25 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
           console.log(`[sessiesAanvullen] ${datum}: weeksolver-budget geschrapt naar rustdag — geen sessie aangemaakt`);
           continue;
         }
-        oudeSessieVoorGeneratie = { intentie: { sessietype: toewijzing.sessietype, tss_doel: toewijzing.tss_doel } };
+        if (toewijzing.sessietype !== 'ramp_test') {
+          oudeSessieVoorGeneratie = { intentie: { sessietype: toewijzing.sessietype, tss_doel: toewijzing.tss_doel } };
+        }
       }
 
-      const sessie = await genereerSessieDag({
-        kv, userId, datum, dagNaam, uren,
-        profiel, wellness: wellnessVoorDezeDag, plan, overigeSessies,
-        oudeSessie: oudeSessieVoorGeneratie,
-        effectiefSessietype: effectiefSessietypeOverride,
-        aanleiding: isAerobeCompensatie ? "volumecorrectie_aerobe" : isTempoAfsluiter ? "volumecorrectie_tempo_afsluiter" : "beschikbaarheid_nieuw",
-        huidigeFase, weekInFase, hrvProfiel, piekSprint,
-        alleSessiesVoorKrachtCheck: [...bestaandeSessies, ...aangevuld],
-      });
+      // Sectie 51-B/C: ramp_test heeft geen archetype/variantendata (bewust
+      // uitgesloten, zie TEST_SESSIETYPES) en gaat dus niet via genereerSessieDag
+      // — vast protocol i.p.v. het deterministische archetype-pad.
+      const sessie = toewijzing?.sessietype === 'ramp_test'
+        ? bouwRampTestSessie(datum, dagNaam)
+        : await genereerSessieDag({
+            kv, userId, datum, dagNaam, uren,
+            profiel, wellness: wellnessVoorDezeDag, plan, overigeSessies,
+            oudeSessie: oudeSessieVoorGeneratie,
+            effectiefSessietype: effectiefSessietypeOverride,
+            aanleiding: isAerobeCompensatie ? "volumecorrectie_aerobe" : isTempoAfsluiter ? "volumecorrectie_tempo_afsluiter" : "beschikbaarheid_nieuw",
+            huidigeFase, weekInFase, hrvProfiel, piekSprint,
+            alleSessiesVoorKrachtCheck: [...bestaandeSessies, ...aangevuld],
+          });
 
       if (isTempoAfsluiter) {
         const maxMinuten = Math.round(uren * 60);
@@ -395,10 +477,15 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         }
       }
 
-      const totaalMinuten = (sessie.segmenten || []).reduce((som, seg) => som + (seg.blokDuurSeconden || seg.duur_min * 60 || 0), 0) / 60;
-      if (totaalMinuten < 60) {
-        console.warn(`[sessiesAanvullen] ${userId} ${datum}: sessie te kort (${Math.round(totaalMinuten)} min) — overgeslagen`);
-        continue;
+      // ramp_test heeft een per definitie variabele/onvoorspelbare einduur (protocol
+      // i.p.v. segmenten, eindigt bij uitputting) — de minimumduur-eis hieronder is
+      // bedoeld voor doseerbare trainingsstimuli en is hier niet van toepassing.
+      if (sessie.intentie?.sessietype !== 'ramp_test') {
+        const totaalMinuten = (sessie.segmenten || []).reduce((som, seg) => som + (seg.blokDuurSeconden || seg.duur_min * 60 || 0), 0) / 60;
+        if (totaalMinuten < 60) {
+          console.warn(`[sessiesAanvullen] ${userId} ${datum}: sessie te kort (${Math.round(totaalMinuten)} min) — overgeslagen`);
+          continue;
+        }
       }
 
       if (aerobeDagen.includes(datum)) {
@@ -416,7 +503,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       }
 
       try {
-        const zwo = segmentenNaarZwo(sessie.segmenten, sessie.titel, profiel.ftp || 265);
+        const zwo = sessieNaarZwo(sessie, profiel.ftp || 265);
         const eventBody = {
           category: "WORKOUT",
           start_date_local: `${datum}T08:00:00`,
@@ -496,7 +583,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
       sessie.volumecorrectie = { aanleiding: "verleng_sessie", weekNr: aankomendeWeekNr };
 
       try {
-        const zwo = segmentenNaarZwo(sessie.segmenten, sessie.titel, profiel.ftp || 265);
+        const zwo = sessieNaarZwo(sessie, profiel.ftp || 265);
         const eventBody = {
           category: "WORKOUT",
           start_date_local: `${datum}T08:00:00`,

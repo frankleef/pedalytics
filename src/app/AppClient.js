@@ -14,7 +14,8 @@ import { genereerSeizoensMetadata } from "@/lib/seizoen/metadata";
 import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
 import LegeKoppelStaat from "./components/LegeKoppelStaat";
 import { demoProfiel, demoSeizoensplan, demoWellness, demoRitten } from "@/lib/demoData";
-import { weeknummerVoorDatum, tssDoelWeek1 } from "@/lib/weekgrenzen";
+import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
+import { bouwKader } from "@/lib/seizoen/bouwKader";
 import { detecteerWeekConflicten, degradeerSessie, corrigeerWeekBudget } from "@/lib/sessie/conflictResolutie";
 import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
 import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
@@ -384,57 +385,6 @@ export default function Page() {
     }
     setLaadtVoortgang(false);
   }, []);
-
-  const bouwKader = (doelConfig) => {
-    const { DOELPROFIELEN, faseInstellingen } = require("@/lib/seizoen/doelprofielen");
-    const { bouwWeekvolgorde } = require("@/lib/seizoen/faseDuren");
-
-    const totaalWeken = doelConfig.tijdshorizon_weken || 16;
-    const ctl = doelConfig.huidige_ctl || 45;
-    const baseTss = Math.round(ctl * 5);
-    const doelType = doelConfig.seizoensdoel?.type || doelConfig.doel || "ftp";
-    const doelProfiel = DOELPROFIELEN[doelType] || DOELPROFIELEN.ftp;
-    const niveau = doelConfig.ervaringsniveau || "recreatief";
-    const niveauOpbouw = { starter: 0.05, recreatief: 0.10, getraind: 0.15 }[niveau] || 0.10;
-    const opbouwPct = doelProfiel.tss_opbouw_pct ?? niveauOpbouw;
-    const taperPct = doelProfiel.taper_tss_pct || 0.45;
-
-    const weekVolgorde = bouwWeekvolgorde(totaalWeken, doelType, niveau);
-
-    let vorigOpbouwTss = baseTss;
-    let piekTss = baseTss;
-
-    return weekVolgorde.map((wk) => {
-      const faseInfo = faseInstellingen(doelProfiel, wk.fase);
-      let tss_doel;
-
-      if (wk.weektype === "herstel") {
-        tss_doel = Math.round(piekTss * taperPct);
-        vorigOpbouwTss = baseTss;
-        piekTss = baseTss;
-      } else if (wk.fase === "consolidatie") {
-        tss_doel = Math.round(piekTss * 0.58);
-      } else if (wk.fase === "test") {
-        tss_doel = Math.round(piekTss * 0.40);
-      } else {
-        tss_doel = wk.weeknummer === 1 ? tssDoelWeek1(baseTss, doelConfig.startdatum) : Math.round(vorigOpbouwTss * (1 + opbouwPct));
-        tss_doel = Math.min(tss_doel, Math.round(baseTss * 1.8));
-        vorigOpbouwTss = tss_doel;
-        piekTss = Math.max(piekTss, tss_doel);
-      }
-
-      return {
-        week: wk.weeknummer,
-        fase: wk.fase,
-        weektype: wk.weektype,
-        tss_doel,
-        focus: faseInfo ? `${faseInfo.sessietypes.slice(0, 3).join(", ")}` : "Z2 volume",
-        z1z2_doel: faseInfo?.z1z2_doel || 0.80,
-        max_intensiteit: faseInfo?.max_intensiteit_per_week ?? 1,
-        sessietypes: faseInfo?.sessietypes || ["z2_duur", "z1_herstel"],
-      };
-    });
-  };
 
   const genereerSeizoensplan = useCallback(async (doelConfig) => {
     setPlanStap("genereren");
@@ -1086,87 +1036,16 @@ export default function Page() {
     }
   }, [voortgang, beschikbaar, genereerWeekSessies]);
 
-  const handleAlternatiefSessie = useCallback(async (datum, reden) => {
+  // Sectie 51-D: PUT /api/sessie/kies heeft de sessie al volledig gegenereerd EN
+  // opgeslagen (plan + ZWO-sync naar intervals.icu) — deze handler hoeft alleen
+  // de lokale React-state bij te werken zodat de kaart meteen ververst, geen
+  // aparte PUT /api/plan nodig (in tegenstelling tot de vervangen alternatief-flow).
+  const handleSessieGekozen = useCallback((datum, nieuweSessie) => {
     const sessies = weekSessies?.sessies || [];
-    const sessie = sessies.find(s => s.datum === datum && !s.voltooid);
-    if (!sessie?.intentie) return;
-
-    const { bepaalNieuweIntentie } = await import("@/lib/sessie/alternatief");
-    const { weekInFaseVoorKaderWeek } = await import("@/lib/weekgrenzen");
-    const weekNr = seizoensplan?.startdatum ? weeknummerVoorDatum(datum, seizoensplan.startdatum) : 1;
-    const kaderWeek = seizoensplan?.kader?.find(w => w.week === weekNr) || seizoensplan?.kader?.[0];
-    const fase = kaderWeek?.fase || "basis";
-    const weekInFase = weekInFaseVoorKaderWeek(kaderWeek, seizoensplan?.kader);
-    const seizoensdoel = seizoensplan?.seizoensdoel?.type ?? null;
-
-    const nieuweIntentie = bepaalNieuweIntentie(archetypesData, sessie.intentie, reden, fase, sessie.hrv_zone ?? null, weekInFase, seizoensdoel);
-    if (!nieuweIntentie) return;
-
-    const DAGNAMEN_LOC = ["Zondag", "Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag"];
-    const dagNaam = DAGNAMEN_LOC[new Date(datum).getDay()];
-    const uren = urenPerDag[dagNaam] || 1.5;
-    const overigeSessies = sessies.filter(s => s.datum !== datum && !s.voltooid);
-    const oudeSessieMetIntentie = { ...sessie, intentie: nieuweIntentie };
-
-    console.log("[Alternatief] Start:", datum, sessie.intentie.sessietype, "→", nieuweIntentie.sessietype, "reden:", reden);
-
-    const nieuweSessie = await genereerSessieDagViaJob(datum, dagNaam, uren, {
-      overigeSessies, oudeSessie: oudeSessieMetIntentie, aanleiding: "alternatief_verzoek",
-    });
-
-    if (!nieuweSessie) {
-      setFout("Alternatieve sessie genereren mislukt");
-      return;
-    }
-
-    let lokaalSessies = [...sessies.filter(s => s.datum !== datum), nieuweSessie];
-    setWeekSessies({ ...weekSessies, sessies: lokaalSessies });
-    console.log("[Alternatief] Nieuwe sessie:", nieuweSessie.type, nieuweSessie.titel);
-
-    // Weekpatroon-validatie (hergebruik logica van beschikbaarheidswijziging)
-    if (seizoensplan?.kader) {
-      try {
-        const { valideerWeekpatroon, kiesBesteDagVoorRol, bepaalIntentieVoorRol } = await import("@/lib/sessie/weekpatroon");
-        const weekStart = new Date(datum);
-        weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
-        const weekStartISO = datumISO(weekStart);
-        const weekEind = new Date(weekStart.getTime() + 7 * 86400000);
-        const weekSessiesLijst = lokaalSessies.filter(s => s.datum >= weekStartISO && s.datum < datumISO(weekEind));
-
-        const validatie = valideerWeekpatroon(weekSessiesLijst, kaderWeek);
-        if (!validatie.geldig && validatie.ontbrekendeRollen.length > 0) {
-          console.log("[Alternatief] Weekpatroon mist:", validatie.ontbrekendeRollen);
-          // De net gewijzigde dag zelf mag nooit als kandidaat teruggegeven worden —
-          // anders wordt het expliciete alternatiefverzoek van de gebruiker binnen
-          // dezelfde actie stilzwijgend teruggedraaid (waargenomen in productie:
-          // alternatief_verzoek zet een dag naar z2_duur, en drie seconden later zet
-          // weekpatroon_correctie diezelfde dag terug naar kracht_lage_cadans).
-          const kandidatenPool = weekSessiesLijst.filter(s => s.datum !== datum);
-          const kandidaat = kiesBesteDagVoorRol(kandidatenPool, validatie.ontbrekendeRollen[0], urenPerDag);
-          if (kandidaat) {
-            const rolIntentie = bepaalIntentieVoorRol(validatie.ontbrekendeRollen[0], fase);
-            const kandidaatDag = DAGNAMEN_LOC[new Date(kandidaat.datum).getDay()];
-            const kandidaatUren = urenPerDag[kandidaatDag] || 1.5;
-            const overige = lokaalSessies.filter(s => s.datum !== kandidaat.datum && !s.voltooid);
-            console.log("[Alternatief] Weekpatroon-correctie:", kandidaat.datum, "→", rolIntentie.sessietype);
-            const gecorrigeerd = await genereerSessieDagViaJob(kandidaat.datum, kandidaatDag, kandidaatUren, {
-              overigeSessies: overige, oudeSessie: { ...kandidaat, intentie: rolIntentie }, aanleiding: "weekpatroon_correctie",
-            });
-            if (gecorrigeerd) {
-              lokaalSessies = [...lokaalSessies.filter(s => s.datum !== kandidaat.datum), gecorrigeerd];
-              console.log("[Alternatief] Gecorrigeerd:", gecorrigeerd.type, gecorrigeerd.titel);
-            }
-          }
-        }
-      } catch (e) { console.error("[Alternatief] Weekpatroon-validatie mislukt:", e); }
-    }
-
-    const eindWeekSessies = { ...weekSessies, sessies: lokaalSessies };
+    const eindWeekSessies = { ...weekSessies, sessies: [...sessies.filter(s => s.datum !== datum), nieuweSessie] };
     setWeekSessies(eindWeekSessies);
-    const eindPlan = { ...seizoensplan, weekSessies: eindWeekSessies };
-    setSeizoensplan(eindPlan);
-    fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(eindPlan) });
-  }, [weekSessies, seizoensplan, urenPerDag, genereerSessieDagViaJob, archetypesData]);
+    setSeizoensplan({ ...seizoensplan, weekSessies: eindWeekSessies });
+  }, [weekSessies, seizoensplan]);
 
   return (
     <div style={{ minHeight: "100vh", fontFamily: "var(--font-nunito), 'Nunito', sans-serif" }}>
@@ -1295,7 +1174,7 @@ export default function Page() {
               onRpeSaved={handleRpeSaved}
               onOpenProfiel={openProfiel}
               onEditBeschikbaarheid={openBeschikbaarheid}
-              onAlternatiefSessie={handleAlternatiefSessie}
+              onSessieGekozen={handleSessieGekozen}
               onPlanWijziging={() => {
                 fetch("/api/plan").then(r => r.json()).then(pd => {
                   if (pd.success && pd.data) {

@@ -12,9 +12,11 @@
   "dependencies": {
     "@upstash/qstash": "^2.11.1",
     "@upstash/redis": "^1.38.0",
+    "@vercel/functions": "^3.7.5",
     "bcryptjs": "^3.0.3",
     "next": "14.2.3",
     "next-auth": "^4.24.14",
+    "posthog-node": "^5.39.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "recharts": "^3.8.1",

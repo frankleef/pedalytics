@@ -6,7 +6,7 @@ import { datumOffset } from "@/lib/datum";
 import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import { sendPush } from "@/lib/pushNotify";
 import { verifyQStash } from "@/lib/qstash";
-import { verwerkFtpTest } from "@/lib/sessie/ftpUpdate";
+import { verwerkFtpTest, isEindtest } from "@/lib/sessie/ftpUpdate";
 import { berekenGemiddeldeUrenPerWeek, berekenStartTss } from "@/lib/rijhistorie";
 import { berekenDistributie } from "@/lib/sessie/distributie";
 import { checkFaseOvergang, berekenEnCacheDecoupling, bijwerkenDecouplingBaseline, backfillDecoupling } from "@/lib/decoupling";
@@ -330,10 +330,14 @@ export async function POST(request) {
               console.warn(`[sync] FTP-test verwerking mislukt voor ${userId}:`, e.message);
             }
 
-            // Seizoenseinde-detectie
+            // Sectie 51-C: eindtest (laatste week — seizoen_afgerond + samenvattingskaart
+            // + push, ongewijzigd t.o.v. vóór deze wijziging) vs. tussentest (elke andere
+            // week met rol ftp_test — de FTP-update + scoped herberekening van toekomstige
+            // vermogensbereiken is hierboven via verwerkFtpTest al gebeurd, voor beide
+            // gevallen identiek; hier volgt alleen nog de eindtest-specifieke afronding).
             if (sessie.intentie.sessietype === "ramp_test" && !plan.seizoen_afgerond) {
               const huidigeWeek = plan.startdatum ? weeknummerVoorDatum(new Date(), plan.startdatum) : 1;
-              if (huidigeWeek >= (plan.tijdshorizon_weken || 13)) {
+              if (isEindtest(huidigeWeek, plan.tijdshorizon_weken)) {
                 await bijwerkPlanVeilig(kv, planKey, (versPlan) => {
                   if (versPlan.seizoen_afgerond) return; // al afgerond (concurrent), niet opnieuw
                   if (!versPlan.start_ftp) {
@@ -349,6 +353,8 @@ export async function POST(request) {
                   url: "/",
                 });
                 console.log(`[sync] Seizoen afgerond voor ${userId}`);
+              } else {
+                console.log(`[sync] Tussentijdse FTP-test verwerkt voor ${userId} (week ${huidigeWeek}/${plan.tijdshorizon_weken || 13}) — geen seizoensafronding`);
               }
             }
           }

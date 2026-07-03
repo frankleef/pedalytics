@@ -97,3 +97,18 @@ export async function verwerkFtpTest(userId, activity) {
 
   return { updated: true, oldFtp: huidigeFtp, newFtp: nieuweFtp };
 }
+
+/**
+ * Sectie 51-C: onderscheidt de eindtest (laatste week van het seizoen — triggert
+ * seizoen_afgerond + samenvattingskaart) van een tussentijdse FTP-test (elke
+ * andere week met rol ftp_test — alleen FTP-update + herberekening, geen
+ * seizoensafronding). Zelfde grens (`>=`) als de historische eindtest-check in
+ * de sync-cron, zodat eindtest-gedrag ongewijzigd blijft.
+ *
+ * @param {number} weekNr - huidig weeknummer in het seizoen
+ * @param {number|null|undefined} tijdshorizonWeken - plan.tijdshorizon_weken
+ * @returns {boolean}
+ */
+export function isEindtest(weekNr, tijdshorizonWeken) {
+  return weekNr >= (tijdshorizonWeken || 13);
+}

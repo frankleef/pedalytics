@@ -23,3 +23,5 @@ build/
 *.aab
 *.idsig
 _android_app/
+.vercel
+.env*
