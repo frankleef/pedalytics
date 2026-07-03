@@ -11,6 +11,7 @@ import { berekenGemiddeldeUrenPerWeek, berekenStartTss } from "@/lib/rijhistorie
 import { berekenDistributie } from "@/lib/sessie/distributie";
 import { checkFaseOvergang, berekenEnCacheDecoupling, bijwerkenDecouplingBaseline, backfillDecoupling } from "@/lib/decoupling";
 import { berekenRpeTrend, verwerkRpeTrend } from "@/lib/sessie/rpeTrend";
+import { berekenHrvBaseline, berekenHrvTrend, verwerkHrvTrend } from "@/lib/hrv/trend";
 import { berekenUitvoeringsscoreMetDetails, scoreLabel, zoneTimesNaarObject } from "@/lib/uitvoeringsscore";
 import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus, ctlRampRegressie } from "@/lib/conditie";
 import { haalRitTemperatuur, berekenTempBaseline, berekenHitteVlag, migreerHitteTemperatuur } from "@/lib/hitte";
@@ -443,6 +444,26 @@ export async function POST(request) {
             }
           } catch (e) {
             console.warn(`[sync] RPE-trend check mislukt voor ${userId}:`, e.message);
+          }
+
+          // HRV-trend check (sectie 52) — tweede, onafhankelijke trigger naast RPE-delta
+          try {
+            const wellHrv14d = await intervalsGet("/wellness", { oldest: datumOffset(-13), newest: datumOffset(0) }, { apiKey, athleteId });
+            const hrvMetingen14d = (wellHrv14d || []).filter(w => w.hrv != null).map(w => w.hrv);
+            const baseline = berekenHrvBaseline(hrvMetingen14d);
+            const trend = berekenHrvTrend(hrvMetingen14d.slice(-7), baseline);
+            if (trend !== null) {
+              const actie = await verwerkHrvTrend(userId, trend);
+              if (actie === "hrv_overbelasting") {
+                await sendPush(userId, {
+                  title: "Plan aangepast",
+                  body: "Je hartslagvariabiliteit wijst al een paar dagen op onvoldoende herstel, ook al voelden je trainingen niet per se zwaar aan. We hebben de komende sessies iets teruggeschroefd.",
+                  url: "/",
+                });
+              }
+            }
+          } catch (e) {
+            console.warn(`[sync] HRV-trend check mislukt voor ${userId}:`, e.message);
           }
 
           // Adaptatie-score berekenen
