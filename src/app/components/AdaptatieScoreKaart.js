@@ -32,7 +32,7 @@ export default function AdaptatieScoreKaart({ weekTss, doelTss, fase, weekNr, we
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {fase && (
               <>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.gradient }} />
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.slate }} />
                 <span style={{ font: "700 13.5px var(--font-nunito), sans-serif", color: T.text }}>{fase.charAt(0).toUpperCase() + fase.slice(1)}</span>
               </>
             )}

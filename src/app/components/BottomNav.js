@@ -4,33 +4,27 @@ import { T } from "../designTokens";
 const TABS = [
   {
     label: "Vandaag",
-    icon: (active) => (
-      <svg width="23" height="23" viewBox="0 0 24 24" fill="none">
-        <rect x="3" y="3" width="8" height="8" rx="2.5" fill="currentColor" />
-        <rect x="13" y="3" width="8" height="8" rx="2.5" fill="currentColor" opacity={active ? 1 : 0.4} />
-        <rect x="3" y="13" width="8" height="8" rx="2.5" fill="currentColor" opacity={active ? 0.4 : 0.4} />
-        <rect x="13" y="13" width="8" height="8" rx="2.5" fill="currentColor" />
+    icon: () => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M3 10.5L12 4l9 6.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M5.5 9.5V19a1 1 0 0 0 1 1H17.5a1 1 0 0 0 1-1V9.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     ),
   },
   {
-    label: "Sessie",
+    label: "Schema",
     icon: () => (
-      <svg width="23" height="23" viewBox="0 0 24 24" fill="none">
-        <rect x="3.5" y="4.5" width="17" height="16" rx="3.5" stroke="currentColor" strokeWidth="2" />
-        <rect x="3.5" y="4.5" width="17" height="5" rx="2.5" fill="currentColor" />
-        <rect x="7" y="2.5" width="2" height="4" rx="1" fill="currentColor" />
-        <rect x="15" y="2.5" width="2" height="4" rx="1" fill="currentColor" />
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <rect x="3.5" y="4.5" width="17" height="16" rx="3" stroke="currentColor" strokeWidth="2" />
+        <path d="M3.5 9h17M8 2.5v4M16 2.5v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       </svg>
     ),
   },
   {
-    label: "Vorm",
+    label: "Voortgang",
     icon: () => (
-      <svg width="23" height="23" viewBox="0 0 24 24" fill="none">
-        <rect x="3" y="14" width="4" height="7" rx="1.5" fill="currentColor" />
-        <rect x="10" y="8" width="4" height="13" rx="1.5" fill="currentColor" opacity="0.6" />
-        <rect x="17" y="3" width="4" height="18" rx="1.5" fill="currentColor" />
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M4 15l5-5 4 4 7-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     ),
   },

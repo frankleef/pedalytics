@@ -4,9 +4,10 @@ import { T, STATUS, getStatus } from "../designTokens";
 import { berekenHerstelScore } from "./HerstelStatus";
 import { berekenDagAdvies } from "./DagAdvies";
 import InfoTooltip from "./InfoTooltip";
-import ScaleInput from "./ScaleInput";
+import CheckinModal from "./CheckinModal";
 import InsightCard from "./home/InsightCard";
 import SharedHeader from "./SharedHeader";
+import WorkoutViz from "./WorkoutViz";
 import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
 import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import SessieUitkomstKaart from "./SessieUitkomstKaart";
@@ -19,7 +20,16 @@ const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","
 export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagelijkseData, voortgang, seizoensplan, weekSessies, weekSessiesLaden, beschikbaar, weerData, initialCheckin, onCheckinWijziging, onOpenWorkout, onEditBeschikbaarheid, onOpenProfiel }) {
   const [checkin, setCheckin] = useState(initialCheckin !== undefined ? initialCheckin : null);
   const [checkinLaden, setCheckinLaden] = useState(initialCheckin === undefined);
+  const [checkinModalOpen, setCheckinModalOpen] = useState(false);
+  const [checkinWaarde, setCheckinWaarde] = useState(0);
   const weer = weerData ?? null;
+
+  const bevestigCheckin = (val) => {
+    setCheckin(val);
+    onCheckinWijziging?.(val);
+    fetch("/api/checkin", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ score: val }) });
+    setCheckinModalOpen(false);
+  };
 
   useEffect(() => {
     if (initialCheckin !== undefined && checkinLaden) {
@@ -103,6 +113,13 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
   // - geen wellness-data in 3+ dagen EN er een geplande sessie gemist is (geen rustweek)
   // - NIET als het gewoon een rustweek is zonder geplande sessies
   const [syncBannerWeg, setSyncBannerWeg] = useState(false);
+  const ritVandaag = (voortgang?.ritten || []).find(r => r.datum_iso === vandaagISO);
+  const readinessParagraaf = (() => {
+    const headlineFn = ritVandaag && st.headlineNaRit ? st.headlineNaRit : st.headline;
+    const hitteCtx = weer?.hitte ? { hitte: true, temp: weer.apparentTemp ?? weer.temp } : null;
+    return headlineFn("Frank", hitteCtx);
+  })();
+
   const syncGap = (() => {
     const data = dagelijkseData || [];
     if (data.length === 0) return false;
@@ -140,25 +157,19 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
           </div>
         )}
 
-        {/* Fase/week eyebrow */}
-        {faseLabel && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.gradient }} />
-            <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: T.textTert, textTransform: "uppercase" }}>{faseLabel}</span>
+        {/* Fase-progressie */}
+        {faseLabel && weekNr && totaalWeken && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 9, marginBottom: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ font: "600 12.5px var(--font-nunito), sans-serif", color: T.textSec }}>{faseLabel}</span>
+              <span style={{ font: "600 12.5px var(--font-nunito), sans-serif", color: T.textTert }}>{Math.round((weekNr / totaalWeken) * 100)}%</span>
+            </div>
+            <div style={{ height: 5, borderRadius: 999, background: T.divider, overflow: "hidden" }}>
+              <div style={{ width: `${Math.min(100, Math.round((weekNr / totaalWeken) * 100))}%`, height: "100%", borderRadius: 999, background: T.slate }} />
+            </div>
           </div>
         )}
 
-        {/* Status headline */}
-        {(() => {
-          const ritVandaag = (voortgang?.ritten || []).find(r => r.datum_iso === vandaagISO);
-          const headlineFn = ritVandaag && st.headlineNaRit ? st.headlineNaRit : st.headline;
-          const hitteCtx = weer?.hitte ? { hitte: true, temp: weer.apparentTemp ?? weer.temp } : null;
-          return (
-            <h1 style={{ margin: "0 0 20px", font: "800 27px/1.22 var(--font-nunito), sans-serif", letterSpacing: -0.4, textWrap: "pretty", color: st.color }}>
-              {headlineFn("Frank", hitteCtx)}
-            </h1>
-          );
-        })()}
 
         {/* Seizoen afgerond */}
         {seizoensplan?.seizoen_afgerond && (
@@ -167,12 +178,11 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
 
         {/* Sessie-preview — compact, linkt naar Sessie-tab */}
         {!seizoensplan?.seizoen_afgerond && weekSessiesLaden ? (
-          <div style={{ background: "oklch(0.99 0.006 84)", border: "1.5px solid oklch(0.91 0.012 82)", borderRadius: 20, padding: "12px 16px", marginBottom: 16, textAlign: "center" }}>
+          <div style={{ background: T.cardBg, border: `1.5px solid ${T.cardBorder}`, borderRadius: 20, padding: "12px 16px", marginBottom: 16, textAlign: "center" }}>
             <div style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>Sessies laden...</div>
           </div>
         ) : (() => {
           const ftp = profiel?.ftp || 265;
-          const ritVandaag = (voortgang?.ritten || []).find(r => r.datum_iso === vandaagISO);
           const sessieVandaag = (weekSessies?.sessies || []).find(s => s.datum === vandaagISO);
           if (ritVandaag) {
             const cls = classificeerRit(ritVandaag, ftp);
@@ -185,19 +195,60 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
             );
           }
           if (eerstvolgende) {
+            const isVandaag = eerstvolgende.datum === vandaagISO;
+
+            // Vandaag, nog niet gereden — volledige "sessie vandaag"-kaart
+            if (isVandaag) {
+              const duurStr = eerstvolgende.duur_min ? `${Math.floor(eerstvolgende.duur_min / 60)}u ${String(eerstvolgende.duur_min % 60).padStart(2, "0")}m` : "—";
+              const aantalBlokken = (eerstvolgende.segmenten || []).filter(s => s.type !== "warmup" && s.type !== "cooldown").length;
+              return (
+                <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 20px 20px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <span style={{ font: "700 11px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: T.textTert, textTransform: "uppercase" }}>Vandaag · sessie</span>
+                      <span style={{ font: "700 19px var(--font-nunito), sans-serif", letterSpacing: -0.3, color: T.text }}>{eerstvolgende.titel}</span>
+                    </div>
+                    <div style={{ flex: "none", padding: "5px 11px", borderRadius: 8, background: T.subtleFill, font: "600 12px var(--font-nunito), sans-serif", color: T.textSec }}>FTP {ftp}W</div>
+                  </div>
+
+                  {eerstvolgende.segmenten && (
+                    <div style={{ marginBottom: 16 }}>
+                      <WorkoutViz segmenten={eerstvolgende.segmenten} hoogte={44} ftp={ftp} toonFtpLijn={false} />
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", gap: 22, marginBottom: 18 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}><span style={{ font: "700 16px var(--font-fredoka), sans-serif", color: T.text }}>{duurStr}</span><span style={{ font: "600 11.5px var(--font-nunito), sans-serif", color: T.textSec }}>Duur</span></div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}><span style={{ font: "700 16px var(--font-fredoka), sans-serif", color: T.text }}>{eerstvolgende.tss || "—"}</span><span style={{ font: "600 11.5px var(--font-nunito), sans-serif", color: T.textSec }}>TSS</span></div>
+                    {aantalBlokken > 0 && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}><span style={{ font: "700 16px var(--font-fredoka), sans-serif", color: T.text }}>{aantalBlokken}</span><span style={{ font: "600 11.5px var(--font-nunito), sans-serif", color: T.textSec }}>Blokken</span></div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => onOpenWorkout?.(eerstvolgende)}
+                    style={{ width: "100%", cursor: "pointer", border: "none", background: T.slate, color: "oklch(0.97 0.01 84)", padding: 15, borderRadius: 14, font: "700 15px var(--font-nunito), sans-serif", letterSpacing: 0.1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                  >
+                    Bekijk sessie
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 5l7 7-7 7" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </button>
+                </div>
+              );
+            }
+
+            // Toekomstige dag — compacte preview
             const dagWeer = eerstvolgende.datum && weer?.forecast?.[eerstvolgende.datum] ? weer.forecast[eerstvolgende.datum] : weer;
             const weerIcoon = dagWeer ? (() => {
               const t = dagWeer.temp;
               const c = dagWeer.conditie || "";
               return t <= 5 ? "🥶" : t >= 28 ? "🔥" : /regen|buien|motregen/i.test(c) ? "🌧️" : /bewolkt/i.test(c) ? "☁️" : /mistig|rijp/i.test(c) ? "🌫️" : /onweer/i.test(c) ? "⛈️" : /sneeuw/i.test(c) ? "❄️" : /helder/i.test(c) ? "☀️" : "⛅";
             })() : null;
-            const isVandaag = eerstvolgende.datum === vandaagISO;
             return (
               <button
                 onClick={() => onOpenWorkout?.(eerstvolgende)}
                 style={{
-                  width: "100%", background: "oklch(0.99 0.006 84)",
-                  border: "1.5px solid oklch(0.91 0.012 82)", borderRadius: 20,
+                  width: "100%", background: T.cardBg,
+                  border: `1.5px solid ${T.cardBorder}`, borderRadius: 20,
                   padding: "12px 16px", display: "flex", alignItems: "center",
                   justifyContent: "space-between", cursor: "pointer", textAlign: "left",
                   marginBottom: 16,
@@ -205,32 +256,32 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
               >
                 <div>
                   <span style={{
-                    font: "800 11px/1 var(--font-nunito), sans-serif", letterSpacing: "1.2px",
-                    color: "oklch(0.62 0.015 75)", textTransform: "uppercase",
+                    font: "700 11px/1 var(--font-nunito), sans-serif", letterSpacing: "1.2px",
+                    color: T.textTert, textTransform: "uppercase",
                     display: "block", marginBottom: 4,
                   }}>
-                    {isVandaag ? "VANDAAG" : eerstvolgende.dag?.toUpperCase() || "SESSIE"} · SESSIE
+                    {eerstvolgende.dag?.toUpperCase() || "SESSIE"} · SESSIE
                   </span>
-                  <span style={{ font: "700 14px/1.3 var(--font-nunito), sans-serif", color: "oklch(0.27 0.02 70)", display: "block" }}>
+                  <span style={{ font: "700 14px/1.3 var(--font-nunito), sans-serif", color: T.text, display: "block" }}>
                     {eerstvolgende.titel}
                   </span>
-                  <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.55 0.02 74)", display: "block", marginTop: 2 }}>
+                  <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec, display: "block", marginTop: 2 }}>
                     {eerstvolgende.duur_min ? `${Math.floor(eerstvolgende.duur_min / 60)}u${String(eerstvolgende.duur_min % 60).padStart(2, "0")}` : ""}{eerstvolgende.tss ? ` · ${eerstvolgende.tss} TSS` : ""}
                     {dagWeer ? ` · ${weerIcoon} ${dagWeer.temp}°` : ""}
                   </span>
                 </div>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
-                  <path d="M9 5l7 7-7 7" stroke="oklch(0.66 0.02 75)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M9 5l7 7-7 7" stroke={T.textTert} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
             );
           }
           return (
-            <div style={{ background: "oklch(0.99 0.006 84)", border: "1.5px solid oklch(0.91 0.012 82)", borderRadius: 20, padding: "12px 16px", marginBottom: 16 }}>
-              <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: "1.2px", color: "oklch(0.62 0.015 75)", textTransform: "uppercase" }}>
+            <div style={{ background: T.cardBg, border: `1.5px solid ${T.cardBorder}`, borderRadius: 20, padding: "12px 16px", marginBottom: 16 }}>
+              <span style={{ font: "700 11px var(--font-nunito), sans-serif", letterSpacing: "1.2px", color: T.textTert, textTransform: "uppercase" }}>
                 VANDAAG · RUST
               </span>
-              <p style={{ font: "700 14px/1.3 var(--font-nunito), sans-serif", color: "oklch(0.27 0.02 70)", margin: "4px 0 0" }}>
+              <p style={{ font: "700 14px/1.3 var(--font-nunito), sans-serif", color: T.text, margin: "4px 0 0" }}>
                 Rustdag — herstel is training.
               </p>
             </div>
@@ -241,10 +292,24 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
 
         {/* Ochtend check-in */}
         {!checkinLaden && !checkin && (
-          <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 20px 22px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
-            <ScaleInput value={0} max={5} question="Hoe voel je je vandaag?" leftLabel="Slecht" rightLabel="Top"
-              onChange={(val) => { setCheckin(val); onCheckinWijziging?.(val); fetch("/api/checkin", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ score: val }) }); }} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: "16px 18px", marginBottom: 16 }}>
+            <span style={{ font: "600 14px var(--font-nunito), sans-serif", color: T.text }}>Hoe voel je je vandaag?</span>
+            <button
+              onClick={() => { setCheckinWaarde(0); setCheckinModalOpen(true); }}
+              style={{ flex: "none", cursor: "pointer", border: "none", background: T.subtleFill, color: T.text, padding: "10px 16px", borderRadius: 999, font: "700 13px var(--font-nunito), sans-serif" }}
+            >
+              Check-in
+            </button>
           </div>
+        )}
+
+        {checkinModalOpen && (
+          <CheckinModal
+            value={checkinWaarde}
+            onChange={setCheckinWaarde}
+            onConfirm={() => bevestigCheckin(checkinWaarde)}
+            onClose={() => setCheckinModalOpen(false)}
+          />
         )}
 
         {/* Gereedheid & Conditie */}
@@ -253,6 +318,7 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
           ctl={wellenessHuidig ? Math.round(wellenessHuidig.ctl || 0) : null}
           atl={wellenessHuidig ? Math.round(wellenessHuidig.atl || 0) : null}
           tsb={tsb}
+          paragraaf={readinessParagraaf}
         />
 
         {/* Sync health banner — onderaan, laagste prioriteit */}

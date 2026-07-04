@@ -76,4 +76,11 @@ export const METRICS = {
     color: "oklch(0.72 0.13 70)",
     tint: "oklch(0.96 0.05 82)",
   },
+  decoupling: {
+    title: "Aerobe efficiëntie",
+    tag: "Cardiac decoupling",
+    body: "Hoeveel je hartslag opliep bij gelijkblijvend vermogen tussen de eerste en tweede helft van de rit. Onder de 5% is je aerobe basis sterk genoeg om het tempo vol te houden; boven de 7% moest je hart steeds harder werken — een teken van vermoeidheid, hitte of een nog beperkte aerobe basis. Alleen beschikbaar bij duurritten van 45+ minuten in Zone 2.",
+    color: "oklch(0.52 0.062 150)",
+    tint: "oklch(0.94 0.03 150)",
+  },
 };

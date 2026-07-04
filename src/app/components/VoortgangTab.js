@@ -236,32 +236,32 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
 
         {/* Element 1 — Seizoensdoel hero */}
         {doelFtp && weekNr && (
-          <div style={{ background: "oklch(0.99 0.006 84)", borderRadius: 28, padding: "20px 22px", marginBottom: 16 }}>
+          <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: T.cardRadius, padding: "20px 22px", marginBottom: 16 }}>
             <span style={EYEBROW}>
               SEIZOENSDOEL · WEEK {weekNr} VAN {seizoenWeken}
             </span>
 
-            <div style={{ margin: "12px 0 8px", height: 8, borderRadius: 4, background: "oklch(0.93 0.012 82)" }}>
+            <div style={{ margin: "12px 0 8px", height: 8, borderRadius: 4, background: T.divider }}>
               <div style={{
                 height: "100%", borderRadius: 4,
                 width: `${Math.min(100, Math.max(0, ((ftp - startFtp) / (doelFtp - startFtp)) * 100))}%`,
-                background: "linear-gradient(140deg, oklch(0.64 0.14 248), oklch(0.79 0.14 168))",
+                background: T.accent,
               }} />
             </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
-              <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.6 0.02 75)" }}>
+              <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textTert }}>
                 {startFtp}W start
               </span>
-              <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: "oklch(0.27 0.02 70)" }}>
+              <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: T.text }}>
                 {ftp}W nu
               </span>
-              <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.6 0.02 75)" }}>
+              <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textTert }}>
                 {doelFtp}W doel
               </span>
             </div>
 
-            <p style={{ font: "600 13px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.5 0.02 74)", margin: 0 }}>
+            <p style={{ font: "600 13px/1.5 var(--font-nunito), sans-serif", color: T.textSec, margin: 0 }}>
               {seizoensdoelContextlijn({ huidigeFtp: ftp, doelFtp, startFtp, weekNr, tijdshorizon: seizoenWeken, rampRate })}
             </p>
           </div>
@@ -277,7 +277,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
             <span style={{ font: "600 56px var(--font-fredoka), sans-serif", lineHeight: 1, color: T.text }}>{ftp}</span>
             <span style={{ font: "600 20px var(--font-fredoka), sans-serif", color: T.textSec }}>W</span>
           </div>
-          <p style={{ font: "600 13px/1.4 var(--font-nunito), sans-serif", color: "oklch(0.5 0.02 74)", margin: "8px 0 0" }}>
+          <p style={{ font: "600 13px/1.4 var(--font-nunito), sans-serif", color: T.textSec, margin: "8px 0 0" }}>
             {ftpContextlijn({ huidigeFtp: ftp, startFtp })}
           </p>
         </div>
@@ -290,28 +290,28 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
                 <span style={EYEBROW}>Conditietrend</span>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 4 }}>
                   {huidigCtl != null && <span style={{ font: "600 32px var(--font-fredoka), sans-serif", color: T.text }}>{huidigCtl}</span>}
-                  {ctlDelta4w != null && <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: ctlDelta4w >= 0 ? "#2F9468" : "#9C5848" }}>CTL {ctlDelta4w >= 0 ? "+" : ""}{ctlDelta4w} / 4wk</span>}
+                  {ctlDelta4w != null && <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: ctlDelta4w >= 0 ? T.accentText : "oklch(0.55 0.11 30)" }}>CTL {ctlDelta4w >= 0 ? "+" : ""}{ctlDelta4w} / 4wk</span>}
                 </div>
               </div>
             </div>
             <ResponsiveContainer width="100%" height={140}>
               <ComposedChart data={dagPunten} margin={{ top: 5, right: 0, bottom: 0, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.012 82)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={T.divider} vertical={false} />
                 <XAxis dataKey="datum" tick={TICK} tickLine={false} axisLine={false} interval={Math.max(1, Math.floor(dagPunten.length / 6))} />
                 <YAxis tick={TICK} tickLine={false} axisLine={false} domain={["auto", "auto"]} />
                 <Tooltip content={<ChartTooltipContent />} />
-                <Area dataKey="ctl" stroke="none" fill="oklch(0.79 0.14 168)" fillOpacity={0.15} />
-                <Line dataKey="ctl" stroke="oklch(0.64 0.14 248)" strokeWidth={4} dot={false} name="CTL" />
+                <Area dataKey="ctl" stroke="none" fill={T.accent} fillOpacity={0.15} />
+                <Line dataKey="ctl" stroke={T.accent} strokeWidth={4} dot={false} name="CTL" />
               </ComposedChart>
             </ResponsiveContainer>
             <div style={{ display: "flex", gap: 16, marginTop: 6 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <div style={{ width: 18, height: 5, borderRadius: 3, background: "oklch(0.64 0.14 248)" }} />
+                <div style={{ width: 18, height: 5, borderRadius: 3, background: T.accent }} />
                 <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>CTL (fitheid)</span>
                 <InfoTooltip metricKey="ctl" />
               </div>
             </div>
-            <p style={{ font: "600 13px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.5 0.02 74)", margin: "10px 0 0" }}>
+            <p style={{ font: "600 13px/1.5 var(--font-nunito), sans-serif", color: T.textSec, margin: "10px 0 0" }}>
               {conditieTrendContextlijn({ conditie: conditieLabel, ctlDelta4w: ctlDelta4w ?? 0, aantalWeken: aantalWekenGroei })}
             </p>
           </div>
@@ -362,35 +362,35 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
         </div>
 
         {/* Element 5 — Trainingsgedrag (plan-naleving + polarisatie) */}
-        <div style={{ background: "oklch(0.99 0.006 84)", borderRadius: 28, padding: "20px 22px", marginBottom: 16 }}>
+        <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: T.cardRadius, padding: "20px 22px", marginBottom: 16 }}>
           <span style={EYEBROW}>TRAININGSGEDRAG</span>
 
           {/* Plan-naleving */}
           <div style={{ marginTop: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: "oklch(0.4 0.02 70)" }}>Plan gevolgd</span>
-              <span style={{ font: "600 22px var(--font-fredoka), sans-serif", color: "oklch(0.27 0.02 70)" }}>
+              <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: T.textSec }}>Plan gevolgd</span>
+              <span style={{ font: "600 22px var(--font-fredoka), sans-serif", color: T.text }}>
                 {totaalPlan > 0 ? `${planNaleving}%` : "–"}
               </span>
             </div>
-            <p style={{ font: "600 12.5px/1.4 var(--font-nunito), sans-serif", color: "oklch(0.55 0.02 74)", margin: "4px 0 0" }}>
+            <p style={{ font: "600 12.5px/1.4 var(--font-nunito), sans-serif", color: T.textSec, margin: "4px 0 0" }}>
               {totaalPlan > 0 ? planNalevingContextlijn(planNaleving) : "Nog geen voltooide sessies om te vergelijken."}
             </p>
           </div>
 
-          <div style={{ height: 1, background: "oklch(0.91 0.012 82)", margin: "14px 0" }} />
+          <div style={{ height: 1, background: T.divider, margin: "14px 0" }} />
 
           {/* Polarisatie */}
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: "oklch(0.4 0.02 70)" }}>Rustig vs. pittig</span>
-              <span style={{ font: "600 22px var(--font-fredoka), sans-serif", color: "oklch(0.27 0.02 70)" }}>
+              <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: T.textSec }}>Rustig vs. pittig</span>
+              <span style={{ font: "600 22px var(--font-fredoka), sans-serif", color: T.text }}>
                 {polTotaal > 0 ? (
-                  <>{z1z2Pct}%<span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.6 0.02 75)", marginLeft: 4 }}>Z1–Z2</span></>
+                  <>{z1z2Pct}%<span style={{ font: "700 12px var(--font-nunito), sans-serif", color: T.textTert, marginLeft: 4 }}>Z1–Z2</span></>
                 ) : "–"}
               </span>
             </div>
-            <p style={{ font: "600 12.5px/1.4 var(--font-nunito), sans-serif", color: "oklch(0.55 0.02 74)", margin: "4px 0 0" }}>
+            <p style={{ font: "600 12.5px/1.4 var(--font-nunito), sans-serif", color: T.textSec, margin: "4px 0 0" }}>
               {polTotaal > 0 ? polarisatieContextlijn(z1z2Pct) : "Nog geen zonetijden beschikbaar."}
             </p>
           </div>

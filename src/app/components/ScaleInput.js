@@ -19,10 +19,10 @@ export default function ScaleInput({ value, onChange, max = 5, question, leftLab
             <button key={n} onClick={() => onChange(n)}
               style={{
                 flex: 1, aspectRatio: "1", padding: 0, borderRadius: "50%", cursor: "pointer",
-                background: isSel ? T.gradient : T.subtleFill,
-                border: isSel ? "1.5px solid transparent" : "1.5px solid oklch(0.88 0.014 80)",
-                color: isSel ? "oklch(0.99 0.01 95)" : "oklch(0.52 0.02 74)",
-                boxShadow: isSel ? "0 5px 14px rgba(60,120,150,0.30)" : "none",
+                background: isSel ? T.accentBg : T.subtleFill,
+                border: isSel ? `2px solid ${T.accent}` : "1.5px solid oklch(0.88 0.014 80)",
+                color: isSel ? T.accentText : "oklch(0.52 0.02 74)",
+                boxShadow: isSel ? "0 4px 12px oklch(0.62 0.072 150 / 0.28)" : "none",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 font: `600 ${fontSize}px var(--font-fredoka), sans-serif`, lineHeight: 1,
                 transition: "transform 0.12s ease, box-shadow 0.12s ease",

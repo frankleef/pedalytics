@@ -1,6 +1,6 @@
 {
-  "name": "Pedalytics",
-  "short_name": "Pedalytics",
+  "name": "Kesto",
+  "short_name": "Kesto",
   "description": "Je persoonlijke AI-fietscoach — trainingsplan, monitoring en bijsturing",
   "start_url": "/",
   "display": "standalone",

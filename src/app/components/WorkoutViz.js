@@ -1,7 +1,7 @@
 "use client";
 import { zoneKleur, T } from "../designTokens";
 
-export default function WorkoutViz({ segmenten, hoogte = 90, ftp, opacity, werkelijkWatts }) {
+export default function WorkoutViz({ segmenten, hoogte = 90, ftp, opacity, werkelijkWatts, toonFtpLijn = true }) {
   if (!segmenten || segmenten.length === 0) return null;
 
   const ftpW = ftp || 265;
@@ -12,9 +12,11 @@ export default function WorkoutViz({ segmenten, hoogte = 90, ftp, opacity, werke
 
   return (
     <div style={{ position: "relative", display: "flex", alignItems: "flex-end", height: hoogte, gap: 1.5, borderRadius: 6, overflow: "hidden", opacity: opacity ?? 1 }}>
-      <div style={{ position: "absolute", bottom: `${ftpLineBottom}%`, left: 0, right: 0, borderTop: `1.5px dashed oklch(0.6 0.02 75)`, zIndex: 2 }}>
-        <span style={{ position: "absolute", right: 0, top: -8, font: "700 9px var(--font-nunito), sans-serif", color: T.textTert, background: T.subtleFill, padding: "1px 5px", borderRadius: 4 }}>FTP {ftpW}W</span>
-      </div>
+      {toonFtpLijn && (
+        <div style={{ position: "absolute", bottom: `${ftpLineBottom}%`, left: 0, right: 0, borderTop: `1.5px dashed oklch(0.6 0.02 75)`, zIndex: 2 }}>
+          <span style={{ position: "absolute", right: 0, top: -8, font: "700 9px var(--font-nunito), sans-serif", color: T.textTert, background: T.subtleFill, padding: "1px 5px", borderRadius: 4 }}>FTP {ftpW}W</span>
+        </div>
+      )}
 
       {segmenten.map((seg, i) => {
         // Legacy fallback: geen eenheid-veld → >100 = watts

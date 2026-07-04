@@ -22,13 +22,21 @@ const DAG_KORT = ["ZO","MA","DI","WO","DO","VR","ZA"];
 const RPE_LABELS = ["","Heel licht","Licht","Matig licht","Matig","Matig zwaar","Zwaar","Zwaar+","Erg zwaar","Maximaal-","Maximaal"];
 
 const DOT_KLEUREN = {
-  uitgevoerd: "oklch(0.55 0.01 250)",
-  unplanned: "oklch(0.55 0.07 215)",
+  uitgevoerd: "oklch(0.63 0.06 150)",
+  unplanned: "oklch(0.72 0.06 235)",
   missed: "oklch(0.72 0.015 75)",
-  planned: "oklch(0.74 0.05 200)",
+  planned: "oklch(0.72 0.1 70)",
   rest: "transparent",
-  buiten_planperiode: "oklch(0.55 0.07 215)",
+  buiten_planperiode: "oklch(0.72 0.06 235)",
 };
+
+// Drempels consistent met src/lib/decoupling.js (checkFaseOvergang: mediaan > 7 = uitstel)
+// en VoortgangTab.js dcKleur(): <5% goed, 5-7% redelijk, >=7% minder goed.
+function aerobeEfficientieStatus(waarde) {
+  if (waarde >= 7) return { kleur: "oklch(0.55 0.18 25)", bg: "oklch(0.97 0.03 25)", label: "Minder goed vandaag" };
+  if (waarde >= 5) return { kleur: "oklch(0.6 0.13 70)", bg: "oklch(0.97 0.025 75)", label: "Redelijk" };
+  return { kleur: "oklch(0.52 0.062 150)", bg: "oklch(0.96 0.02 150)", label: "Goede aerobe efficiëntie" };
+}
 
 // Legacy fallback: sessies gegenereerd vóór 24 juni 2026 hebben geen eenheid-veld.
 // De >100-heuristiek werkt voor alle bestaande data (FTP-gebaseerde %waarden
@@ -474,6 +482,22 @@ export default function SchemaTab({
     );
   };
 
+  // Aerobe efficiëntie (cardiac decoupling) — alleen beschikbaar voor Z2-duurritten >45min
+  const renderAerobeEfficientie = () => {
+    const dc = hitteData[gematchteRit?.id]?.decoupling;
+    if (dc == null) return null;
+    const st = aerobeEfficientieStatus(dc);
+    const waardeStr = dc < 0 ? `−${Math.abs(dc).toFixed(1)}` : dc.toFixed(1);
+    return (
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 999, background: st.bg, marginBottom: 16 }}>
+        <div style={{ width: 8, height: 8, borderRadius: "50%", background: st.kleur, flexShrink: 0 }} />
+        <span style={{ font: "700 12.5px var(--font-nunito), sans-serif", color: st.kleur }}>Aerobe efficiëntie {waardeStr}%</span>
+        <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec }}>· {st.label}</span>
+        <InfoTooltip metricKey="decoupling" />
+      </div>
+    );
+  };
+
   // Werkelijk-gereden grafiek kaart (voor deviated/unplanned/buiten_planperiode)
   const renderWerkelijkGrafiek = () => {
     if (!werkelijkWatts || werkelijkWatts.length < 10) {
@@ -710,30 +734,30 @@ export default function SchemaTab({
             )}
 
             {(sessie.waarom_vandaag || sessie.reden) && (
-              <div style={{ background: SLATE.bg, borderRadius: T.cardRadius, padding: "22px 22px 24px", boxShadow: SLATE.shadow, marginBottom: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 13 }}>
-                  <div style={{ width: 24, height: 24, borderRadius: 8, background: T.gradient, display: "flex", alignItems: "center", justifyContent: "center", font: "700 13px var(--font-fredoka), sans-serif", color: "oklch(0.2 0.03 245)" }}>P</div>
-                  <span style={{ font: "800 11.5px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: SLATE.label }}>{dayOffset === 0 ? "WAAROM VANDAAG" : `WAAROM ${bekekeDagNaam.toUpperCase()}`}</span>
+              <div style={{ background: SLATE.bg, border: `1px solid ${T.cardBorder}`, borderRadius: T.cardRadius, padding: "18px 20px", boxShadow: SLATE.shadow, marginBottom: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
+                  <div style={{ width: 24, height: 24, borderRadius: 7, background: T.slate, display: "flex", alignItems: "center", justifyContent: "center", font: "700 12px var(--font-fredoka), sans-serif", color: "#fff" }}>P</div>
+                  <span style={{ font: "700 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: SLATE.label, textTransform: "uppercase" }}>{dayOffset === 0 ? "Waarom vandaag" : `Waarom ${bekekeDagNaam.toLowerCase()}`}</span>
                 </div>
-                <p style={{ margin: "0 0 16px", font: "600 15px/1.5 var(--font-nunito), sans-serif", color: SLATE.text, textWrap: "pretty" }}>{sessie.waarom_vandaag || sessie.reden}</p>
+                <p style={{ margin: "0 0 16px", font: "500 14.5px/1.55 var(--font-nunito), sans-serif", color: SLATE.text, textWrap: "pretty" }}>{sessie.waarom_vandaag || sessie.reden}</p>
                 {sessie.check_in_aangepast && sessie.check_in_modulatie && (
-                  <p style={{ margin: "0 0 16px", font: "600 13px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.75 0.06 168)" }}>
+                  <p style={{ margin: "0 0 16px", font: "600 13px/1.5 var(--font-nunito), sans-serif", color: SLATE.accent }}>
                     We hebben je sessie {sessie.check_in_modulatie} gemaakt op basis van je hersteldata van vanochtend.
                   </p>
                 )}
                 <div style={{ display: "flex", gap: 10 }}>
                   {tsb != null && (
                     <div style={{ flex: 1, background: SLATE.tile, borderRadius: 14, padding: "11px 13px" }}>
-                      <div style={{ font: "600 19px var(--font-fredoka), sans-serif", color: SLATE.accent }}>{tsb > 0 ? "+" : ""}{tsb} TSB</div>
-                      <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: "oklch(0.74 0.03 230)" }}>Vorm vandaag</div>
+                      <div style={{ font: "700 19px var(--font-fredoka), sans-serif", color: T.text }}>{tsb > 0 ? "+" : ""}{tsb} TSB</div>
+                      <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textSec }}>Vorm vandaag</div>
                     </div>
                   )}
                   <div style={{ flex: 1, background: SLATE.tile, borderRadius: 14, padding: "11px 13px" }}>
-                    <div style={{ font: "600 19px var(--font-fredoka), sans-serif", color: SLATE.accent }}>{st.label}</div>
-                    <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: "oklch(0.74 0.03 230)" }}>Herstelstatus</div>
+                    <div style={{ font: "700 19px var(--font-fredoka), sans-serif", color: T.text }}>{st.label}</div>
+                    <div style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textSec }}>Herstelstatus</div>
                   </div>
                 </div>
-                <p style={{ margin: "14px 0 0", font: "600 12.5px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.7 0.03 210)" }}>Voelt het zwaar? Pas de laatste set aan of verkort de sessie — luister naar je lichaam.</p>
+                <p style={{ margin: "14px 0 0", font: "600 12.5px/1.5 var(--font-nunito), sans-serif", color: T.textSec }}>Voelt het zwaar? Pas de laatste set aan of verkort de sessie — luister naar je lichaam.</p>
               </div>
             )}
 
@@ -794,6 +818,7 @@ export default function SchemaTab({
             )}
 
             {renderRitMetrics(!!sessie)}
+            {renderAerobeEfficientie()}
 
             {renderWerkelijkGrafiek()}
 
@@ -823,6 +848,7 @@ export default function SchemaTab({
             )}
 
             {renderRitMetrics(false)}
+            {renderAerobeEfficientie()}
             {renderWerkelijkGrafiek()}
             {renderRpe()}
           </div>
@@ -845,6 +871,7 @@ export default function SchemaTab({
             <h1 style={{ margin: "5px 0 18px", font: "800 28px/1.18 var(--font-nunito), sans-serif", letterSpacing: -0.5, textWrap: "pretty", color: T.text }}>{gematchteRit?.naam || ritCls?.label || "Rit"}</h1>
 
             {renderRitMetrics(false)}
+            {renderAerobeEfficientie()}
             {renderWerkelijkGrafiek()}
             {renderRpe()}
           </div>

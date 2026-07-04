@@ -7,9 +7,9 @@
 
 html, body {
   height: 100%;
-  background: #07111d;
-  color: #e2e8f0;
-  font-family: var(--font-nunito), 'Nunito', system-ui, sans-serif;
+  background: #FAF9F6;
+  color: #4a463d;
+  font-family: var(--font-nunito), 'Public Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overscroll-behavior: none;

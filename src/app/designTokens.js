@@ -1,27 +1,34 @@
 export const T = {
   // Achtergrond
-  bg: 'oklch(0.962 0.012 84)',
-  cardBg: 'oklch(0.99 0.006 84)',
-  subtleFill: 'oklch(0.965 0.012 84)',
-  cardBorder: 'oklch(0.93 0.01 82)',
-  divider: 'oklch(0.91 0.012 82)',
-  cardRadius: 28,
+  bg: 'oklch(0.98 0.006 90)',
+  cardBg: 'oklch(0.995 0.004 90)',
+  subtleFill: 'oklch(0.965 0.008 84)',
+  cardBorder: 'oklch(0.925 0.008 82)',
+  divider: 'oklch(0.935 0.008 82)',
+  cardRadius: 24,
   tileRadius: 16,
-  cardShadow: '0 2px 14px rgba(60,45,20,0.05)',
+  cardShadow: '0 1px 2px rgba(30,35,55,0.04)',
 
   // Tekst
-  text: 'oklch(0.27 0.02 70)',
-  textSec: 'oklch(0.5 0.02 74)',
-  textTert: 'oklch(0.6 0.02 75)',
+  text: 'oklch(0.33 0.013 66)',
+  textSec: 'oklch(0.5 0.012 74)',
+  textTert: 'oklch(0.6 0.012 76)',
 
   // Nav / knoppen
-  slate: 'oklch(0.24 0.012 70)',
+  slate: 'oklch(0.33 0.013 66)',
   pillRadius: 999,
 
-  // Brand gradient
-  gradient: 'linear-gradient(140deg, oklch(0.64 0.14 248), oklch(0.79 0.14 168))',
-  gradientA: 'oklch(0.64 0.14 248)',
-  gradientB: 'oklch(0.79 0.14 168)',
+  // Accent (groen — vervangt het oude blauw-groen gradient)
+  accent: 'oklch(0.63 0.06 150)',
+  accentText: 'oklch(0.52 0.062 150)',
+  accentBg: 'oklch(0.96 0.02 150)',
+
+  // Legacy gradient-token — buiten de 4 herontworpen schermen (wizards, modals,
+  // profielscherm) nog in gebruik; hier als vlakke kleur gehouden zodat die
+  // schermen niet breken. Binnen Vandaag/Schema/Voortgang wordt dit niet meer gebruikt.
+  gradient: 'oklch(0.33 0.013 66)',
+  gradientA: 'oklch(0.33 0.013 66)',
+  gradientB: 'oklch(0.33 0.013 66)',
 
   // Spacing
   pad: 22,
@@ -29,17 +36,17 @@ export const T = {
   statusBarH: 46,
 
   // Fonts
-  font: "'Nunito', sans-serif",
-  fontNum: "'Fredoka', sans-serif",
+  font: "'Public Sans', sans-serif",
+  fontNum: "'Public Sans', sans-serif",
 
-  // Zones (%FTP)
-  z1: '#B4C6DE', // <56%
-  z2: '#5E94CE', // 56-75%
-  z3: '#3FB488', // 76-90%
-  z4: '#C79A3C', // 91-106%
-  z5: '#B45A44', // 107-120%
-  z6: '#8B3D2E', // 121-150% (anaeroob)
-  z7: '#6B2B22', // >150% (neuromusculair/sprint)
+  // Zones (%FTP) — blauw (laag) -> groen (matig) -> amber/rood (hoog)
+  z1: 'oklch(0.86 0.03 235)', // <56%
+  z2: 'oklch(0.72 0.06 235)', // 56-75%
+  z3: 'oklch(0.67 0.058 150)', // 76-90%
+  z4: 'oklch(0.72 0.1 70)', // 91-106%
+  z5: 'oklch(0.6 0.13 45)', // 107-120%
+  z6: 'oklch(0.53 0.15 32)', // 121-150% (anaeroob)
+  z7: 'oklch(0.46 0.14 25)', // >150% (neuromusculair/sprint)
 };
 
 // Herstelstatus — 4 niveaus
@@ -48,19 +55,19 @@ export const STATUS = {
     label: 'Vol gas',
     headline: (naam, weer) => weer?.hitte ? `${naam}, je staat er goed voor — maar het is ${weer.temp}°. Pas je tempo aan.` : `${naam}, je herstel is uitstekend — tijd voor een zware training.`,
     headlineNaRit: (naam) => `${naam}, sterke sessie — je lichaam is in topvorm.`,
-    color: 'oklch(0.5 0.13 162)',
-    dot: 'oklch(0.5 0.13 162)',
-    ringA: 'oklch(0.62 0.14 248)',
-    ringB: 'oklch(0.79 0.14 168)',
+    color: 'oklch(0.52 0.062 150)',
+    dot: 'oklch(0.63 0.06 150)',
+    ringA: 'oklch(0.63 0.06 150)',
+    ringB: 'oklch(0.63 0.06 150)',
   },
   goed: {
     label: 'Goed om te gaan',
     headline: (naam, weer) => weer?.hitte ? `${naam}, je staat er goed voor — maar het is ${weer.temp}°. Pas je tempo aan.` : `${naam}, je herstel is goed — tijd voor een pittige training.`,
     headlineNaRit: (naam) => `${naam}, goed gereden — je herstel ziet er prima uit.`,
-    color: 'oklch(0.5 0.13 162)',
-    dot: 'oklch(0.5 0.13 162)',
-    ringA: 'oklch(0.62 0.14 248)',
-    ringB: 'oklch(0.79 0.14 168)',
+    color: 'oklch(0.52 0.062 150)',
+    dot: 'oklch(0.63 0.06 150)',
+    ringA: 'oklch(0.63 0.06 150)',
+    ringB: 'oklch(0.63 0.06 150)',
   },
   rustig: {
     label: 'Doe het rustig aan',
@@ -68,8 +75,8 @@ export const STATUS = {
     headlineNaRit: (naam) => `${naam}, sessie erop — neem het de rest van de dag rustig aan.`,
     color: 'oklch(0.55 0.11 92)',
     dot: 'oklch(0.74 0.13 95)',
-    ringA: 'oklch(0.79 0.14 168)',
-    ringB: 'oklch(0.8 0.13 96)',
+    ringA: 'oklch(0.74 0.13 95)',
+    ringB: 'oklch(0.74 0.13 95)',
   },
   herstel: {
     label: 'Herstel eerst',
@@ -77,8 +84,8 @@ export const STATUS = {
     headlineNaRit: (naam) => `${naam}, stevige dag — je lichaam heeft nu rust nodig.`,
     color: 'oklch(0.56 0.13 55)',
     dot: 'oklch(0.66 0.14 54)',
-    ringA: 'oklch(0.8 0.13 96)',
-    ringB: 'oklch(0.67 0.14 52)',
+    ringA: 'oklch(0.66 0.14 54)',
+    ringB: 'oklch(0.66 0.14 54)',
   },
   rust: {
     label: 'Rust vandaag',
@@ -86,19 +93,19 @@ export const STATUS = {
     headlineNaRit: (naam) => `${naam}, je hebt gereden terwijl rust beter was — luister morgen naar je lichaam.`,
     color: 'oklch(0.52 0.1 28)',
     dot: 'oklch(0.58 0.11 28)',
-    ringA: 'oklch(0.67 0.14 52)',
+    ringA: 'oklch(0.58 0.11 28)',
     ringB: 'oklch(0.58 0.11 28)',
   },
 };
 
-// Slate insight-kaart tokens
+// Slate insight-kaart tokens (lichte "coach"-kaart — vervangt het oude donkere thema)
 export const SLATE = {
-  bg: 'oklch(0.345 0.035 245)',
-  tile: 'oklch(0.4 0.03 245)',
-  label: 'oklch(0.74 0.05 200)',
-  text: 'oklch(0.95 0.012 200)',
-  accent: 'oklch(0.86 0.06 165)',
-  shadow: '0 10px 26px rgba(30,40,70,0.25)',
+  bg: 'oklch(0.995 0.004 90)',
+  tile: 'oklch(0.965 0.008 84)',
+  label: 'oklch(0.58 0.012 74)',
+  text: 'oklch(0.36 0.012 68)',
+  accent: 'oklch(0.52 0.062 150)',
+  shadow: '0 1px 2px rgba(30,35,55,0.04)',
 };
 
 export function getStatus(score) {

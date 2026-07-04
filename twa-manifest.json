@@ -1,8 +1,8 @@
 {
   "packageId": "app.vercel.pedalytics_opal.twa",
-  "host": "pedalytics.frankleef.com",
-  "name": "Pedalytics",
-  "launcherName": "Pedalytics",
+  "host": "kesto.cc",
+  "name": "Kesto",
+  "launcherName": "Kesto",
   "display": "standalone",
   "themeColor": "#F5F1EA",
   "themeColorDark": "#000000",
@@ -13,18 +13,18 @@
   "backgroundColor": "#F5F1EA",
   "enableNotifications": true,
   "startUrl": "/",
-  "iconUrl": "https://pedalytics.frankleef.com/icons/pedalytics-icon-512.png",
-  "maskableIconUrl": "https://pedalytics.frankleef.com/icons/pedalytics-icon-512-maskable.png",
+  "iconUrl": "https://kesto.cc/icons/pedalytics-icon-512.png",
+  "maskableIconUrl": "https://kesto.cc/icons/pedalytics-icon-512-maskable.png",
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
     "path": "/home/frank/pedalytics/fietscoach_clean/android.keystore",
     "alias": "android"
   },
-  "appVersionName": 4,
-  "appVersionCode": 5,
+  "appVersionName": "7",
+  "appVersionCode": 7,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
-  "webManifestUrl": "https://pedalytics.frankleef.com/manifest.json",
+  "webManifestUrl": "https://kesto.cc/manifest.json",
   "fallbackType": "customtabs",
   "features": {},
   "alphaDependencies": {
@@ -33,7 +33,7 @@
   "enableSiteSettingsShortcut": true,
   "isChromeOSOnly": false,
   "isMetaQuest": false,
-  "fullScopeUrl": "https://pedalytics.frankleef.com/",
+  "fullScopeUrl": "https://kesto.cc/",
   "minSdkVersion": 21,
   "orientation": "portrait",
   "fingerprints": [],
@@ -43,5 +43,5 @@
   "fileHandlers": [],
   "launchHandlerClientMode": "",
   "displayOverride": [],
-  "appVersion": 4
+  "appVersion": "7"
 }
