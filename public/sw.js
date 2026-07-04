@@ -1,4 +1,4 @@
-// Service Worker — Pedalytics
+// Service Worker — Kesto
 const CACHE_NAME = "pedalytics-v2";
 const STATIC_ASSETS = ["/", "/manifest.json"];
 
@@ -37,11 +37,11 @@ self.addEventListener("fetch", event => {
 // Push notificatie ontvangen
 self.addEventListener("push", event => {
   const data = event.data?.json() ?? {};
-  const title = data.title || "Pedalytics";
+  const title = data.title || "Kesto";
   const options = {
     body: data.body || "Je hebt een nieuwe melding",
-    icon: "/icons/icon-192.png",
-    badge: "/icons/icon-192.png",
+    icon: "/icons/kesto-icon-192.png",
+    badge: "/icons/kesto-icon-192.png",
     tag: data.tag || "pedalytics",
     data: { url: data.url || "/" },
     actions: data.actions || [],

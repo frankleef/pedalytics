@@ -13,8 +13,8 @@
   "backgroundColor": "#F5F1EA",
   "enableNotifications": true,
   "startUrl": "/",
-  "iconUrl": "https://www.kesto.cc/icons/pedalytics-icon-512.png",
-  "maskableIconUrl": "https://www.kesto.cc/icons/pedalytics-icon-512-maskable.png",
+  "iconUrl": "https://www.kesto.cc/icons/kesto-icon-512.png",
+  "maskableIconUrl": "https://www.kesto.cc/icons/kesto-icon-512-maskable.png",
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
     "path": "/home/frank/pedalytics/fietscoach_clean/android.keystore",

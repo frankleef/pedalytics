@@ -12,7 +12,7 @@ export function segmentenNaarZwo(segmenten, naam, ftpW = 265) {
   const stappen = groups.map(g => groepNaarZwo(g, ftpW)).join("\n    ");
 
   return `<workout_file>
-  <author>Pedalytics</author>
+  <author>Kesto</author>
   <name>${escXml(naam || "Workout")}</name>
   <sportType>bike</sportType>
   <workout>
@@ -121,7 +121,7 @@ export function rampTestNaarZwo(protocol, naam, ftpW = 265) {
   }
 
   return `<workout_file>
-  <author>Pedalytics</author>
+  <author>Kesto</author>
   <name>${escXml(naam || "Ramp Test")}</name>
   <sportType>bike</sportType>
   <workout>

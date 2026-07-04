@@ -163,7 +163,7 @@ function IntervalsOnboardingInner() {
 
             {heeftAccount === false && (
               <div style={{ background: "oklch(0.965 0.012 84)", borderRadius: 16, padding: "14px 16px", font: "600 13px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.45 0.02 72)" }}>
-                intervals.icu is een gratis trainingsplatform dat je Garmin/Wahoo-data verwerkt. Je hebt een account nodig om je trainingsgegevens aan Pedalytics te koppelen.
+                intervals.icu is een gratis trainingsplatform dat je Garmin/Wahoo-data verwerkt. Je hebt een account nodig om je trainingsgegevens aan Kesto te koppelen.
               </div>
             )}
 

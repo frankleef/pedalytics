@@ -1,4 +1,4 @@
-// Pedalytics type definitions (JSDoc)
+// Kesto type definitions (JSDoc)
 // Bouwstuk 1: Dag-intentie-structuur en JSON-schema
 
 /**

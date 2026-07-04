@@ -1,4 +1,4 @@
-# Pedalytics — Persoonlijke Fietscoach
+# Kesto — Persoonlijke Fietscoach
 
 ## Doel van de app
 
@@ -10,7 +10,7 @@ Een AI-gestuurde fietscoach die Frank Levering helpt zijn FTP te verhogen in zij
 
 ## Wat maakt deze app uniek
 
-De meeste trainingsapps (TrainerRoad, Zwift, Join) baseren schema's op gebruikersinput of vaste algoritmes. Pedalytics heeft via intervals.icu + Garmin toegang tot dagelijkse **slaapdata, HRV en rusthartslag** naast de standaard **CTL/ATL/TSB trainingsbelasting**. Daardoor kan de coach de intensiteit aanpassen aan het werkelijke herstel van dat moment — niet aan wat het schema zegt of wat de gebruiker denkt te voelen. Die combinatie van objectieve hersteldata + trainingsbelasting + RPE-feedback + AI-gestuurde besluitvorming is wat Pedalytics onderscheidt.
+De meeste trainingsapps (TrainerRoad, Zwift, Join) baseren schema's op gebruikersinput of vaste algoritmes. Kesto heeft via intervals.icu + Garmin toegang tot dagelijkse **slaapdata, HRV en rusthartslag** naast de standaard **CTL/ATL/TSB trainingsbelasting**. Daardoor kan de coach de intensiteit aanpassen aan het werkelijke herstel van dat moment — niet aan wat het schema zegt of wat de gebruiker denkt te voelen. Die combinatie van objectieve hersteldata + trainingsbelasting + RPE-feedback + AI-gestuurde besluitvorming is wat Kesto onderscheidt.
 
 ## Huidige staat
 

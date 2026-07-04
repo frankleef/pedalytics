@@ -1,7 +1,7 @@
-# Pedalytics — Seizoensplanning Feature
+# Kesto — Seizoensplanning Feature
 
 ## Context
-Pedalytics is een persoonlijke fietscoach PWA voor Frank Levering. De app gebruikt
+Kesto is een persoonlijke fietscoach PWA voor Frank Levering. De app gebruikt
 intervals.icu als databron en genereert wekelijks een trainingsschema via de Claude API.
 De volledige codebase staat in deze repository. Lees CONTEXT.md voor technische details.
 

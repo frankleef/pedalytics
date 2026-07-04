@@ -1,7 +1,7 @@
 // Sectie 51-B: vaste-structuur-generator voor de ramp-test (Zwift-standaard,
 // geschikt voor FTP >175W). Geen archetype, geen duur_pct-schaling — het
 // protocol is vast, de sessieduur is per definitie variabel (eindigt bij
-// uitputting, niet bij een blok-teller). FTP wordt niet door Pedalytics
+// uitputting, niet bij een blok-teller). FTP wordt niet door Kesto
 // berekend maar door intervals.icu (icu_ftp) na afloop verwerkt (ftpUpdate.js).
 
 /**

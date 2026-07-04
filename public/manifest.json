@@ -1,7 +1,7 @@
 {
   "name": "Kesto",
   "short_name": "Kesto",
-  "description": "Je persoonlijke AI-fietscoach — trainingsplan, monitoring en bijsturing",
+  "description": "Ride smarter, not just harder — je persoonlijke AI-fietscoach: trainingsplan, monitoring en bijsturing",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F5F1EA",
@@ -9,25 +9,25 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/icons/pedalytics-icon-192.png",
+      "src": "/icons/kesto-icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/pedalytics-icon-192-maskable.png",
+      "src": "/icons/kesto-icon-192-maskable.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/icons/pedalytics-icon-512.png",
+      "src": "/icons/kesto-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/pedalytics-icon-512-maskable.png",
+      "src": "/icons/kesto-icon-512-maskable.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

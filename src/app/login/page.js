@@ -32,7 +32,7 @@ function LoginForm() {
           <div style={{ width: 56, height: 56, borderRadius: 18, background: "linear-gradient(140deg, oklch(0.64 0.14 248), oklch(0.79 0.14 168))", margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 20px rgba(40,90,140,0.28)" }}>
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M4 14.5l4-7 3.5 4.5L15 6l5 8.5" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </div>
-          <h1 style={{ margin: 0, font: "800 28px var(--font-nunito), 'Nunito', sans-serif", letterSpacing: -0.4, color: "oklch(0.27 0.02 70)" }}>Pedalytics</h1>
+          <h1 style={{ margin: 0, font: "800 28px var(--font-nunito), 'Nunito', sans-serif", letterSpacing: -0.4, color: "oklch(0.27 0.02 70)" }}>Kesto</h1>
           <p style={{ margin: "8px 0 0", font: "600 14px var(--font-nunito), 'Nunito', sans-serif", color: "oklch(0.5 0.02 74)" }}>Log in om verder te gaan</p>
         </div>
 
