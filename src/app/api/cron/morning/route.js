@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { sendPush } from "@/lib/pushNotify";
-import { vandaagISO } from "@/lib/datum";
+import { vandaagISO, datumOffset } from "@/lib/datum";
 import { verifyQStash } from "@/lib/qstash";
 import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import { bepaalHrvZone } from "@/lib/hrv/zone";
 import { bepaalNotificatie, checkNotificatieLimiet, verhoogNotificatieTeller, bouwNotificatieTekst } from "@/lib/hrv/notificatie";
 import { bepaalOpportunistischeTraining } from "@/lib/hrv/opportunistisch";
+import { berekenHrvBaseline, berekenHrvTrend, verwerkHrvTrend } from "@/lib/hrv/trend";
 import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet } from "@/lib/intervals";
 import { logEvent } from "@/lib/posthog";
@@ -90,6 +91,36 @@ async function verwerkHrvNotificatie(userId, kv, vandaag) {
   return "geen_sessies";
 }
 
+// Sectie 52 — onafhankelijke tweede trigger naast RPE-delta. Draait hier (i.p.v.
+// in cron/sync) omdat dit de enige cron is die dagelijks voor élke actieve
+// gebruiker draait, ook op rustdagen zonder nieuwe rit — precies het scenario
+// waarin RPE-delta geen signaal kan geven (geen rit = geen RPE), maar HRV wel.
+async function verwerkHrvTrendCheck(userId, vandaag) {
+  try {
+    const creds = await getIntervalsCredentials(userId);
+    if (!creds) return null;
+
+    const wellHrv14d = await intervalsGet("/wellness", { oldest: datumOffset(-13), newest: vandaag }, creds);
+    const hrvMetingen14d = (wellHrv14d || []).filter(w => w.hrv != null).map(w => w.hrv);
+    const baseline = berekenHrvBaseline(hrvMetingen14d);
+    const trend = berekenHrvTrend(hrvMetingen14d.slice(-7), baseline);
+    if (trend === null) return null;
+
+    const actie = await verwerkHrvTrend(userId, trend);
+    if (actie === "hrv_overbelasting") {
+      await sendPush(userId, {
+        title: "Plan aangepast",
+        body: "Je hartslagvariabiliteit wijst al een paar dagen op onvoldoende herstel, ook al voelden je trainingen niet per se zwaar aan. We hebben de komende sessies iets teruggeschroefd.",
+        url: "/",
+      });
+    }
+    return actie;
+  } catch (e) {
+    console.warn(`[morning] HRV-trend check mislukt voor ${userId}:`, e.message);
+    return null;
+  }
+}
+
 export async function POST(request) {
   const geldig = await verifyQStash(request);
   if (!geldig) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -114,7 +145,11 @@ export async function POST(request) {
 
       // HRV-notificatie
       const hrvResult = await verwerkHrvNotificatie(userId, kv, vandaag);
-      results.push({ userId, status: checkin ? "al_ingevuld" : "sent", hrv: hrvResult });
+
+      // HRV-trend check (sectie 52) — onafhankelijk van bovenstaande dag-zone-check
+      const hrvTrendResult = await verwerkHrvTrendCheck(userId, vandaag);
+
+      results.push({ userId, status: checkin ? "al_ingevuld" : "sent", hrv: hrvResult, hrvTrend: hrvTrendResult });
     } catch (e) {
       results.push({ userId, status: "error", error: e.message });
     }
