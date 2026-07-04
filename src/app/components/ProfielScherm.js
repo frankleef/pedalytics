@@ -392,10 +392,10 @@ export default function ProfielScherm({ profiel, seizoensplan, weerData, initial
 
         {/* Admin — alleen zichtbaar voor de beheerder */}
         {profiel?.isAdmin && (
-          <a href="/admin/archetypes"
+          <a href="/admin"
             style={{ width: "100%", border: `1.5px solid ${T.cardBorder}`, borderRadius: 20, background: T.cardBg, cursor: "pointer", padding: 15, display: "flex", alignItems: "center", justifyContent: "center", gap: 9, marginBottom: 16, textDecoration: "none", boxSizing: "border-box" }}>
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" stroke={T.textSec} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke={T.textSec} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            <span style={{ font: "800 14.5px var(--font-nunito), sans-serif", color: T.textSec }}>Sessie-archetypes beheren</span>
+            <span style={{ font: "800 14.5px var(--font-nunito), sans-serif", color: T.textSec }}>Admin</span>
           </a>
         )}
 
