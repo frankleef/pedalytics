@@ -1,6 +1,6 @@
 {
   "packageId": "app.vercel.pedalytics_opal.twa",
-  "host": "pedalytics-opal.vercel.app",
+  "host": "pedalytics.frankleef.com",
   "name": "Pedalytics",
   "launcherName": "Pedalytics",
   "display": "standalone",
@@ -13,18 +13,18 @@
   "backgroundColor": "#F5F1EA",
   "enableNotifications": true,
   "startUrl": "/",
-  "iconUrl": "https://pedalytics-opal.vercel.app/icons/pedalytics-icon-512.png",
-  "maskableIconUrl": "https://pedalytics-opal.vercel.app/icons/pedalytics-icon-512-maskable.png",
+  "iconUrl": "https://pedalytics.frankleef.com/icons/pedalytics-icon-512.png",
+  "maskableIconUrl": "https://pedalytics.frankleef.com/icons/pedalytics-icon-512-maskable.png",
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
     "path": "/home/frank/pedalytics/fietscoach_clean/android.keystore",
     "alias": "android"
   },
-  "appVersionName": "3",
-  "appVersionCode": 4,
+  "appVersionName": 4,
+  "appVersionCode": 5,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
-  "webManifestUrl": "https://pedalytics-opal.vercel.app/manifest.json",
+  "webManifestUrl": "https://pedalytics.frankleef.com/manifest.json",
   "fallbackType": "customtabs",
   "features": {},
   "alphaDependencies": {
@@ -33,7 +33,7 @@
   "enableSiteSettingsShortcut": true,
   "isChromeOSOnly": false,
   "isMetaQuest": false,
-  "fullScopeUrl": "https://pedalytics-opal.vercel.app/",
+  "fullScopeUrl": "https://pedalytics.frankleef.com/",
   "minSdkVersion": 21,
   "orientation": "portrait",
   "fingerprints": [],
@@ -43,5 +43,5 @@
   "fileHandlers": [],
   "launchHandlerClientMode": "",
   "displayOverride": [],
-  "appVersion": "3"
+  "appVersion": 4
 }
