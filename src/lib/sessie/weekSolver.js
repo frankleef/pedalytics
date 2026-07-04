@@ -537,7 +537,15 @@ export function pasBudgetToe(toewijzingen, belastingscap, alGeleverdTss = 0, vas
   const nietZ2 = toewijzingen.filter(t => t.pad !== "z2");
   const nietZ2Tss = nietZ2.reduce((s, t) => s + (t.tss_doel ?? 0), 0);
 
-  if (alVerbruikt + nietZ2Tss > belastingscap) {
+  // Deze guard signaleert alleen een echte input-fout: kernstimulus/secundair
+  // (nietZ2Tss) die zelf, samen met al geleverd/al vast gepland, al niet passen
+  // — zou niet moeten voorkomen na TSB-degradatie in solveWeek. Bij nietZ2Tss=0
+  // (geen kernstimulus/secundair deze run, bv. omdat solveWeek() ze al terecht
+  // wegliet) is een overschrijding puur via alGeleverdTss GEEN input-fout maar
+  // het normale geval van een al te volle week — daar moet de Z2-correctie
+  // hieronder gewoon op los (die zet de resterende Z2-dag(en) dan terecht om
+  // naar 'rust' i.p.v. hier stilzwijgend een volle sessie te laten staan).
+  if (nietZ2Tss > 0 && alVerbruikt + nietZ2Tss > belastingscap) {
     console.warn(
       `[pasBudgetToe] kernstimulus/secundair (+ al geleverd + al vast gepland) overschrijden het budget alleen al (${alVerbruikt + nietZ2Tss} > ${belastingscap}) — zou niet moeten voorkomen na TSB-degradatie in solveWeek. Kernstimulus/secundair worden nooit aangepast; input controleren.`
     );
@@ -572,6 +580,17 @@ export function pasBudgetToe(toewijzingen, belastingscap, alGeleverdTss = 0, vas
       langsteRit.tss_doel = Math.max(0, Math.round(langsteRit.tss_doel * ratio));
       langsteRit.beschikbareUren = langsteRit.beschikbareUren * ratio;
       if (langsteRit.beschikbareUren * 60 < MINIMUM_SESSIE_MINUTEN) schrapToewijzing(langsteRit);
+      continue;
+    }
+
+    // Geen enkel budget over voor de kortbare dagen (bv. omdat solveWeek() hun
+    // tss_doel al op 0 zette door een negatief restBudget): kortbaarTss(0) <=
+    // doelVoorKortbaar(0) zou hier ten onrechte als "past al" gelezen worden,
+    // terwijl beschikbareUren (en dus de daadwerkelijke sessieduur) nog intact
+    // is. Schrap ze dan direct — anders blijft er een volle-duur sessie over
+    // met tss_doel 0 (zie genereerSessieDag, die duur nooit uit tss_doel haalt).
+    if (doelVoorKortbaar <= 0) {
+      for (const dag of kortbaar) schrapToewijzing(dag);
       continue;
     }
 

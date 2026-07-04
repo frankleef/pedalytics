@@ -546,6 +546,42 @@ describe('pasBudgetToe', () => {
     warnSpy.mockRestore()
   })
 
+  describe('alGeleverd alleen al fors over budget, geen kernstimulus/secundair (fix: nieuwe dag werd niet omgezet naar rust)', () => {
+    it('week al 501 TSS gereden op een doel van 304 -> nieuwe z2-dag met tss_doel 0 wordt rust, niet stilzwijgend teruggegeven', () => {
+      // Zoals solveWeek() deze zou aanleveren: geen kernstimulus/secundair
+      // (nietZ2Tss=0, want restBudget was al negatief toen solveWeek draaide),
+      // en de enige open dag al op tss_doel 0 door solveWeek's eigen
+      // Math.max(0, restBudget * aandeel)-vloer — maar beschikbareUren nog
+      // intact, wat zonder deze fix tot een volle-duur sessie zou leiden.
+      const nieuweDag = { datum: '2026-07-12', sessietype: 'z2_duur', tss_doel: 0, beschikbareUren: 2, pad: 'z2' }
+      const resultaat = pasBudgetToe([nieuweDag], 304, 501, 0)
+      const dag = resultaat.find(t => t.datum === nieuweDag.datum)
+      expect(dag.sessietype).toBe('rust')
+      expect(dag.beschikbareUren).toBe(0)
+    })
+
+    it('kleine restruimte (280 gereden op doel 304, nieuwe dag past nog net binnen de resterende 24) -> geen wijziging', () => {
+      // Zoals solveWeek() deze zou aanleveren: restBudget=24 was nog positief
+      // toen solveWeek draaide, dus de dag kreeg gewoon tss_doel=24 (niet
+      // gevloerd naar 0) — een kleine overschrijding elders in de week hoort
+      // hier niet toe te leiden dat deze dag alsnog wordt teruggeschroefd.
+      const nieuweDag = { datum: '2026-07-12', sessietype: 'z2_duur', tss_doel: 24, beschikbareUren: 2, pad: 'z2' }
+      const resultaat = pasBudgetToe([nieuweDag], 304, 280, 0)
+      const dag = resultaat.find(t => t.datum === nieuweDag.datum)
+      expect(dag.sessietype).toBe('z2_duur')
+      expect(dag.tss_doel).toBe(24)
+    })
+  })
+
+  describe('meerdere Z2-dagen al op tss_doel 0 (fix: korten-loop brak voortijdig af zonder te schrappen)', () => {
+    it('twee open Z2-dagen, beide al op tss_doel 0 door solveWeek, budget diep negatief -> allebei rust', () => {
+      const dag1 = { datum: '2026-07-11', sessietype: 'z2_duur', tss_doel: 0, beschikbareUren: 2.5, pad: 'z2' }
+      const dag2 = { datum: '2026-07-12', sessietype: 'z2_duur', tss_doel: 0, beschikbareUren: 1.5, pad: 'z2' }
+      const resultaat = pasBudgetToe([dag1, dag2], 304, 501, 0)
+      expect(resultaat.every(t => t.sessietype === 'rust')).toBe(true)
+    })
+  })
+
   describe('vasteDagenTss (fix: budget hield geen rekening met reeds bestaande, niet-gereden sessies)', () => {
     it('vasteDagenTss van 100 tegen cap 144 -> nieuwe z2-toewijzingen worden geschaald naar hooguit 44', () => {
       // Alleen z2-toewijzingen (herstelweek-scenario: geen kernstimulus/secundair)
