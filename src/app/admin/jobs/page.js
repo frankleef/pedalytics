@@ -181,15 +181,15 @@ export default function JobsEnCron() {
           <span style={EYEBROW}>Generatietaken · queue (genjob)</span>
           <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: "oklch(0.58 0.012 74)" }}>TTL 5 min — oudere jobs verdwijnen uit de lijst</span>
         </div>
-        <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "160px 110px 100px 1fr 70px 100px", gap: 14, padding: "11px 18px", background: "oklch(0.97 0.008 86)", borderBottom: `1px solid ${T.cardBorder}`, font: "700 9.5px var(--font-nunito), sans-serif", letterSpacing: 0.7, color: "oklch(0.6 0.012 76)", textTransform: "uppercase" }}>
+        <div style={{ ...CARD, padding: 0, overflowX: "auto" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "160px 110px 100px 1fr 70px 100px", gap: 14, padding: "11px 18px", minWidth: 640, background: "oklch(0.97 0.008 86)", borderBottom: `1px solid ${T.cardBorder}`, font: "700 9.5px var(--font-nunito), sans-serif", letterSpacing: 0.7, color: "oklch(0.6 0.012 76)", textTransform: "uppercase" }}>
             <span>Job-id</span><span>Type</span><span>Sporter</span><span>Resultaat</span><span>Duur</span><span>Tijd</span>
           </div>
           {genJobsFout && <div style={{ padding: 16, color: "#dc2626", fontSize: 13 }}>{genJobsFout}</div>}
           {genJobs && genJobs.length === 0 && <div style={{ padding: 16, color: T.textTert, fontSize: 13 }}>Geen recente jobs.</div>}
           {!genJobs && !genJobsFout && <div style={{ padding: 16, color: T.textTert, fontSize: 13 }}>Laden…</div>}
           {genJobs?.map((j, i) => (
-            <div key={j.jobId} style={{ display: "grid", gridTemplateColumns: "160px 110px 100px 1fr 70px 100px", gap: 14, padding: "12px 18px", borderBottom: i < genJobs.length - 1 ? `1px solid ${T.divider}` : "none", alignItems: "center" }}>
+            <div key={j.jobId} style={{ display: "grid", gridTemplateColumns: "160px 110px 100px 1fr 70px 100px", gap: 14, padding: "12px 18px", minWidth: 640, borderBottom: i < genJobs.length - 1 ? `1px solid ${T.divider}` : "none", alignItems: "center" }}>
               <span style={{ font: "600 11.5px var(--font-mono, monospace)", color: "oklch(0.55 0.012 74)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{j.jobId}</span>
               <span style={{ font: "700 11.5px var(--font-nunito), sans-serif", color: "oklch(0.5 0.06 250)" }}>{j.type}</span>
               <span style={{ font: "600 12.5px var(--font-nunito), sans-serif", color: T.textSec, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{j.userId || "—"}</span>
@@ -216,7 +216,7 @@ export default function JobsEnCron() {
             </div>
           )}
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div className="admin-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           {ONDERHOUD_GROEPEN.map(grp => (
             <div key={grp.groep} style={{ ...CARD, display: "flex", flexDirection: "column", gap: 12 }}>
               <span style={{ font: "800 13.5px var(--font-nunito), sans-serif", color: "oklch(0.34 0.012 66)" }}>{grp.groep}</span>

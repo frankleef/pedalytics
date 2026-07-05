@@ -72,7 +72,7 @@ export default function AdminDebug() {
         />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 22, alignItems: "start" }}>
+      <div className="admin-debug-grid" style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 22, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <span style={{ font: "700 10.5px var(--font-nunito), sans-serif", letterSpacing: 1.3, color: "oklch(0.62 0.015 75)", textTransform: "uppercase", paddingBottom: 2 }}>Inspectie-tools</span>
           {DEBUG_TOOLS.map(t => {

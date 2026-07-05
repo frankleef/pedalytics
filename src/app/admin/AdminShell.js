@@ -10,9 +10,9 @@ const ICONS = {
   debug: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9l3 3-3 3M13 15h4" /></>,
 };
 
-function NavIcon({ naam, actief }) {
+function NavIcon({ naam, actief, kleur }) {
   return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={actief ? "#f7f3eb" : "oklch(0.55 0.012 74)"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={kleur || (actief ? "#f7f3eb" : "oklch(0.55 0.012 74)")} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
       {ICONS[naam]}
     </svg>
   );
@@ -31,6 +31,8 @@ const NAV = [
   ] },
 ];
 
+const BOTTOM_TABS = NAV.flatMap(g => g.items);
+
 function topbarInfo(pathname) {
   if (pathname.startsWith("/admin/archetypes/nieuw")) return { sectie: "Configuratie", titel: "Nieuw archetype" };
   if (pathname.startsWith("/admin/archetypes/") && pathname.endsWith("/bewerken")) return { sectie: "Configuratie", titel: "Archetype bewerken" };
@@ -48,7 +50,18 @@ export default function AdminShell({ children, gebruiker }) {
 
   return (
     <div style={{ minHeight: "100vh", background: T.bg, display: "flex" }}>
-      <aside style={{ width: 246, flex: "none", background: "oklch(0.975 0.006 88)", borderRight: `1px solid ${T.cardBorder}`, display: "flex", flexDirection: "column", padding: "22px 16px", position: "sticky", top: 0, height: "100vh", overflowY: "auto" }}>
+      <style>{`
+        @media (max-width: 860px) {
+          .admin-sidebar { display: none !important; }
+          .admin-bottomnav { display: flex !important; }
+          .admin-main { padding-bottom: 94px !important; }
+          .admin-topbar { padding: 14px 16px !important; flex-wrap: wrap; row-gap: 10px; }
+          .admin-topbar h1 { font-size: 19px !important; }
+          .admin-grid-2col, .admin-debug-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+
+      <aside className="admin-sidebar" style={{ width: 246, flex: "none", background: "oklch(0.975 0.006 88)", borderRight: `1px solid ${T.cardBorder}`, display: "flex", flexDirection: "column", padding: "22px 16px", position: "sticky", top: 0, height: "100vh", overflowY: "auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "4px 8px 22px" }}>
           <svg viewBox="0 0 100 100" width="34" height="34" style={{ borderRadius: 9 }}>
             <rect width="100" height="100" rx="23" fill="#33302a" />
@@ -92,7 +105,7 @@ export default function AdminShell({ children, gebruiker }) {
       </aside>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", background: T.bg, minWidth: 0 }}>
-        <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "20px 30px", borderBottom: `1px solid ${T.cardBorder}`, background: T.cardBg }}>
+        <header className="admin-topbar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "20px 30px", borderBottom: `1px solid ${T.cardBorder}`, background: T.cardBg }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, font: "600 11.5px var(--font-nunito), sans-serif", color: "oklch(0.63 0.012 76)" }}>
               <span>{sectie}</span><span style={{ color: "oklch(0.78 0.01 78)" }}>/</span><span style={{ color: "oklch(0.5 0.012 74)" }}>{titel}</span>
@@ -106,10 +119,30 @@ export default function AdminShell({ children, gebruiker }) {
             ← Terug naar app
           </Link>
         </header>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="admin-main" style={{ flex: 1, minWidth: 0 }}>
           {children}
         </div>
       </div>
+
+      <nav className="admin-bottomnav" style={{
+        display: "none", position: "fixed", bottom: 0, left: 0, right: 0, height: T.navH,
+        background: T.cardBg, borderTop: `1px solid ${T.divider}`,
+        alignItems: "flex-start", justifyContent: "space-around",
+        padding: "11px 10px 0", zIndex: 40,
+      }}>
+        {BOTTOM_TABS.map(({ href, label, icoon, exact }) => {
+          const actief = exact ? pathname === href : pathname === href || pathname.startsWith(href + "/");
+          return (
+            <Link key={href} href={href} style={{
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
+              textDecoration: "none", flex: 1, minWidth: 0,
+            }}>
+              <NavIcon naam={icoon} actief={actief} kleur={actief ? T.slate : "oklch(0.62 0.012 76)"} />
+              <span style={{ font: `${actief ? 800 : 700} 10px var(--font-nunito), sans-serif`, color: actief ? T.slate : "oklch(0.6 0.012 76)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }

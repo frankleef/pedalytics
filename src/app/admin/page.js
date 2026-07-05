@@ -285,11 +285,11 @@ export default function AdminDashboard() {
         <>
           <KpiStrip kpis={data.kpis} />
           <ArchetypeRotatieKaart resultaat={data.archetypeRotatie} />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div className="admin-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <VoltooiingsratioKaart resultaat={data.voltooiingsratio} />
             <GeneratieBetrouwbaarheidKaart resultaat={data.generatieBetrouwbaarheid} />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div className="admin-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <TssProgressieKaart resultaat={data.tssProgressie} />
             <UitvoeringsscoreTrendKaart resultaat={data.uitvoeringsscoreTrend} />
           </div>
