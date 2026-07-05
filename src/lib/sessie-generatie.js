@@ -444,6 +444,12 @@ export function genereerSessieDeterministisch({ dagIntentie, archetype, variant,
     plan_sets: planSets,
     intentie: {
       ...(dagIntentie ?? {}),
+      // gepland_sessietype bewaart wat vóór deze generatie-aanroep als sessietype
+      // gold (bv. uit solveWeek()) — `sessietype` hieronder kan daarvan afwijken
+      // door een override (volumecorrectie, kracht-gate-fallback). Zonder dit veld
+      // was een afwijking na opslag niet meer te onderscheiden, want beide
+      // waarden zaten in hetzelfde intentie.sessietype-veld (zie /api/debug/dag-intentie).
+      gepland_sessietype: dagIntentie?.sessietype ?? sessietype,
       sessietype,
     },
     archetype_id: archetype.id,
