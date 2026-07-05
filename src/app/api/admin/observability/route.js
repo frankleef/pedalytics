@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
+import { getKV } from "@/lib/kv";
 
 async function hogql(query) {
   const host = process.env.NEXT_PUBLIC_POSTHOG_HOST;
@@ -88,6 +89,40 @@ export async function GET() {
       entries.push([naam, { error: e.message }]);
     }
   }
+  const resultaat = Object.fromEntries(entries);
 
-  return NextResponse.json(Object.fromEntries(entries));
+  // KPI-strip: afgeleid uit de al opgehaalde queries hierboven (geen extra
+  // HogQL-calls) + één KV-lookup voor het aantal actieve sporters.
+  let actieveSporters = null;
+  try {
+    actieveSporters = ((await getKV().get("users:active")) || []).length;
+  } catch (e) {
+    console.error("[admin/observability] users:active ophalen mislukt:", e.message);
+  }
+
+  const archetypeRijen = resultaat.archetypeRotatie?.data;
+  const sessiesGegenereerd30d = archetypeRijen
+    ? archetypeRijen.reduce((s, r) => s + (r.aantal || 0), 0)
+    : null;
+
+  const betrouwbaarheidRijen = resultaat.generatieBetrouwbaarheid?.data;
+  const generatieFouten30d = betrouwbaarheidRijen
+    ? betrouwbaarheidRijen.filter(r => r.event !== "duur_cap_toegepast").reduce((s, r) => s + (r.aantal || 0), 0)
+    : null;
+
+  const voltooiingsRijen = resultaat.voltooiingsratio?.data;
+  let gemVoltooiingsratio30d = null;
+  if (voltooiingsRijen) {
+    const totalen = voltooiingsRijen.reduce((acc, r) => {
+      if (r.event === "sessie_voltooid") acc.voltooid += r.aantal;
+      else acc.overgeslagen += r.aantal;
+      return acc;
+    }, { voltooid: 0, overgeslagen: 0 });
+    const totaal = totalen.voltooid + totalen.overgeslagen;
+    gemVoltooiingsratio30d = totaal > 0 ? Math.round((totalen.voltooid / totaal) * 100) : null;
+  }
+
+  resultaat.kpis = { actieveSporters, sessiesGegenereerd30d, generatieFouten30d, gemVoltooiingsratio30d };
+
+  return NextResponse.json(resultaat);
 }
