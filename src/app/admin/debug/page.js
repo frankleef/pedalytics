@@ -5,15 +5,15 @@ import { datumISO } from "@/lib/datum";
 import SporterPicker from "../../components/admin/SporterPicker";
 import { DEBUG_TOOLS } from "../../components/admin/debugTools";
 
-export default function AdminDebug() {
-  const [sporterId, setSporterId] = useState("");
-  const [datum, setDatum] = useState(() => datumISO(new Date()));
-  const [actief, setActief] = useState(DEBUG_TOOLS[0].id);
+// Eigen state per tool, gemount met key={tool.id} — zonder die remount blijft
+// data van de vorige tool nog even in de state staan terwijl `tool` al is
+// omgeschakeld (setActief ver­nieuwt de render vóór het effect de oude data
+// wist), waardoor bv. HrvSysteemPanel data van DagIntentiePanel te zien kreeg
+// en crashte op een ontbrekend veld.
+function ToolPaneel({ tool, sporterId, datum }) {
   const [data, setData] = useState(null);
   const [fout, setFout] = useState(null);
   const [laden, setLaden] = useState(false);
-
-  const tool = DEBUG_TOOLS.find(t => t.id === actief);
 
   const haalOp = useCallback(() => {
     if (tool.geenData || !sporterId) return;
@@ -30,6 +30,37 @@ export default function AdminDebug() {
   }, [tool, sporterId, datum]);
 
   useEffect(() => { haalOp(); }, [haalOp]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ font: "800 17px var(--font-nunito), sans-serif", letterSpacing: -0.3, color: "oklch(0.3 0.012 66)" }}>{tool.naam}</span>
+        {!tool.geenData && sporterId && (
+          <span style={{ font: "600 12px var(--font-mono, monospace)", color: "oklch(0.6 0.012 76)" }}>{tool.route(sporterId, datum)}</span>
+        )}
+      </div>
+
+      {tool.geenData ? (
+        <tool.Panel />
+      ) : !sporterId ? (
+        <p style={{ color: T.textTert }}>Kies eerst een sporter.</p>
+      ) : laden ? (
+        <p style={{ color: T.textTert }}>Laden…</p>
+      ) : fout ? (
+        <div style={{ background: "oklch(0.96 0.03 28)", border: "1px solid oklch(0.88 0.06 28)", borderRadius: T.cardRadius, padding: 16, color: "oklch(0.5 0.13 28)", fontSize: 13 }}>{fout}</div>
+      ) : data ? (
+        <tool.Panel data={data} />
+      ) : null}
+    </div>
+  );
+}
+
+export default function AdminDebug() {
+  const [sporterId, setSporterId] = useState("");
+  const [datum, setDatum] = useState(() => datumISO(new Date()));
+  const [actief, setActief] = useState(DEBUG_TOOLS[0].id);
+
+  const tool = DEBUG_TOOLS.find(t => t.id === actief);
 
   return (
     <div style={{ padding: "24px 30px 40px", font: "600 14px var(--font-nunito), sans-serif", color: T.text }}>
@@ -65,26 +96,7 @@ export default function AdminDebug() {
           })}
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <span style={{ font: "800 17px var(--font-nunito), sans-serif", letterSpacing: -0.3, color: "oklch(0.3 0.012 66)" }}>{tool.naam}</span>
-            {!tool.geenData && sporterId && (
-              <span style={{ font: "600 12px var(--font-mono, monospace)", color: "oklch(0.6 0.012 76)" }}>{tool.route(sporterId, datum)}</span>
-            )}
-          </div>
-
-          {tool.geenData ? (
-            <tool.Panel />
-          ) : !sporterId ? (
-            <p style={{ color: T.textTert }}>Kies eerst een sporter.</p>
-          ) : laden ? (
-            <p style={{ color: T.textTert }}>Laden…</p>
-          ) : fout ? (
-            <div style={{ background: "oklch(0.96 0.03 28)", border: "1px solid oklch(0.88 0.06 28)", borderRadius: T.cardRadius, padding: 16, color: "oklch(0.5 0.13 28)", fontSize: 13 }}>{fout}</div>
-          ) : data ? (
-            <tool.Panel data={data} />
-          ) : null}
-        </div>
+        <ToolPaneel key={tool.id} tool={tool} sporterId={sporterId} datum={datum} />
       </div>
     </div>
   );
