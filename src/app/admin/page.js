@@ -18,6 +18,18 @@ const STATUS_GOED = T.accent, STATUS_GOED_TXT = T.accentText;
 const STATUS_WAARSCHUWING = "oklch(0.74 0.13 95)";
 const STATUS_FOUT = "oklch(0.58 0.11 28)";
 
+// Puur client-side (geen import uit lib/volumeCorrectie — die trekt server-only
+// modules als getKV/web-push mee in de client-bundle). Zelfde ISO 8601-formule.
+function isoWeekLabel(datumStr) {
+  if (!datumStr) return "";
+  const d = new Date(datumStr);
+  const dag = d.getDay() || 7;
+  d.setDate(d.getDate() + 4 - dag);
+  const startJaar = new Date(d.getFullYear(), 0, 1);
+  const week = Math.ceil(((d - startJaar) / 86400000 + 1) / 7);
+  return `W${week}`;
+}
+
 function ChartTooltipContent({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
@@ -210,7 +222,7 @@ function GeneratieBetrouwbaarheidKaart({ resultaat }) {
 
 function TssProgressieKaart({ resultaat }) {
   if (resultaat?.error) return <div style={CARD}><span style={EYEBROW}>TSS-progressie</span><FoutStaat fout={resultaat.error} /></div>;
-  const rows = resultaat?.data || [];
+  const rows = (resultaat?.data || []).map(r => ({ ...r, weekLabel: isoWeekLabel(r.week) }));
   if (rows.length === 0) return <div style={CARD}><span style={EYEBROW}>TSS-progressie</span><LegeStaat tekst="Nog geen data — sessie_voltooid wordt momenteel niet gelogd." /></div>;
 
   return (
@@ -219,7 +231,7 @@ function TssProgressieKaart({ resultaat }) {
       <ResponsiveContainer width="100%" height={160}>
         <LineChart data={rows} margin={{ top: 8, right: 5, bottom: 0, left: -14 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.012 82)" vertical={false} />
-          <XAxis dataKey="week" tick={TICK} tickLine={false} axisLine={false} />
+          <XAxis dataKey="weekLabel" tick={TICK} tickLine={false} axisLine={false} />
           <YAxis tick={TICK} tickLine={false} axisLine={false} />
           <Tooltip content={<ChartTooltipContent />} />
           <Line dataKey="tss_werkelijk" stroke="oklch(0.64 0.14 248)" strokeWidth={2.5} dot={{ r: 3 }} name="Werkelijk" />
@@ -232,7 +244,7 @@ function TssProgressieKaart({ resultaat }) {
 
 function UitvoeringsscoreTrendKaart({ resultaat }) {
   if (resultaat?.error) return <div style={CARD}><span style={EYEBROW}>Uitvoeringsscore-trend</span><FoutStaat fout={resultaat.error} /></div>;
-  const rows = resultaat?.data || [];
+  const rows = (resultaat?.data || []).map(r => ({ ...r, weekLabel: isoWeekLabel(r.week) }));
   if (rows.length === 0) return <div style={CARD}><span style={EYEBROW}>Uitvoeringsscore-trend</span><LegeStaat tekst="Nog geen data — sessie_voltooid wordt momenteel niet gelogd." /></div>;
 
   return (
@@ -241,7 +253,7 @@ function UitvoeringsscoreTrendKaart({ resultaat }) {
       <ResponsiveContainer width="100%" height={160}>
         <LineChart data={rows} margin={{ top: 8, right: 5, bottom: 0, left: -14 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.012 82)" vertical={false} />
-          <XAxis dataKey="week" tick={TICK} tickLine={false} axisLine={false} />
+          <XAxis dataKey="weekLabel" tick={TICK} tickLine={false} axisLine={false} />
           <YAxis tick={TICK} tickLine={false} axisLine={false} />
           <Tooltip content={<ChartTooltipContent />} />
           <Line dataKey="gem_uitvoeringsscore" stroke="oklch(0.64 0.14 248)" strokeWidth={2.5} dot={{ r: 3 }} name="Gem. score" />

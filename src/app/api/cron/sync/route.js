@@ -335,6 +335,7 @@ export async function POST(request) {
             sessie.voltooid = true; // lokale referentie ook bijwerken voor de rest van dit blok
 
             logEvent("sessie_voltooid", userId, {
+              sessietype: sessie.intentie?.sessietype ?? sessie.type ?? null,
               uitvoeringsscore: scoreData?.score ?? null,
               rpe: nieuwste.icu_rpe ?? null,
               tss_werkelijk: nieuwste.icu_training_load ?? null,
