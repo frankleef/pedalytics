@@ -5,9 +5,13 @@ import { intervalsGet } from "@/lib/intervals";
 import { herberekenHrvProfiel, checkDataStatus } from "@/lib/hrv/profiel";
 import { berekenHerstelDagen } from "@/lib/hrv/herstelsnelheid";
 import { berekenHrvRpeCorrelatie } from "@/lib/hrv/correlatie";
+import { herberekenGewichtenHrvCheckin } from "@/lib/hrv/leerdata";
 import { datumOffset } from "@/lib/datum";
 import { berekenVerwachtRpe as berekenVerwachtRpeLib } from "@/lib/sessie/rpe";
 import { zoneTimesNaarObject } from "@/lib/uitvoeringsscore";
+
+// Fallback zolang er nog geen (of te weinig) geleerde checkin-gewichten zijn.
+const DEFAULT_HRV_CHECKIN_GEWICHTEN = { hrv: 0.65, checkin: 0.35, observaties: 0, gepersonaliseerd: false };
 
 export const maxDuration = 120;
 
@@ -91,18 +95,21 @@ export async function POST(request) {
   const metDelta = observatiesVoorCorrelatie.filter(o => o.rpe_delta != null);
   const correlatie = berekenHrvRpeCorrelatie(metDelta, profiel);
 
-  // Sla observaties op voor leerlaag
-  await kv.set(`hrv-observaties:${userId}`, metDelta.map(o => ({
-    datum: o.datum, hrv: o.hrv, rpe_delta: o.rpe_delta,
-    keuze: null, sessietype: null, override: false, timestamp: new Date().toISOString(),
-  })).slice(-365));
+  // Checkin-gewichten herberekenen op basis van de bestaande checkin-keuze-
+  // observaties (hrv-observaties:{userId} — gevuld via /api/hrv/keuze, niet
+  // door deze route). Niet overschrijven met de hrv+rpe_delta-data hierboven:
+  // die dient alleen hrv_rpe_correlatie en heeft geen checkin_score/keuze.
+  const bestaandProfiel = await kv.get(`hrv-profiel:${userId}`);
+  const observatiesRaw = await kv.get(`hrv-observaties:${userId}`);
+  const observatiesCheckin = Array.isArray(observatiesRaw) ? observatiesRaw : (typeof observatiesRaw === "string" ? JSON.parse(observatiesRaw) : []);
+  const hrvCheckinGewichten = herberekenGewichtenHrvCheckin(observatiesCheckin, bestaandProfiel?.hrv_checkin_gewichten ?? DEFAULT_HRV_CHECKIN_GEWICHTEN);
 
   const volledigProfiel = {
     ...profiel,
     ...statusCheck,
     herstelsnelheid: { ...herstelsnelheidGemiddeld, _fallback_gebruikt: Object.keys(herstelsnelheidGemiddeld).length < 3 },
     hrv_rpe_correlatie: correlatie,
-    hrv_checkin_gewichten: { hrv: 0.65, checkin: 0.35, observaties: 0, gepersonaliseerd: false },
+    hrv_checkin_gewichten: hrvCheckinGewichten,
     checkin_actief: true,
   };
 

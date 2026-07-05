@@ -5,6 +5,7 @@ import { getKV } from "@/lib/kv";
 import { vandaagISO } from "@/lib/datum";
 import { berekenVerwachtRpe } from "@/lib/sessie/rpe";
 import { zoneTimesNaarObject } from "@/lib/uitvoeringsscore";
+import { patchHrvObservatieMetRpeDelta } from "@/lib/hrv/leerdata";
 
 export async function GET(request, { params }) {
   try {
@@ -53,6 +54,9 @@ export async function PUT(request, { params }) {
               sessie.rpe_delta = Math.round(delta * 10) / 10;
               sessie.voltooid = true;
             }
+
+            await patchHrvObservatieMetRpeDelta(creds.userId, ritDatum, Math.round(delta * 10) / 10)
+              .catch(e => console.warn("[RPE] HRV-observatie patchen mislukt:", e.message));
 
             // Opslaan in KV voor trend-berekening, maar hitte-ritten overslaan (spec 32-F)
             const dcEntry = await kv.get(`decoupling:${id}`);

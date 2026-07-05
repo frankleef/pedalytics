@@ -17,9 +17,14 @@ import { berekenUitvoeringsscoreMetDetails, scoreLabel, zoneTimesNaarObject } fr
 import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus, ctlRampRegressie } from "@/lib/conditie";
 import { haalRitTemperatuur, berekenTempBaseline, berekenHitteVlag, migreerHitteTemperatuur } from "@/lib/hitte";
 import { herberekenHrvProfiel, checkDataStatus } from "@/lib/hrv/profiel";
+import { herberekenGewichtenHrvCheckin } from "@/lib/hrv/leerdata";
 import { isWekelijkseCheckVerschuldigd, voerWekelijkseEvaluatieUit, voerHerstelweekEvaluatieUit } from "@/lib/volumeCorrectie";
 import { logEvent } from "@/lib/posthog";
 import { logCronRun } from "@/lib/cronLog";
+
+// Fallback zolang er nog geen (of te weinig) geleerde checkin-gewichten zijn —
+// zelfde defaults als voorheen hardcoded in api/admin/herbereken-hrv-profiel.
+const DEFAULT_HRV_CHECKIN_GEWICHTEN = { hrv: 0.65, checkin: 0.35, observaties: 0, gepersonaliseerd: false };
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -143,7 +148,12 @@ export async function POST(request) {
               const bestaand = typeof huidigProfiel === "string" ? JSON.parse(huidigProfiel) : huidigProfiel;
               const nieuwProfiel = herberekenHrvProfiel(genormaliseerd, bestaand);
               const statusCheck = checkDataStatus(genormaliseerd, bestaand);
-              await kv.set(`hrv-profiel:${userId}`, { ...(bestaand || {}), ...nieuwProfiel, ...statusCheck });
+
+              const observatiesRaw = await kv.get(`hrv-observaties:${userId}`);
+              const observaties = Array.isArray(observatiesRaw) ? observatiesRaw : (typeof observatiesRaw === "string" ? JSON.parse(observatiesRaw) : []);
+              const hrvCheckinGewichten = herberekenGewichtenHrvCheckin(observaties, bestaand?.hrv_checkin_gewichten ?? DEFAULT_HRV_CHECKIN_GEWICHTEN);
+
+              await kv.set(`hrv-profiel:${userId}`, { ...(bestaand || {}), ...nieuwProfiel, ...statusCheck, hrv_checkin_gewichten: hrvCheckinGewichten });
 
               if (statusCheck.modus_overgang) {
                 const notKey = `hrv-profiel-modus-notificatie-gestuurd:${userId}`;
