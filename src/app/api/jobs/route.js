@@ -18,8 +18,19 @@ function genId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// Schrijft het genjob-resultaat weg én houdt een gekapte index bij
+// (genjob:index) zodat de admin Jobs&cron-pagina de laatste N jobs kan tonen —
+// de al bestaande per-user laatstejob-key laat geen overzicht over alle
+// sporters/jobs toe.
+async function opslaanGenJob(kv, jobId, data) {
+  await kv.set(`genjob:${jobId}`, data, { ex: 300 });
+  await kv.lpush("genjob:index", jobId);
+  await kv.ltrim("genjob:index", 0, 199);
+}
+
 export async function POST(request) {
   const jobId = genId();
+  const startedAt = Date.now();
   const kv = getKV();
   let type, params;
 
@@ -67,7 +78,7 @@ export async function POST(request) {
 
       console.log(`[Job ${jobId}] Resultaat: ${result.type} "${result.titel}" | ${result.duur_min}min | TSS ${result.tss} | ${result.segmenten?.length || 0} segmenten`);
       if (result.intentie?.sessietype !== "ramp_test") logSessieGegenereerd(result, { userId, huidigeFase, weekInFase });
-      await kv.set(`genjob:${jobId}`, { status: "done", type, result }, { ex: 300 });
+      await opslaanGenJob(kv, jobId, { status: "done", type, result, userId: userId || null, createdAt: new Date(startedAt).toISOString(), durationMs: Date.now() - startedAt });
       console.log(`[Job ${jobId}] Voltooid`);
       return NextResponse.json({ success: true, jobId, status: "done", result });
     }
@@ -79,7 +90,7 @@ export async function POST(request) {
       if (!promptData) {
         console.log(`[Job ${jobId}] Geen dagen te plannen — leeg resultaat`);
         const emptyResult = { sessies: [], tss_totaal: 0 };
-        await kv.set(`genjob:${jobId}`, { status: "done", type, result: emptyResult }, { ex: 300 });
+        await opslaanGenJob(kv, jobId, { status: "done", type, result: emptyResult, userId: params?.userId ?? sessionUser?.id ?? null, createdAt: new Date(startedAt).toISOString(), durationMs: Date.now() - startedAt });
         return NextResponse.json({ success: true, jobId, status: "done", result: emptyResult });
       }
     } else {
@@ -118,7 +129,7 @@ export async function POST(request) {
     }
 
     // 6. Opslaan in KV (voor backward compatibility met polling) + direct retourneren
-    await kv.set(`genjob:${jobId}`, { status: "done", type, result }, { ex: 300 });
+    await opslaanGenJob(kv, jobId, { status: "done", type, result, userId: params?.userId ?? sessionUser?.id ?? null, createdAt: new Date(startedAt).toISOString(), durationMs: Date.now() - startedAt });
     console.log(`[Job ${jobId}] Voltooid`);
     return NextResponse.json({ success: true, jobId, status: "done", result });
 
@@ -129,7 +140,7 @@ export async function POST(request) {
         functie: type, foutcode: e.message, sessietype: params?.oudeSessie?.intentie?.sessietype ?? null, datum: params?.datum ?? null,
       });
     }
-    await kv.set(`genjob:${jobId}`, { status: "failed", type, error: e.message }, { ex: 300 }).catch(() => {});
+    await opslaanGenJob(kv, jobId, { status: "failed", type, error: e.message, userId: params?.userId ?? sessionUser?.id ?? null, createdAt: new Date(startedAt).toISOString(), durationMs: Date.now() - startedAt }).catch(() => {});
     return NextResponse.json({ success: true, jobId, status: "failed", error: e.message });
   }
 }

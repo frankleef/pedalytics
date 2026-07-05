@@ -171,29 +171,21 @@ export default function AdminDashboard() {
   }, []);
 
   if (fout) {
-    return (
-      <div style={{ minHeight: "100vh", background: T.bg }}>
-        <div style={{ padding: 40, textAlign: "center", color: T.textSec }}>{fout === "Forbidden" ? "Geen toegang." : fout}</div>
-      </div>
-    );
+    return <div style={{ padding: 40, textAlign: "center", color: T.textSec }}>{fout === "Forbidden" ? "Geen toegang." : fout}</div>;
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: T.bg }}>
-      <div style={{ maxWidth: 860, margin: "0 auto", padding: "24px 16px 60px", font: "600 14px var(--font-nunito), sans-serif", color: T.text }}>
-        <h1 style={{ font: "800 24px var(--font-nunito), sans-serif", margin: "0 0 20px" }}>Observability</h1>
-
-        {!data && <p style={{ color: T.textTert }}>Laden…</p>}
-        {data && (
-          <>
-            <ArchetypeRotatieKaart resultaat={data.archetypeRotatie} />
-            <VoltooiingsratioKaart resultaat={data.voltooiingsratio} />
-            <GeneratieBetrouwbaarheidKaart resultaat={data.generatieBetrouwbaarheid} />
-            <TssProgressieKaart resultaat={data.tssProgressie} />
-            <UitvoeringsscoreTrendKaart resultaat={data.uitvoeringsscoreTrend} />
-          </>
-        )}
-      </div>
+    <div style={{ maxWidth: 860, margin: "0 auto", padding: "24px 16px 60px", font: "600 14px var(--font-nunito), sans-serif", color: T.text }}>
+      {!data && <p style={{ color: T.textTert }}>Laden…</p>}
+      {data && (
+        <>
+          <ArchetypeRotatieKaart resultaat={data.archetypeRotatie} />
+          <VoltooiingsratioKaart resultaat={data.voltooiingsratio} />
+          <GeneratieBetrouwbaarheidKaart resultaat={data.generatieBetrouwbaarheid} />
+          <TssProgressieKaart resultaat={data.tssProgressie} />
+          <UitvoeringsscoreTrendKaart resultaat={data.uitvoeringsscoreTrend} />
+        </>
+      )}
     </div>
   );
 }

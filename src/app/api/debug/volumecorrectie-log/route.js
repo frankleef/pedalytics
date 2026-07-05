@@ -3,13 +3,13 @@ import { getSessionUser } from "@/lib/auth";
 import { getKV } from "@/lib/kv";
 import { haalIsoWeeknummer } from "@/lib/volumeCorrectie";
 
-export async function GET() {
+export async function GET(request) {
   try {
     const user = await getSessionUser();
-    if (user?.id !== "u_frank_001") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!user || user.id !== process.env.ADMIN_USER_ID) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const kv = getKV();
-    const userId = user.id;
+    const userId = new URL(request.url).searchParams.get("userId") || user.id;
 
     // Weeknummers: huidige week en 12 weken terug (max 1 jaar)
     const nuWeek = haalIsoWeeknummer(new Date());

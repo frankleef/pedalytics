@@ -6,11 +6,12 @@ import { datumISO } from "@/lib/datum";
 import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus, ctlRampRegressie } from "@/lib/conditie";
 import { getKV } from "@/lib/kv";
 
-export async function GET() {
+export async function GET(request) {
   try {
     const user = await getSessionUser();
-    if (user?.id !== "u_frank_001") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    const creds = await getIntervalsCredentials(user?.id);
+    if (!user || user.id !== process.env.ADMIN_USER_ID) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const targetUserId = new URL(request.url).searchParams.get("userId") || user.id;
+    const creds = await getIntervalsCredentials(targetUserId);
     if (!creds) return NextResponse.json({ error: "Niet gekoppeld" }, { status: 400 });
 
     const oldest = datumISO(new Date(Date.now() - 90 * 86400000));
@@ -19,7 +20,7 @@ export async function GET() {
     if (!wellness?.length) return NextResponse.json({ success: true, data: [] });
 
     const kv = getKV();
-    const rpeTrend = await kv.get(`rpe_trend:${user.id}`);
+    const rpeTrend = await kv.get(`rpe_trend:${targetUserId}`);
 
     const ctlPerDag = wellness.filter(w => w.ctl != null).sort((a, b) => (a.id || "").localeCompare(b.id || ""));
     const historie = [];

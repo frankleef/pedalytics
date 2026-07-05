@@ -9,6 +9,11 @@ import { vandaagISO } from "@/lib/datum";
 export const maxDuration = 300;
 
 export async function POST(request) {
+  const authHeader = request.headers.get("authorization");
+  if (authHeader !== `Bearer ${process.env.ADMIN_SECRET}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json().catch(() => ({}));
   const userId = body.userId;
   if (!userId) return NextResponse.json({ error: "userId vereist" }, { status: 400 });

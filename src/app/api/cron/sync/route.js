@@ -19,6 +19,7 @@ import { haalRitTemperatuur, berekenTempBaseline, berekenHitteVlag, migreerHitte
 import { herberekenHrvProfiel, checkDataStatus } from "@/lib/hrv/profiel";
 import { isWekelijkseCheckVerschuldigd, voerWekelijkseEvaluatieUit, voerHerstelweekEvaluatieUit } from "@/lib/volumeCorrectie";
 import { logEvent } from "@/lib/posthog";
+import { logCronRun } from "@/lib/cronLog";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -47,9 +48,10 @@ async function bijwerkPlanVeilig(kv, planKey, muteer) {
 }
 
 export async function POST(request) {
-  const geldig = await verifyQStash(request);
+  const geldig = request.headers.get("authorization") === `Bearer ${process.env.ADMIN_SECRET}` || await verifyQStash(request);
   if (!geldig) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const startedAt = Date.now();
   const kv = getKV();
   const results = [];
 
@@ -669,8 +671,10 @@ export async function POST(request) {
       }
     }
 
+    await logCronRun("sync", { startedAt, results }).catch(err => console.warn("[sync] cronrun-log mislukt:", err.message));
     return NextResponse.json({ success: true, results, checkedAt: new Date().toISOString() });
   } catch (e) {
+    await logCronRun("sync", { startedAt, results: [...results, { userId: "_run_", status: "error", error: e.message }] }).catch(err => console.warn("[sync] cronrun-log mislukt:", err.message));
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }

@@ -11,6 +11,7 @@ import { berekenHrvBaseline, berekenHrvTrend, verwerkHrvTrend } from "@/lib/hrv/
 import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet } from "@/lib/intervals";
 import { logEvent } from "@/lib/posthog";
+import { logCronRun } from "@/lib/cronLog";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -122,9 +123,10 @@ async function verwerkHrvTrendCheck(userId, vandaag) {
 }
 
 export async function POST(request) {
-  const geldig = await verifyQStash(request);
+  const geldig = request.headers.get("authorization") === `Bearer ${process.env.ADMIN_SECRET}` || await verifyQStash(request);
   if (!geldig) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const startedAt = Date.now();
   const kv = getKV();
   const userIds = (await kv.get("users:active")) || [];
   const vandaag = vandaagISO();
@@ -154,6 +156,8 @@ export async function POST(request) {
       results.push({ userId, status: "error", error: e.message });
     }
   }
+
+  await logCronRun("morning", { startedAt, results }).catch(e => console.warn("[morning] cronrun-log mislukt:", e.message));
 
   return NextResponse.json({ success: true, results });
 }

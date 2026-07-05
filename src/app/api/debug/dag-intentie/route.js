@@ -8,13 +8,15 @@ function planKey(userId) { return userId ? `${userId}:seizoensplan` : "seizoensp
 export async function GET(request) {
   try {
     const user = await getSessionUser();
-    if (user?.id !== "u_frank_001") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!user || user.id !== process.env.ADMIN_USER_ID) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    const datum = new URL(request.url).searchParams.get("datum");
+    const params = new URL(request.url).searchParams;
+    const datum = params.get("datum");
     if (!datum) return NextResponse.json({ error: "Query-param 'datum' (YYYY-MM-DD) is verplicht." }, { status: 400 });
+    const targetUserId = params.get("userId") || user.id;
 
     const kv = getKV();
-    const plan = await kv.get(planKey(user.id));
+    const plan = await kv.get(planKey(targetUserId));
     const sessie = (plan?.weekSessies?.sessies || []).find(s => s.datum === datum);
 
     if (!sessie) {
@@ -46,7 +48,7 @@ export async function GET(request) {
     };
 
     const recenteArchetypes = werkelijkSessietype
-      ? await getRecenteArchetypes(kv, user.id, werkelijkSessietype)
+      ? await getRecenteArchetypes(kv, targetUserId, werkelijkSessietype)
       : [];
 
     return NextResponse.json({

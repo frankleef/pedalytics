@@ -34,18 +34,12 @@ export default function ArchetypesOverzicht() {
   }
 
   if (fout === "Forbidden" || fout === "Unauthorized") {
-    return (
-      <div style={{ minHeight: "100vh", background: T.bg }}>
-        <div style={{ padding: 40, textAlign: "center", color: T.textSec }}>Geen toegang.</div>
-      </div>
-    );
+    return <div style={{ padding: 40, textAlign: "center", color: T.textSec }}>Geen toegang.</div>;
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: T.bg }}>
     <div style={{ maxWidth: 860, margin: "0 auto", padding: "24px 16px 60px", font: "600 14px var(--font-nunito), sans-serif", color: T.text }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h1 style={{ font: "800 24px var(--font-nunito), sans-serif", margin: 0 }}>Sessie-archetypes</h1>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
         <Link href="/admin/archetypes/nieuw" style={nieuwKnopStyle}>+ Nieuw archetype</Link>
       </div>
 
@@ -80,7 +74,6 @@ export default function ArchetypesOverzicht() {
           </div>
         </div>
       ))}
-    </div>
     </div>
   );
 }

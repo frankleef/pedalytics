@@ -5,11 +5,12 @@ import { intervalsGet } from "@/lib/intervals";
 import { datumISO } from "@/lib/datum";
 import { berekenHrvBaseline, berekenHrvTrend } from "@/lib/hrv/trend";
 
-export async function GET() {
+export async function GET(request) {
   try {
     const user = await getSessionUser();
-    if (user?.id !== "u_frank_001") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    const creds = await getIntervalsCredentials(user?.id);
+    if (!user || user.id !== process.env.ADMIN_USER_ID) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const targetUserId = new URL(request.url).searchParams.get("userId") || user.id;
+    const creds = await getIntervalsCredentials(targetUserId);
     if (!creds) return NextResponse.json({ error: "Niet gekoppeld" }, { status: 400 });
 
     const oldest = datumISO(new Date(Date.now() - 90 * 86400000));

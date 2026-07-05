@@ -4,7 +4,7 @@ import { T, SLATE, STATUS, getStatus, zoneKleur } from "../designTokens";
 import { berekenHerstelScore } from "./HerstelStatus";
 import WorkoutViz, { WerkelijkViz } from "./WorkoutViz";
 import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
-import { classificeerRit } from "@/lib/rittype";
+import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 import { datumISO } from "@/lib/datum";
 import InfoTooltip from "./InfoTooltip";
 import ScaleInput from "./ScaleInput";
@@ -287,6 +287,12 @@ export default function SchemaTab({
   const mode = cur.mode;
   const huidigeRpe = rpeOpgeslagen[gematchteRit?.id] ?? gematchteRit?.rpe ?? null;
   const ritCls = gematchteRit ? classificeerRit(gematchteRit, ftp) : null;
+  // Gepland type is leidend voor de planning, maar niet voor wat er echt is
+  // gebeurd: als het gedetecteerde type (bv. sweetspot) niet bij het geplande
+  // type (bv. Z2) past, tonen we dat als mismatch (ramp-tests overgeslagen —
+  // die zijn geen Coggan-zone en zouden altijd als "mismatch" ogen).
+  const ritMismatch = !!(sessie && gematchteRit && ritCls && ritCls.type !== "onbekend"
+    && sessie.type !== "ramp_test" && !ritMatchesSessie(ritCls, sessie.type, gematchteRit, sessie));
   const werkelijkWatts = gematchteRit ? streamsCache[gematchteRit.id] : null;
 
   // Fetch activity streams for rides
@@ -808,6 +814,12 @@ export default function SchemaTab({
                 </div>
                 {gematchteRit?.naam && <p style={{ margin: "4px 0 18px", font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>{gematchteRit.naam}</p>}
               </>
+            )}
+
+            {ritMismatch && (
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "oklch(0.96 0.05 82)", marginBottom: 12 }}>
+                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.48 0.1 62)" }}>⚠️ Gedetecteerd: {ritCls.label.toUpperCase()} · gepland was {sessieLabel.toUpperCase()}</span>
+              </div>
             )}
 
             {hitteData[gematchteRit?.id]?.hitte_gecorrigeerd && (

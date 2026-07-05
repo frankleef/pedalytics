@@ -4,11 +4,12 @@ import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet } from "@/lib/intervals";
 import { datumISO } from "@/lib/datum";
 
-export async function GET() {
+export async function GET(request) {
   const user = await getSessionUser();
-  if (!user || user.id !== "u_frank_001") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user || user.id !== process.env.ADMIN_USER_ID) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const creds = await getIntervalsCredentials(user.id);
+  const targetUserId = new URL(request.url).searchParams.get("userId") || user.id;
+  const creds = await getIntervalsCredentials(targetUserId);
   if (!creds) return NextResponse.json({ error: "Niet gekoppeld" }, { status: 400 });
 
   const oldest = datumISO(new Date(Date.now() - 365 * 86400000));

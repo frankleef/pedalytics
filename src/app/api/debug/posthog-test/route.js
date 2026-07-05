@@ -7,7 +7,7 @@ import { logEvent } from "@/lib/posthog";
 // daadwerkelijke aankomst wordt handmatig gecontroleerd in PostHog's Live events.
 export async function GET() {
   const user = await getSessionUser();
-  if (user?.id !== "u_frank_001") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user || user.id !== process.env.ADMIN_USER_ID) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   await logEvent("posthog_test_event", user.id, { bron: "api/debug/posthog-test" });
 

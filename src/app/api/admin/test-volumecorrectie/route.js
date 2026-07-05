@@ -10,7 +10,7 @@ export async function POST(request) {
   }
 
   try {
-    const resultaat = await vulSessiesAanVoorGebruiker("u_frank_001");
+    const resultaat = await vulSessiesAanVoorGebruiker(body.userId || "u_frank_001");
     return NextResponse.json({ ok: true, resultaat });
   } catch (err) {
     return NextResponse.json({ ok: false, error: err.message, stack: err.stack }, { status: 500 });

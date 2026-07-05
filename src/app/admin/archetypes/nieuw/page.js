@@ -25,7 +25,6 @@ export default function NieuwArchetype() {
   const gekozenArchetype = kandidaten.find(a => a.id === bestaandeArchetypeId) ?? null;
 
   return (
-    <div style={{ minHeight: "100vh", background: T.bg }}>
     <div style={{ maxWidth: 1180, margin: "0 auto", padding: "20px 16px 0" }}>
       <div style={{ maxWidth: 480, margin: "0 auto 8px" }}>
         <div style={{ display: "flex", background: T.subtleFill, border: `1px solid ${T.cardBorder}`, borderRadius: 12, padding: 3, marginBottom: 4 }}>
@@ -65,7 +64,6 @@ export default function NieuwArchetype() {
           onOpgeslagen={() => router.push("/admin/archetypes")}
         />
       )}
-    </div>
     </div>
   );
 }

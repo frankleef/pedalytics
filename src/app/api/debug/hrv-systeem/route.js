@@ -16,11 +16,11 @@ function getISOWeek(date) {
   return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
 }
 
-export async function GET() {
+export async function GET(request) {
   const user = await getSessionUser();
-  if (!user || user.id !== "u_frank_001") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user || user.id !== process.env.ADMIN_USER_ID) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const userId = user.id;
+  const userId = new URL(request.url).searchParams.get("userId") || user.id;
   const kv = getKV();
   const vandaag = datumISO(new Date());
 
