@@ -213,6 +213,10 @@ export async function verwerkRitVoorEf(kv, userId, rit, ftp, apiKey) {
   if (bestaandeReeks.some(p => p.activityId === rit.id)) return null;
 
   const { watts, heartrate } = await haalStreamsOp(rit.id, apiKey);
+  // Rate-limit alleen hier, ná een daadwerkelijke API-aanroep — niet per rit in
+  // de backfill-loop, anders wacht die 300ms op elke rit uit 8 weken (ook de
+  // niet-kwalificerende), wat de fire-and-forget backfill onnodig traag maakt.
+  await new Promise(r => setTimeout(r, 300));
   const selectie = selecteerHoofdblokken({ vermogenStream: watts, hrStream: heartrate }, band, ftp);
   if (!selectie) return null;
 
@@ -248,7 +252,6 @@ export async function backfillEf(kv, userId, ftpWaarde, apiKey, athleteId) {
       try {
         const band = await verwerkRitVoorEf(kv, userId, rit, ftpWaarde, apiKey);
         if (band) verwerkt++; else overgeslagen++;
-        await new Promise(r => setTimeout(r, 300));
       } catch (e) {
         console.warn(`[ef-backfill] Rit ${rit.id} mislukt:`, e.message);
         overgeslagen++;

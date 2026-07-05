@@ -11,6 +11,7 @@ import { berekenGemiddeldeUrenPerWeek, berekenStartTss } from "@/lib/rijhistorie
 import { berekenDistributie } from "@/lib/sessie/distributie";
 import { checkFaseOvergang, berekenEnCacheDecoupling, bijwerkenDecouplingBaseline, backfillDecoupling } from "@/lib/decoupling";
 import { verwerkRitVoorEf, backfillEf } from "@/lib/ef";
+import { waitUntil } from "@vercel/functions";
 import { berekenRpeTrend, verwerkRpeTrend } from "@/lib/sessie/rpeTrend";
 import { berekenUitvoeringsscoreMetDetails, scoreLabel, zoneTimesNaarObject } from "@/lib/uitvoeringsscore";
 import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus, ctlRampRegressie } from "@/lib/conditie";
@@ -65,6 +66,20 @@ export async function POST(request) {
         // Plan één keer lezen per user per sync-run
         const planKey = `${userId}:seizoensplan`;
         const plan = await kv.get(planKey);
+
+        // Eenmalige EF-backfill (laatste ~8 weken) — hier en niet verderop bij de
+        // decoupling-backfill, want de code daar zit ná de "geen nieuwe rit"/
+        // idempotente vroege-continues (regel ±170/232). Als een gebruiker een
+        // tijd niet rijdt, komt die verderop-code dus nooit aan de beurt en zou
+        // de backfill voor onbepaalde tijd nooit starten. waitUntil() voorkomt
+        // daarnaast dat deze niet-geawaite achtergrondtaak wordt afgebroken
+        // zodra de request-response al verstuurd is (zelfde patroon als
+        // logEvent() in lib/posthog.js).
+        const efBfVoltooid = await kv.get(`ef_backfill_voltooid:${userId}`);
+        const efBfGestart = await kv.get(`ef_backfill_gestart:${userId}`);
+        if (!efBfVoltooid && !efBfGestart) {
+          waitUntil(backfillEf(kv, userId, plan?.huidige_ftp || 265, apiKey, athleteId).catch(e => console.warn(`[sync] EF-backfill mislukt:`, e.message)));
+        }
 
         // Eenmalige TSS-migratie: ophalen van icu_training_load voor bestaande events
         const tssMigratieKey = `migratie:tss-bron:${userId}`;
@@ -266,13 +281,6 @@ export async function POST(request) {
         const bfGestart = await kv.get(`decoupling_backfill_gestart:${userId}`);
         if (!bfVoltooid && !bfGestart) {
           backfillDecoupling(userId, plan?.huidige_ftp || 265, apiKey, athleteId).catch(e => console.warn(`[sync] Backfill mislukt:`, e.message));
-        }
-
-        // Eenmalige EF-backfill (laatste ~8 weken)
-        const efBfVoltooid = await kv.get(`ef_backfill_voltooid:${userId}`);
-        const efBfGestart = await kv.get(`ef_backfill_gestart:${userId}`);
-        if (!efBfVoltooid && !efBfGestart) {
-          backfillEf(kv, userId, plan?.huidige_ftp || 265, apiKey, athleteId).catch(e => console.warn(`[sync] EF-backfill mislukt:`, e.message));
         }
 
         if (plan?.weekSessies?.sessies) {
