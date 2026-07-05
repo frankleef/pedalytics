@@ -10,6 +10,7 @@ import { verwerkFtpTest, isEindtest } from "@/lib/sessie/ftpUpdate";
 import { berekenGemiddeldeUrenPerWeek, berekenStartTss } from "@/lib/rijhistorie";
 import { berekenDistributie } from "@/lib/sessie/distributie";
 import { checkFaseOvergang, berekenEnCacheDecoupling, bijwerkenDecouplingBaseline, backfillDecoupling } from "@/lib/decoupling";
+import { verwerkRitVoorEf, backfillEf } from "@/lib/ef";
 import { berekenRpeTrend, verwerkRpeTrend } from "@/lib/sessie/rpeTrend";
 import { berekenUitvoeringsscoreMetDetails, scoreLabel, zoneTimesNaarObject } from "@/lib/uitvoeringsscore";
 import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus, ctlRampRegressie } from "@/lib/conditie";
@@ -267,6 +268,13 @@ export async function POST(request) {
           backfillDecoupling(userId, plan?.huidige_ftp || 265, apiKey, athleteId).catch(e => console.warn(`[sync] Backfill mislukt:`, e.message));
         }
 
+        // Eenmalige EF-backfill (laatste ~8 weken)
+        const efBfVoltooid = await kv.get(`ef_backfill_voltooid:${userId}`);
+        const efBfGestart = await kv.get(`ef_backfill_gestart:${userId}`);
+        if (!efBfVoltooid && !efBfGestart) {
+          backfillEf(kv, userId, plan?.huidige_ftp || 265, apiKey, athleteId).catch(e => console.warn(`[sync] EF-backfill mislukt:`, e.message));
+        }
+
         if (plan?.weekSessies?.sessies) {
           const ritDatum = nieuwste.start_date_local?.split("T")[0];
           const sessie = plan.weekSessies.sessies.find(s => s.datum === ritDatum);
@@ -414,6 +422,18 @@ export async function POST(request) {
                 .catch(e => console.warn(`[sync] Decoupling cache mislukt:`, e.message));
             } catch (e) {
               console.warn(`[sync] Streams ophalen mislukt voor rit ${rit.id}:`, e.message);
+            }
+          }
+
+          // Efficiency Factor-trend per intensiteitsband (z2/sweetspot/drempel/vo2max) —
+          // eligibility op basis van de bestaande sectie 33-classificatie (IF-band) van
+          // de hele rit; de daadwerkelijke EF wordt daarbinnen berekend over alleen de
+          // seconden die per-seconde in de doelband vallen (zie lib/ef.js).
+          for (const rit of ritten) {
+            try {
+              await verwerkRitVoorEf(kv, userId, rit, plan.huidige_ftp || 265, apiKey);
+            } catch (e) {
+              console.warn(`[sync] EF-berekening mislukt voor rit ${rit.id}:`, e.message);
             }
           }
 

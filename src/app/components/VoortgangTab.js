@@ -94,14 +94,27 @@ function npClient(watts) {
 
 function dcKleur(v) { return v >= 7 ? "oklch(0.55 0.18 25)" : v >= 5 ? "oklch(0.72 0.13 70)" : "oklch(0.45 0.13 162)"; }
 
+const EF_BAND_LABELS = { z2: "Z2", sweetspot: "Sweetspot", drempel: "Drempel", vo2max: "VO2max" };
+
+function efContextlijn({ trend, band, aantalRecent, minPunten }) {
+  const naam = EF_BAND_LABELS[band];
+  if (trend == null) return `Nog onvoldoende ${naam}-ritten voor een betrouwbare trend (${aantalRecent}/${minPunten} laatste 3 weken).`;
+  if (trend > 0.005) return `Je efficiëntie op ${naam} verbetert — meer watt voor dezelfde hartslag bij dit intensiteitsniveau.`;
+  if (trend < -0.005) return `Je efficiëntie op ${naam} daalt licht — let op vermoeidheid of herstel.`;
+  return `Je efficiëntie op ${naam} is stabiel.`;
+}
+
 export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voortgang, seizoensplan, onOpenProfiel, weekSessies }) {
   const [ftpHistorie, setFtpHistorie] = useState([]);
   const [conditieData, setConditieData] = useState(null);
   const [dcPunten, setDcPunten] = useState([]);
+  const [efData, setEfData] = useState(null);
+  const [efBand, setEfBand] = useState("z2");
 
   useEffect(() => {
     fetch("/api/ftp-historie").then(r => r.json()).then(d => { if (d.success && d.data) setFtpHistorie(d.data); }).catch(() => {});
     fetch("/api/plan/conditie-score").then(r => r.json()).then(d => { if (d.success && d.data) setConditieData(d.data); }).catch(() => {});
+    fetch("/api/ef-trend").then(r => r.json()).then(d => { if (d.success && d.data) setEfData(d); }).catch(() => {});
   }, []);
 
   const ftp = profiel?.ftp || 265;
@@ -359,6 +372,69 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
               Rijd meer Z2-ritten van &gt;45 min om je aerobe efficiëntie te meten.
             </p>
           )}
+        </div>
+
+        {/* Element 4b — Efficiency Factor per intensiteitsband */}
+        <div style={CARD}>
+          <span style={EYEBROW}>Efficiency Factor</span>
+          <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec, marginTop: 2, marginBottom: 12 }}>
+            NP / gem. hartslag — per intensiteitsband, niet onderling vergelijkbaar
+          </div>
+
+          <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+            {Object.keys(EF_BAND_LABELS).map(band => (
+              <button
+                key={band}
+                onClick={() => setEfBand(band)}
+                style={{
+                  border: "none", borderRadius: T.pillRadius, padding: "6px 12px", cursor: "pointer",
+                  font: "800 12px var(--font-nunito), sans-serif",
+                  background: efBand === band ? T.slate : T.subtleFill,
+                  color: efBand === band ? T.cardBg : T.textSec,
+                }}
+              >
+                {EF_BAND_LABELS[band]}
+              </button>
+            ))}
+          </div>
+
+          {(() => {
+            const bandData = efData?.data?.[efBand];
+            const punten = (bandData?.punten || []).map(p => {
+              const [, m, d] = p.datum.split("-");
+              return { datum: `${d}/${m}`, ef: p.ef };
+            });
+            const laatsteEf = punten.length ? punten[punten.length - 1].ef : null;
+
+            if (!bandData || punten.length < 2) {
+              return (
+                <p style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec, margin: "4px 0 0" }}>
+                  {efContextlijn({ trend: null, band: efBand, aantalRecent: bandData?.aantalRecent ?? 0, minPunten: efData?.minPuntenVoorTrend ?? 4 })}
+                </p>
+              );
+            }
+
+            return (
+              <>
+                {laatsteEf != null && (
+                  <div style={{ font: "600 22px var(--font-fredoka), sans-serif", color: T.text, marginBottom: 4 }}>{laatsteEf.toFixed(2)}</div>
+                )}
+                <ResponsiveContainer width="100%" height={80}>
+                  <LineChart data={punten} margin={{ top: 8, right: 5, bottom: 0, left: -14 }}>
+                    <XAxis dataKey="datum" tick={TICK} tickLine={false} axisLine={false} />
+                    <YAxis tick={TICK} tickLine={false} axisLine={false} domain={["auto", "auto"]} />
+                    <Tooltip content={<ChartTooltipContent />} />
+                    <Line type="monotone" dataKey="ef" stroke={T.accent} strokeWidth={2.5} dot={{ r: 3, fill: T.accent, stroke: "#fff", strokeWidth: 1.5 }} name="EF" />
+                  </LineChart>
+                </ResponsiveContainer>
+                <p style={{ font: "600 13px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.5 0.02 74)", margin: "10px 0 0" }}>
+                  {bandData.voldoendeData
+                    ? efContextlijn({ trend: bandData.trend, band: efBand })
+                    : efContextlijn({ trend: null, band: efBand, aantalRecent: bandData.aantalRecent, minPunten: efData?.minPuntenVoorTrend ?? 4 })}
+                </p>
+              </>
+            );
+          })()}
         </div>
 
         {/* Element 5 — Trainingsgedrag (plan-naleving + polarisatie) */}

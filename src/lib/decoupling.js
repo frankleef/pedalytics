@@ -23,7 +23,7 @@ function splitOpArbeid(watts, heartrate) {
   };
 }
 
-function filterNulWatt(watts, heartrate) {
+export function filterNulWatt(watts, heartrate) {
   const wGef = [], hrGef = [];
   for (let i = 0; i < watts.length; i++) {
     if (watts[i] > 0 && heartrate[i] > 0) { wGef.push(watts[i]); hrGef.push(heartrate[i]); }
