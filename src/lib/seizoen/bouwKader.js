@@ -47,8 +47,13 @@ export function bouwKader(doelConfig) {
       tss_doel = Math.round(piekTss * 0.58);
     } else if (wk.fase === "test") {
       tss_doel = Math.round(piekTss * 0.40);
+    } else if (wk.weeknummer === 1) {
+      // Week 1 is een pro-rata (verkorte) week — de progressie voor week 2+
+      // moet blijven groeien vanaf de volle baseTss, niet vanaf dit verlaagde
+      // eerste-weekcijfer, anders wordt elke volgende opbouwweek te laag.
+      tss_doel = tssDoelWeek1(baseTss, doelConfig.startdatum);
     } else {
-      tss_doel = wk.weeknummer === 1 ? tssDoelWeek1(baseTss, doelConfig.startdatum) : Math.round(vorigOpbouwTss * (1 + opbouwPct));
+      tss_doel = Math.round(vorigOpbouwTss * (1 + opbouwPct));
       tss_doel = Math.min(tss_doel, Math.round(baseTss * 1.8));
       vorigOpbouwTss = tss_doel;
       piekTss = Math.max(piekTss, tss_doel);
