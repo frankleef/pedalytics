@@ -29,7 +29,8 @@ export async function POST(request) {
   const ctl = plan.huidige_ctl || 45;
   const baseTss = Math.round(ctl * 5);
   const opbouwPct = doelProfiel.tss_opbouw_pct ?? 0.10;
-  const taperPct = doelProfiel.taper_tss_pct || 0.45;
+  const niveauTaper = { starter: 0.40, recreatief: 0.50, getraind: 0.60 }[niveau] || 0.50;
+  const taperPct = doelProfiel.taper_tss_pct ?? niveauTaper;
   let vorigOpbouwTss = baseTss;
   let piekTss = baseTss;
 

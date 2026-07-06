@@ -27,7 +27,8 @@ export function bouwKader(doelConfig) {
   const niveau = doelConfig.ervaringsniveau || "recreatief";
   const niveauOpbouw = { starter: 0.05, recreatief: 0.10, getraind: 0.15 }[niveau] || 0.10;
   const opbouwPct = doelProfiel.tss_opbouw_pct ?? niveauOpbouw;
-  const taperPct = doelProfiel.taper_tss_pct || 0.45;
+  const niveauTaper = { starter: 0.40, recreatief: 0.50, getraind: 0.60 }[niveau] || 0.50;
+  const taperPct = doelProfiel.taper_tss_pct ?? niveauTaper;
 
   const weekVolgorde = bouwWeekvolgorde(totaalWeken, doelType, niveau);
 

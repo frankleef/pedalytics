@@ -59,7 +59,8 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
   const weekNr = seizoenStart && seizoensplan?.startdatum ? weeknummerVoorDatum(new Date(), seizoensplan.startdatum) : null;
   const totaalWeken = seizoensplan?.tijdshorizon_weken || seizoensplan?.kader?.length || null;
   const huidigeFase = weekNr && seizoensplan?.kader ? seizoensplan.kader.find(w => w.week === weekNr) || seizoensplan.kader[seizoensplan.kader.length - 1] : null;
-  const faseLabel = huidigeFase ? `${FASE_NAMEN[huidigeFase.fase] || huidigeFase.fase} · Week ${weekNr} van ${totaalWeken}` : null;
+  const faseNaam = huidigeFase?.weektype === "herstel" ? "Herstel" : (FASE_NAMEN[huidigeFase?.fase] || huidigeFase?.fase);
+  const faseLabel = huidigeFase ? `${faseNaam} · Week ${weekNr} van ${totaalWeken}` : null;
 
   const morgenISO = datumOffset(1);
   const sessieMorgen = (weekSessies?.sessies || []).find(s => s.datum === morgenISO && s.type !== "rust");

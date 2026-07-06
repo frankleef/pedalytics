@@ -578,12 +578,19 @@ export async function POST(request) {
                 const decouplingWaarden = [];
                 const cached = await kv.get(`decoupling_check:${userId}:${weekNr}`);
                 if (!cached) {
-                  // Haal Z2-duurritten van afgelopen 3 weken
+                  // Haal Z2-duurritten van afgelopen 3 weken. NB: dit moet een eigen
+                  // intervals.icu-aanroep zijn — `ritten` (hoger in deze functie) bevat
+                  // alleen activiteiten sinds de vorige sync (`oldest: lastActivity`),
+                  // meestal maar 1-3 dagen, wat deze 3-wekenfilter anders een no-op maakt
+                  // en de mediaan op een veel te kleine steekproef laat draaien.
                   const drieWekenGeleden = datumOffset(-21);
-                  const z2Ritten = ritten.filter(r => {
-                    const d = r.start_date_local?.split("T")[0] || "";
-                    return d >= drieWekenGeleden;
-                  });
+                  const recenteActiviteiten = await intervalsGet("/activities", {
+                    oldest: drieWekenGeleden,
+                    newest: datumOffset(0),
+                    limit: "40",
+                    fields: "id,start_date_local,type",
+                  }, { apiKey, athleteId });
+                  const z2Ritten = (recenteActiviteiten || []).filter(a => a.type === "Ride" || a.type === "VirtualRide");
                   // Gebruik decoupling-waarden uit KV cache
                   // 1. Filter hitte-ritten (spec 32-F)
                   // 2. Filter uitschieters als extra laag (>12% of IQR)
@@ -600,7 +607,11 @@ export async function POST(request) {
                     if (!isDecouplingUitschieter(w, dcFaseAlleWaarden)) decouplingWaarden.push(w);
                   }
 
-                  if (decouplingWaarden.length >= 2) {
+                  // Minimaal 3 nodig: isDecouplingUitschieter() slaat zijn eigen
+                  // uitschieter-check (zelfs de simpele >12%-cap) helemaal over onder de
+                  // 3 waarden, dus bij minder is er geen enkele bescherming tegen één
+                  // ruizige meting die de mediaan over de uitstel-drempel tilt.
+                  if (decouplingWaarden.length >= 3) {
                     const aantalVerlengingen = plan.fase_verlengd_count || 0;
                     const { uitstel, mediaan } = checkFaseOvergang(decouplingWaarden, aantalVerlengingen);
 
@@ -616,12 +627,19 @@ export async function POST(request) {
                           const herstelIdx = versPlan.kader.findIndex((w, i) => i >= weekNr - 1 && w.weektype === "herstel");
                           if (herstelIdx > 0) {
                             const vorigeWeek = versPlan.kader[herstelIdx - 1];
+                            // Alleen de inhoudelijke week-velden overnemen — niet vorigeWeek's
+                            // eigen startDatum/eindDatum/beschikbaar_vanaf, want die horen bij
+                            // vorigeWeek's kalenderweek en zouden anders als duplicaat meekomen
+                            // naar deze nieuw ingevoegde week.
                             const extraWeek = {
-                              ...vorigeWeek,
                               week: vorigeWeek.week + 0.5,
-                              tss_doel: vorigeWeek.tss_doel,
                               fase: vorigeWeek.fase,
                               weektype: "opbouw",
+                              tss_doel: vorigeWeek.tss_doel,
+                              focus: vorigeWeek.focus,
+                              z1z2_doel: vorigeWeek.z1z2_doel,
+                              max_intensiteit: vorigeWeek.max_intensiteit,
+                              sessietypes: vorigeWeek.sessietypes,
                             };
                             versPlan.kader.splice(herstelIdx, 0, extraWeek);
                             // Hernummer alle weken na de invoeging
