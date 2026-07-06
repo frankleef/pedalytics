@@ -89,7 +89,7 @@ export const PRIORITEIT_PER_FASE = {
     basis:         { kernstimulus: null,                     secundair: null,                 eerstLatenVallen: [] },
     sweetspot:     { kernstimulus: ['sweetspot_intervallen'], secundair: null,                 eerstLatenVallen: ['vo2max_intervallen', 'sprint_neuraal', 'gemengd'] },
     overgangsfase: { kernstimulus: ['sweetspot_intervallen'], secundair: null,                 eerstLatenVallen: ['vo2max_intervallen', 'sprint_neuraal', 'gemengd'] },
-    drempel:       { kernstimulus: ['drempel_intervallen'],   secundair: null,                 eerstLatenVallen: ['sweetspot_intervallen', 'sprint_neuraal', 'gemengd'] },
+    drempel:       { kernstimulus: ['drempel_intervallen'],   secundair: 'vo2max_intervallen', eerstLatenVallen: ['sweetspot_intervallen', 'sprint_neuraal', 'gemengd'] },
     consolidatie:  { kernstimulus: ['drempel_intervallen'],   secundair: null,                 eerstLatenVallen: ['sprint_neuraal', 'gemengd'] },
     test:          { kernstimulus: null,                      secundair: null,                 eerstLatenVallen: [] },
   },

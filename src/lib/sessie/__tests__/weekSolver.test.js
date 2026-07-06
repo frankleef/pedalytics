@@ -122,7 +122,7 @@ describe('solveWeek', () => {
     })).toThrow(/geen prioriteitstabel/)
   })
 
-  it('ftp in de Drempel-fase (niet vo2max) -> correcte kernstimulus drempel_intervallen', () => {
+  it('ftp in de Drempel-fase -> kernstimulus drempel_intervallen, secundair vo2max_intervallen', () => {
     const resultaat = solveWeek({
         archetypesData: ARCHETYPES_FIXTURE,
       fase: 'drempel', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
@@ -132,6 +132,8 @@ describe('solveWeek', () => {
     })
     const kernstimulus = resultaat.find(r => r.pad === 'kernstimulus')
     expect(kernstimulus.sessietype).toBe('drempel_intervallen')
+    const secundair = resultaat.find(r => r.pad === 'secundair')
+    expect(secundair.sessietype).toBe('vo2max_intervallen')
   })
 
   it('accepteert ook de rijke doelprofielen-fasenaam via alias (na wijzig-doel)', () => {

@@ -1,3 +1,5 @@
+import { migreesSessietype } from "../sessie-archetypes";
+
 const ZWAAR_ROLLEN = ["intensiteitsdag", "variabele_dag", "kracht_dag"];
 const ZWAAR_TYPES = ["kracht_lage_cadans", "sweetspot_intervallen", "drempel_intervallen", "vo2max_intervallen", "sprint_neuraal"];
 
@@ -55,7 +57,10 @@ export function valideerWeekpatroon(sessies, kaderWeek) {
     const heeftVarieteit = rollen.some(r => ZWAAR_ROLLEN.includes(r))
       || sessietypes.some(t => ZWAAR_TYPES.includes(t));
 
-    const kaderTypes = kaderWeek?.sessietypes || [];
+    // Migreren vóór gebruik: kaderWeek.sessietypes is een snapshot van
+    // plangeneratie-moment en kan verouderde namen dragen (bv. "over_under" i.p.v.
+    // "drempel_intervallen") bij een plan van vóór een sessietype-migratie.
+    const kaderTypes = (kaderWeek?.sessietypes || []).map(t => migreesSessietype(t)).filter(Boolean);
     const heeftKrachtInKader = kaderTypes.includes("kracht_lage_cadans");
     const heeftIntensiteitInKader = kaderTypes.some(t => ZWAAR_TYPES.includes(t) && t !== "kracht_lage_cadans");
 

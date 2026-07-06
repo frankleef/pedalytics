@@ -5,9 +5,19 @@ import { vandaagISO, datumISO, DAGNAMEN } from "./datum";
 import { bouwSessieContext } from "./sessie/context";
 import { weeknummerVoorDatum } from "./weekgrenzen";
 import { maxTrainingsdagenPerWeek } from "./trainingsfrequentie";
+import { migreesSessietype } from "./sessie-archetypes";
 
 export function sessietypesVoorFase(fase, kaderWeek) {
-  if (kaderWeek?.sessietypes?.length > 0) return kaderWeek.sessietypes.join(", ");
+  if (kaderWeek?.sessietypes?.length > 0) {
+    // kaderWeek.sessietypes is een snapshot van plangeneratie-moment (bouwKader) —
+    // kan verouderde namen dragen bij een plan van vóór een sessietype-migratie
+    // (bv. het oude "over_under"/"pyramide"/"z2_vlak"). Zonder migratie hier zou de
+    // Claude-prompt tegenstrijdige info krijgen: "toegestaan" én "verboden" tegelijk.
+    const gemigreerd = [...new Set(
+      kaderWeek.sessietypes.map(t => migreesSessietype(t)).filter(Boolean)
+    )];
+    if (gemigreerd.length > 0) return gemigreerd.join(", ");
+  }
   const tabel = {
     basis: "z2_duur, z2_heuvel, progressief, z1_herstel, herstel_mobiliteit — GEEN intensiteitssessies",
     sweetspot: "sweetspot_intervallen, sweetspot_lang, microbursts, z2_duur, progressief, z1_herstel, herstel_mobiliteit",

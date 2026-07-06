@@ -14,7 +14,7 @@ export const DOELPROFIELEN = {
         sessietypes: ["sweetspot_intervallen","z2_duur","z1_herstel"] },
       { naam: "Drempel", weken: [9,10,11], z1z2_doel: 0.75,
         max_intensiteit_per_week: 2,
-        sessietypes: ["drempel_intervallen","z2_duur","z1_herstel"] },
+        sessietypes: ["drempel_intervallen","vo2max_intervallen","z2_duur","z1_herstel"] },
       { naam: "Consolidatie", weken: [12], z1z2_doel: 0.80,
         max_intensiteit_per_week: 1,
         sessietypes: ["z2_duur","drempel_intervallen","z1_herstel"] },
