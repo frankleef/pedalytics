@@ -384,6 +384,7 @@ export const GELDIGE_SESSIETYPES = new Set([
 
 export const SESSIETYPE_MIGRATIE = {
   'z2_vlak':            'z2_duur',
+  'z2_variabel':        'z2_duur',
   'z2_cadans':          'z2_duur',
   'z2_steady':          'z2_duur',
   'z2_lang':            'z2_duur',
