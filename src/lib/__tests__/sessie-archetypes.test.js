@@ -124,6 +124,30 @@ describe('getArchetypesVoorSessietype', () => {
   })
 })
 
+describe('getArchetypesVoorSessietype — weektype (bugfix: z2_tempo_blokken in herstelweek)', () => {
+  // Bugreport: week 4 van de basisfase (een herstelweek) telt gewoon mee als
+  // "week 4" voor week_in_fase_min, dus z2_tempo_blokken (week_in_fase_min: 3,
+  // ingekapselde Z3-blokken) verscheen ten onrechte in een herstelweek.
+  it('z2_tempo_blokken/z2_tempo_teugjes vallen weg in een herstelweek, ook als week_in_fase_min gehaald wordt', () => {
+    const resultaten = getArchetypesVoorSessietype(voor('z2_duur'), 'basis', 4, 'ftp', null, 'herstel')
+    expect(resultaten.some(a => a.id === 'z2_tempo_blokken')).toBe(false)
+    expect(resultaten.some(a => a.id === 'z2_tempo_teugjes')).toBe(false)
+    // De overige z2_duur-archetypes (pure Z2-variatie, geen ingekapselde intensiteit)
+    // blijven gewoon beschikbaar in een herstelweek.
+    expect(resultaten.some(a => a.id === 'z2_progressief')).toBe(true)
+  })
+
+  it('z2_tempo_blokken blijft gewoon beschikbaar in een opbouwweek (geen regressie)', () => {
+    const resultaten = getArchetypesVoorSessietype(voor('z2_duur'), 'basis', 4, 'ftp', null, 'opbouw')
+    expect(resultaten.some(a => a.id === 'z2_tempo_blokken')).toBe(true)
+  })
+
+  it('geen weektype meegegeven -> geen herstelweek-filter, backward-compatible', () => {
+    const resultaten = getArchetypesVoorSessietype(voor('z2_duur'), 'basis', 4)
+    expect(resultaten.some(a => a.id === 'z2_tempo_blokken')).toBe(true)
+  })
+})
+
 describe('getArchetypesVoorSessietype — min_duur_min (feature: "deze sessie kan alleen vanaf 1u30")', () => {
   const archetypes = [
     { id: 'kort', naam: 'Kort', fase_beschikbaar: ['basis'], min_duur_min: 30 },

@@ -335,26 +335,26 @@ function zijnAangrenzend(datumA, datumB) {
 }
 
 /** Eerste beschikbare archetype-id voor een sessietype/fase/week, of null. */
-function bepaalArchetypeHint(archetypesData, sessietype, fase, weekInFase, seizoensdoel) {
-  const archetypes = getArchetypesVoorSessietype(archetypesData?.[sessietype] ?? [], fase, weekInFase, seizoensdoel);
+function bepaalArchetypeHint(archetypesData, sessietype, fase, weekInFase, seizoensdoel, weektype) {
+  const archetypes = getArchetypesVoorSessietype(archetypesData?.[sessietype] ?? [], fase, weekInFase, seizoensdoel, null, weektype);
   return archetypes[0]?.id ?? null;
 }
 
 /** Midden van de tss_range van het eerste beschikbare archetype, of een vaste fallback. */
-function schatTssDoel(archetypesData, sessietype, fase, weekInFase, seizoensdoel, gedegradeerd) {
-  const archetypes = getArchetypesVoorSessietype(archetypesData?.[sessietype] ?? [], fase, weekInFase, seizoensdoel);
+function schatTssDoel(archetypesData, sessietype, fase, weekInFase, seizoensdoel, gedegradeerd, weektype) {
+  const archetypes = getArchetypesVoorSessietype(archetypesData?.[sessietype] ?? [], fase, weekInFase, seizoensdoel, null, weektype);
   const bereik = archetypes[0]?.tss_range;
   const basis = bereik ? Math.round((bereik[0] + bereik[1]) / 2) : 70;
   return gedegradeerd ? Math.round(basis * 0.85) : basis;
 }
 
-function bouwToewijzing({ datum, beschikbareUren }, sessietype, { archetypesData, fase, weekInFase, seizoensdoel, gedegradeerd = false, pad, tssDoelOverride }) {
+function bouwToewijzing({ datum, beschikbareUren }, sessietype, { archetypesData, fase, weekInFase, weektype, seizoensdoel, gedegradeerd = false, pad, tssDoelOverride }) {
   const toewijzing = {
     datum,
     sessietype,
-    tss_doel: tssDoelOverride ?? schatTssDoel(archetypesData, sessietype, fase, weekInFase, seizoensdoel, gedegradeerd),
+    tss_doel: tssDoelOverride ?? schatTssDoel(archetypesData, sessietype, fase, weekInFase, seizoensdoel, gedegradeerd, weektype),
     toegestane_zones: TOEGESTANE_ZONES_PER_SESSIETYPE[sessietype] ?? ["Z2"],
-    archetype_hint: bepaalArchetypeHint(archetypesData, sessietype, fase, weekInFase, seizoensdoel),
+    archetype_hint: bepaalArchetypeHint(archetypesData, sessietype, fase, weekInFase, seizoensdoel, weektype),
     gedegradeerd,
     pad, // observability: 'kernstimulus'|'secundair'|'vrijheidsessie'|'z2'
     beschikbareUren,
@@ -420,12 +420,12 @@ export function solveWeek({
 
     if (kernstimulusType && dag) {
       const { gedegradeerd } = degradeerBijLageTsb(kernstimulusType, tsb);
-      const tssDoel = schatTssDoel(archetypesData, kernstimulusType, fase, weekInFase, seizoensdoel, gedegradeerd);
+      const tssDoel = schatTssDoel(archetypesData, kernstimulusType, fase, weekInFase, seizoensdoel, gedegradeerd, weektype);
       if (tssDoel <= restBudget) {
         gebruikt.add(dag.datum);
         kernstimulusDatum = dag.datum;
         restBudget -= tssDoel;
-        toewijzingen.push(bouwToewijzing(dag, kernstimulusType, { archetypesData, fase, weekInFase, seizoensdoel, gedegradeerd, pad: "kernstimulus", tssDoelOverride: tssDoel }));
+        toewijzingen.push(bouwToewijzing(dag, kernstimulusType, { archetypesData, fase, weekInFase, weektype, seizoensdoel, gedegradeerd, pad: "kernstimulus", tssDoelOverride: tssDoel }));
       }
     }
   }
@@ -444,11 +444,11 @@ export function solveWeek({
       const isVrijheid = bepaalVrijheidsdag({ weekInFase, dagRol: "tweede_intensiteit", fase });
       const secundairType = isVrijheid ? "gemengd" : prioriteit.secundair;
       const { gedegradeerd } = degradeerBijLageTsb(secundairType, tsb);
-      const tssDoel = schatTssDoel(archetypesData, secundairType, fase, weekInFase, seizoensdoel, gedegradeerd);
+      const tssDoel = schatTssDoel(archetypesData, secundairType, fase, weekInFase, seizoensdoel, gedegradeerd, weektype);
       if (tssDoel <= restBudget) {
         gebruikt.add(dag.datum);
         restBudget -= tssDoel;
-        toewijzingen.push(bouwToewijzing(dag, secundairType, { archetypesData, fase, weekInFase, seizoensdoel, gedegradeerd, pad: isVrijheid ? "vrijheidsessie" : "secundair", tssDoelOverride: tssDoel }));
+        toewijzingen.push(bouwToewijzing(dag, secundairType, { archetypesData, fase, weekInFase, weektype, seizoensdoel, gedegradeerd, pad: isVrijheid ? "vrijheidsessie" : "secundair", tssDoelOverride: tssDoel }));
       }
     }
   }
@@ -468,11 +468,11 @@ export function solveWeek({
     );
     if (kandidaat) {
       const { gedegradeerd } = degradeerBijLageTsb("sprint_neuraal", tsb);
-      const tssDoel = schatTssDoel(archetypesData, "sprint_neuraal", fase, weekInFase, seizoensdoel, gedegradeerd);
+      const tssDoel = schatTssDoel(archetypesData, "sprint_neuraal", fase, weekInFase, seizoensdoel, gedegradeerd, weektype);
       if (tssDoel <= restBudget) {
         gebruikt.add(kandidaat.datum);
         restBudget -= tssDoel;
-        toewijzingen.push(bouwToewijzing(kandidaat, "sprint_neuraal", { archetypesData, fase, weekInFase, seizoensdoel, gedegradeerd, pad: "secundair", tssDoelOverride: tssDoel }));
+        toewijzingen.push(bouwToewijzing(kandidaat, "sprint_neuraal", { archetypesData, fase, weekInFase, weektype, seizoensdoel, gedegradeerd, pad: "secundair", tssDoelOverride: tssDoel }));
       }
     }
   }
@@ -492,7 +492,7 @@ export function solveWeek({
     const wordtKracht = !isHerstelAchtig && !krachtLageCadansGebruiktDezeWeek &&
       magKrachtLageCadans(seizoensdoel, generiekeFaseVoorKracht, weekNummerInSeizoen, laatsteKrachtLageCadansWeek);
     if (wordtKracht) krachtLageCadansGebruiktDezeWeek = true;
-    toewijzingen.push(bouwToewijzing(dag, wordtKracht ? "kracht_lage_cadans" : "z2_duur", { archetypesData, fase, weekInFase, seizoensdoel, pad: "z2", tssDoelOverride: tssDoel }));
+    toewijzingen.push(bouwToewijzing(dag, wordtKracht ? "kracht_lage_cadans" : "z2_duur", { archetypesData, fase, weekInFase, weektype, seizoensdoel, pad: "z2", tssDoelOverride: tssDoel }));
   }
 
   toewijzingen.sort((a, b) => a.datum.localeCompare(b.datum));

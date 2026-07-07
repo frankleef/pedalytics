@@ -13,7 +13,7 @@
 
 import { normaliseerSessieSegmenten, valideerKrachtRestrictie } from "./normaliseer";
 import { voegVerwachtRpeToe } from "./rpe";
-import { corrigeerSessieTss } from "./tssValidatie";
+import { corrigeerSessieTss, corrigeerSessieTssTovDagbudget } from "./tssValidatie";
 import { capSessieDuur } from "./duurCap";
 import { rondDuurMinAf } from "./duurAfronding";
 import {
@@ -44,6 +44,8 @@ import { logEvent } from "../posthog";
  * @param {string|null} [ctx.effectiefSessietype] - override; anders oudeSessie?.intentie?.sessietype
  * @param {string} [ctx.huidigeFase]
  * @param {number} [ctx.weekInFase]
+ * @param {string} [ctx.weektype] - 'opbouw'|'herstel'; sluit archetypes met
+ *   `toegestaan_in_herstelweek: false` uit tijdens een herstelweek
  * @param {object|null} [ctx.hrvProfiel] - voor bepaalHrvZone; null -> hrv 'onbekend'
  * @param {number} [ctx.piekSprint]
  * @returns {Promise<object>} de gegenereerde sessie
@@ -54,7 +56,7 @@ export async function genereerSessieDag(ctx) {
   const {
     kv, userId, datum, dagNaam, uren, profiel, wellness, plan,
     oudeSessie = null, overigeSessies = [],
-    huidigeFase = "basis", weekInFase = 1, hrvProfiel = null,
+    huidigeFase = "basis", weekInFase = 1, weektype = "opbouw", hrvProfiel = null,
   } = ctx;
 
   const dagIntentie = oudeSessie?.intentie || null;
@@ -69,7 +71,7 @@ export async function genereerSessieDag(ctx) {
   }
 
   const archetypesVoorType = await getArchetypesVoorSessietypeRaw(effectiefSessietype, kv);
-  const archetypes = getArchetypesVoorSessietype(archetypesVoorType, huidigeFase, weekInFase, plan?.seizoensdoel?.type ?? null, Math.round(uren * 60));
+  const archetypes = getArchetypesVoorSessietype(archetypesVoorType, huidigeFase, weekInFase, plan?.seizoensdoel?.type ?? null, Math.round(uren * 60), weektype);
   if (archetypes.length === 0) {
     logEvent("archetype_niet_gevonden", userId, { sessietype: effectiefSessietype, fase: huidigeFase, weekInFase });
     const err = new Error(
@@ -144,6 +146,13 @@ export async function genereerSessieDag(ctx) {
     }];
     corrigeerSessieTss(sessie);
   }
+
+  // Onafhankelijk van corrigeerSessieTss() hierboven (generiek IF-bereik per
+  // sessietype): toetst of de daadwerkelijke TSS niet losraakt van het
+  // specifieke dagbudget (tss_doel) dat solveWeek()/schatTssDoel() voor déze
+  // dag berekende — bv. een archetype met een op zich normale TSS-range dat
+  // in een herstelweek toch ver boven zijn dagbudget uitkomt.
+  corrigeerSessieTssTovDagbudget(sessie);
 
   if (uren) {
     capSessieDuur(sessie, rondDuurMinAf(uren * 60), `genereerSessieDag ${datum}`, userId);

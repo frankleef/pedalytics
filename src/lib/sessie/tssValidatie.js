@@ -1,3 +1,5 @@
+import { rondSessieAf } from "./duurAfronding";
+
 // TSS = IF² × uren × 100
 // Per sessietype een verwacht IF-bereik; als de Claude-TSS daarbuiten valt, corrigeren.
 const IF_BEREIK = {
@@ -38,4 +40,45 @@ export function corrigeerSessieTss(sessie) {
     sessie.intentie.tss_range.min = Math.max(sessie.intentie.tss_range.min, tssMin);
     sessie.intentie.tss_range.max = Math.min(sessie.intentie.tss_range.max, Math.round(tssMax * 1.1));
   }
+}
+
+// Zelfde tolerantie als de bestaande "budget-overschrijding"-conventie elders
+// (conflictResolutie.js: BUDGET_OVERSCHRIJDING_DREMPEL, en tssMax*1.15 hierboven).
+const DAGBUDGET_OVERSCHRIJDING_DREMPEL = 1.15;
+
+/**
+ * Corrigeert een sessie die te ver boven zijn EIGEN dagbudget (dagIntentie.tss_doel,
+ * bv. het herstelweek-aandeel van het weekbudget uit schatTssDoel()/pasBudgetToe())
+ * uitschiet — onafhankelijk van corrigeerSessieTss() hierboven, dat alleen toetst
+ * tegen een generiek IF-bereik per sessietype en niets weet van het specifieke
+ * dagbudget. Een archetype kan voor zijn eigen IF-bereik volkomen normaal zijn
+ * (bv. tss_range 70-105 voor een "duur_variabel"-rit) en toch ver boven wat DEZE
+ * dag zou moeten leveren uitkomen (tss_doel 54 in een herstelweek).
+ *
+ * Schaalt alleen NEER (nooit omhoog — ondershoot t.o.v. tss_doel is geen
+ * probleem, dat is juist de normale dagvorm-gestuurde variatie via
+ * selecteerVariantOpDagvorm) en behoudt de vermogens-/zonestructuur van het
+ * archetype door de blokduren proportioneel te verkorten (net als de
+ * check-in-modulatie), gevolgd door de gebruikelijke afronding op hele
+ * minuten/5-minutengrid.
+ */
+export function corrigeerSessieTssTovDagbudget(sessie) {
+  const doelTss = sessie?.intentie?.tss_doel;
+  if (!doelTss || !sessie?.tss || !sessie.segmenten?.length) return;
+  if (sessie.tss <= doelTss * DAGBUDGET_OVERSCHRIJDING_DREMPEL) return;
+
+  const factor = doelTss / sessie.tss;
+  const geschaaldeSegmenten = sessie.segmenten.map((seg) => ({
+    ...seg,
+    blokDuurSeconden: seg.blokDuurSeconden != null
+      ? Math.max(1, Math.round(seg.blokDuurSeconden * factor))
+      : seg.blokDuurSeconden,
+  }));
+  const { segmenten, duur_min } = rondSessieAf(geschaaldeSegmenten);
+
+  const tssVoor = sessie.tss;
+  sessie.segmenten = segmenten;
+  sessie.duur_min = duur_min;
+  sessie.tss = Math.round(sessie.tss * factor);
+  console.log(`[TSS-dagbudget-correctie] ${sessie.type} ${tssVoor}→${sessie.tss} (dagbudget ${doelTss}, was ${Math.round((tssVoor / doelTss) * 100)}% van doel)`);
 }

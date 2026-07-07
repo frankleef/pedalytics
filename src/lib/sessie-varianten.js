@@ -259,6 +259,7 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [70, 105],
       fase_beschikbaar: ['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max'],
       week_in_fase_min: 3,
+      toegestaan_in_herstelweek: false,
       varianten: [
         {
           id: 'z2_tempo_3x7',
@@ -377,6 +378,7 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [65, 95],
       fase_beschikbaar: ['sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max'],
       vereist_lage_decoupling: true,
+      toegestaan_in_herstelweek: false,
       varianten: [
         {
           id: 'z2_teugjes_licht',

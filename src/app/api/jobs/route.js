@@ -73,7 +73,7 @@ export async function POST(request) {
         profiel: params.profiel, wellness: params.wellness, plan: params.seizoensplan,
         oudeSessie: params.oudeSessie || null, overigeSessies: params.overigeSessies || [],
         dagelijkseData: params.dagelijkseData || [], voortgang: params.voortgang || null,
-        aanleiding: params.aanleiding, huidigeFase, weekInFase, hrvProfiel, piekSprint,
+        aanleiding: params.aanleiding, huidigeFase, weekInFase, weektype: kaderWeek?.weektype || 'opbouw', hrvProfiel, piekSprint,
       });
 
       console.log(`[Job ${jobId}] Resultaat: ${result.type} "${result.titel}" | ${result.duur_min}min | TSS ${result.tss} | ${result.segmenten?.length || 0} segmenten`);

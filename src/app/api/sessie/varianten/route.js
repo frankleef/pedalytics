@@ -58,9 +58,10 @@ export async function GET(request) {
     const weekInFase = weekInFaseVoorKaderWeek(kaderWeek, plan.kader);
     const seizoensdoel = plan.seizoensdoel?.type ?? null;
 
+    const weektype = kaderWeek?.weektype || 'opbouw';
     const archetypesRaw = await getArchetypesVoorSessietypeRaw(categorie, kv);
-    const passend = getArchetypesVoorSessietype(archetypesRaw, fase, weekInFase, seizoensdoel);
-    const passendMetTijd = getArchetypesVoorSessietype(archetypesRaw, fase, weekInFase, seizoensdoel, beschikbareDuurMin);
+    const passend = getArchetypesVoorSessietype(archetypesRaw, fase, weekInFase, seizoensdoel, null, weektype);
+    const passendMetTijd = getArchetypesVoorSessietype(archetypesRaw, fase, weekInFase, seizoensdoel, beschikbareDuurMin, weektype);
     const fitArchetypeIds = new Set(passendMetTijd.map(a => a.id));
 
     const varianten = [];

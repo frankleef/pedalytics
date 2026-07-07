@@ -36,6 +36,7 @@ function bouwMergedArchetypes() {
         ...(meta.week_in_fase_min != null ? { week_in_fase_min: meta.week_in_fase_min } : {}),
         ...(meta.doel_beperking ? { doel_beperking: meta.doel_beperking } : {}),
         ...(meta.vereist_lage_decoupling ? { vereist_lage_decoupling: meta.vereist_lage_decoupling } : {}),
+        ...(meta.toegestaan_in_herstelweek === false ? { toegestaan_in_herstelweek: false } : {}),
         varianten: varianteData.varianten,
         laatst_gewijzigd: nu,
         aangemaakt_via: "seed",

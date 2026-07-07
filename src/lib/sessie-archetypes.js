@@ -43,6 +43,7 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [70, 105],
       fase_beschikbaar: ['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max'],
       week_in_fase_min: 3,
+      toegestaan_in_herstelweek: false,
     },
     {
       id: 'z2_cadans',
@@ -65,6 +66,7 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [65, 95],
       fase_beschikbaar: ['sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max'],
       vereist_lage_decoupling: true,
+      toegestaan_in_herstelweek: false,
     },
   ],
 
@@ -552,7 +554,7 @@ export function _wisArchetypeCacheVoorTests() {
  *   een vast blok van 30 min heeft simpelweg niet genoeg ruimte in 45 min).
  *   null/ontbrekend = geen duurfilter (bestaand gedrag, backward-compatible).
  */
-export function getArchetypesVoorSessietype(archetypes, fase, weekInFase = 1, seizoensdoel = null, beschikbareDuurMin = null) {
+export function getArchetypesVoorSessietype(archetypes, fase, weekInFase = 1, seizoensdoel = null, beschikbareDuurMin = null, weektype = null) {
   const alle = archetypes ?? [];
   return alle.filter(a => {
     if (!a.fase_beschikbaar.includes(fase)) return false;
@@ -564,6 +566,11 @@ export function getArchetypesVoorSessietype(archetypes, fase, weekInFase = 1, se
       if (a.doel_beperking && seizoensdoel && !a.doel_beperking.includes(seizoensdoel)) return false;
     }
     if (a.min_duur_min != null && beschikbareDuurMin != null && beschikbareDuurMin < a.min_duur_min) return false;
+    // Archetypes met bewuste boven-Z2-intensiteitsblokken (bv. z2_tempo_blokken,
+    // z2_tempo_teugjes) horen niet thuis in een herstelweek, ongeacht of hun
+    // week_in_fase_min-drempel gehaald wordt (een herstelweek telt gewoon mee
+    // als "week N" van de fase — zie weekInFaseVoorKaderWeek).
+    if (weektype === 'herstel' && a.toegestaan_in_herstelweek === false) return false;
     return true;
   });
 }

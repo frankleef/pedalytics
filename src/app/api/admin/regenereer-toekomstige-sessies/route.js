@@ -199,7 +199,7 @@ export async function POST(request) {
             profiel, wellness: null, plan,
             oudeSessie: sessie, overigeSessies,
             aanleiding: "beschikbaarheid_nieuw",
-            effectiefSessietype, huidigeFase, weekInFase,
+            effectiefSessietype, huidigeFase, weekInFase, weektype: kaderWeek?.weektype || 'opbouw',
             hrvProfiel, piekSprint,
           });
 

@@ -70,7 +70,7 @@ export async function POST(request) {
           kv, userId, datum: sessie.datum, dagNaam, uren,
           profiel, wellness: null, plan, overigeSessies,
           oudeSessie: sessie, aanleiding: "methode_herberekening",
-          huidigeFase, weekInFase, hrvProfiel, piekSprint,
+          huidigeFase, weekInFase, weektype: kaderWeek?.weektype || 'opbouw', hrvProfiel, piekSprint,
           alleSessiesVoorKrachtCheck: sessies,
         });
 

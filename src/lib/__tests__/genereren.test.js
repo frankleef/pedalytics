@@ -150,6 +150,38 @@ describe('genereerSessieDag x solveWeek() — volledige fase-dekking (regressiet
   }
 })
 
+describe('genereerSessieDag — weektype herstel (bugfix: z2_tempo_blokken in herstelweek)', () => {
+  it('kiest over herhaalde generaties nooit z2_tempo_blokken/z2_tempo_teugjes in een herstelweek', async () => {
+    for (let i = 0; i < 15; i++) {
+      const kv = maakKv()
+      const sessie = await genereerSessieDag({
+        ...basisCtx, kv,
+        weekInFase: 4, weektype: 'herstel',
+        effectiefSessietype: 'z2_duur',
+        oudeSessie: { intentie: { sessietype: 'z2_duur' } },
+      })
+      expect(sessie.archetype_id).not.toBe('z2_tempo_blokken')
+      expect(sessie.archetype_id).not.toBe('z2_tempo_teugjes')
+    }
+  })
+
+  it('kan z2_tempo_blokken wél kiezen in dezelfde week_in_fase als het een opbouwweek is (geen regressie)', async () => {
+    const kv = maakKv({
+      // forceer z2_tempo_blokken door alle andere z2_duur-archetypes als 'recent' te seeden
+      'sessie_archetypes:test_user:z2_duur': [
+        'z2_progressief', 'z2_negatief_split', 'z2_variabel_blokken', 'z2_golf', 'z2_cadans', 'z2_heuvel', 'z2_tempo_teugjes',
+      ],
+    })
+    const sessie = await genereerSessieDag({
+      ...basisCtx, kv,
+      weekInFase: 4, weektype: 'opbouw',
+      effectiefSessietype: 'z2_duur',
+      oudeSessie: { intentie: { sessietype: 'z2_duur' } },
+    })
+    expect(sessie.archetype_id).toBe('z2_tempo_blokken')
+  })
+})
+
 describe('genereerSessieDag — min_duur_min (feature: "deze sessie kan alleen vanaf 1u30")', () => {
   it('een archetype met min_duur_min hoger dan de beschikbare tijd wordt nooit gekozen', async () => {
     // z2_progressief krijgt hier een min_duur_min van 120 min — bij een 1u-dag
