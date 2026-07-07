@@ -109,12 +109,47 @@ export async function verwerkOrigineel(userId, datum, dag, seizoensplan) {
   const kv = getKV();
   const planKey = `${userId}:seizoensplan`;
   const sessies = seizoensplan?.weekSessies?.sessies || [];
-  const sessie = sessies.find(s => s.datum === datum);
+  const idx = sessies.findIndex(s => s.datum === datum);
+  const sessie = idx >= 0 ? sessies[idx] : null;
 
   if (sessie) {
-    sessie.hrv_keuze_gemaakt = true;
-    sessie.hrv_keuze = "origineel";
-    sessie.hrv_override = true;
+    if (sessie.sessie_voor_checkin) {
+      // De check-in-modulatie heeft de sessie al ingekort/vervangen vóórdat
+      // deze HRV-keuze binnenkwam — herstel de sessie zoals die was vóór die aanpassing.
+      const hersteld = {
+        ...sessie.sessie_voor_checkin,
+        intervalsEventId: sessie.intervalsEventId,
+        hrv_keuze_gemaakt: true,
+        hrv_keuze: "origineel",
+        hrv_override: true,
+      };
+      delete hersteld.sessie_voor_checkin;
+      sessies[idx] = hersteld;
+
+      if (hersteld.intervalsEventId) {
+        try {
+          const { getIntervalsCredentials } = await import("../users");
+          const { intervalsPut } = await import("../intervals");
+          const { sessieNaarZwo } = await import("../workoutZwo");
+          const creds = await getIntervalsCredentials(userId);
+          if (creds) {
+            const ftp = seizoensplan?.huidige_ftp || 265;
+            const zwo = sessieNaarZwo(hersteld, ftp);
+            await intervalsPut(`/events/${hersteld.intervalsEventId}`, {
+              name: hersteld.titel || hersteld.type,
+              moving_time: (hersteld.duur_min || 90) * 60,
+              ...(zwo ? { file_contents: zwo, file_type: "zwo" } : {}),
+            }, creds);
+          }
+        } catch (e) {
+          console.warn("[verwerkOrigineel] Intervals.icu herstel mislukt:", e.message);
+        }
+      }
+    } else {
+      sessie.hrv_keuze_gemaakt = true;
+      sessie.hrv_keuze = "origineel";
+      sessie.hrv_override = true;
+    }
     await kv.set(planKey, seizoensplan);
   }
 

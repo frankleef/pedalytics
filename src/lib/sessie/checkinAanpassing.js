@@ -125,6 +125,7 @@ export async function checkInSessieAanpassing(userId, checkInScore) {
 
   if (status === "rest") {
     // Vervang sessie met deterministische Z1-herstelrit
+    const sessieVoorCheckin = sessie.sessie_voor_checkin || { ...sessie };
     const herstelRit = maakHerstelRit(ftp);
     const bijgewerkeSessie = {
       ...sessie,
@@ -134,6 +135,7 @@ export async function checkInSessieAanpassing(userId, checkInScore) {
       intentie_origineel: sessie.intentie,
       rest_waarschuwing: true,
       intervalsEventId: sessie.intervalsEventId,
+      sessie_voor_checkin: sessieVoorCheckin,
     };
 
     plan.weekSessies.sessies[sessieIdx] = bijgewerkeSessie;
@@ -163,6 +165,7 @@ export async function checkInSessieAanpassing(userId, checkInScore) {
     : { duurAanpassing: "-10-15%", zonePositie: "onderkant", label: "iets korter" };
 
   // Pas sessie aan met modulatie (zonder AI-aanroep voor snelheid)
+  const sessieVoorCheckin = sessie.sessie_voor_checkin || { ...sessie };
   const duurFactor = status === "good" ? 1.12 : 0.88;
   const nieuweDuur = Math.round((sessie.duur_min || 60) * duurFactor);
   const nieuweTss = Math.round((sessie.tss || 60) * duurFactor);
@@ -173,6 +176,7 @@ export async function checkInSessieAanpassing(userId, checkInScore) {
     tss: nieuweTss,
     check_in_aangepast: true,
     check_in_modulatie: modulatie.label,
+    sessie_voor_checkin: sessieVoorCheckin,
     // Segmenten proportioneel aanpassen
     segmenten: sessie.segmenten?.map((seg) => ({
       ...seg,
