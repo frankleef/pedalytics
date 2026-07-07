@@ -15,6 +15,7 @@ import { normaliseerSessieSegmenten, valideerKrachtRestrictie } from "./normalis
 import { voegVerwachtRpeToe } from "./rpe";
 import { corrigeerSessieTss } from "./tssValidatie";
 import { capSessieDuur } from "./duurCap";
+import { rondDuurMinAf } from "./duurAfronding";
 import {
   getArchetypesVoorSessietype,
   getArchetypesVoorSessietypeRaw,
@@ -104,7 +105,7 @@ export async function genereerSessieDag(ctx) {
     dagIntentie,
     archetype: gekozenArchetype,
     variant,
-    doelDuurMin: Math.round(uren * 60),
+    doelDuurMin: rondDuurMinAf(uren * 60),
     ftp: profiel.ftp,
     sessietype: effectiefSessietype,
   });
@@ -136,7 +137,7 @@ export async function genereerSessieDag(ctx) {
       sessie.intentie.rol = "aerobe_dag";
       sessie.intentie.toegestane_zones = ["Z2"];
     }
-    sessie.duur_min = Math.round(uren * 60);
+    sessie.duur_min = rondDuurMinAf(uren * 60);
     sessie.segmenten = [{
       zone: "Z2", positie: "midden", blokDuurSeconden: sessie.duur_min * 60,
       isSpecifiek: false, sessietype: "z2_duur",
@@ -145,7 +146,7 @@ export async function genereerSessieDag(ctx) {
   }
 
   if (uren) {
-    capSessieDuur(sessie, Math.round(uren * 60), `genereerSessieDag ${datum}`, userId);
+    capSessieDuur(sessie, rondDuurMinAf(uren * 60), `genereerSessieDag ${datum}`, userId);
   }
 
   return sessie;

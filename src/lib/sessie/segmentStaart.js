@@ -8,6 +8,7 @@
 // aanpassingen gebeurt.
 
 import { berekenWattagesVanBlokken } from "../sessie-generatie";
+import { rondSessieAf } from "./duurAfronding";
 
 function vervangStaartVanSessie(sessie, ftp, staartBlokkenRuw) {
   const sessietype = sessie.intentie?.sessietype ?? sessie.type;
@@ -23,8 +24,9 @@ function vervangStaartVanSessie(sessie, ftp, staartBlokkenRuw) {
     .map(seg => ({ ...seg, blokDuurSeconden: Math.round((seg.blokDuurSeconden || 0) * ratio) }))
     .filter(seg => seg.blokDuurSeconden > 0);
 
-  sessie.segmenten = [...ingekorteSegmenten, ...staartSegmenten];
-  sessie.duur_min = Math.round(sessie.segmenten.reduce((s, seg) => s + seg.blokDuurSeconden, 0) / 60);
+  const { segmenten, duur_min } = rondSessieAf([...ingekorteSegmenten, ...staartSegmenten]);
+  sessie.segmenten = segmenten;
+  sessie.duur_min = duur_min;
   return sessie;
 }
 

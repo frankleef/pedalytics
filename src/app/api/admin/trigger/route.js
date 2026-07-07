@@ -12,6 +12,7 @@ const ACTIES = {
   "cron-sync": { pad: "/api/cron/sync" },
   "cron-sessies-aanvullen": { pad: "/api/cron/sessies-aanvullen" },
   "herbereken-sessies": { pad: "/api/admin/herbereken-sessies" },
+  "rond-sessieduren-af": { pad: "/api/admin/rond-sessieduren-af" },
   "herbereken-conditiescore": { pad: "/api/admin/herbereken-conditiescore" },
   "herbereken-hrv-profiel": { pad: "/api/admin/herbereken-hrv-profiel" },
   "herbereken-rpe-gisteren": { pad: "/api/admin/herbereken-rpe-gisteren" },

@@ -5,6 +5,7 @@ import { getKV } from "../kv";
 import { getIntervalsCredentials } from "../users";
 import { intervalsGet, intervalsPut } from "../intervals";
 import { vandaagISO } from "../datum";
+import { rondSessieAf } from "./duurAfronding";
 
 const TSB_MIN = -30;
 const TSB_MAX = 15;
@@ -167,8 +168,19 @@ export async function checkInSessieAanpassing(userId, checkInScore) {
   // Pas sessie aan met modulatie (zonder AI-aanroep voor snelheid)
   const sessieVoorCheckin = sessie.sessie_voor_checkin || { ...sessie };
   const duurFactor = status === "good" ? 1.12 : 0.88;
-  const nieuweDuur = Math.round((sessie.duur_min || 60) * duurFactor);
   const nieuweTss = Math.round((sessie.tss || 60) * duurFactor);
+
+  // Segmenten schalen op blokDuurSeconden (de daadwerkelijk gebruikte
+  // eenheid — sessie.segmenten heeft normaal geen duur_min-veld) en
+  // vervolgens afronden op hele minuten/5-minutengrid, zodat de gerapporteerde
+  // duur_min altijd overeenkomt met de som van de blokken.
+  const geschaaldeSegmenten = (sessie.segmenten || []).map((seg) => ({
+    ...seg,
+    blokDuurSeconden: seg.blokDuurSeconden != null
+      ? Math.max(1, Math.round(seg.blokDuurSeconden * duurFactor))
+      : seg.blokDuurSeconden,
+  }));
+  const { segmenten: nieuweSegmenten, duur_min: nieuweDuur } = rondSessieAf(geschaaldeSegmenten);
 
   const bijgewerkeSessie = {
     ...sessie,
@@ -177,11 +189,7 @@ export async function checkInSessieAanpassing(userId, checkInScore) {
     check_in_aangepast: true,
     check_in_modulatie: modulatie.label,
     sessie_voor_checkin: sessieVoorCheckin,
-    // Segmenten proportioneel aanpassen
-    segmenten: sessie.segmenten?.map((seg) => ({
-      ...seg,
-      duur_min: seg.duur_min ? Math.round(seg.duur_min * duurFactor * 10) / 10 : seg.duur_min,
-    })),
+    segmenten: nieuweSegmenten,
   };
 
   plan.weekSessies.sessies[sessieIdx] = bijgewerkeSessie;

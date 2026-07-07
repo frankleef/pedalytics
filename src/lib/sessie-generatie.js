@@ -7,6 +7,7 @@
 
 import { berekenSpread, cadansVoorBlok } from "./vermogensbereik";
 import { berekenVerwachtRpe } from "./sessie/rpe";
+import { normaliseerGeschaaldeBlokDuren } from "./sessie/duurAfronding";
 
 const HERSTEL_MIN_SEC = 60;
 const WERK_MIN_SEC = 90;
@@ -427,10 +428,23 @@ export function genereerSessieDeterministisch({ dagIntentie, archetype, variant,
   if (sessietype !== "z2_duur") {
     geschaald = voegWarmingUpToe(geschaald, doelDuurMin * 60);
   }
+
+  // Rond blokken >= 1 minuut af op hele minuten en de totale sessieduur op
+  // een veelvoud van 5 minuten — vaste blokken (duur_sec_vast) en blokken die
+  // al tegen hun archetype-maximum aan zitten blijven exact zoals berekend.
+  const isGepind = (b) => {
+    if (b.duur_sec_vast != null) return true;
+    const maximum = bepaalMaximumBlokduur(sessietype, archetype.id, b, archetype.max_blokduur_sec ?? null);
+    return maximum != null && b.blokDuurSeconden >= maximum;
+  };
+  const genormaliseerd = normaliseerGeschaaldeBlokDuren(geschaald, isGepind, doelDuurMin * 60);
+  geschaald = genormaliseerd.blokken;
+  const duurMin = Math.round(genormaliseerd.totaalSec / 60);
+
   const segmenten = berekenWattagesVanBlokken(geschaald, ftp, sessietype);
   const tss = berekenTssVanBlokken(segmenten, ftp);
   const zonedist = berekenZonedistributie(segmenten);
-  const verwachtRpe = berekenVerwachtRpe(zonedist, doelDuurMin);
+  const verwachtRpe = berekenVerwachtRpe(zonedist, duurMin);
   const planSets = groeperenInSets(geschaald);
   const generatieMs = Date.now() - t0;
 
@@ -438,7 +452,7 @@ export function genereerSessieDeterministisch({ dagIntentie, archetype, variant,
     type: LEGACY_TYPE_MAP[sessietype] ?? sessietype,
     titel: archetype.naam ?? archetype.id,
     tss,
-    duur_min: doelDuurMin,
+    duur_min: duurMin,
     verwacht_rpe: verwachtRpe,
     segmenten,
     plan_sets: planSets,

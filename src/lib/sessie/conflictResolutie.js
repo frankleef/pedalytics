@@ -14,6 +14,7 @@
 
 import { vindArchetypeMetVarianten, genereerSessieDeterministisch } from "../sessie-generatie";
 import { pasBudgetToe } from "./weekSolver";
+import { rondSessieAf } from "./duurAfronding";
 
 const ZWARE_TYPES = ["sweetspot", "interval", "drempel", "vo2max"];
 const Z2_ACHTIGE_SESSIETYPES = new Set(["z2_duur", "kracht_lage_cadans"]);
@@ -115,10 +116,11 @@ function kortSessieIn(sessie, nieuwDuurMin) {
   const huidigTotaalSec = huidigeSegmenten.reduce((s, seg) => s + (seg.blokDuurSeconden || 0), 0);
   const nieuwTotaalSec = Math.max(0, Math.round(nieuwDuurMin * 60));
   const ratio = huidigTotaalSec > 0 ? nieuwTotaalSec / huidigTotaalSec : 0;
-  const nieuweSegmenten = huidigeSegmenten
+  const geschaaldeSegmenten = huidigeSegmenten
     .map(seg => ({ ...seg, blokDuurSeconden: Math.round((seg.blokDuurSeconden || 0) * ratio) }))
     .filter(seg => seg.blokDuurSeconden > 0);
-  return { ...sessie, segmenten: nieuweSegmenten, duur_min: nieuwDuurMin };
+  const { segmenten, duur_min } = rondSessieAf(geschaaldeSegmenten);
+  return { ...sessie, segmenten, duur_min };
 }
 
 /**
