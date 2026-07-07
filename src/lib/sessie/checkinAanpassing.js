@@ -6,6 +6,7 @@ import { getIntervalsCredentials } from "../users";
 import { intervalsGet, intervalsPut } from "../intervals";
 import { vandaagISO } from "../datum";
 import { rondSessieAf } from "./duurAfronding";
+import { maakMelding } from "../meldingen";
 
 const TSB_MIN = -30;
 const TSB_MAX = 15;
@@ -157,6 +158,8 @@ export async function checkInSessieAanpassing(userId, checkInScore) {
       }
     }
 
+    await maakMelding(userId, "kritieke_rust", { score, dagLabel: "Vandaag", datum: vandaag });
+
     return { actie: "rest_vervanging", score, status, details: { tss: 18, duur_min: 30 } };
   }
 
@@ -209,6 +212,13 @@ export async function checkInSessieAanpassing(userId, checkInScore) {
       console.warn("[checkIn] Intervals.icu update mislukt:", e.message);
     }
   }
+
+  await maakMelding(userId, "checkin_modulatie", {
+    score,
+    richting: status === "good" ? "verzwaard" : "verlicht",
+    dagLabel: "Vandaag",
+    datum: vandaag,
+  });
 
   return { actie: "gemoduleerd", score, status, details: { duur_min: nieuweDuur, tss: nieuweTss, modulatie: modulatie.label } };
 }

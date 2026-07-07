@@ -1,11 +1,16 @@
 import webpush from "web-push";
 import { getKV } from "./kv";
 
-webpush.setVapidDetails(
-  "mailto:fr.levering@gmail.com",
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
-);
+// Alleen instellen als beide sleutels aanwezig zijn — voorkomt een crash bij
+// module-import in omgevingen zonder VAPID-config (bv. tests), zonder het
+// productiegedrag te wijzigen (daar zijn de env-vars altijd gezet).
+if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    "mailto:fr.levering@gmail.com",
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+}
 
 export async function sendPush(userId, payload) {
   const kv = getKV();

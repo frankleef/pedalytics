@@ -17,7 +17,7 @@ import { classificeerRit } from "@/lib/rittype";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
 
-export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagelijkseData, voortgang, seizoensplan, weekSessies, weekSessiesLaden, beschikbaar, weerData, initialCheckin, onCheckinWijziging, onOpenWorkout, onEditBeschikbaarheid, onOpenProfiel }) {
+export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagelijkseData, voortgang, seizoensplan, weekSessies, weekSessiesLaden, beschikbaar, weerData, initialCheckin, onCheckinWijziging, onOpenWorkout, onEditBeschikbaarheid, onOpenProfiel, onOpenMeldingen, heeftOngelezenMeldingen }) {
   const [checkin, setCheckin] = useState(initialCheckin !== undefined ? initialCheckin : null);
   const [checkinLaden, setCheckinLaden] = useState(initialCheckin === undefined);
   const [checkinModalOpen, setCheckinModalOpen] = useState(false);
@@ -139,7 +139,7 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
     <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: T.font, paddingBottom: T.navH + 20 }}>
       <div style={{ maxWidth: 540, margin: "0 auto", padding: `16px ${T.pad}px 28px` }}>
 
-        <SharedHeader onAvatarClick={onOpenProfiel} />
+        <SharedHeader onAvatarClick={onOpenProfiel} onMeldingenClick={onOpenMeldingen} heeftOngelezenMeldingen={heeftOngelezenMeldingen} />
 
         {/* Sync health banner */}
         {syncGap && !syncBannerWeg && (

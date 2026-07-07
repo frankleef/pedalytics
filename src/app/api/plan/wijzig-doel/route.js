@@ -3,7 +3,7 @@ import { getKV } from "@/lib/kv";
 import { getSessionUser } from "@/lib/auth";
 import { DOELPROFIELEN, faseVoorWeek } from "@/lib/seizoen/doelprofielen";
 import { genereerSeizoensMetadata } from "@/lib/seizoen/metadata";
-import { sendPush } from "@/lib/pushNotify";
+import { maakMelding } from "@/lib/meldingen";
 
 export async function POST(request) {
   try {
@@ -70,11 +70,7 @@ export async function POST(request) {
     await kv.set(planKey, plan);
 
     const doelLabel = { ftp: "FTP verhogen", aerobe_basis: "Betere aerobe basis", klimmen: "Klimmen & W/kg", uithoudingsvermogen: "Lange ritten", sprint: "Snelheid & sprint" }[nieuwDoel];
-    await sendPush(user.id, {
-      title: "Plan bijgewerkt",
-      body: `Je plan is bijgewerkt voor ${doelLabel}.`,
-      url: "/",
-    });
+    await maakMelding(user.id, "doel_gewijzigd", { doelLabel });
 
     return NextResponse.json({ success: true });
   } catch (e) {

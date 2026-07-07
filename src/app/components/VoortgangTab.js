@@ -104,7 +104,7 @@ function efContextlijn({ trend, band, aantalRecent, minPunten }) {
   return `Je efficiëntie op ${naam} is stabiel.`;
 }
 
-export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voortgang, seizoensplan, onOpenProfiel, weekSessies }) {
+export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voortgang, seizoensplan, onOpenProfiel, weekSessies, onOpenMeldingen, heeftOngelezenMeldingen }) {
   const [ftpHistorie, setFtpHistorie] = useState([]);
   const [conditieData, setConditieData] = useState(null);
   const [dcPunten, setDcPunten] = useState([]);
@@ -245,7 +245,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
   return (
     <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: T.font, paddingBottom: T.navH + 20 }}>
       <div style={{ maxWidth: 540, margin: "0 auto", padding: `16px ${T.pad}px 28px` }}>
-        <SharedHeader onAvatarClick={onOpenProfiel} />
+        <SharedHeader onAvatarClick={onOpenProfiel} onMeldingenClick={onOpenMeldingen} heeftOngelezenMeldingen={heeftOngelezenMeldingen} />
 
         {/* Element 1 — Seizoensdoel hero */}
         {doelFtp && weekNr && (

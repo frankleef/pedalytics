@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { getSessionUser } from "@/lib/auth";
 import { genereerSeizoensMetadata } from "@/lib/seizoen/metadata";
-import { sendPush } from "@/lib/pushNotify";
+import { maakMelding } from "@/lib/meldingen";
 
 const NIVEAU_PARAMS = {
   starter:    { z1_z2_aandeel: 0.90, tss_opbouw_pct: 0.05, max_intensiteit: 1, herstelweek_tss_pct: 0.40 },
@@ -72,11 +72,7 @@ export async function POST(request) {
     await kv.set(planKey, plan);
 
     const niveauLabel = { starter: "Starter", recreatief: "Recreatief", getraind: "Getraind" }[nieuwNiveau];
-    await sendPush(user.id, {
-      title: "Trainingsniveau bijgewerkt",
-      body: `Je niveau is bijgewerkt naar ${niveauLabel}. Je sessies zijn hierop aangepast.`,
-      url: "/",
-    });
+    await maakMelding(user.id, "niveau_gewijzigd", { niveauLabel });
 
     return NextResponse.json({ success: true });
   } catch (e) {

@@ -12,6 +12,7 @@ import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet } from "@/lib/intervals";
 import { logEvent } from "@/lib/posthog";
 import { logCronRun } from "@/lib/cronLog";
+import { maakMelding } from "@/lib/meldingen";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -109,11 +110,7 @@ async function verwerkHrvTrendCheck(userId, vandaag) {
 
     const actie = await verwerkHrvTrend(userId, trend);
     if (actie === "hrv_overbelasting") {
-      await sendPush(userId, {
-        title: "Plan aangepast",
-        body: "Je hartslagvariabiliteit wijst al een paar dagen op onvoldoende herstel, ook al voelden je trainingen niet per se zwaar aan. We hebben de komende sessies iets teruggeschroefd.",
-        url: "/",
-      });
+      await maakMelding(userId, "hrv_overbelastingsgate");
     }
     return actie;
   } catch (e) {

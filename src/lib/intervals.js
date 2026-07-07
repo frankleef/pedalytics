@@ -20,7 +20,9 @@ export async function intervalsGet(pad, params = {}, { apiKey, athleteId } = {})
 
   if (!resp.ok) {
     const tekst = await resp.text();
-    throw new Error(`Intervals API fout ${resp.status}: ${tekst}`);
+    const err = new Error(`Intervals API fout ${resp.status}: ${tekst}`);
+    err.status = resp.status;
+    throw err;
   }
   return resp.json();
 }
@@ -37,7 +39,9 @@ export async function intervalsPost(pad, body, { apiKey, athleteId } = {}) {
 
   if (!resp.ok) {
     const tekst = await resp.text();
-    throw new Error(`Intervals API fout ${resp.status}: ${tekst}`);
+    const err = new Error(`Intervals API fout ${resp.status}: ${tekst}`);
+    err.status = resp.status;
+    throw err;
   }
   return resp.json();
 }
@@ -54,7 +58,9 @@ export async function intervalsPut(pad, body, { apiKey, athleteId } = {}) {
 
   if (!resp.ok) {
     const tekst = await resp.text();
-    throw new Error(`Intervals API fout ${resp.status}: ${tekst}`);
+    const err = new Error(`Intervals API fout ${resp.status}: ${tekst}`);
+    err.status = resp.status;
+    throw err;
   }
   return resp.json();
 }
@@ -69,7 +75,9 @@ export async function intervalsDelete(pad, { apiKey, athleteId } = {}) {
   });
   if (!resp.ok) {
     const tekst = await resp.text();
-    throw new Error(`Intervals API fout ${resp.status}: ${tekst}`);
+    const err = new Error(`Intervals API fout ${resp.status}: ${tekst}`);
+    err.status = resp.status;
+    throw err;
   }
   return resp.status === 204 ? null : resp.json();
 }
@@ -82,7 +90,9 @@ export async function intervalsActivityGet(id, { apiKey } = {}) {
   });
   if (!resp.ok) {
     const tekst = await resp.text();
-    throw new Error(`Intervals API fout ${resp.status}: ${tekst}`);
+    const err = new Error(`Intervals API fout ${resp.status}: ${tekst}`);
+    err.status = resp.status;
+    throw err;
   }
   return resp.json();
 }
@@ -96,7 +106,9 @@ export async function intervalsActivityPut(id, body, { apiKey } = {}) {
   });
   if (!resp.ok) {
     const tekst = await resp.text();
-    throw new Error(`Intervals API fout ${resp.status}: ${tekst}`);
+    const err = new Error(`Intervals API fout ${resp.status}: ${tekst}`);
+    err.status = resp.status;
+    throw err;
   }
   return resp.json();
 }

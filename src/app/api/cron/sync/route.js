@@ -21,6 +21,7 @@ import { herberekenGewichtenHrvCheckin } from "@/lib/hrv/leerdata";
 import { isWekelijkseCheckVerschuldigd, voerWekelijkseEvaluatieUit, voerHerstelweekEvaluatieUit } from "@/lib/volumeCorrectie";
 import { logEvent } from "@/lib/posthog";
 import { logCronRun } from "@/lib/cronLog";
+import { maakMelding } from "@/lib/meldingen";
 
 // Fallback zolang er nog geen (of te weinig) geleerde checkin-gewichten zijn —
 // zelfde defaults als voorheen hardcoded in api/admin/herbereken-hrv-profiel.
@@ -133,6 +134,12 @@ export async function POST(request) {
             if (ftpVanIntervals && ftpInPlan && Math.abs(ftpVanIntervals - ftpInPlan) > 1) {
               console.log(`[ftp-sync] ${userId}: ${ftpInPlan}W → ${ftpVanIntervals}W`);
               await verwerkFtpTest(userId, { icu_ftp: ftpVanIntervals });
+            }
+          } else if (athleteResp.status === 401 || athleteResp.status === 403) {
+            const dedupeKey = `koppeling-melding-verzonden:${userId}`;
+            if (!(await kv.get(dedupeKey))) {
+              await maakMelding(userId, "koppeling_verbroken");
+              await kv.set(dedupeKey, "1", { ex: 86400 });
             }
           }
         } catch (e) { console.warn(`[ftp-sync] Check mislukt voor ${userId}:`, e.message); }
@@ -358,11 +365,7 @@ export async function POST(request) {
               const fullActivity = await intervalsGet(`/activities/${nieuwste.id}`, {}, { apiKey, athleteId });
               const ftpResult = await verwerkFtpTest(userId, fullActivity);
               if (ftpResult.updated) {
-                await sendPush(userId, {
-                  title: "FTP bijgewerkt",
-                  body: `Je FTP is bijgewerkt naar ${ftpResult.newFtp}W — je toekomstige trainingen zijn aangepast.`,
-                  url: "/",
-                });
+                await maakMelding(userId, "ftp_gedetecteerd", { oudeFtp: ftpResult.oldFtp, nieuweFtp: ftpResult.newFtp });
               }
             } catch (e) {
               console.warn(`[sync] FTP-test verwerking mislukt voor ${userId}:`, e.message);
@@ -422,6 +425,12 @@ export async function POST(request) {
               }
               temp_baseline = berekenTempBaseline(alleEntries, rit.id);
               hitte_gecorrigeerd = berekenHitteVlag(apparent_temp_celsius, temp_baseline);
+              if (hitte_gecorrigeerd) {
+                await maakMelding(userId, "hitte_correctie", {
+                  temperatuur: Math.round(apparent_temp_celsius),
+                  datum: rit.start_date_local?.split("T")[0],
+                });
+              }
             } catch {}
 
             try {
@@ -463,7 +472,13 @@ export async function POST(request) {
           const recenteRitten = ritten.filter(r => (r.start_date_local?.split("T")[0] || "") >= veertienDagenGeleden);
           if (recenteRitten.length >= 3) {
             try {
-              await berekenDistributie(userId, recenteRitten, plan.ervaringsniveau || "recreatief");
+              const afwijking = await berekenDistributie(userId, recenteRitten, plan.ervaringsniveau || "recreatief");
+              if (afwijking) {
+                const richtingTekst = afwijking.richting === "te_intensief"
+                  ? `Je reed de afgelopen 14 dagen ${afwijking.z1z2Pct}% in Z1/Z2 — iets minder dan je streefwaarde van ${afwijking.doelPct}%.`
+                  : `Je reed de afgelopen 14 dagen ${afwijking.z1z2Pct}% in Z1/Z2 — meer dan je streefwaarde van ${afwijking.doelPct}%.`;
+                await maakMelding(userId, "distributie_correctie", { tekst: richtingTekst });
+              }
             } catch (e) {
               console.warn(`[sync] Distributie-berekening mislukt voor ${userId}:`, e.message);
             }
@@ -651,11 +666,7 @@ export async function POST(request) {
                         }
                       });
 
-                      await sendPush(userId, {
-                        title: "Extra opbouwweek",
-                        body: "Je aerobe basis is nog in ontwikkeling — we geven je een extra week voordat we de belasting verhogen.",
-                        url: "/",
-                      });
+                      await maakMelding(userId, "opbouwweek_verlengd");
                     }
 
                     await kv.set(`decoupling_check:${userId}:${weekNr}`, { mediaan, uitstel }, { ex: 14 * 86400 });

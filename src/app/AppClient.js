@@ -9,6 +9,7 @@ import SchemaTab from "./components/SchemaTab";
 import PlanGenereren from "./components/PlanGenereren";
 import SeizoensplanOverzicht from "./components/SeizoensplanOverzicht";
 import ProfielScherm from "./components/ProfielScherm";
+import MeldingenScherm from "./components/MeldingenScherm";
 import { startJob, startJobRobuust, pollJob } from "@/lib/jobClient";
 import { genereerSeizoensMetadata } from "@/lib/seizoen/metadata";
 import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
@@ -87,6 +88,8 @@ export default function Page() {
   const [fout, setFout] = useState(null);
   const [succesMelding, setSuccesMelding] = useState(null);
   const [profielOpen, setProfielOpen] = useState(false);
+  const [meldingenOpen, setMeldingenOpen] = useState(false);
+  const [heeftOngelezenMeldingen, setHeeftOngelezenMeldingen] = useState(false);
   const [nietGekoppeld, setNietGekoppeld] = useState(false);
   const [weerData, setWeerData] = useState(null);
   const [checkinScore, setCheckinScore] = useState(undefined);
@@ -101,10 +104,12 @@ export default function Page() {
   const toastTimerRef = useRef(null);
   const closingModalRef = useRef(false);
   const profielOpenRef = useRef(false);
+  const meldingenOpenRef = useRef(false);
   const beschikbaarheidOpenRef = useRef(false);
   const beschikbaarheidGeneratieIdRef = useRef(null);
 
   useEffect(() => { profielOpenRef.current = profielOpen; }, [profielOpen]);
+  useEffect(() => { meldingenOpenRef.current = meldingenOpen; }, [meldingenOpen]);
   useEffect(() => { beschikbaarheidOpenRef.current = beschikbaarheidSchermOpen; }, [beschikbaarheidSchermOpen]);
 
   function toonToast() {
@@ -122,6 +127,7 @@ export default function Page() {
     function handlePopState() {
       if (closingModalRef.current) { closingModalRef.current = false; return; }
       if (profielOpenRef.current) { setProfielOpen(false); return; }
+      if (meldingenOpenRef.current) { setMeldingenOpen(false); laadOngelezenMeldingen(); return; }
       if (beschikbaarheidOpenRef.current) { setBeschikbaarheidSchermOpen(false); return; }
       if (tabHistoryRef.current.length > 0) {
         const vorigeTab = tabHistoryRef.current.pop();
@@ -213,6 +219,7 @@ export default function Page() {
     }).catch(() => {});
     laadDagelijkseData();
     laadRecenteRitten();
+    laadOngelezenMeldingen();
     fetch("/api/archetypes").then(r => r.json()).then(d => { if (d.success) setArchetypesData(d.data); }).catch(() => {});
     fetch("/api/weer").then(r => r.json()).then(d => { if (d.success) setWeerData(d.data); }).catch(() => {});
     fetch("/api/checkin").then(r => r.json()).then(d => { setCheckinScore(d.success && d.data ? d.data.score : null); }).catch(() => { setCheckinScore(null); });
@@ -574,6 +581,16 @@ export default function Page() {
       } catch (e) { console.warn("[Conflict] Intervals-sync mislukt:", e); }
     };
 
+    // Rapporteert een al opgeloste conflict-actie aan het meldingencentrum —
+    // bouwt geen nieuwe beslislogica, legt alleen de zojuist genomen
+    // beslissing vast (zie src/app/api/meldingen/log-conflict/route.js).
+    const logConflictMelding = (datum, actie) => {
+      fetch("/api/meldingen/log-conflict", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ datum, actie }),
+      }).catch(e => console.warn("[Conflict] Melding-aanmaak mislukt:", e));
+    };
+
     // 48u-conflicten: degradeer naar de lichtste variant van hetzelfde archetype.
     const dagen48u = conflictDatums.filter(d => d !== budgetConflictDatum);
     for (const datum of dagen48u) {
@@ -588,6 +605,7 @@ export default function Page() {
         huidigeSessies = [...huidigeSessies.filter(s => s.datum !== datum), nieuweSessie];
         console.log("[Conflict] 48u-conflict opgelost door degraderen:", datum, sessie.variant_id, "→", nieuweSessie.variant_id);
         await syncNaarIntervals(nieuweSessie);
+        logConflictMelding(datum, "gedegradeerd");
       } else {
         onopgelost.push(`${datum} (48u-conflict, geen lichtere variant beschikbaar)`);
       }
@@ -612,6 +630,7 @@ export default function Page() {
           huidigeSessies = [...huidigeSessies.filter(s => s.datum !== datum), nieuweSessie];
           console.log("[Conflict] Budget-conflict: dag gekort:", datum, oude?.duur_min, "→", nieuweSessie.duur_min);
           await syncNaarIntervals(nieuweSessie);
+          logConflictMelding(datum, "gekort");
         }
       }
       const nieuweWeekTss = huidigeSessies.reduce((s, x) => s + (x.tss || 0), 0);
@@ -1015,6 +1034,44 @@ export default function Page() {
     setProfielOpen(true);
   }, []);
 
+  const laadOngelezenMeldingen = useCallback(() => {
+    fetch("/api/meldingen?ongelezen=1").then(r => r.json()).then(d => {
+      if (d.success) setHeeftOngelezenMeldingen((d.data || []).length > 0);
+    }).catch(() => {});
+  }, []);
+
+  const openMeldingen = useCallback(() => {
+    if (typeof window !== "undefined") history.pushState({ modal: "meldingen" }, "", window.location.pathname);
+    setMeldingenOpen(true);
+  }, []);
+
+  // Vertaalt een melding-deeplink (bv. "/schema?datum=2026-07-09") naar
+  // client-side tab-navigatie — er bestaan geen /schema,/voortgang,/profiel-
+  // routes, alles loopt via de tab-state hieronder (zelfde berekening als de
+  // bestaande ?tab=schema&datum=...-deeplink-parser verderop in dit bestand).
+  const navigeerNaarDeeplink = useCallback((deeplink) => {
+    if (!deeplink) return;
+    const [pad, queryString] = deeplink.split("?");
+    const params = new URLSearchParams(queryString || "");
+    if (pad === "/schema") {
+      setTab(1);
+      const datumParam = params.get("datum");
+      if (datumParam) {
+        const nu = new Date();
+        const vandaagIdx = nu.getDay() === 0 ? 6 : nu.getDay() - 1;
+        const datumDag = new Date(datumParam);
+        const datumIdx = datumDag.getDay() === 0 ? 6 : datumDag.getDay() - 1;
+        setSchemaDagOffset(datumIdx - vandaagIdx);
+      }
+    } else if (pad === "/voortgang") {
+      setTab(2);
+    } else if (pad === "/profiel") {
+      openProfiel();
+    } else {
+      setTab(0);
+    }
+  }, [openProfiel]);
+
   const openBeschikbaarheid = useCallback(() => {
     if (typeof window !== "undefined") history.pushState({ modal: "beschikbaarheid" }, "", window.location.pathname);
     setBeschikbaarheidSchermOpen(true);
@@ -1056,6 +1113,13 @@ export default function Page() {
           urenPerDag={urenPerDag}
           onTerug={() => history.back()}
           onOpslaan={handleBeschikbaarheidOpslaan}
+        />
+      )}
+
+      {meldingenOpen && (
+        <MeldingenScherm
+          onTerug={() => history.back()}
+          onNavigeer={navigeerNaarDeeplink}
         />
       )}
 
@@ -1155,6 +1219,8 @@ export default function Page() {
                 setTab(1);
               }}
               onOpenProfiel={openProfiel}
+              onOpenMeldingen={openMeldingen}
+              heeftOngelezenMeldingen={heeftOngelezenMeldingen}
             />
           )}
 
@@ -1173,6 +1239,8 @@ export default function Page() {
               weerData={weerData}
               onRpeSaved={handleRpeSaved}
               onOpenProfiel={openProfiel}
+              onOpenMeldingen={openMeldingen}
+              heeftOngelezenMeldingen={heeftOngelezenMeldingen}
               onEditBeschikbaarheid={openBeschikbaarheid}
               onSessieGekozen={handleSessieGekozen}
               onPlanWijziging={() => {
@@ -1195,6 +1263,8 @@ export default function Page() {
               seizoensplan={seizoensplan}
               weekSessies={weekSessies}
               onOpenProfiel={openProfiel}
+              onOpenMeldingen={openMeldingen}
+              heeftOngelezenMeldingen={heeftOngelezenMeldingen}
             />
           )}
 

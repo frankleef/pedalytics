@@ -4,7 +4,7 @@ import { intervalsGet } from "./intervals";
 import { datumOffset } from "./datum";
 import { ctlRampRegressie } from "./conditie";
 import { weeknummerVoorDatum } from "./weekgrenzen";
-import { sendPush } from "./pushNotify";
+import { maakMelding } from "./meldingen";
 import { vulSessiesAanVoorGebruiker } from "./sessiesAanvullen";
 import { bepaalTrainingsfrequentie } from "./trainingsfrequentie";
 
@@ -518,13 +518,14 @@ export async function voerWekelijkseEvaluatieUit(userId, { forceer = false } = {
     throw e;
   }
 
-  // Push-notificatie (niet bij forceer=true — dit is een handmatige test)
+  // Melding (geen push — routinematige wekelijkse bijsturing hoeft de gebruiker
+  // niet buiten de app te onderbreken; niet bij forceer=true, dit is een handmatige test)
   if (!forceer) {
     const notificatieTekst = correctie.richting === "omhoog"
       ? "Je sessies zijn iets uitgebreid — je lichaam kan meer aan dan je plan vroeg."
       : "Je sessies zijn iets rustiger gemaakt — je lichaam heeft wat meer herstelruimte nodig.";
-    sendPush(userId, { title: "Plan bijgewerkt", body: notificatieTekst, url: "/?tab=schema" })
-      .catch(e => console.warn(`[volumecorrectie] Push mislukt:`, e.message));
+    maakMelding(userId, "volumecorrectie", { tekst: notificatieTekst })
+      .catch(e => console.warn(`[volumecorrectie] Melding-aanmaak mislukt:`, e.message));
   }
 
   // Log
@@ -651,14 +652,15 @@ export async function voerHerstelweekEvaluatieUit(userId) {
 
   await kv.set(planKey, plan);
 
-  // Push-notificatie
+  // Melding + push — dit is een echte blokgrens (zwaarder dan routinematige
+  // wekelijkse volumecorrectie), verdient dus wel een eigen pushmoment.
   const correctie = bepaalVolumeCorrectie(signalen);
   if (correctie.richting !== "geen") {
     const tekst = correctie.richting === "omlaag"
       ? "Nieuw blok gestart met iets minder volume — rustige opbouw is nu het juiste tempo."
       : "Nieuw blok gestart met iets meer volume — je hebt het vorige blok goed verwerkt.";
-    sendPush(userId, { title: "Nieuw trainingsblok", body: tekst, url: "/?tab=schema" })
-      .catch(e => console.warn(`[blokcheck] Push mislukt:`, e.message));
+    maakMelding(userId, "trainingsblok_herijkt", { tekst })
+      .catch(e => console.warn(`[blokcheck] Melding-aanmaak mislukt:`, e.message));
   }
 
   // Log

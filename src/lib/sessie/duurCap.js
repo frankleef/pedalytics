@@ -1,4 +1,5 @@
 import { logEvent } from "../posthog";
+import { maakMelding } from "../meldingen";
 
 /**
  * Cap sessie.duur_min op maxMinuten. Schaalt tss en tss_range proportioneel mee.
@@ -36,6 +37,14 @@ export function capSessieDuur(sessie, maxMinuten, logPrefix = "", userId = null)
     tssVoorCap,
     tssNaCap: sessie.tss,
   });
+
+  if (userId && sessie.datum) {
+    maakMelding(userId, "duurcap_toegepast", {
+      datum: sessie.datum,
+      beschikbareMinuten: maxMinuten,
+      oorspronkelijkeMinuten: oorspronkelijkeDuur,
+    }).catch((e) => console.warn(`${prefix} melding-aanmaak mislukt:`, e.message));
+  }
 
   return true;
 }

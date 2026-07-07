@@ -233,6 +233,7 @@ export default function SchemaTab({
   seizoensplan, weekSessies, weekSessiesLaden, beschikbaar, voortgang,
   profiel, wellenessHuidig, vandaagInvoer, onEditBeschikbaarheid, initialDagOffset,
   onRpeSaved, onOpenProfiel, onPlanWijziging, onSessieGekozen, weerData,
+  onOpenMeldingen, heeftOngelezenMeldingen,
 }) {
   const [selectedIdx, setSelectedIdx] = useState(10 + (initialDagOffset || 0));
   const [rpeWaarde, setRpeWaarde] = useState(6);
@@ -550,7 +551,7 @@ export default function SchemaTab({
       <div style={{ maxWidth: 540, margin: "0 auto", padding: "16px 0 28px" }}>
 
         <div style={{ padding: `0 ${T.pad}px` }}>
-          <SharedHeader onAvatarClick={onOpenProfiel} />
+          <SharedHeader onAvatarClick={onOpenProfiel} onMeldingenClick={onOpenMeldingen} heeftOngelezenMeldingen={heeftOngelezenMeldingen} />
         </div>
 
         {/* Day strip */}
