@@ -335,11 +335,23 @@ export default function SchemaTab({
   useEffect(() => { [0, 120, 350].forEach(t => setTimeout(() => centerStrip(false), t)); }, []);
   useEffect(() => { centerStrip(true); }, [selectedIdx]);
 
-  // TSS rollend 7 dagen
-  const grensISO = datumISO(new Date(nu.getTime() - 6 * 86400000));
-  const rittenRollend7d = (voortgang?.ritten || []).filter(r => r.datum_iso && r.datum_iso >= grensISO);
-  const werkelijkTss = Math.round(rittenRollend7d.reduce((s, r) => s + (r.tss || 0), 0));
-  const weekNr = seizoensplan?.startdatum ? weeknummerVoorDatum(new Date(), seizoensplan.startdatum) : 1;
+  // TSS rollend 7 dagen — bij een toekomstige geselecteerde dag wordt het venster
+  // geprojecteerd t/m die dag (werkelijke ritten t/m vandaag + geplande, nog niet
+  // gereden sessies erna); bij vandaag/verleden blijft dit het huidige venster —
+  // terugkijken naar het verleden moet de actuele belasting niet verbergen.
+  const vandaagISO = datumISO(nu);
+  const projectieDatumISO = dayOffset > 0 ? cur.iso : vandaagISO;
+  const projectieGrensISO = datumISO(new Date(new Date(projectieDatumISO).getTime() - 6 * 86400000));
+  const werkelijkeTssInVenster = (voortgang?.ritten || [])
+    .filter(r => r.datum_iso && r.datum_iso >= projectieGrensISO && r.datum_iso <= projectieDatumISO)
+    .reduce((s, r) => s + (r.tss || 0), 0);
+  const geplandeTssInVenster = dayOffset > 0
+    ? (weekSessies?.sessies || [])
+        .filter(s => s.datum && !s.voltooid && s.datum > vandaagISO && s.datum <= projectieDatumISO)
+        .reduce((s, sess) => s + (sess.tss || 0), 0)
+    : 0;
+  const werkelijkTss = Math.round(werkelijkeTssInVenster + geplandeTssInVenster);
+  const weekNr = seizoensplan?.startdatum ? weeknummerVoorDatum(new Date(projectieDatumISO), seizoensplan.startdatum) : 1;
   const kaderWeek = seizoensplan?.kader?.find(w => w.week === weekNr) || seizoensplan?.kader?.[0];
   const doelTss = kaderWeek?.tss_doel || 0;
 
