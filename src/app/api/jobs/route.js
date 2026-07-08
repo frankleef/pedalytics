@@ -12,7 +12,7 @@ import { genereerSessieDag, logSessieGegenereerd } from "@/lib/sessie/genereren"
 import { kaderWeekVoorDatum, weekInFaseVoorKaderWeek, getMaandagVanWeek } from "@/lib/weekgrenzen";
 import { bepaalAlGeleverd } from "@/lib/sessie/context";
 import { getIntervalsCredentials } from "@/lib/users";
-import { intervalsGet } from "@/lib/intervals";
+import { intervalsGet, intervalsDelete } from "@/lib/intervals";
 import { logEvent } from "@/lib/posthog";
 import { maakMelding } from "@/lib/meldingen";
 
@@ -124,6 +124,33 @@ export async function POST(request) {
             dagLabel: params.dagNaam,
             tekst: `${params.dagNaam} is een rustdag gebleven: je hebt deze week al meer TSS geleverd dan het weekdoel toestaat, dus is er geen extra sessie ingepland.`,
           }).catch((e) => console.warn(`[Job ${jobId}] melding-aanmaak (weekbudget) mislukt:`, e.message));
+
+          // Server-side, atomair verwijderen van een eventuele bestaande sessie op
+          // deze datum — niet overlaten aan de client (React state + een losse PUT
+          // die kan racen met snel-opeenvolgende beschikbaarheidswijzigingen, of met
+          // de navolgende /api/sessies/aanvullen-call). Zonder dit blijft een oude,
+          // te grote sessie van vóór deze beslissing gewoon in het plan staan, ook al
+          // meldt de app terecht dat het een rustdag is geworden.
+          try {
+            const planKeyStr = `${userId}:seizoensplan`;
+            const plan = await kv.get(planKeyStr);
+            const bestaande = plan?.weekSessies?.sessies?.find((s) => s.datum === params.datum);
+            if (bestaande && !bestaande.voltooid) {
+              const nieuweSessies = plan.weekSessies.sessies.filter((s) => s.datum !== params.datum);
+              await kv.set(planKeyStr, { ...plan, weekSessies: { ...plan.weekSessies, sessies: nieuweSessies } });
+              console.log(`[Job ${jobId}] Bestaande sessie op ${params.datum} verwijderd (weekbudget uitgeput)`);
+              if (bestaande.intervalsEventId) {
+                const creds = await getIntervalsCredentials(userId);
+                if (creds) {
+                  await intervalsDelete(`/events/${bestaande.intervalsEventId}`, creds).catch(
+                    (e) => console.warn(`[Job ${jobId}] intervals.icu event ${bestaande.intervalsEventId} verwijderen mislukt:`, e.message)
+                  );
+                }
+              }
+            }
+          } catch (e) {
+            console.warn(`[Job ${jobId}] Opruimen bestaande sessie op ${params.datum} mislukt:`, e.message);
+          }
         }
         await opslaanGenJob(kv, jobId, { status: "done", type, result, userId: userId || null, createdAt: new Date(startedAt).toISOString(), durationMs: Date.now() - startedAt });
         return NextResponse.json({ success: true, jobId, status: "done", result });
