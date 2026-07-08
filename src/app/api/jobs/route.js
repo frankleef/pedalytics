@@ -14,6 +14,7 @@ import { bepaalAlGeleverd } from "@/lib/sessie/context";
 import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet } from "@/lib/intervals";
 import { logEvent } from "@/lib/posthog";
+import { maakMelding } from "@/lib/meldingen";
 
 export const maxDuration = 120;
 
@@ -117,6 +118,13 @@ export async function POST(request) {
 
       if (result?._geenSessie) {
         console.log(`[Job ${jobId}] Geen sessie gegenereerd: ${result.reden}`);
+        if (userId) {
+          maakMelding(userId, "overbelastingsgate_nieuwe_dag", {
+            datum: params.datum,
+            dagLabel: params.dagNaam,
+            tekst: `${params.dagNaam} is een rustdag gebleven: je hebt deze week al meer TSS geleverd dan het weekdoel toestaat, dus is er geen extra sessie ingepland.`,
+          }).catch((e) => console.warn(`[Job ${jobId}] melding-aanmaak (weekbudget) mislukt:`, e.message));
+        }
         await opslaanGenJob(kv, jobId, { status: "done", type, result, userId: userId || null, createdAt: new Date(startedAt).toISOString(), durationMs: Date.now() - startedAt });
         return NextResponse.json({ success: true, jobId, status: "done", result });
       }

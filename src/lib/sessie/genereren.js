@@ -24,6 +24,7 @@ import {
   slaArchetypeOp,
 } from "../sessie-archetypes";
 import { schatTssDoel, degradeerBijLageTsb } from "./weekSolver";
+import { maakMelding } from "../meldingen";
 import { selecteerVariantOpDagvorm, genereerSessieDeterministisch } from "../sessie-generatie";
 import { bepaalHrvZone } from "../hrv/zone";
 import { logEvent } from "../posthog";
@@ -127,6 +128,11 @@ export async function genereerSessieDag(ctx) {
   // stimulus) blijft wél uit dagIntentie komen — dat is een bewuste
   // planningskeuze (solveWeek()), geen tijdsafhankelijk gegeven.
   const { gedegradeerd } = degradeerBijLageTsb(effectiefSessietype, tsb);
+  if (gedegradeerd && userId) {
+    maakMelding(userId, "tsb_degradatie", { datum, dagLabel: dagNaam, tsb }).catch(
+      (e) => console.warn(`[genereerSessieDag] ${datum}: melding-aanmaak (tsb_degradatie) mislukt:`, e.message)
+    );
+  }
   let tssDoelVers = schatTssDoel(
     { [effectiefSessietype]: archetypesVoorType },
     effectiefSessietype,

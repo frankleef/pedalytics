@@ -77,6 +77,14 @@ const MELDING_TEMPLATES = {
     bron: "checkin-modulatie",
     deeplink: `/schema?datum=${ctx.datum}`,
   }),
+  tsb_degradatie: (ctx) => ({
+    categorie: "sessie",
+    titel: "Sessie verlicht — vorm laag",
+    tekst: `Je vorm (TSB ${ctx.tsb}) is op dit moment laag. ${ctx.dagLabel} is daardoor ` +
+           "lichter ingepland dan gebruikelijk voor dit type sessie.",
+    bron: "tsb-degradatie",
+    deeplink: `/schema?datum=${ctx.datum}`,
+  }),
   kritieke_rust: (ctx) => ({
     categorie: "sessie",
     titel: "Rust geadviseerd — advies opgevolgd",
