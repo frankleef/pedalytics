@@ -1,5 +1,4 @@
 import { haalGebruikersLocatie } from "./locatie";
-import { getKV } from "./kv";
 
 const HITTE_DELTA_DREMPEL = 6;
 
@@ -54,18 +53,3 @@ export function berekenHitteVlag(apparentTemp, baseline) {
   return (apparentTemp - baseline) >= HITTE_DELTA_DREMPEL;
 }
 
-export async function migreerHitteTemperatuur() {
-  const kv = getKV();
-  const keys = await kv.keys("decoupling:*");
-
-  for (const sleutel of keys || []) {
-    const data = await kv.get(sleutel);
-    if (data?.apparent_temp_celsius !== undefined) continue;
-    if (!data?.startTijd || !data?.duurMinuten || !data?.userId) continue;
-
-    const { apparent_temp_celsius } = await haalRitTemperatuur(data.userId, data.startTijd, data.duurMinuten);
-    await kv.set(sleutel, { ...data, apparent_temp_celsius });
-    await new Promise(r => setTimeout(r, 200));
-  }
-  console.log("[migratie] Hitte-temperatuur migratie voltooid");
-}

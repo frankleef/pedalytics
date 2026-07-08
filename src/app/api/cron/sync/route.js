@@ -15,7 +15,7 @@ import { waitUntil } from "@vercel/functions";
 import { berekenRpeTrend, verwerkRpeTrend } from "@/lib/sessie/rpeTrend";
 import { berekenUitvoeringsscoreMetDetails, scoreLabel, zoneTimesNaarObject } from "@/lib/uitvoeringsscore";
 import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus, ctlRampRegressie } from "@/lib/conditie";
-import { haalRitTemperatuur, berekenTempBaseline, berekenHitteVlag, migreerHitteTemperatuur } from "@/lib/hitte";
+import { haalRitTemperatuur, berekenTempBaseline, berekenHitteVlag } from "@/lib/hitte";
 import { herberekenHrvProfiel, checkDataStatus } from "@/lib/hrv/profiel";
 import { herberekenGewichtenHrvCheckin } from "@/lib/hrv/leerdata";
 import { isWekelijkseCheckVerschuldigd, voerWekelijkseEvaluatieUit, voerHerstelweekEvaluatieUit } from "@/lib/volumeCorrectie";
@@ -408,7 +408,14 @@ export async function POST(request) {
             const ritFtp = plan.huidige_ftp || 265;
             if (!np || (np / ritFtp) < 0.55 || (np / ritFtp) > 0.75) continue;
             const alCached = await kv.get(`decoupling:${rit.id}`);
-            if (alCached !== null && alCached !== undefined) continue;
+            // Ritten die al gecached zijn maar (bv. door een tijdelijke Open-Meteo-
+            // storing) geen temperatuur kregen, blijven anders permanent op null
+            // staan — nooit een retry. Zulke ritten laten we wél doorlopen, maar
+            // uitsluitend voor een hernieuwde hitte-poging (geen dubbele streams-
+            // ophaal/decoupling-herberekening, zie retry-tak verderop).
+            const heeftAlHitteData = alCached && typeof alCached === "object" && alCached.apparent_temp_celsius != null;
+            if (alCached != null && heeftAlHitteData) continue;
+            const isHitteRetry = alCached != null && !heeftAlHitteData;
 
             // Hitte-detectie met persoonlijke baseline
             let apparent_temp_celsius = null;
@@ -432,6 +439,16 @@ export async function POST(request) {
                 });
               }
             } catch {}
+
+            if (isHitteRetry) {
+              // Decoupling stond al goed gecached — alleen de hitte-velden
+              // bijwerken als de retry nu wél lukte. Mislukt hij weer, dan blijft
+              // de entry op null staan voor een volgende cron-run.
+              if (apparent_temp_celsius != null) {
+                await kv.set(`decoupling:${rit.id}`, { ...alCached, apparent_temp_celsius, temp_baseline, hitte_gecorrigeerd });
+              }
+              continue;
+            }
 
             try {
               const streams = await fetch(`https://intervals.icu/api/v1/activity/${rit.id}/streams?types=watts,heartrate`, {
