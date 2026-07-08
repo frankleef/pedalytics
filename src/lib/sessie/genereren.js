@@ -49,15 +49,30 @@ import { logEvent } from "../posthog";
  *   `toegestaan_in_herstelweek: false` uit tijdens een herstelweek
  * @param {object|null} [ctx.hrvProfiel] - voor bepaalHrvZone; null -> hrv 'onbekend'
  * @param {number} [ctx.piekSprint]
- * @returns {Promise<object>} de gegenereerde sessie
+ * @param {number|null} [ctx.weekTssDoel] - kader-weekbudget voor de lopende week;
+ *   samen met ctx.alGeleverdTss gebruikt om het dagbudget te clampen op het
+ *   resterende weekbudget. Beide weglaten (bestaand gedrag, bv. cron-pad dat al
+ *   via solveWeek()/pasBudgetToe() budget-bewust is) slaat deze clamp over.
+ * @param {number|null} [ctx.alGeleverdTss] - reeds geleverde TSS deze week
+ *   (bv. via bepaalAlGeleverd()); zie ctx.weekTssDoel.
+ * @returns {Promise<object|{_geenSessie: true, reden: string}>} de gegenereerde
+ *   sessie, of een marker-object als het resterende weekbudget te klein is voor
+ *   een zinvolle sessie (alleen mogelijk als weekTssDoel/alGeleverdTss zijn
+ *   meegegeven)
  * @throws {Error} als er geen sessietype bekend is, of geen archetype/variantendata
  *   voor het gevraagde sessietype bestaat
  */
+// Onder dit resterende-weekbudget wordt geen sessie meer gegenereerd (i.p.v.
+// een gedegenereerde, bijna-lege sessie) — ongeveer het minimum voor een
+// zinvol actief-herstelritje.
+const MINIMALE_ZINVOLLE_TSS = 30;
+
 export async function genereerSessieDag(ctx) {
   const {
     kv, userId, datum, dagNaam, uren, profiel, wellness, plan,
     oudeSessie = null, overigeSessies = [],
     huidigeFase = "basis", weekInFase = 1, weektype = "opbouw", hrvProfiel = null,
+    weekTssDoel = null, alGeleverdTss = null,
   } = ctx;
 
   const dagIntentie = oudeSessie?.intentie || null;
@@ -112,7 +127,7 @@ export async function genereerSessieDag(ctx) {
   // stimulus) blijft wél uit dagIntentie komen — dat is een bewuste
   // planningskeuze (solveWeek()), geen tijdsafhankelijk gegeven.
   const { gedegradeerd } = degradeerBijLageTsb(effectiefSessietype, tsb);
-  const tssDoelVers = schatTssDoel(
+  let tssDoelVers = schatTssDoel(
     { [effectiefSessietype]: archetypesVoorType },
     effectiefSessietype,
     huidigeFase,
@@ -122,6 +137,22 @@ export async function genereerSessieDag(ctx) {
     weektype,
     Math.round(uren * 60)
   );
+
+  // Clamp op het resterende weekbudget — alleen als de caller dat kent
+  // (weekTssDoel/alGeleverdTss). Callers die zelf al budget-bewust zijn (bv.
+  // sessiesAanvullen.js/solveWeek()) geven deze niet mee en behouden exact het
+  // bestaande gedrag. Zonder deze clamp negeert schatTssDoel() volledig hoeveel
+  // TSS deze week al geleverd is — precies het gat dat een hersteldweek met
+  // overschreden budget alsnog een volle sessie liet plannen.
+  if (weekTssDoel != null && alGeleverdTss != null) {
+    const restBudget = Math.max(0, weekTssDoel - alGeleverdTss);
+    tssDoelVers = Math.min(tssDoelVers, restBudget);
+    if (tssDoelVers < MINIMALE_ZINVOLLE_TSS) {
+      console.log(`[genereerSessieDag] ${datum}: resterend weekbudget te klein (${restBudget} TSS) — geen sessie gegenereerd`);
+      return { _geenSessie: true, reden: "weekbudget_uitgeput" };
+    }
+  }
+
   const dagIntentieVers = dagIntentie ? { ...dagIntentie, tss_doel: tssDoelVers } : dagIntentie;
 
   const sessie = genereerSessieDeterministisch({

@@ -537,6 +537,14 @@ export default function Page() {
         seizoensplan: { ...seizoensplan, weekSessies: undefined }, overigeSessies: oSessies, datum, dagNaam, uren, oudeSessie: oudeSessie || null, aanleiding,
       });
 
+      // Resterend weekbudget te klein voor een zinvolle sessie (bv. hersteldweek
+      // met overschreden budget) — dit is een bewuste, correcte uitkomst, geen
+      // mislukking. Geen intervals.icu-sync, geen foutmelding aan de gebruiker.
+      if (sessie?._geenSessie) {
+        console.log(`[Beschikbaarheid] ${datum}: geen sessie gegenereerd (${sessie.reden})`);
+        return sessie;
+      }
+
       if (oudeSessie?.intervalsEventId) sessie.intervalsEventId = oudeSessie.intervalsEventId;
       try {
         const syncResp = await fetch("/api/intervals/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessies: [sessie], ftp: PROFIEL.ftp }) });
@@ -746,7 +754,10 @@ export default function Page() {
             oudeSessie: lichter,
             aanleiding: "herstelpatroon_correctie",
           });
-          if (gecorrigeerd) {
+          if (gecorrigeerd?._geenSessie) {
+            lokaalSessies = lokaalSessies.filter(s => s.datum !== lichter.datum);
+            console.log("[Herstelpatroon] Geen sessie (weekbudget uitgeput):", lichter.datum, "→ rustdag");
+          } else if (gecorrigeerd) {
             lokaalSessies = [...lokaalSessies.filter(s => s.datum !== lichter.datum), gecorrigeerd];
             console.log("[Herstelpatroon] Gecorrigeerd:", lichter.datum, lichter.type, "→", gecorrigeerd.type, gecorrigeerd.titel);
           }
@@ -945,7 +956,11 @@ export default function Page() {
           }
 
           const sessie = await genereerSessieDagViaJob(datum, dag, uren, { overigeSessies: overigeSessiesVoorGeneratie, oudeSessie, aanleiding: beschAanleiding });
-          if (sessie) {
+          if (sessie?._geenSessie) {
+            lokaalSessies = lokaalSessies.filter(s => s.datum !== datum);
+            setWeekSessies({ ...weekSessies, sessies: lokaalSessies });
+            console.log(`[Beschikbaarheid] ${datum}: geen sessie (weekbudget uitgeput) — rustdag`);
+          } else if (sessie) {
             lokaalSessies = [...lokaalSessies.filter(s => s.datum !== datum), sessie];
             setWeekSessies({ ...weekSessies, sessies: lokaalSessies });
             console.log("[Beschikbaarheid] Sessie toegevoegd:", sessie.type, sessie.titel);
@@ -986,7 +1001,9 @@ export default function Page() {
               const gecorrigeerd = await genereerSessieDagViaJob(kandidaat.datum, kandidaat.dag || DAGNAMEN[new Date(kandidaat.datum).getDay()], uren, {
                 overigeSessies: overige, oudeSessie: oudeSessieMetIntentie, aanleiding: "weekpatroon_correctie",
               });
-              if (gecorrigeerd) {
+              if (gecorrigeerd?._geenSessie) {
+                console.log("[Weekpatroon] Geen correctie (weekbudget uitgeput):", kandidaat.datum);
+              } else if (gecorrigeerd) {
                 lokaalSessies = [...lokaalSessies.filter(s => s.datum !== kandidaat.datum), gecorrigeerd];
                 console.log("[Weekpatroon] Gecorrigeerd:", gecorrigeerd.type, gecorrigeerd.titel);
               }

@@ -9,7 +9,8 @@ import { claudeCall } from "@/lib/claude";
 import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
 import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
 import { genereerSessieDag, logSessieGegenereerd } from "@/lib/sessie/genereren";
-import { kaderWeekVoorDatum, weekInFaseVoorKaderWeek } from "@/lib/weekgrenzen";
+import { kaderWeekVoorDatum, weekInFaseVoorKaderWeek, getMaandagVanWeek } from "@/lib/weekgrenzen";
+import { bepaalAlGeleverd } from "@/lib/sessie/context";
 import { logEvent } from "@/lib/posthog";
 
 export const maxDuration = 120;
@@ -67,6 +68,14 @@ export async function POST(request) {
       const hrvProfiel = userId ? await kv.get(`hrv-profiel:${userId}`) : null;
       const piekSprint = await kv.get(`piek_sprint_vermogen:${userId}`) || Math.round((params.profiel?.ftp || 265) * 1.8);
 
+      // Resterend weekbudget: dit pad (regeneratie via UI-actie, bv.
+      // beschikbaarheid wijzigen) loopt niet via solveWeek()/pasBudgetToe() en
+      // kent dus normaal gesproken geen weekbudget — zonder deze check plant
+      // genereerSessieDag() een volle sessie op basis van uren alleen, ook in
+      // een hersteldweek met een allang overschreden weekbudget.
+      const weekStart = getMaandagVanWeek(params.datum).toISOString().slice(0, 10);
+      const alGeleverd = userId ? await bepaalAlGeleverd(userId, weekStart) : { tss: 0 };
+
       result = await genereerSessieDag({
         kv, userId,
         datum: params.datum, dagNaam: params.dagNaam, uren: params.uren,
@@ -74,7 +83,14 @@ export async function POST(request) {
         oudeSessie: params.oudeSessie || null, overigeSessies: params.overigeSessies || [],
         dagelijkseData: params.dagelijkseData || [], voortgang: params.voortgang || null,
         aanleiding: params.aanleiding, huidigeFase, weekInFase, weektype: kaderWeek?.weektype || 'opbouw', hrvProfiel, piekSprint,
+        weekTssDoel: kaderWeek?.tss_doel ?? null, alGeleverdTss: alGeleverd.tss,
       });
+
+      if (result?._geenSessie) {
+        console.log(`[Job ${jobId}] Geen sessie gegenereerd: ${result.reden}`);
+        await opslaanGenJob(kv, jobId, { status: "done", type, result, userId: userId || null, createdAt: new Date(startedAt).toISOString(), durationMs: Date.now() - startedAt });
+        return NextResponse.json({ success: true, jobId, status: "done", result });
+      }
 
       console.log(`[Job ${jobId}] Resultaat: ${result.type} "${result.titel}" | ${result.duur_min}min | TSS ${result.tss} | ${result.segmenten?.length || 0} segmenten`);
       if (result.intentie?.sessietype !== "ramp_test") logSessieGegenereerd(result, { userId, huidigeFase, weekInFase });
