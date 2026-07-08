@@ -66,7 +66,14 @@ export async function POST(request) {
       const kaderWeek = kaderWeekVoorDatum(params.datum, params.seizoensplan?.kader, params.seizoensplan?.startdatum);
       const huidigeFase = kaderWeek?.fase ?? "basis";
       const weekInFase = weekInFaseVoorKaderWeek(kaderWeek, params.seizoensplan?.kader);
-      const userId = params.userId || "";
+      // params.userId wordt door de client nooit meegestuurd voor dit jobtype
+      // (geverifieerd via productielogs) — sessionUser (al hierboven via de
+      // sessie-cookie opgehaald, betrouwbaar) is de eigenlijke bron. Zonder deze
+      // fallback was userId hier altijd "" (leeg), waardoor hrvProfiel/piekSprint
+      // altijd op hun default terugvielen én — sinds de weekbudget-clamp van
+      // vandaag — alGeleverdTss altijd stil op 0 bleef staan, dus de clamp nooit
+      // iets afremde.
+      const userId = params.userId || sessionUser?.id || "";
       const hrvProfiel = userId ? await kv.get(`hrv-profiel:${userId}`) : null;
       const piekSprint = await kv.get(`piek_sprint_vermogen:${userId}`) || Math.round((params.profiel?.ftp || 265) * 1.8);
 
