@@ -49,3 +49,38 @@ describe('bouwKader — sectie 51-C tussentijdse-FTP-test-vlag', () => {
     expect(kader.filter(w => w.bevat_tussentijdse_ftp_test)).toHaveLength(1)
   })
 })
+
+describe('bouwKader — TSS-groei-cap afgeleid van seizoensstructuur (i.p.v. vaste 1.8x)', () => {
+  it('de cap bindt niet meer midden in een gezond 16-wekenseizoen (ctl=53, ftp, recreatief)', () => {
+    // Regressiescenario: met de oude vaste cap (baseTss * 1.8 = 477) sloeg de
+    // cap al in week 10 toe en bleven weken 10 t/m 14 plat op 477 — precies
+    // tijdens de bedoeld zwaarste drempelfase. Met de nieuwe, van de
+    // seizoensstructuur afgeleide cap mag dat niet meer gebeuren: elke
+    // opbouwweek moet strikt hoger zijn dan de vorige, tot aan de taper.
+    const kader = bouwKader(doelConfig({ huidige_ctl: 53, startdatum: '2026-01-10' }))
+    const opbouwWeken = kader.filter(w => w.weektype === 'opbouw' && w.week !== 1)
+
+    for (let i = 1; i < opbouwWeken.length; i++) {
+      expect(
+        opbouwWeken[i].tss_doel,
+        `week ${opbouwWeken[i].week} moet hoger zijn dan week ${opbouwWeken[i - 1].week}`
+      ).toBeGreaterThan(opbouwWeken[i - 1].tss_doel)
+    }
+  })
+
+  it('de cap komt overeen met baseTss * (1 + opbouwPct)^aantalOpbouwWeken', () => {
+    // ctl=53 → baseTss = round(53*5) = 265. Doel "ftp" heeft tss_opbouw_pct
+    // 0.10. De weekvolgorde voor 16 weken/ftp/recreatief heeft 12 weken met
+    // weektype "opbouw" (basis 1-3, sweetspot 5-7 + 9, overgangsfase 10,
+    // drempel 11-14). Verwachte cap: round(265 * 1.1^12) = 832.
+    const kader = bouwKader(doelConfig({ huidige_ctl: 53, startdatum: '2026-01-10' }))
+    const verwachteCap = Math.round(265 * Math.pow(1.10, 12))
+    expect(verwachteCap).toBe(832)
+
+    // Geen enkele week mag boven de cap uitkomen, en de piekweek (14) moet er
+    // net onder blijven (niet eraan vastgeplakt zoals bij de oude bug).
+    const maxTss = Math.max(...kader.map(w => w.tss_doel))
+    expect(maxTss).toBeLessThan(verwachteCap)
+    expect(kader.find(w => w.week === 14).tss_doel).toBe(758)
+  })
+})

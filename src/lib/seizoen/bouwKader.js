@@ -32,6 +32,16 @@ export function bouwKader(doelConfig) {
 
   const weekVolgorde = bouwWeekvolgorde(totaalWeken, doelType, niveau);
 
+  // De cap is een vangnet tegen rekenfouten, geen actieve begrenzer: hij moet
+  // wiskundig gelijk zijn aan (of net boven) wat de normale, ongecapte
+  // progressie aan het eind van het seizoen oplevert. Afgeleid van het totaal
+  // aantal opbouwweken (incl. week 1, die zelf niet compoundt maar wel één
+  // impliciete groeistap vertegenwoordigt): dat geeft precies genoeg marge om
+  // de per-week afrondingsdrift (elke stap rondt naar boven of beneden af) op
+  // te vangen zonder tijdens een gezond seizoen actief te knijpen.
+  const aantalOpbouwWeken = weekVolgorde.filter((w) => w.weektype === "opbouw").length;
+  const cap = Math.round(baseTss * Math.pow(1 + opbouwPct, aantalOpbouwWeken));
+
   let vorigOpbouwTss = baseTss;
   let piekTss = baseTss;
 
@@ -52,7 +62,7 @@ export function bouwKader(doelConfig) {
       tss_doel = tssDoelWeek1(baseTss, doelConfig.startdatum);
     } else {
       tss_doel = Math.round(vorigOpbouwTss * (1 + opbouwPct));
-      tss_doel = Math.min(tss_doel, Math.round(baseTss * 1.8));
+      tss_doel = Math.min(tss_doel, cap);
       vorigOpbouwTss = tss_doel;
       piekTss = Math.max(piekTss, tss_doel);
     }

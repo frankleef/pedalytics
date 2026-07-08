@@ -264,6 +264,46 @@ describe('solveWeek', () => {
     }
   })
 
+  it('regressie: kernstimulusdag met meer beschikbare tijd krijgt een zwaarder archetype/hoger tss_doel (fix: schatTssDoel/bepaalArchetypeHint negeerden beschikbareDuurMin altijd)', () => {
+    // sweetspot_intervallen: archetype_hint (welk archetype straks gegenereerd
+    // mag worden) blijft gebaseerd op min_duur_min — tempo_continu (geen
+    // min_duur_min) bij 1u, ss_lang (min_duur_min 90) pas bereikbaar vanaf 2u30.
+    // tss_doel is losgekoppeld van dat ene archetype en interpoleert i.p.v.
+    // daarvan over het VOLLEDIGE tss_range van alle sweetspot-archetypes samen
+    // ([60,105], zie schatTssDoel/DUUR_MIN_REF=45/DUUR_MAX_REF=150):
+    // 1u (60 min): fractie=(60-45)/105≈0.143 -> round(60+0.143*45)=66.
+    // 2u30 (150 min): fractie=(150-45)/105=1.0 (bovengrens) -> round(60+45)=105.
+    const resultaatKort = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'sweetspot', weekInFase: 2, weektype: 'opbouw', seizoensdoel: 'ftp',
+      weekTssDoel: 400, vasteDagen: [],
+      openDagen: dagen('2026-07-06:1'),
+      alGeleverd: {}, tsb: 0,
+    })
+    const resultaatLang = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'sweetspot', weekInFase: 2, weektype: 'opbouw', seizoensdoel: 'ftp',
+      weekTssDoel: 400, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2.5'),
+      alGeleverd: {}, tsb: 0,
+    })
+
+    const kernstimulusKort = resultaatKort.find(r => r.pad === 'kernstimulus')
+    const kernstimulusLang = resultaatLang.find(r => r.pad === 'kernstimulus')
+
+    expect(kernstimulusKort.sessietype).toBe('sweetspot_intervallen')
+    expect(kernstimulusLang.sessietype).toBe('sweetspot_intervallen')
+
+    // Weinig tijd (1u): lichte archetype-hint, laag (geïnterpoleerd) tss_doel.
+    expect(kernstimulusKort.archetype_hint).toBe('tempo_continu')
+    expect(kernstimulusKort.tss_doel).toBe(66)
+
+    // Meer tijd (2u30): zwaardere archetype-hint, hoger (geïnterpoleerd) tss_doel.
+    expect(kernstimulusLang.archetype_hint).toBe('ss_lang')
+    expect(kernstimulusLang.tss_doel).toBe(105)
+    expect(kernstimulusLang.tss_doel).toBeGreaterThan(kernstimulusKort.tss_doel)
+  })
+
   it('sprint: geen extra sprint_neuraal-dag als er al één deze week geleverd is (vaste dag)', () => {
     const resultaat = solveWeek({
         archetypesData: ARCHETYPES_FIXTURE,

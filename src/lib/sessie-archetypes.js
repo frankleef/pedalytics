@@ -99,6 +99,12 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [75, 105],
       fase_beschikbaar: ['sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'vo2max'],
       week_in_fase_min: 2,
+      // 2×[25-35 min] hoofdwerk + 8 min Z2-herstel = ~58-78 min kernwerk; inclusief
+      // warmup/cooldown past dit archetype pas comfortabel vanaf ~1u30 beschikbaar.
+      // Zie weekSolver.js schatTssDoel/bepaalArchetypeHint — deze grens is wat een
+      // gebruiker met genoeg tijd daadwerkelijk richting dit zwaardere archetype
+      // duwt i.p.v. altijd het eerst-gedefinieerde (tempo_continu) te krijgen.
+      min_duur_min: 90,
     },
     {
       id: 'ss_oplopend',

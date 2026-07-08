@@ -334,27 +334,86 @@ function zijnAangrenzend(datumA, datumB) {
   return diff === 86400000;
 }
 
-/** Eerste beschikbare archetype-id voor een sessietype/fase/week, of null. */
-function bepaalArchetypeHint(archetypesData, sessietype, fase, weekInFase, seizoensdoel, weektype) {
-  const archetypes = getArchetypesVoorSessietype(archetypesData?.[sessietype] ?? [], fase, weekInFase, seizoensdoel, null, weektype);
-  return archetypes[0]?.id ?? null;
+/**
+ * Kiest, uit een reeds gefilterde archetype-lijst (fase/week/seizoensdoel/duur al
+ * toegepast door getArchetypesVoorSessietype), het "zwaarste" archetype dat nog
+ * past — gerangschikt op min_duur_min (hoog naar laag). Een archetype dat meer
+ * tijd vereist is per definitie pas bereikbaar bij meer beschikbare tijd (het
+ * viel anders al weg via getArchetypesVoorSessietype's duurfilter), dus de
+ * hoogste min_duur_min die nog in de lijst zit is het zwaarste archetype dat bij
+ * de beschikbare tijd past.
+ *
+ * Archetypes zonder min_duur_min (de meerderheid van de huidige dataset) tellen
+ * als 0 en behouden via een stabiele sort hun oorspronkelijke onderlinge
+ * volgorde — voor data zonder enige min_duur_min levert dit dus identiek gedrag
+ * op aan de vorige "eerste archetype"-selectie (geen regressie).
+ *
+ * @param {Array} archetypes - output van getArchetypesVoorSessietype
+ * @returns {object|null}
+ */
+function kiesZwaarsteArchetype(archetypes) {
+  if (!archetypes.length) return null;
+  return [...archetypes].sort((a, b) => (b.min_duur_min ?? 0) - (a.min_duur_min ?? 0))[0];
 }
 
-/** Midden van de tss_range van het eerste beschikbare archetype, of een vaste fallback. */
-function schatTssDoel(archetypesData, sessietype, fase, weekInFase, seizoensdoel, gedegradeerd, weektype) {
+/**
+ * Zwaarste beschikbare archetype-id voor een sessietype/fase/week/beschikbare
+ * duur, of null. Zie kiesZwaarsteArchetype.
+ * @param {number|null} [beschikbareDuurMin] - beschikbare tijd voor de dag in
+ *   minuten; null = geen duurfilter (bestaand gedrag).
+ */
+function bepaalArchetypeHint(archetypesData, sessietype, fase, weekInFase, seizoensdoel, weektype, beschikbareDuurMin = null) {
+  const archetypes = getArchetypesVoorSessietype(archetypesData?.[sessietype] ?? [], fase, weekInFase, seizoensdoel, beschikbareDuurMin, weektype);
+  return kiesZwaarsteArchetype(archetypes)?.id ?? null;
+}
+
+// Referentiepunten voor de duur→TSS-interpolatie in schatTssDoel: onder
+// DUUR_MIN_REF wordt het laagste TSS-bereik van het sessietype aangehouden,
+// boven DUUR_MAX_REF het hoogste; daartussen lineair. Welk specifiek archetype
+// straks daadwerkelijk gegenereerd wordt (variatie, duurfilter) is een aparte,
+// al bestaande beslissing in genereren.js/selecteerArchetype — dit bepaalt
+// uitsluitend het TSS-dagbudget waarbinnen die generatie moet passen.
+const DUUR_MIN_REF = 45;
+const DUUR_MAX_REF = 150;
+
+/**
+ * Schat het TSS-dagbudget voor een sessietype/fase/week, geïnterpoleerd tussen
+ * het laagste en hoogste tss_range dat voor dit sessietype/fase/week bekend is
+ * (over ALLE archetypes, niet één gekozen archetype — welk archetype
+ * uiteindelijk gegenereerd wordt is een losse beslissing, zie bouwToewijzing),
+ * op basis van de daadwerkelijk beschikbare tijd. Bij weinig tijd (<=
+ * DUUR_MIN_REF) het laagste bereik, bij veel tijd (>= DUUR_MAX_REF) het
+ * hoogste, daartussen lineair. Zonder beschikbareDuurMin: midden van het
+ * volledige bereik (bestaand gedrag voor callers die geen duur kennen).
+ * @param {number|null} [beschikbareDuurMin] - beschikbare tijd voor de dag in
+ *   minuten; null = geen duurschaling, gebruik het midden van het bereik.
+ */
+function schatTssDoel(archetypesData, sessietype, fase, weekInFase, seizoensdoel, gedegradeerd, weektype, beschikbareDuurMin = null) {
   const archetypes = getArchetypesVoorSessietype(archetypesData?.[sessietype] ?? [], fase, weekInFase, seizoensdoel, null, weektype);
-  const bereik = archetypes[0]?.tss_range;
-  const basis = bereik ? Math.round((bereik[0] + bereik[1]) / 2) : 70;
+  let basis;
+  if (!archetypes.length) {
+    basis = 70;
+  } else {
+    const minTss = Math.min(...archetypes.map((a) => a.tss_range[0]));
+    const maxTss = Math.max(...archetypes.map((a) => a.tss_range[1]));
+    if (beschikbareDuurMin == null) {
+      basis = Math.round((minTss + maxTss) / 2);
+    } else {
+      const fractie = Math.min(1, Math.max(0, (beschikbareDuurMin - DUUR_MIN_REF) / (DUUR_MAX_REF - DUUR_MIN_REF)));
+      basis = Math.round(minTss + fractie * (maxTss - minTss));
+    }
+  }
   return gedegradeerd ? Math.round(basis * 0.85) : basis;
 }
 
 function bouwToewijzing({ datum, beschikbareUren }, sessietype, { archetypesData, fase, weekInFase, weektype, seizoensdoel, gedegradeerd = false, pad, tssDoelOverride }) {
+  const beschikbareDuurMin = Math.round(beschikbareUren * 60);
   const toewijzing = {
     datum,
     sessietype,
-    tss_doel: tssDoelOverride ?? schatTssDoel(archetypesData, sessietype, fase, weekInFase, seizoensdoel, gedegradeerd, weektype),
+    tss_doel: tssDoelOverride ?? schatTssDoel(archetypesData, sessietype, fase, weekInFase, seizoensdoel, gedegradeerd, weektype, beschikbareDuurMin),
     toegestane_zones: TOEGESTANE_ZONES_PER_SESSIETYPE[sessietype] ?? ["Z2"],
-    archetype_hint: bepaalArchetypeHint(archetypesData, sessietype, fase, weekInFase, seizoensdoel, weektype),
+    archetype_hint: bepaalArchetypeHint(archetypesData, sessietype, fase, weekInFase, seizoensdoel, weektype, beschikbareDuurMin),
     gedegradeerd,
     pad, // observability: 'kernstimulus'|'secundair'|'vrijheidsessie'|'z2'
     beschikbareUren,
@@ -420,7 +479,7 @@ export function solveWeek({
 
     if (kernstimulusType && dag) {
       const { gedegradeerd } = degradeerBijLageTsb(kernstimulusType, tsb);
-      const tssDoel = schatTssDoel(archetypesData, kernstimulusType, fase, weekInFase, seizoensdoel, gedegradeerd, weektype);
+      const tssDoel = schatTssDoel(archetypesData, kernstimulusType, fase, weekInFase, seizoensdoel, gedegradeerd, weektype, Math.round(dag.beschikbareUren * 60));
       if (tssDoel <= restBudget) {
         gebruikt.add(dag.datum);
         kernstimulusDatum = dag.datum;
@@ -444,7 +503,7 @@ export function solveWeek({
       const isVrijheid = bepaalVrijheidsdag({ weekInFase, dagRol: "tweede_intensiteit", fase });
       const secundairType = isVrijheid ? "gemengd" : prioriteit.secundair;
       const { gedegradeerd } = degradeerBijLageTsb(secundairType, tsb);
-      const tssDoel = schatTssDoel(archetypesData, secundairType, fase, weekInFase, seizoensdoel, gedegradeerd, weektype);
+      const tssDoel = schatTssDoel(archetypesData, secundairType, fase, weekInFase, seizoensdoel, gedegradeerd, weektype, Math.round(dag.beschikbareUren * 60));
       if (tssDoel <= restBudget) {
         gebruikt.add(dag.datum);
         restBudget -= tssDoel;
@@ -468,7 +527,7 @@ export function solveWeek({
     );
     if (kandidaat) {
       const { gedegradeerd } = degradeerBijLageTsb("sprint_neuraal", tsb);
-      const tssDoel = schatTssDoel(archetypesData, "sprint_neuraal", fase, weekInFase, seizoensdoel, gedegradeerd, weektype);
+      const tssDoel = schatTssDoel(archetypesData, "sprint_neuraal", fase, weekInFase, seizoensdoel, gedegradeerd, weektype, Math.round(kandidaat.beschikbareUren * 60));
       if (tssDoel <= restBudget) {
         gebruikt.add(kandidaat.datum);
         restBudget -= tssDoel;
