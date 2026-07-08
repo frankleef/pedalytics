@@ -23,6 +23,7 @@ import {
   selecteerArchetype,
   slaArchetypeOp,
 } from "../sessie-archetypes";
+import { schatTssDoel, degradeerBijLageTsb } from "./weekSolver";
 import { selecteerVariantOpDagvorm, genereerSessieDeterministisch } from "../sessie-generatie";
 import { bepaalHrvZone } from "../hrv/zone";
 import { logEvent } from "../posthog";
@@ -103,8 +104,28 @@ export async function genereerSessieDag(ctx) {
 
   const { variant, doelGewicht } = await selecteerVariantOpDagvorm(kv, gekozenArchetype, userId, dagvorm);
 
+  // Dagbudget (tss_doel) altijd vers herberekenen op basis van de daadwerkelijk
+  // beschikbare tijd NU, i.p.v. blind dagIntentie.tss_doel te vertrouwen — dat
+  // kan een verouderde waarde zijn (bv. bij regeneratie na een beschikbaarheids-
+  // wijziging, waar de oude sessie/intentie van vóór de wijziging wordt
+  // hergebruikt om alleen het sessietype over te nemen). sessietype (welke
+  // stimulus) blijft wél uit dagIntentie komen — dat is een bewuste
+  // planningskeuze (solveWeek()), geen tijdsafhankelijk gegeven.
+  const { gedegradeerd } = degradeerBijLageTsb(effectiefSessietype, tsb);
+  const tssDoelVers = schatTssDoel(
+    { [effectiefSessietype]: archetypesVoorType },
+    effectiefSessietype,
+    huidigeFase,
+    weekInFase,
+    plan?.seizoensdoel?.type ?? null,
+    gedegradeerd,
+    weektype,
+    Math.round(uren * 60)
+  );
+  const dagIntentieVers = dagIntentie ? { ...dagIntentie, tss_doel: tssDoelVers } : dagIntentie;
+
   const sessie = genereerSessieDeterministisch({
-    dagIntentie,
+    dagIntentie: dagIntentieVers,
     archetype: gekozenArchetype,
     variant,
     doelDuurMin: rondDuurMinAf(uren * 60),

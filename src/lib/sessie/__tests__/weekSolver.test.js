@@ -268,11 +268,12 @@ describe('solveWeek', () => {
     // sweetspot_intervallen: archetype_hint (welk archetype straks gegenereerd
     // mag worden) blijft gebaseerd op min_duur_min — tempo_continu (geen
     // min_duur_min) bij 1u, ss_lang (min_duur_min 90) pas bereikbaar vanaf 2u30.
-    // tss_doel is losgekoppeld van dat ene archetype en interpoleert i.p.v.
-    // daarvan over het VOLLEDIGE tss_range van alle sweetspot-archetypes samen
-    // ([60,105], zie schatTssDoel/DUUR_MIN_REF=45/DUUR_MAX_REF=150):
-    // 1u (60 min): fractie=(60-45)/105≈0.143 -> round(60+0.143*45)=66.
-    // 2u30 (150 min): fractie=(150-45)/105=1.0 (bovengrens) -> round(60+45)=105.
+    // tss_doel is losgekoppeld van dat ene archetype en gebruikt i.p.v. diens
+    // tss_range de directe IF²×uren×100-formule (zie schatTssDoel,
+    // SESSIETYPE_IF_MIDDEN.sweetspot_intervallen=0.86,
+    // SESSIETYPE_MAX_EFFECTIEVE_UREN.sweetspot_intervallen=2.5):
+    // 1u: uren=min(1,2.5)=1 -> round(0.86²×1×100)=74.
+    // 2u30: uren=min(2.5,2.5)=2.5 -> round(0.86²×2.5×100)=185.
     const resultaatKort = solveWeek({
       archetypesData: ARCHETYPES_FIXTURE,
       fase: 'sweetspot', weekInFase: 2, weektype: 'opbouw', seizoensdoel: 'ftp',
@@ -294,13 +295,13 @@ describe('solveWeek', () => {
     expect(kernstimulusKort.sessietype).toBe('sweetspot_intervallen')
     expect(kernstimulusLang.sessietype).toBe('sweetspot_intervallen')
 
-    // Weinig tijd (1u): lichte archetype-hint, laag (geïnterpoleerd) tss_doel.
+    // Weinig tijd (1u): lichte archetype-hint, laag tss_doel.
     expect(kernstimulusKort.archetype_hint).toBe('tempo_continu')
-    expect(kernstimulusKort.tss_doel).toBe(66)
+    expect(kernstimulusKort.tss_doel).toBe(74)
 
-    // Meer tijd (2u30): zwaardere archetype-hint, hoger (geïnterpoleerd) tss_doel.
+    // Meer tijd (2u30): zwaardere archetype-hint, hoger tss_doel.
     expect(kernstimulusLang.archetype_hint).toBe('ss_lang')
-    expect(kernstimulusLang.tss_doel).toBe(105)
+    expect(kernstimulusLang.tss_doel).toBe(185)
     expect(kernstimulusLang.tss_doel).toBeGreaterThan(kernstimulusKort.tss_doel)
   })
 

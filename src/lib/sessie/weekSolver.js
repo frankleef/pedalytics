@@ -367,42 +367,57 @@ function bepaalArchetypeHint(archetypesData, sessietype, fase, weekInFase, seizo
   return kiesZwaarsteArchetype(archetypes)?.id ?? null;
 }
 
-// Referentiepunten voor de duur→TSS-interpolatie in schatTssDoel: onder
-// DUUR_MIN_REF wordt het laagste TSS-bereik van het sessietype aangehouden,
-// boven DUUR_MAX_REF het hoogste; daartussen lineair. Welk specifiek archetype
-// straks daadwerkelijk gegenereerd wordt (variatie, duurfilter) is een aparte,
-// al bestaande beslissing in genereren.js/selecteerArchetype — dit bepaalt
-// uitsluitend het TSS-dagbudget waarbinnen die generatie moet passen.
-const DUUR_MIN_REF = 45;
-const DUUR_MAX_REF = 150;
+// TSS = IF² × uren × 100 (zelfde formule als corrigeerSessieTss in
+// tssValidatie.js). IF_MIDDEN is een representatief intensiteitsniveau per
+// sessietype (midden van een realistisch bereik voor die stimulus — zie
+// IF_BEREIK in tssValidatie.js voor het precedent). MAX_EFFECTIEVE_UREN is de
+// duur waarboven méér beschikbare tijd niet meer tot een hoger dagbudget
+// leidt: voor duurgerichte/tempo-achtige stimuli (z2, sweetspot, drempel)
+// schaalt de trainingsdosis mee met beschikbare tijd tot een fysiologisch
+// redelijk maximum; voor hoge-intensiteit, interval-gebaseerde stimuli
+// (vo2max, sprint, z6) is de dosis inherent tijdgebonden — je verdraagt niet
+// "meer" VO2max-werk simpelweg omdat er meer tijd is (bevestigd door eerdere
+// analyse: alle vo2max-archetypes clusteren rond 30-45 min kernwerk,
+// ongeacht welk archetype gekozen wordt).
+const SESSIETYPE_IF_MIDDEN = {
+  z2_duur: 0.72,
+  sweetspot_intervallen: 0.86,
+  kracht_lage_cadans: 0.79,
+  drempel_intervallen: 0.915,
+  vo2max_intervallen: 0.95,
+  sprint_neuraal: 0.625,
+  z6_anaeroob: 0.55,
+  gemengd: 0.80,
+};
+const SESSIETYPE_MAX_EFFECTIEVE_UREN = {
+  z2_duur: 4,
+  sweetspot_intervallen: 2.5,
+  kracht_lage_cadans: 1.5,
+  drempel_intervallen: 2,
+  vo2max_intervallen: 1,
+  sprint_neuraal: 1,
+  z6_anaeroob: 0.75,
+  gemengd: 2,
+};
 
 /**
- * Schat het TSS-dagbudget voor een sessietype/fase/week, geïnterpoleerd tussen
- * het laagste en hoogste tss_range dat voor dit sessietype/fase/week bekend is
- * (over ALLE archetypes, niet één gekozen archetype — welk archetype
- * uiteindelijk gegenereerd wordt is een losse beslissing, zie bouwToewijzing),
- * op basis van de daadwerkelijk beschikbare tijd. Bij weinig tijd (<=
- * DUUR_MIN_REF) het laagste bereik, bij veel tijd (>= DUUR_MAX_REF) het
- * hoogste, daartussen lineair. Zonder beschikbareDuurMin: midden van het
- * volledige bereik (bestaand gedrag voor callers die geen duur kennen).
+ * Schat het TSS-dagbudget voor een sessietype, rechtstreeks op basis van
+ * beschikbare tijd × een representatief intensiteitsniveau (IF) voor dat
+ * sessietype — niet langer afgeleid van het tss_range van een specifiek
+ * archetype (die ranges zijn geijkt op kwaliteitsgerichte sessies van
+ * doorgaans 50-95 min, niet op 2+ uur, en vormden zo zelf een te laag
+ * plafond). Welk archetype straks daadwerkelijk gegenereerd wordt (variatie,
+ * duurfilter) is een aparte, al bestaande beslissing in
+ * genereren.js/selecteerArchetype — dit bepaalt uitsluitend het budget
+ * waarbinnen die generatie moet passen.
  * @param {number|null} [beschikbareDuurMin] - beschikbare tijd voor de dag in
- *   minuten; null = geen duurschaling, gebruik het midden van het bereik.
+ *   minuten; null = gebruik de helft van de maximale effectieve duur.
  */
-function schatTssDoel(archetypesData, sessietype, fase, weekInFase, seizoensdoel, gedegradeerd, weektype, beschikbareDuurMin = null) {
-  const archetypes = getArchetypesVoorSessietype(archetypesData?.[sessietype] ?? [], fase, weekInFase, seizoensdoel, null, weektype);
-  let basis;
-  if (!archetypes.length) {
-    basis = 70;
-  } else {
-    const minTss = Math.min(...archetypes.map((a) => a.tss_range[0]));
-    const maxTss = Math.max(...archetypes.map((a) => a.tss_range[1]));
-    if (beschikbareDuurMin == null) {
-      basis = Math.round((minTss + maxTss) / 2);
-    } else {
-      const fractie = Math.min(1, Math.max(0, (beschikbareDuurMin - DUUR_MIN_REF) / (DUUR_MAX_REF - DUUR_MIN_REF)));
-      basis = Math.round(minTss + fractie * (maxTss - minTss));
-    }
-  }
+export function schatTssDoel(archetypesData, sessietype, fase, weekInFase, seizoensdoel, gedegradeerd, weektype, beschikbareDuurMin = null) {
+  const ifMidden = SESSIETYPE_IF_MIDDEN[sessietype] ?? 0.70;
+  const maxUren = SESSIETYPE_MAX_EFFECTIEVE_UREN[sessietype] ?? 2;
+  const uren = beschikbareDuurMin != null ? Math.min(beschikbareDuurMin / 60, maxUren) : maxUren / 2;
+  const basis = Math.round(ifMidden * ifMidden * uren * 100);
   return gedegradeerd ? Math.round(basis * 0.85) : basis;
 }
 
