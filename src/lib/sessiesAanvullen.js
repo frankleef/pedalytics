@@ -64,32 +64,6 @@ export function bouwRampTestSessie(datum, dagNaam) {
 }
 
 
-const Z1_TOEGESTANE_SESSIETYPES = new Set([
-  'sprint_neuraal',
-  'z6_anaeroob',
-  'kracht_lage_cadans',
-]);
-
-const Z1_TOEGESTANE_GEMENGD_ARCHETYPES = new Set([
-  'alles_mag', 'raketstart', 'klim_simulator',
-]);
-
-function valideerZ1Gebruik(blokken, sessietype, archetypeId = null) {
-  if (Z1_TOEGESTANE_SESSIETYPES.has(sessietype)) return true;
-  if (sessietype === 'gemengd' && archetypeId && Z1_TOEGESTANE_GEMENGD_ARCHETYPES.has(archetypeId)) return true;
-  const overtredend = (blokken || []).find(b => b.zone === 'Z1');
-  if (overtredend) {
-    console.error(
-      `[sessiesAanvullen] Z1-blok gedetecteerd in sessietype "${sessietype}" — niet toegestaan.`,
-      overtredend
-    );
-    return false;
-  }
-  return true;
-}
-
-const VRIJHEID_FASEN = new Set(['sweetspot', 'drempel', 'vo2max']);
-
 export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tempoAfsluiters = [], verlengingen = [] } = {}) {
   const kv = getKV();
   const planKey = `${userId}:seizoensplan`;
@@ -530,17 +504,8 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         sessie.volumecorrectie = { aanleiding: "tempo_afsluiter", beschikbareDagen: beschikbareDagenAantal, weekNr: aankomendeWeekNr };
       }
 
-      // Z1-validatie (STAP 5) — vermogensbereik is al toegepast binnen genereerSessieDag
-      {
-        const sessietype = sessie.intentie?.sessietype || sessie.sessietype || sessie.type;
-        if (!valideerZ1Gebruik(sessie.segmenten, sessietype, sessie.archetype_id ?? null)) {
-          logEvent("z1_validatie_fout", userId, {
-            sessietype, archetype_id: sessie.archetype_id ?? null,
-            blok: (sessie.segmenten || []).find(b => b.zone === "Z1") ?? null,
-          });
-          throw new Error(`Z1-validatie mislukt voor sessietype ${sessietype} op ${datum}`);
-        }
-      }
+      // Z1-validatie gebeurt nu centraal binnen genereerSessieDag() zelf (zie
+      // genereren.js) — elke aanroeper krijgt 'm daar al, geen losse kopie meer nodig.
 
       try {
         const zwo = sessieNaarZwo(sessie, profiel.ftp || 265);

@@ -2,7 +2,11 @@ import { rondSessieAf } from "./duurAfronding";
 
 // TSS = IF² × uren × 100
 // Per sessietype een verwacht IF-bereik; als de Claude-TSS daarbuiten valt, corrigeren.
-const IF_BEREIK = {
+// Geëxporteerd zodat weekSolver.js's SESSIETYPE_IF_MIDDEN (pre-generatie
+// budgetschatting) hier het IF-midden van kan afleiden voor de sessietypes die
+// in beide voorkomen, i.p.v. een los onderhouden, potentieel uit de pas lopend
+// kopie van dezelfde getallen.
+export const IF_BEREIK = {
   herstel:        { min: 0.45, max: 0.55 },
   duur_lang:      { min: 0.65, max: 0.75 },
   duur_variabel:  { min: 0.68, max: 0.80 },
@@ -62,23 +66,40 @@ const DAGBUDGET_OVERSCHRIJDING_DREMPEL = 1.15;
  * check-in-modulatie), gevolgd door de gebruikelijke afronding op hele
  * minuten/5-minutengrid.
  */
-export function corrigeerSessieTssTovDagbudget(sessie) {
-  const doelTss = sessie?.intentie?.tss_doel;
-  if (!doelTss || !sessie?.tss || !sessie.segmenten?.length) return;
-  if (sessie.tss <= doelTss * DAGBUDGET_OVERSCHRIJDING_DREMPEL) return;
-
-  const factor = doelTss / sessie.tss;
-  const geschaaldeSegmenten = sessie.segmenten.map((seg) => ({
+/**
+ * Schaalt alle segmenten van een sessie proportioneel met `factor` (op
+ * blokDuurSeconden, de daadwerkelijk gebruikte eenheid), rondt af op hele
+ * minuten/5-minutengrid en schaalt de TSS naar rato mee. Pure functie, muteert
+ * `sessie` niet. Gedeelde bron voor elke plek die een al-gegenereerde sessie
+ * proportioneel wil verkorten/verlengen (dagbudget-clamp hieronder,
+ * check-in-modulatie in checkinAanpassing.js) i.p.v. deze schaal-en-afrondstap
+ * telkens opnieuw te implementeren.
+ *
+ * @param {object} sessie - met .segmenten en .tss
+ * @param {number} factor
+ * @returns {{segmenten: Array, duur_min: number, tss: number}}
+ */
+export function schaalSessieMetFactor(sessie, factor) {
+  const geschaaldeSegmenten = (sessie.segmenten || []).map((seg) => ({
     ...seg,
     blokDuurSeconden: seg.blokDuurSeconden != null
       ? Math.max(1, Math.round(seg.blokDuurSeconden * factor))
       : seg.blokDuurSeconden,
   }));
   const { segmenten, duur_min } = rondSessieAf(geschaaldeSegmenten);
+  return { segmenten, duur_min, tss: Math.round((sessie.tss || 0) * factor) };
+}
 
+export function corrigeerSessieTssTovDagbudget(sessie) {
+  const doelTss = sessie?.intentie?.tss_doel;
+  if (!doelTss || !sessie?.tss || !sessie.segmenten?.length) return;
+  if (sessie.tss <= doelTss * DAGBUDGET_OVERSCHRIJDING_DREMPEL) return;
+
+  const factor = doelTss / sessie.tss;
   const tssVoor = sessie.tss;
+  const { segmenten, duur_min, tss } = schaalSessieMetFactor(sessie, factor);
   sessie.segmenten = segmenten;
   sessie.duur_min = duur_min;
-  sessie.tss = Math.round(sessie.tss * factor);
+  sessie.tss = tss;
   console.log(`[TSS-dagbudget-correctie] ${sessie.type} ${tssVoor}→${sessie.tss} (dagbudget ${doelTss}, was ${Math.round((tssVoor / doelTss) * 100)}% van doel)`);
 }

@@ -3,8 +3,10 @@ import { getKV } from "@/lib/kv";
 import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet } from "@/lib/intervals";
 import { genereerSessieDag, logSessieGegenereerd } from "@/lib/sessie/genereren";
-import { kaderWeekVoorDatum, weekInFaseVoorKaderWeek } from "@/lib/weekgrenzen";
-import { DAGNAMEN } from "@/lib/datum";
+import { kaderWeekVoorDatum, weekInFaseVoorKaderWeek, getMaandagVanWeek } from "@/lib/weekgrenzen";
+import { DAGNAMEN, datumISO } from "@/lib/datum";
+import { bepaalAlGeleverd, haalWellnessVoorDatum } from "@/lib/sessie/context";
+import { migreesSessietype } from "@/lib/sessie-archetypes";
 
 export const maxDuration = 300;
 
@@ -29,9 +31,10 @@ export async function POST(request) {
     maandag.setDate(dag.getDate() + dagenTotMaandag);
     const grensdatum = maandag.toISOString().slice(0, 10);
 
+    const creds = await getIntervalsCredentials(userId).catch(() => null);
+
     let profiel;
     try {
-      const creds = await getIntervalsCredentials(userId);
       const athlete = creds ? await intervalsGet("/", {}, creds) : null;
       const rideSport = (athlete?.sportSettings || []).find(s => s.types?.includes("Ride")) || {};
       profiel = {
@@ -52,6 +55,7 @@ export async function POST(request) {
 
     const sessies = plan.weekSessies.sessies;
     let bijgewerkt = false;
+    const alGeleverdPerWeek = {};
 
     for (const sessie of sessies) {
       if (!sessie.datum || sessie.datum < grensdatum) continue;
@@ -59,6 +63,20 @@ export async function POST(request) {
       if (!sessie.intentie) continue;
 
       try {
+        // Zelfde migratie als admin/regenereer-toekomstige-sessies: een
+        // verouderd/legacy sessietype in de opgeslagen intentie mag hier niet
+        // stilzwijgend naar genereerSessieDag() doorlekken (crasht anders op
+        // "geen archetypes beschikbaar").
+        const oorspronkelijkSessietype = sessie.intentie?.sessietype;
+        const gemigreerdSessietype = migreesSessietype(oorspronkelijkSessietype);
+        if (!gemigreerdSessietype && oorspronkelijkSessietype) {
+          allResults.push({ userId, datum: sessie.datum, status: "overgeslagen", reden: `onbekend sessietype: ${oorspronkelijkSessietype}` });
+          continue;
+        }
+        if (gemigreerdSessietype !== oorspronkelijkSessietype) {
+          sessie.intentie.sessietype = gemigreerdSessietype;
+        }
+
         const dagNaam = DAGNAMEN[new Date(sessie.datum).getDay()];
         const uren = plan.urenPerDag?.[dagNaam] || 1.5;
         const overigeSessies = sessies.filter(s => s.datum !== sessie.datum && !s.voltooid);
@@ -66,13 +84,27 @@ export async function POST(request) {
         const huidigeFase = kaderWeek?.fase ?? "basis";
         const weekInFase = weekInFaseVoorKaderWeek(kaderWeek, plan.kader);
 
+        const wellnessVoorDezeDag = creds ? await haalWellnessVoorDatum(userId, sessie.datum, creds) : null;
+        // datumISO() (lokale datumcomponenten), niet .toISOString() (UTC) —
+        // anders schuift de maandag-datum een dag op buiten een UTC-runtime.
+        const weekStart = datumISO(getMaandagVanWeek(sessie.datum));
+        if (!(weekStart in alGeleverdPerWeek)) {
+          alGeleverdPerWeek[weekStart] = creds ? await bepaalAlGeleverd(userId, weekStart) : { tss: 0 };
+        }
+
         const result = await genereerSessieDag({
           kv, userId, datum: sessie.datum, dagNaam, uren,
-          profiel, wellness: null, plan, overigeSessies,
+          profiel, wellness: wellnessVoorDezeDag, plan, overigeSessies,
           oudeSessie: sessie, aanleiding: "methode_herberekening",
           huidigeFase, weekInFase, weektype: kaderWeek?.weektype || 'opbouw', hrvProfiel, piekSprint,
+          weekTssDoel: kaderWeek?.tss_doel ?? null, alGeleverdTss: alGeleverdPerWeek[weekStart].tss,
           alleSessiesVoorKrachtCheck: sessies,
         });
+
+        if (result?._geenSessie) {
+          allResults.push({ userId, datum: sessie.datum, status: "overgeslagen", reden: result.reden });
+          continue;
+        }
 
         if (sessie.intervalsEventId) result.intervalsEventId = sessie.intervalsEventId;
         logSessieGegenereerd(result, { userId, huidigeFase, weekInFase });

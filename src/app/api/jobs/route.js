@@ -1,18 +1,13 @@
 import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { getSessionUser } from "@/lib/auth";
-import { bouwWeekSessiesPrompt } from "@/lib/promptBuilder";
-import { valideerSeizoensPlan } from "@/lib/seizoen/valideer";
-import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
-import { voegVerwachtRpeToe } from "@/lib/sessie/rpe";
-import { claudeCall } from "@/lib/claude";
-import { berekenBlok, bouwZonesUitProfiel } from "@/lib/vermogensbereik";
-import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
 import { genereerSessieDag, logSessieGegenereerd } from "@/lib/sessie/genereren";
+import { genereerWeekSessiesDeterministisch } from "@/lib/sessie/weekSessiesDeterministisch";
 import { kaderWeekVoorDatum, weekInFaseVoorKaderWeek, getMaandagVanWeek } from "@/lib/weekgrenzen";
-import { bepaalAlGeleverd } from "@/lib/sessie/context";
+import { datumISO } from "@/lib/datum";
+import { bepaalAlGeleverd, haalWellnessVoorDatum } from "@/lib/sessie/context";
 import { getIntervalsCredentials } from "@/lib/users";
-import { intervalsGet, intervalsDelete } from "@/lib/intervals";
+import { intervalsDelete } from "@/lib/intervals";
 import { logEvent } from "@/lib/posthog";
 import { maakMelding } from "@/lib/meldingen";
 
@@ -83,7 +78,9 @@ export async function POST(request) {
       // kent dus normaal gesproken geen weekbudget — zonder deze check plant
       // genereerSessieDag() een volle sessie op basis van uren alleen, ook in
       // een hersteldweek met een allang overschreden weekbudget.
-      const weekStart = getMaandagVanWeek(params.datum).toISOString().slice(0, 10);
+      // datumISO() (lokale datumcomponenten), niet .toISOString() (UTC) —
+      // anders schuift de maandag-datum een dag op buiten een UTC-runtime.
+      const weekStart = datumISO(getMaandagVanWeek(params.datum));
       const alGeleverd = userId ? await bepaalAlGeleverd(userId, weekStart) : { tss: 0 };
 
       // Wellness/TSB specifiek voor de doeldatum ophalen i.p.v. de meegegeven
@@ -95,15 +92,8 @@ export async function POST(request) {
       // bv. morgen alsnog de TSB van vandaag, die kan afwijken.
       let wellnessVoorDatum = params.wellness;
       if (userId) {
-        try {
-          const creds = await getIntervalsCredentials(userId);
-          if (creds) {
-            const wData = await intervalsGet("/wellness", { oldest: params.datum, newest: params.datum }, creds);
-            if (wData?.length > 0) wellnessVoorDatum = wData[0];
-          }
-        } catch (e) {
-          console.warn(`[Job ${jobId}] wellness-ophalen voor ${params.datum} mislukt, val terug op meegegeven wellness:`, e.message);
-        }
+        const w = await haalWellnessVoorDatum(userId, params.datum);
+        if (w) wellnessVoorDatum = w;
       }
 
       result = await genereerSessieDag({
@@ -163,52 +153,28 @@ export async function POST(request) {
       return NextResponse.json({ success: true, jobId, status: "done", result });
     }
 
-    // 1. Prompt bouwen
-    let promptData;
     if (type === "weekSessies") {
-      promptData = bouwWeekSessiesPrompt(params);
-      if (!promptData) {
+      // Chunk 6.2: deterministisch (solveWeek()+genereerSessieDag() per dag),
+      // niet langer Claude-gestuurd — zie weekSessiesDeterministisch.js voor
+      // de volledige toelichting op het rolling-7-dagenvenster-contract.
+      const userId = params.userId || sessionUser?.id || "";
+      result = await genereerWeekSessiesDeterministisch({
+        kv, userId,
+        profiel: params.profiel, wellness: params.wellness,
+        seizoensplan: params.seizoensplan, weekSessies: params.weekSessies,
+        urenPerDag: params.urenPerDag, beschikbareDagen: params.beschikbareDagen,
+        voortgang: params.voortgang,
+      });
+      if (!result) {
         console.log(`[Job ${jobId}] Geen dagen te plannen — leeg resultaat`);
-        const emptyResult = { sessies: [], tss_totaal: 0 };
-        await opslaanGenJob(kv, jobId, { status: "done", type, result: emptyResult, userId: params?.userId ?? sessionUser?.id ?? null, createdAt: new Date(startedAt).toISOString(), durationMs: Date.now() - startedAt });
-        return NextResponse.json({ success: true, jobId, status: "done", result: emptyResult });
+        result = { sessies: [], tss_totaal: 0 };
+      } else {
+        console.log(`[Job ${jobId}] ${result.sessies.length} sessies gegenereerd, tss_totaal=${result.tss_totaal}`);
       }
     } else {
       throw new Error(`Onbekend job type: ${type}`);
     }
 
-    // 2. Claude aanroepen
-    console.log(`[Job ${jobId}] Claude aanroep...`);
-    const raw = await claudeCall(promptData);
-    console.log(`[Job ${jobId}] Claude response ontvangen`);
-
-    // 3. Resultaat verwerken
-    result = raw;
-    result.voltooideDatams = promptData.voltooideDatams;
-    (result.sessies || []).forEach(s => { normaliseerSessieSegmenten(s); voegVerwachtRpeToe(s); corrigeerSessieTss(s); });
-    console.log(`[Job ${jobId}] ${(result.sessies || []).length} sessies gegenereerd`);
-
-    // 4. Validatie
-    const planVoorValidatie = { kader: params.seizoensplan?.kader, weekSessies: { sessies: result.sessies } };
-    const { geldig, fouten } = valideerSeizoensPlan(planVoorValidatie);
-    if (!geldig) console.warn(`[Job ${jobId}] Validatiefouten:`, fouten);
-
-    // 5. Vermogensbereik
-    if (params.profiel?.power_zones && params.profiel?.ftp) {
-      try {
-        const zones = bouwZonesUitProfiel(params.profiel.ftp, params.profiel.power_zones);
-        const piekSprint = await kv.get(`piek_sprint_vermogen:${params.userId || ""}`) || Math.round(params.profiel.ftp * 1.8);
-        const verwerkSegmenten = (segs, sessietype) => (segs || []).map(seg => {
-          if (seg.zone) return berekenBlok(seg, zones, params.profiel.ftp, piekSprint, sessietype);
-          return seg;
-        });
-        if (result.sessies) {
-          result.sessies = result.sessies.map(s => ({ ...s, segmenten: verwerkSegmenten(s.segmenten, s.intentie?.sessietype || s.sessietype || s.type) }));
-        }
-      } catch (e) { console.warn(`[Job ${jobId}] Vermogensbereik mislukt:`, e.message); }
-    }
-
-    // 6. Opslaan in KV (voor backward compatibility met polling) + direct retourneren
     await opslaanGenJob(kv, jobId, { status: "done", type, result, userId: params?.userId ?? sessionUser?.id ?? null, createdAt: new Date(startedAt).toISOString(), durationMs: Date.now() - startedAt });
     console.log(`[Job ${jobId}] Voltooid`);
     return NextResponse.json({ success: true, jobId, status: "done", result });

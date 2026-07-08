@@ -290,3 +290,29 @@ export async function bepaalAlGeleverd(userId, weekStart) {
   };
 }
 
+/**
+ * Haalt wellness (ctl/atl/hrv/...) op voor een specifieke datum — nooit "vandaag"
+ * hergebruiken voor een andere dag, want intervals.icu geeft voor toekomstige
+ * datums een geprojecteerde CTL/ATL terug op basis van al geplande activiteiten
+ * (zie ook sessiesAanvullen.js's per-week-cache voor dezelfde reden). Gedeelde
+ * bron voor elke aanroeper van genereerSessieDag() die wellness/TSB-bewust wil
+ * zijn: /api/jobs (sessieDag), admin-herbereken-sessies, admin-regenereer-
+ * toekomstige-sessies.
+ *
+ * @param {string} userId
+ * @param {string} datum - ISO-datum
+ * @param {object|null} [creds] - al opgehaalde intervals.icu-credentials, anders zelf opgehaald
+ * @returns {Promise<object|null>}
+ */
+export async function haalWellnessVoorDatum(userId, datum, creds = null) {
+  try {
+    const c = creds || await getIntervalsCredentials(userId);
+    if (!c) return null;
+    const wData = await intervalsGet("/wellness", { oldest: datum, newest: datum }, c);
+    return wData?.length > 0 ? wData[0] : null;
+  } catch (e) {
+    console.warn(`[haalWellnessVoorDatum] wellness-ophalen mislukt voor ${userId} ${datum}:`, e.message);
+    return null;
+  }
+}
+

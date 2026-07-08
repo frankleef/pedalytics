@@ -2,20 +2,21 @@ import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet, intervalsPost, intervalsDelete } from "@/lib/intervals";
-import { vandaagISO } from "@/lib/datum";
+import { vandaagISO, datumISO } from "@/lib/datum";
 import { sessieNaarZwo } from "@/lib/workoutZwo";
-import { weeknummerVoorDatum, kaderWeekVoorDatum, weekInFaseVoorKaderWeek } from "@/lib/weekgrenzen";
+import { weeknummerVoorDatum, kaderWeekVoorDatum, weekInFaseVoorKaderWeek, getMaandagVanWeek } from "@/lib/weekgrenzen";
 import { genereerSessieDag, logSessieGegenereerd } from "@/lib/sessie/genereren";
-import { genereerRampTestSessie } from "@/lib/sessie/rampTest";
+import { bouwRampTestSessie } from "@/lib/sessiesAanvullen";
 import {
   migreerZ2VariabelNaarDuur,
   migreesSessietype,
 } from "@/lib/sessie-archetypes";
+import { bepaalVrijheidsdag } from "@/lib/vrijheidsdag";
+import { bepaalAlGeleverd, haalWellnessVoorDatum } from "@/lib/sessie/context";
 
 export const maxDuration = 300;
 
 const ADMIN_EMAIL = "fr.levering@gmail.com";
-const VRIJHEID_FASEN = new Set(['sweetspot', 'drempel', 'vo2max']);
 
 export async function POST(request) {
   const authHeader = request.headers.get("authorization");
@@ -146,6 +147,7 @@ export async function POST(request) {
   }
 
   // 4b. Sequentieel regenereren
+  const alGeleverdPerWeek = {};
   for (const sessie of toekomstigeSessies) {
     const datum = sessie.datum;
     try {
@@ -172,36 +174,43 @@ export async function POST(request) {
       const weekInFase = weekInFaseVoorKaderWeek(kaderWeek, plan.kader);
       const dagIntentie = sessie.intentie || null;
 
-      const isVrijheidsdag = (
-        weekInFase === 3 &&
-        dagIntentie?.rol === 'tweede_intensiteit' &&
-        VRIJHEID_FASEN.has(huidigeFase)
-      );
+      const isVrijheidsdag = bepaalVrijheidsdag({
+        weekInFase, dagRol: dagIntentie?.rol, fase: huidigeFase,
+      });
       const effectiefSessietype = isVrijheidsdag ? 'gemengd' : (dagIntentie?.sessietype ?? null);
 
-      // Sectie 51-B/C: ramp_test heeft geen archetype/variantendata (bewust
-      // uitgesloten, zie TEST_SESSIETYPES) — genereerSessieDag zou hier
-      // hard falen. Vast protocol i.p.v. het deterministische archetype-pad.
-      const nieuweSessie = effectiefSessietype === 'ramp_test'
-        ? (() => {
-            const rampTest = genereerRampTestSessie();
-            return {
-              ...rampTest,
-              type: 'ramp_test',
-              titel: sessie.titel || 'Tussentijdse FTP-test (Ramp Test)',
-              duur_min: rampTest.duur_min_geschat,
-              intentie: { ...dagIntentie, rol: 'ftp_test', sessietype: 'ramp_test' },
-            };
-          })()
-        : await genereerSessieDag({
-            kv, userId, datum, dagNaam: sessie.dag || 'Maandag',
-            uren: (sessie.duur_min || 90) / 60,
-            profiel, wellness: null, plan,
-            oudeSessie: sessie, overigeSessies,
-            aanleiding: "beschikbaarheid_nieuw",
-            effectiefSessietype, huidigeFase, weekInFase, weektype: kaderWeek?.weektype || 'opbouw',
-            hrvProfiel, piekSprint,
-          });
+      let nieuweSessie;
+      if (effectiefSessietype === 'ramp_test') {
+        // Sectie 51-B/C: ramp_test heeft geen archetype/variantendata (bewust
+        // uitgesloten, zie TEST_SESSIETYPES) — genereerSessieDag zou hier
+        // hard falen. Vast protocol i.p.v. het deterministische archetype-pad.
+        nieuweSessie = bouwRampTestSessie(datum, sessie.dag || 'Maandag');
+      } else {
+        const wellnessVoorDezeDag = creds ? await haalWellnessVoorDatum(userId, datum, creds) : null;
+        // datumISO() (lokale datumcomponenten), niet .toISOString() (UTC) —
+        // anders schuift de maandag-datum een dag op buiten een UTC-runtime.
+        const weekStart = datumISO(getMaandagVanWeek(datum));
+        if (!(weekStart in alGeleverdPerWeek)) {
+          alGeleverdPerWeek[weekStart] = creds ? await bepaalAlGeleverd(userId, weekStart) : { tss: 0 };
+        }
+
+        const result = await genereerSessieDag({
+          kv, userId, datum, dagNaam: sessie.dag || 'Maandag',
+          uren: (sessie.duur_min || 90) / 60,
+          profiel, wellness: wellnessVoorDezeDag, plan,
+          oudeSessie: sessie, overigeSessies,
+          aanleiding: "beschikbaarheid_nieuw",
+          effectiefSessietype, huidigeFase, weekInFase, weektype: kaderWeek?.weektype || 'opbouw',
+          hrvProfiel, piekSprint,
+          weekTssDoel: kaderWeek?.tss_doel ?? null, alGeleverdTss: alGeleverdPerWeek[weekStart].tss,
+        });
+
+        if (result?._geenSessie) {
+          resultaten.push({ datum, status: 'overgeslagen', reden: result.reden });
+          continue;
+        }
+        nieuweSessie = result;
+      }
 
       // Safety net: behoud heeft_sprint_staartjes als de originele sessie die had
       if (sessie.intentie?.heeft_sprint_staartjes && nieuweSessie.intentie) {

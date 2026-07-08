@@ -404,6 +404,14 @@ export const SESSIETYPE_MIGRATIE = {
   'vo2max_lang':        'vo2max_intervallen',
   'vo2max_kort':        'vo2max_intervallen',
   'progressief':        'z2_duur',
+  // Deze drie zijn archetype-ids (zie sessie-archetypes.js/sessie-varianten.js:
+  // 'z2_heuvel'/'z2_tempo_teugjes' onder z2_duur, 'vo2_microbursts' onder
+  // vo2max_intervallen) — promptBuilder.js staat Claude echter toe ze als
+  // `intentie.sessietype` te retourneren, wat zonder deze mapping leidt tot
+  // "geen archetypes beschikbaar" bij latere regeneratie.
+  'z2_heuvel':          'z2_duur',
+  'z2_tempo_teugjes':   'z2_duur',
+  'microbursts':        'vo2max_intervallen',
 };
 
 /**

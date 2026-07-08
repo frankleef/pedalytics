@@ -22,6 +22,8 @@ import {
   getRecenteArchetypes,
   selecteerArchetype,
   slaArchetypeOp,
+  migreesSessietype,
+  valideerZ1Gebruik,
 } from "../sessie-archetypes";
 import { schatTssDoel, degradeerBijLageTsb } from "./weekSolver";
 import { maakMelding } from "../meldingen";
@@ -77,13 +79,26 @@ export async function genereerSessieDag(ctx) {
   } = ctx;
 
   const dagIntentie = oudeSessie?.intentie || null;
-  const effectiefSessietype = ctx.effectiefSessietype !== undefined
+  const effectiefSessietypeRuw = ctx.effectiefSessietype !== undefined
     ? ctx.effectiefSessietype
     : (dagIntentie?.sessietype ?? null);
 
-  if (!effectiefSessietype) {
+  if (!effectiefSessietypeRuw) {
     throw new Error(
       `genereerSessieDag: geen sessietype bekend voor ${datum} — effectiefSessietype/oudeSessie.intentie.sessietype ontbreekt. Dit moet vooraf deterministisch bepaald zijn (bv. via solveWeek()); genereerSessieDag beslist dit zelf niet (geen Claude-fallback meer).`
+    );
+  }
+
+  // Migratie van verouderde/legacy sessietype-namen (bv. nog aanwezig in een
+  // opgeslagen dagIntentie van vóór een archetype-hernoeming, of afkomstig van
+  // de Claude-gestuurde weekSessies-job die een bredere vocabulaire toestaat)
+  // gebeurt hier centraal — niet langer de verantwoordelijkheid van elke
+  // aanroeper afzonderlijk (voorheen inconsistent toegepast: alleen de
+  // admin-regeneratieroutes deden dit, sessiesAanvullen.js en /api/jobs niet).
+  const effectiefSessietype = migreesSessietype(effectiefSessietypeRuw);
+  if (!effectiefSessietype) {
+    throw new Error(
+      `genereerSessieDag: onbekend sessietype "${effectiefSessietypeRuw}" voor ${datum} — niet in GELDIGE_SESSIETYPES en geen SESSIETYPE_MIGRATIE-entry.`
     );
   }
 
@@ -211,6 +226,22 @@ export async function genereerSessieDag(ctx) {
   // dag berekende — bv. een archetype met een op zich normale TSS-range dat
   // in een herstelweek toch ver boven zijn dagbudget uitkomt.
   corrigeerSessieTssTovDagbudget(sessie);
+
+  // Z1-validatie: was voorheen alleen een losse, na-de-feit-check in
+  // sessiesAanvullen.js (en dus afwezig voor /api/jobs sessieDag en de
+  // admin-regeneratieroutes) — hier centraal zodat élke aanroeper van
+  // genereerSessieDag() dezelfde garantie krijgt. Een geschonden Z1-restrictie
+  // wijst op een content-fout in de archetype-data zelf (zie
+  // Z1_TOEGESTANE_SESSIETYPES in sessie-archetypes.js), niet op iets dat
+  // runtime gecorrigeerd kan worden — vandaar hard falen i.p.v. auto-fixen.
+  if (!valideerZ1Gebruik(sessie.segmenten, sessie.intentie?.sessietype ?? sessie.type, sessie.archetype_id ?? null)) {
+    logEvent("z1_validatie_fout", userId, {
+      sessietype: sessie.intentie?.sessietype ?? sessie.type,
+      archetype_id: sessie.archetype_id ?? null,
+      blok: (sessie.segmenten || []).find(b => b.zone === "Z1") ?? null,
+    });
+    throw new Error(`genereerSessieDag: Z1-validatie mislukt voor sessietype ${sessie.intentie?.sessietype ?? sessie.type} op ${datum}`);
+  }
 
   if (uren) {
     capSessieDuur(sessie, rondDuurMinAf(uren * 60), `genereerSessieDag ${datum}`, userId);

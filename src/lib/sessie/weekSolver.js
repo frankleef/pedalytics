@@ -7,6 +7,7 @@
 import { vindArchetypeMetVarianten, bepaalDoelGewicht } from "../sessie-generatie";
 import { getArchetypesVoorSessietype } from "../sessie-archetypes";
 import { bepaalVrijheidsdag } from "../vrijheidsdag";
+import { IF_BEREIK } from "./tssValidatie";
 
 // Zelfde TSB-drempel als bepaalDoelGewicht() in sessie-generatie.js (gewicht 1
 // als tsb < TSB_DEGRADATIE_DREMPEL) — één bron van waarheid voor "wanneer is
@@ -369,25 +370,41 @@ function bepaalArchetypeHint(archetypesData, sessietype, fase, weekInFase, seizo
 
 // TSS = IF² × uren × 100 (zelfde formule als corrigeerSessieTss in
 // tssValidatie.js). IF_MIDDEN is een representatief intensiteitsniveau per
-// sessietype (midden van een realistisch bereik voor die stimulus — zie
-// IF_BEREIK in tssValidatie.js voor het precedent). MAX_EFFECTIEVE_UREN is de
-// duur waarboven méér beschikbare tijd niet meer tot een hoger dagbudget
-// leidt: voor duurgerichte/tempo-achtige stimuli (z2, sweetspot, drempel)
-// schaalt de trainingsdosis mee met beschikbare tijd tot een fysiologisch
-// redelijk maximum; voor hoge-intensiteit, interval-gebaseerde stimuli
-// (vo2max, sprint, z6) is de dosis inherent tijdgebonden — je verdraagt niet
-// "meer" VO2max-werk simpelweg omdat er meer tijd is (bevestigd door eerdere
-// analyse: alle vo2max-archetypes clusteren rond 30-45 min kernwerk,
-// ongeacht welk archetype gekozen wordt).
+// sessietype (midden van een realistisch bereik voor die stimulus).
+// MAX_EFFECTIEVE_UREN is de duur waarboven méér beschikbare tijd niet meer tot
+// een hoger dagbudget leidt: voor duurgerichte/tempo-achtige stimuli (z2,
+// sweetspot, drempel) schaalt de trainingsdosis mee met beschikbare tijd tot
+// een fysiologisch redelijk maximum; voor hoge-intensiteit, interval-
+// gebaseerde stimuli (vo2max, sprint, z6) is de dosis inherent tijdgebonden —
+// je verdraagt niet "meer" VO2max-werk simpelweg omdat er meer tijd is
+// (bevestigd door eerdere analyse: alle vo2max-archetypes clusteren rond
+// 30-45 min kernwerk, ongeacht welk archetype gekozen wordt).
+//
+// Voor de sessietypes die ook een IF_BEREIK-entry hebben in tssValidatie.js
+// (post-generatie TSS-clamp) wordt het midden hiervandaan afgeleid i.p.v. los
+// gekopieerd — anders kunnen de twee tabellen stilzwijgend uit elkaar lopen.
+// z2_duur/z6_anaeroob/gemengd hebben geen (overeenkomende) IF_BEREIK-entry
+// (z2_duur's IF_BEREIK-tegenhanger "duur_variabel" ligt bewust hoger, 0.74,
+// omdat dat bereik ook lange ritten met tempo-teugjes dekt) en blijven dus
+// eigen, expliciete waarden.
+const SESSIETYPE_NAAR_IF_BEREIK_KEY = {
+  sweetspot_intervallen: "sweetspot",
+  drempel_intervallen: "drempel",
+  vo2max_intervallen: "vo2max",
+  kracht_lage_cadans: "kracht_lage_cadans",
+  sprint_neuraal: "sprint_neuraal",
+};
+function ifMiddenVanBereik(key) {
+  const bereik = IF_BEREIK[key];
+  return (bereik.min + bereik.max) / 2;
+}
 const SESSIETYPE_IF_MIDDEN = {
   z2_duur: 0.72,
-  sweetspot_intervallen: 0.86,
-  kracht_lage_cadans: 0.79,
-  drempel_intervallen: 0.915,
-  vo2max_intervallen: 0.95,
-  sprint_neuraal: 0.625,
   z6_anaeroob: 0.55,
   gemengd: 0.80,
+  ...Object.fromEntries(
+    Object.entries(SESSIETYPE_NAAR_IF_BEREIK_KEY).map(([sessietype, key]) => [sessietype, ifMiddenVanBereik(key)])
+  ),
 };
 const SESSIETYPE_MAX_EFFECTIEVE_UREN = {
   z2_duur: 4,

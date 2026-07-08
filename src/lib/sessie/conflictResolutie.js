@@ -16,7 +16,12 @@ import { vindArchetypeMetVarianten, genereerSessieDeterministisch } from "../ses
 import { pasBudgetToe } from "./weekSolver";
 import { rondSessieAf } from "./duurAfronding";
 
-const ZWARE_TYPES = ["sweetspot", "interval", "drempel", "vo2max"];
+// Zelfde intensiteitsclassificatie als context.js' ZWAAR_TYPES en de
+// adjacency-/frequentiegevoelige types in weekSolver.js — sprint_neuraal en
+// kracht_lage_cadans behouden hun eigen naam als sessie.type (zie
+// LEGACY_TYPE_MAP in sessie-generatie.js) en moeten dus expliciet genoemd
+// worden, anders mist deze 48u-/budgetscanner ze.
+const ZWARE_TYPES = ["sweetspot", "interval", "drempel", "vo2max", "sprint_neuraal", "kracht_lage_cadans"];
 const Z2_ACHTIGE_SESSIETYPES = new Set(["z2_duur", "kracht_lage_cadans"]);
 const BUDGET_OVERSCHRIJDING_DREMPEL = 1.15;
 

@@ -5,7 +5,7 @@ import { getKV } from "../kv";
 import { getIntervalsCredentials } from "../users";
 import { intervalsGet, intervalsPut } from "../intervals";
 import { vandaagISO } from "../datum";
-import { rondSessieAf } from "./duurAfronding";
+import { schaalSessieMetFactor } from "./tssValidatie";
 import { maakMelding } from "../meldingen";
 
 const TSB_MIN = -30;
@@ -168,22 +168,13 @@ export async function checkInSessieAanpassing(userId, checkInScore) {
     ? { duurAanpassing: "+10-15%", zonePositie: "bovenkant", label: "iets langer" }
     : { duurAanpassing: "-10-15%", zonePositie: "onderkant", label: "iets korter" };
 
-  // Pas sessie aan met modulatie (zonder AI-aanroep voor snelheid)
+  // Pas sessie aan met modulatie (zonder AI-aanroep voor snelheid) — zelfde
+  // schaal-en-afrondmechanisme als corrigeerSessieTssTovDagbudget()
+  // (tssValidatie.js), alleen met een balansscore-gestuurde factor i.p.v. een
+  // dagbudget-gestuurde.
   const sessieVoorCheckin = sessie.sessie_voor_checkin || { ...sessie };
   const duurFactor = status === "good" ? 1.12 : 0.88;
-  const nieuweTss = Math.round((sessie.tss || 60) * duurFactor);
-
-  // Segmenten schalen op blokDuurSeconden (de daadwerkelijk gebruikte
-  // eenheid — sessie.segmenten heeft normaal geen duur_min-veld) en
-  // vervolgens afronden op hele minuten/5-minutengrid, zodat de gerapporteerde
-  // duur_min altijd overeenkomt met de som van de blokken.
-  const geschaaldeSegmenten = (sessie.segmenten || []).map((seg) => ({
-    ...seg,
-    blokDuurSeconden: seg.blokDuurSeconden != null
-      ? Math.max(1, Math.round(seg.blokDuurSeconden * duurFactor))
-      : seg.blokDuurSeconden,
-  }));
-  const { segmenten: nieuweSegmenten, duur_min: nieuweDuur } = rondSessieAf(geschaaldeSegmenten);
+  const { segmenten: nieuweSegmenten, duur_min: nieuweDuur, tss: nieuweTss } = schaalSessieMetFactor(sessie, duurFactor);
 
   const bijgewerkeSessie = {
     ...sessie,
