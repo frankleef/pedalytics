@@ -41,8 +41,6 @@ export function bouwKader(doelConfig) {
 
     if (wk.weektype === "herstel") {
       tss_doel = Math.round(piekTss * taperPct);
-      vorigOpbouwTss = baseTss;
-      piekTss = baseTss;
     } else if (wk.fase === "consolidatie") {
       tss_doel = Math.round(piekTss * 0.58);
     } else if (wk.fase === "test") {
