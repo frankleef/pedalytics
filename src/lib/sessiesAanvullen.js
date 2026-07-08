@@ -17,6 +17,7 @@ import { bepaalAlGeleverd } from "@/lib/sessie/context";
 import { getAlleArchetypesRaw } from "@/lib/sessie-archetypes";
 import { genereerRampTestSessie } from "@/lib/sessie/rampTest";
 import { logEvent } from "@/lib/posthog";
+import { maakMelding } from "@/lib/meldingen";
 
 const VERBODEN_TYPES_VOLUMECORRECTIE = ["kracht_lage_cadans", "sprint_neuraal"];
 
@@ -251,6 +252,11 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
   }
 
   const toewijzingPerDatum = {};
+  // Hergebruikt in de per-dag-loop verderop, zodat genereerSessieDag() daar
+  // ook het resterende weekbudget kent — anders herberekent het zijn eigen
+  // dagbudget puur op basis van beschikbare uren, zonder te weten dat de
+  // week al (fors) over budget kan zijn.
+  const alGeleverdPerWeek = {};
   for (const [mISO, dagenDezeWeek] of Object.entries(ontbrekendPerWeek)) {
     // Wellness per week ophalen vóór de volumecorrectie-filter, zodat ook
     // weken die uitsluitend volumecorrectie-dagen bevatten (zie continue
@@ -310,6 +316,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
 
     try {
       const alGeleverd = await bepaalAlGeleverd(userId, mISO);
+      alGeleverdPerWeek[mISO] = alGeleverd;
       const tsbDezeWeek = tsbVanWellness(wellnessPerWeek[mISO]);
       const ruweToewijzingen = solveWeek({
         archetypesData,
@@ -395,6 +402,12 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         }
       }
 
+      // Weekbudget-clamp niet toepassen op volumecorrectie-dagen: die krijgen
+      // hun sessie bewust via een aparte, al budget-bewuste correctielogica
+      // (volumeCorrectie.js) — de generieke clamp hieronder is voor de
+      // reguliere weeksolver-toewijzing.
+      const alGeleverdVoorDag = isVolumeCorrectieDag ? null : (alGeleverdPerWeek[mISOVoorDag] ?? await bepaalAlGeleverd(userId, mISOVoorDag));
+
       // Sectie 51-B/C: ramp_test heeft geen archetype/variantendata (bewust
       // uitgesloten, zie TEST_SESSIETYPES) en gaat dus niet via genereerSessieDag
       // — vast protocol i.p.v. het deterministische archetype-pad.
@@ -407,8 +420,21 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
             effectiefSessietype: effectiefSessietypeOverride,
             aanleiding: isAerobeCompensatie ? "volumecorrectie_aerobe" : isTempoAfsluiter ? "volumecorrectie_tempo_afsluiter" : "beschikbaarheid_nieuw",
             huidigeFase, weekInFase, weektype: kaderWeekVoorDag?.weektype || 'opbouw', hrvProfiel, piekSprint,
+            weekTssDoel: isVolumeCorrectieDag ? null : (kaderWeekVoorDag?.tss_doel ?? null),
+            alGeleverdTss: alGeleverdVoorDag?.tss ?? null,
             alleSessiesVoorKrachtCheck: [...bestaandeSessies, ...aangevuld],
           });
+
+      if (sessie?._geenSessie) {
+        console.log(`[sessiesAanvullen] ${datum}: resterend weekbudget te klein — geen sessie aangemaakt`);
+        if (userId) {
+          maakMelding(userId, "overbelastingsgate_nieuwe_dag", {
+            datum, dagLabel: dagNaam,
+            tekst: `${dagNaam} is een rustdag gebleven: je hebt deze week al meer TSS geleverd dan het weekdoel toestaat, dus is er geen extra sessie ingepland.`,
+          }).catch((e) => console.warn(`[sessiesAanvullen] melding-aanmaak (weekbudget) mislukt voor ${datum}:`, e.message));
+        }
+        continue;
+      }
 
       if (isTempoAfsluiter) {
         const maxMinuten = Math.round(uren * 60);
