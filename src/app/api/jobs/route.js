@@ -11,6 +11,8 @@ import { corrigeerSessieTss } from "@/lib/sessie/tssValidatie";
 import { genereerSessieDag, logSessieGegenereerd } from "@/lib/sessie/genereren";
 import { kaderWeekVoorDatum, weekInFaseVoorKaderWeek, getMaandagVanWeek } from "@/lib/weekgrenzen";
 import { bepaalAlGeleverd } from "@/lib/sessie/context";
+import { getIntervalsCredentials } from "@/lib/users";
+import { intervalsGet } from "@/lib/intervals";
 import { logEvent } from "@/lib/posthog";
 
 export const maxDuration = 120;
@@ -76,10 +78,30 @@ export async function POST(request) {
       const weekStart = getMaandagVanWeek(params.datum).toISOString().slice(0, 10);
       const alGeleverd = userId ? await bepaalAlGeleverd(userId, weekStart) : { tss: 0 };
 
+      // Wellness/TSB specifiek voor de doeldatum ophalen i.p.v. de meegegeven
+      // (altijd "vandaag") params.wellness te vertrouwen — zelfde patroon en
+      // reden als "Bug 2 uit het diagnoserapport" in sessiesAanvullen.js:214-220
+      // (intervals.icu geeft een geprojecteerde CTL/ATL terug voor toekomstige
+      // datums op basis van al geplande activiteiten). Zonder dit gebruikt de
+      // TSB-gebaseerde afremlogica (degradeerBijLageTsb) bij het plannen van
+      // bv. morgen alsnog de TSB van vandaag, die kan afwijken.
+      let wellnessVoorDatum = params.wellness;
+      if (userId) {
+        try {
+          const creds = await getIntervalsCredentials(userId);
+          if (creds) {
+            const wData = await intervalsGet("/wellness", { oldest: params.datum, newest: params.datum }, creds);
+            if (wData?.length > 0) wellnessVoorDatum = wData[0];
+          }
+        } catch (e) {
+          console.warn(`[Job ${jobId}] wellness-ophalen voor ${params.datum} mislukt, val terug op meegegeven wellness:`, e.message);
+        }
+      }
+
       result = await genereerSessieDag({
         kv, userId,
         datum: params.datum, dagNaam: params.dagNaam, uren: params.uren,
-        profiel: params.profiel, wellness: params.wellness, plan: params.seizoensplan,
+        profiel: params.profiel, wellness: wellnessVoorDatum, plan: params.seizoensplan,
         oudeSessie: params.oudeSessie || null, overigeSessies: params.overigeSessies || [],
         dagelijkseData: params.dagelijkseData || [], voortgang: params.voortgang || null,
         aanleiding: params.aanleiding, huidigeFase, weekInFase, weektype: kaderWeek?.weektype || 'opbouw', hrvProfiel, piekSprint,
