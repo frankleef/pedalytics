@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { getSessionUser } from "@/lib/auth";
-import { DOELPROFIELEN, faseVoorWeek } from "@/lib/seizoen/doelprofielen";
+import { DOELPROFIELEN, faseInstellingen } from "@/lib/seizoen/doelprofielen";
 import { genereerSeizoensMetadata } from "@/lib/seizoen/metadata";
 import { maakMelding } from "@/lib/meldingen";
 
@@ -39,11 +39,15 @@ export async function POST(request) {
           : null;
         if (weekStart && weekStart <= vandaag) return week;
 
-        const faseInfo = faseVoorWeek(profiel, week.week);
+        const faseInfo = faseInstellingen(profiel, week.fase);
         if (!faseInfo) return week;
         return {
           ...week,
-          fase: faseInfo.naam,
+          // week.fase (de generieke slug: "basis"/"sweetspot"/.../"test") blijft
+          // ongewijzigd — de rest van de app (kaderWeekVoorDatum,
+          // weekInFaseVoorKaderWeek, sessiesAanvullen.js, UI-fase-labels)
+          // verwacht die generieke waarde, niet faseInfo.naam (het
+          // doel-specifieke UI-weergavelabel, bv. "Aerobe opbouw 1").
           sessietypes: faseInfo.sessietypes,
           z1z2_doel: faseInfo.z1z2_doel,
           max_intensiteit: faseInfo.max_intensiteit_per_week,

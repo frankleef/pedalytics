@@ -5,20 +5,20 @@ export const DOELPROFIELEN = {
     decoupling_drempel: 7,
     eindtest_type: "ramp_test",
     fases: [
-      { naam: "Basis", weken: [1,2,3], z1z2_doel: 0.90,
+      { naam: "Basis", slug: "basis", z1z2_doel: 0.90,
         max_intensiteit_per_week: 1,
         sessietypes: ["z2_duur","kracht_lage_cadans","z1_herstel"],
         kracht_lage_cadans_max_per_2_weken: 1 },
-      { naam: "Sweetspot", weken: [5,6,7], z1z2_doel: 0.80,
+      { naam: "Sweetspot", slug: "sweetspot", z1z2_doel: 0.80,
         max_intensiteit_per_week: 2,
         sessietypes: ["sweetspot_intervallen","z2_duur","z1_herstel"] },
-      { naam: "Drempel", weken: [9,10,11], z1z2_doel: 0.75,
+      { naam: "Drempel", slug: "drempel", z1z2_doel: 0.75,
         max_intensiteit_per_week: 2,
         sessietypes: ["drempel_intervallen","vo2max_intervallen","z2_duur","z1_herstel"] },
-      { naam: "Consolidatie", weken: [12], z1z2_doel: 0.80,
+      { naam: "Consolidatie", slug: "consolidatie", z1z2_doel: 0.80,
         max_intensiteit_per_week: 1,
         sessietypes: ["z2_duur","drempel_intervallen","z1_herstel"] },
-      { naam: "Test", weken: [13], z1z2_doel: 0.90,
+      { naam: "Test", slug: "test", z1z2_doel: 0.90,
         max_intensiteit_per_week: 0,
         sessietypes: ["z2_duur","ramp_test"] },
     ],
@@ -30,22 +30,22 @@ export const DOELPROFIELEN = {
     decoupling_drempel: 5,
     eindtest_type: "ramp_test",
     fases: [
-      { naam: "Aerobe opbouw 1", weken: [1,2,3], z1z2_doel: 0.95,
+      { naam: "Aerobe opbouw 1", slug: "basis", z1z2_doel: 0.95,
         max_intensiteit_per_week: 0,
         sessietypes: ["z2_duur","z1_herstel"],
         langste_sessie_verleng_min: 15 },
-      { naam: "Aerobe opbouw 2", weken: [5,6,7], z1z2_doel: 0.92,
+      { naam: "Aerobe opbouw 2", slug: "sweetspot", z1z2_doel: 0.92,
         max_intensiteit_per_week: 0,
         sessietypes: ["z2_duur","z1_herstel"],
         langste_sessie_verleng_min: 15 },
-      { naam: "Aerobe verdieping", weken: [9,10,11], z1z2_doel: 0.88,
+      { naam: "Aerobe verdieping", slug: "drempel", z1z2_doel: 0.88,
         max_intensiteit_per_week: 1,
         sessietypes: ["z2_duur","sweetspot_intervallen","z1_herstel"],
         sweetspot_max_per_2_weken: 1 },
-      { naam: "Consolidatie", weken: [12], z1z2_doel: 0.90,
+      { naam: "Consolidatie", slug: "consolidatie", z1z2_doel: 0.90,
         max_intensiteit_per_week: 0,
         sessietypes: ["z2_duur","z1_herstel"] },
-      { naam: "Test", weken: [13], z1z2_doel: 0.95,
+      { naam: "Test", slug: "test", z1z2_doel: 0.95,
         max_intensiteit_per_week: 0,
         sessietypes: ["z2_duur","ramp_test"] },
     ],
@@ -57,22 +57,32 @@ export const DOELPROFIELEN = {
     decoupling_drempel: 7,
     eindtest_type: "ramp_test",
     fases: [
-      { naam: "Basis", weken: [1,2,3], z1z2_doel: 0.90,
+      { naam: "Basis", slug: "basis", z1z2_doel: 0.90,
         max_intensiteit_per_week: 1,
         sessietypes: ["z2_duur","kracht_lage_cadans","z1_herstel"] },
-      { naam: "Sweetspot", weken: [5,6,7], z1z2_doel: 0.78,
+      { naam: "Sweetspot", slug: "sweetspot", z1z2_doel: 0.78,
         max_intensiteit_per_week: 2,
         sessietypes: ["sweetspot_intervallen","kracht_lage_cadans","z2_duur","z1_herstel"] },
-      { naam: "Drempel + VO2max", weken: [9,10], z1z2_doel: 0.73,
+      // Klimmen splitst het drempelblok inhoudelijk in twee sub-fases, maar
+      // bouwWeekvolgorde() kent op weekniveau maar één generiek "drempel"-label
+      // (geen sub-positie). Beide krijgen daarom bewust dezelfde slug — dat is
+      // geen regressie: faseInstellingen() gaf voorheen voor "Klimspecifiek"
+      // sowieso nooit een match, dus deze week viel altijd al terug op de
+      // generieke Z2-fallback. Nu valt hij tenminste op "Drempel + VO2max"s
+      // instellingen (find() pakt de eerste match) i.p.v. de fallback — een
+      // netto verbetering, niet een volledige oplossing. Een echte oplossing
+      // vereist dat bouwWeekvolgorde() zelf sub-labels binnen drempel gaat
+      // onderscheiden — buiten de scope van deze bugfix.
+      { naam: "Drempel + VO2max", slug: "drempel", z1z2_doel: 0.73,
         max_intensiteit_per_week: 2,
         sessietypes: ["drempel_intervallen","vo2max_intervallen","z2_duur","z1_herstel"] },
-      { naam: "Klimspecifiek", weken: [11], z1z2_doel: 0.70,
+      { naam: "Klimspecifiek", slug: "drempel", z1z2_doel: 0.70,
         max_intensiteit_per_week: 2,
         sessietypes: ["vo2max_intervallen","drempel_intervallen","z2_duur","z1_herstel"] },
-      { naam: "Consolidatie", weken: [12], z1z2_doel: 0.80,
+      { naam: "Consolidatie", slug: "consolidatie", z1z2_doel: 0.80,
         max_intensiteit_per_week: 1,
         sessietypes: ["z2_duur","sweetspot_intervallen","z1_herstel"] },
-      { naam: "Test", weken: [13], z1z2_doel: 0.90,
+      { naam: "Test", slug: "test", z1z2_doel: 0.90,
         max_intensiteit_per_week: 0,
         sessietypes: ["z2_duur","ramp_test"] },
     ],
@@ -85,22 +95,26 @@ export const DOELPROFIELEN = {
     eindtest_type: null,
     taper_tss_pct: 0.32,
     fases: [
-      { naam: "Volume opbouw", weken: [1,2,3], z1z2_doel: 0.92,
+      { naam: "Volume opbouw", slug: "basis", z1z2_doel: 0.92,
         max_intensiteit_per_week: 0,
         sessietypes: ["z2_duur","z1_herstel"],
         langste_sessie_is_sleutel: true },
-      { naam: "Volume + duur", weken: [5,6,7], z1z2_doel: 0.90,
+      { naam: "Volume + duur", slug: "sweetspot", z1z2_doel: 0.90,
         max_intensiteit_per_week: 0,
         sessietypes: ["z2_duur","z1_herstel"],
         langste_sessie_target_pct_event: 0.75 },
-      { naam: "Sweetspot hardening", weken: [9,10,11], z1z2_doel: 0.83,
+      { naam: "Sweetspot hardening", slug: "drempel", z1z2_doel: 0.83,
         max_intensiteit_per_week: 1,
         sessietypes: ["sweetspot_intervallen","z2_duur","z1_herstel"] },
-      { naam: "Consolidatie", weken: [12], z1z2_doel: 0.88,
+      { naam: "Consolidatie", slug: "consolidatie", z1z2_doel: 0.88,
         max_intensiteit_per_week: 0,
         sessietypes: ["z2_duur"],
         langste_sessie_target_pct_event: 1.0 },
-      { naam: "Taper", weken: [13], z1z2_doel: 0.95,
+      // Slug blijft "test" ondanks de afwijkende UI-naam "Taper" — dat is de
+      // generieke waarde die bouwWeekvolgorde() de laatste week altijd geeft,
+      // ongeacht doel (ook bij dit doel, dat zelf geen eindtest kent —
+      // eindtest_type: null hierboven).
+      { naam: "Taper", slug: "test", z1z2_doel: 0.95,
         max_intensiteit_per_week: 0,
         sessietypes: ["z2_duur","z1_herstel"] },
     ],
@@ -112,23 +126,23 @@ export const DOELPROFIELEN = {
     decoupling_drempel: 7,
     eindtest_type: "sprint_peak_test",
     fases: [
-      { naam: "Aerobe basis", weken: [1,2,3], z1z2_doel: 0.88,
+      { naam: "Aerobe basis", slug: "basis", z1z2_doel: 0.88,
         max_intensiteit_per_week: 1,
         sessietypes: ["z2_duur","sprint_neuraal","z1_herstel"],
         sprint_neuraal_max_per_week: 1,
         sprint_neuraal_reps: [4,6] },
-      { naam: "Sprintkracht", weken: [5,6,7], z1z2_doel: 0.82,
+      { naam: "Sprintkracht", slug: "sweetspot", z1z2_doel: 0.82,
         max_intensiteit_per_week: 2,
         sessietypes: ["sprint_neuraal","z2_duur","z1_herstel"],
         sprint_neuraal_max_per_week: 2,
         sprint_neuraal_reps: [6,8] },
-      { naam: "Sprint + drempel", weken: [9,10,11], z1z2_doel: 0.78,
+      { naam: "Sprint + drempel", slug: "drempel", z1z2_doel: 0.78,
         max_intensiteit_per_week: 2,
         sessietypes: ["sprint_neuraal","sweetspot_intervallen","z2_duur","z1_herstel"] },
-      { naam: "Specifiek", weken: [12], z1z2_doel: 0.80,
+      { naam: "Specifiek", slug: "consolidatie", z1z2_doel: 0.80,
         max_intensiteit_per_week: 2,
         sessietypes: ["z2_embedded_sprint","sprint_neuraal","z1_herstel"] },
-      { naam: "Test", weken: [13], z1z2_doel: 0.90,
+      { naam: "Test", slug: "test", z1z2_doel: 0.90,
         max_intensiteit_per_week: 1,
         sessietypes: ["sprint_neuraal","z1_herstel"] },
     ],
@@ -136,42 +150,26 @@ export const DOELPROFIELEN = {
 };
 
 /**
- * Zoekt de fase voor een gegeven weeknummer in een doelprofiel.
- * Herstelweken (4, 8) worden overgeslagen in de fasetabel.
- */
-export function faseVoorWeek(profiel, weekNr) {
-  if (!profiel?.fases) return null;
-  for (const fase of profiel.fases) {
-    if (fase.weken.includes(weekNr)) return fase;
-  }
-  return null;
-}
-
-/**
- * Zoekt fase-instellingen op basis van fase-naam (lowercase) en doelprofiel.
+ * Zoekt fase-instellingen op basis van de generieke fase-slug die
+ * bouwWeekvolgorde() per week teruggeeft ("basis", "sweetspot",
+ * "overgangsfase", "drempel", "consolidatie", "test") en doelprofiel.
+ * Matcht op fase.slug — niet op fase.naam, dat een doel-specifiek
+ * UI-weergavelabel is en voor de meeste doelen niet overeenkomt met de
+ * generieke waarden (zie sectie fase-naam-mismatch-diagnose).
  * Gebruikt door de dynamische bouwKader().
  */
 export function faseInstellingen(profiel, faseNaam) {
   if (!profiel?.fases) return null;
-  const normaal = faseNaam.toLowerCase();
-  for (const fase of profiel.fases) {
-    if (fase.naam.toLowerCase() === normaal) return fase;
-  }
-  // Fallback: overgangsfase → sweetspot-instellingen als basis
-  if (normaal === "overgangsfase") {
-    const ss = profiel.fases.find(f => f.naam.toLowerCase() === "sweetspot");
+  const gevraagd = faseNaam.toLowerCase();
+  const treffer = profiel.fases.find(f => f.slug === gevraagd);
+  if (treffer) return treffer;
+  // Overgangsfase heeft geen eigen fase-entry in DOELPROFIELEN — leent de
+  // sweetspot-instellingen met een iets ruimere intensiteitscap.
+  if (gevraagd === "overgangsfase") {
+    const ss = profiel.fases.find(f => f.slug === "sweetspot");
     if (ss) return { ...ss, naam: "Overgangsfase", max_intensiteit_per_week: 2, sessietypes: ["sweetspot_lang", "drempel_intervallen", "z2_duur", "z1_herstel"] };
   }
   return null;
-}
-
-/**
- * Genereert de fasetabel als leesbare tekst voor de prompt.
- */
-export function fasetabelAlsTekst(profiel) {
-  return profiel.fases.map(f =>
-    `${f.naam} (week ${f.weken.join(",")}): Z1-Z2 ${Math.round(f.z1z2_doel * 100)}%, max ${f.max_intensiteit_per_week} intensiteitssessies/week, types: ${f.sessietypes.join(", ")}`
-  ).join("\n");
 }
 
 /**
