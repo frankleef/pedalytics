@@ -134,6 +134,27 @@ describe('genereerWeekSessiesDeterministisch', () => {
     expect(resultaat.sessies).toHaveLength(1)
   })
 
+  it('slaat dagen binnen een actieve afwezigheidsperiode over, ook als ze verder beschikbaar/onvoltooid zijn', async () => {
+    vi.setSystemTime(new Date('2026-01-05T08:00:00'))
+    const alleDagen = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag', 'Zondag']
+    const urenPerDag = Object.fromEntries(alleDagen.map(d => [d, 1.5]))
+    kv.store.set('u_test:afwezigheid', [
+      { periodeId: 'p1', startDatum: '2026-01-06', eindDatum: '2026-01-08', reden: 'ziek', status: 'actief' },
+    ])
+
+    const resultaat = await genereerWeekSessiesDeterministisch({
+      kv, userId: 'u_test', profiel,
+      wellness: { ctl: 45, atl: 40 }, seizoensplan: bouwSeizoensplan(), weekSessies: null,
+      urenPerDag, beschikbareDagen: alleDagen, voortgang: null,
+    })
+
+    const datums = resultaat.sessies.map(s => s.datum)
+    expect(datums).not.toContain('2026-01-06')
+    expect(datums).not.toContain('2026-01-07')
+    expect(datums).not.toContain('2026-01-08')
+    expect(resultaat.sessies.length).toBeGreaterThan(0) // overige dagen worden gewoon gevuld
+  })
+
   it('forceert de laatste trainingsdag van een bevat_tussentijdse_ftp_test-week naar ramp_test', async () => {
     // Venster ma 2026-01-19 t/m zo 2026-01-25 = week 3 (bevat_tussentijdse_ftp_test).
     vi.setSystemTime(new Date('2026-01-19T08:00:00'))

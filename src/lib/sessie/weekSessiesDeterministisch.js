@@ -22,6 +22,7 @@ import { solveWeek, pasBudgetToe } from "./weekSolver";
 import { genereerSessieDag, logSessieGegenereerd } from "./genereren";
 import { bepaalAlGeleverd, haalWellnessVoorDatum } from "./context";
 import { bouwRampTestSessie } from "../sessiesAanvullen";
+import { haalAfwezigheidsperiodes, valtBinnenAfwezigheid } from "../afwezigheid";
 
 const DAGVOLGORDE_MAANDAG_EERST = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag", "Zondag"];
 
@@ -76,6 +77,12 @@ export async function genereerWeekSessiesDeterministisch({
     if (match && rit.datum_iso < vandaagISOStr) voltooideDatums.add(rit.datum_iso);
   });
 
+  // Afwezigheidsperiodes uitsluiten van de open-dagen-pool, vóór budget-
+  // verdeling — zelfde niveau als de beschikbaarheid-uit-check hieronder,
+  // i.p.v. pas bij genereerSessieDag() zelf (zie sessiesAanvullen.js voor
+  // dezelfde overweging).
+  const afwezigheidsperiodes = await haalAfwezigheidsperiodes(userId);
+
   const planDagen = [];
   for (let i = 0; i <= 6; i++) {
     const d = new Date(nu);
@@ -87,6 +94,7 @@ export async function genereerWeekSessiesDeterministisch({
 
   const tePlannenDagen = planDagen.filter(
     (d) => beschikbareDagen.includes(d.dag) && !voltooideDatums.has(d.datum) && d.datum >= vandaagISOStr
+      && !valtBinnenAfwezigheid(d.datum, afwezigheidsperiodes)
   );
   if (tePlannenDagen.length === 0) return null;
 

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
+import { bijwerkPlanVeilig } from "@/lib/plan/bijwerkPlanVeilig";
+import { voegExtraWeekToe } from "@/lib/seizoen/faseVerlenging";
 import { intervalsGet } from "@/lib/intervals";
 import { decrypt } from "@/lib/crypto";
 import { datumOffset } from "@/lib/datum";
@@ -37,22 +39,11 @@ export async function GET() {
 // Deze cron-run leest het plan van een gebruiker één keer aan het begin en houdt
 // die referentie dan urenlang (relatief) vast over een lange keten van sequentiële
 // intervals.icu-aanroepen, om er later meerdere keren delen van terug te schrijven.
-// Als de gebruiker in die tussentijd zelf iets opslaat (bv. beschikbaarheid via
-// /api/plan PUT), overschrijft een latere kv.set(planKey, plan) hier stilzwijgend
-// die wijziging met de verouderde snapshot — een lost-update-race. Elke plek die
-// daadwerkelijk terugschrijft haalt daarom via deze helper vlak vóór het schrijven
-// een verse kopie op en past alleen zijn eigen specifieke mutatie daarop toe, i.p.v.
-// de lang vastgehouden `plan`-variabele blind terug te zetten. `plan` zelf blijft
-// elders in dit bestand prima bruikbaar voor beslissingen (lezen), alleen schrijven
-// gaat via hier.
-async function bijwerkPlanVeilig(kv, planKey, muteer) {
-  const versPlan = await kv.get(planKey);
-  if (!versPlan) return null;
-  muteer(versPlan);
-  await kv.set(planKey, versPlan);
-  return versPlan;
-}
-
+// Elke plek die daadwerkelijk terugschrijft gebruikt daarom bijwerkPlanVeilig()
+// (zie src/lib/plan/bijwerkPlanVeilig.js voor de lost-update-race die dit voorkomt)
+// i.p.v. de lang vastgehouden `plan`-variabele blind terug te zetten. `plan` zelf
+// blijft elders in dit bestand prima bruikbaar voor beslissingen (lezen), alleen
+// schrijven gaat via bijwerkPlanVeilig().
 export async function POST(request) {
   const geldig = request.headers.get("authorization") === `Bearer ${process.env.ADMIN_SECRET}` || await verifyQStash(request);
   if (!geldig) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -653,34 +644,7 @@ export async function POST(request) {
                       await bijwerkPlanVeilig(kv, planKey, (versPlan) => {
                         versPlan.fase_verlengd_count = (versPlan.fase_verlengd_count || 0) + 1;
                         versPlan.fase_verlengd = true;
-
-                        // Verschuif kader: voeg extra opbouwweek in vóór de herstelweek
-                        if (versPlan.kader) {
-                          const herstelIdx = versPlan.kader.findIndex((w, i) => i >= weekNr - 1 && w.weektype === "herstel");
-                          if (herstelIdx > 0) {
-                            const vorigeWeek = versPlan.kader[herstelIdx - 1];
-                            // Alleen de inhoudelijke week-velden overnemen — niet vorigeWeek's
-                            // eigen startDatum/eindDatum/beschikbaar_vanaf, want die horen bij
-                            // vorigeWeek's kalenderweek en zouden anders als duplicaat meekomen
-                            // naar deze nieuw ingevoegde week.
-                            const extraWeek = {
-                              week: vorigeWeek.week + 0.5,
-                              fase: vorigeWeek.fase,
-                              weektype: "opbouw",
-                              tss_doel: vorigeWeek.tss_doel,
-                              focus: vorigeWeek.focus,
-                              z1z2_doel: vorigeWeek.z1z2_doel,
-                              max_intensiteit: vorigeWeek.max_intensiteit,
-                              sessietypes: vorigeWeek.sessietypes,
-                            };
-                            versPlan.kader.splice(herstelIdx, 0, extraWeek);
-                            // Hernummer alle weken na de invoeging
-                            for (let k = 0; k < versPlan.kader.length; k++) {
-                              versPlan.kader[k].week = k + 1;
-                            }
-                            versPlan.tijdshorizon_weken = versPlan.kader.length;
-                          }
-                        }
+                        voegExtraWeekToe(versPlan, weekNr);
                       });
 
                       await maakMelding(userId, "opbouwweek_verlengd");

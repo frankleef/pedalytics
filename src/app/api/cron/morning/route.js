@@ -13,6 +13,7 @@ import { intervalsGet } from "@/lib/intervals";
 import { logEvent } from "@/lib/posthog";
 import { logCronRun } from "@/lib/cronLog";
 import { maakMelding } from "@/lib/meldingen";
+import { verwerkTerugkeerDetectie } from "@/lib/afwezigheid";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -148,7 +149,16 @@ export async function POST(request) {
       // HRV-trend check (sectie 52) — onafhankelijk van bovenstaande dag-zone-check
       const hrvTrendResult = await verwerkHrvTrendCheck(userId, vandaag);
 
-      results.push({ userId, status: checkin ? "al_ingevuld" : "sent", hrv: hrvResult, hrvTrend: hrvTrendResult });
+      // Afwezigheidsperiode-terugkeer-detectie (sectie 55-D) — draait hier en
+      // niet in cron/sync, want dat is puur datumgedreven (is de periode
+      // voorbij?) en moet dus dagelijks voor élke actieve gebruiker gecheckt
+      // worden, ook als er geen nieuwe rit is gesynchroniseerd.
+      const afwezigheidResult = await verwerkTerugkeerDetectie(userId, vandaag).catch(e => {
+        console.warn(`[morning] Terugkeer-detectie mislukt voor ${userId}:`, e.message);
+        return null;
+      });
+
+      results.push({ userId, status: checkin ? "al_ingevuld" : "sent", hrv: hrvResult, hrvTrend: hrvTrendResult, afwezigheid: afwezigheidResult });
     } catch (e) {
       results.push({ userId, status: "error", error: e.message });
     }

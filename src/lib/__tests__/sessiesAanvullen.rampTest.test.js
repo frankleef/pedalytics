@@ -101,4 +101,20 @@ describe('vulSessiesAanVoorGebruiker — sectie 51-C: forceren laatste trainings
       expect(dag.protocol).toBeUndefined()
     }
   })
+
+  it('slaat een dag binnen een actieve afwezigheidsperiode over, ook als hij verder beschikbaar/onvoltooid is', async () => {
+    const kv = getKV()
+    kv.store.set('u_test:afwezigheid', [
+      { periodeId: 'p1', startDatum: '2026-01-20', eindDatum: '2026-01-22', reden: 'ziek', status: 'actief' },
+    ])
+
+    const resultaat = await vulSessiesAanVoorGebruiker('u_test', {})
+    expect(resultaat.status).toBe('aangevuld')
+
+    const plan = kv.store.get('u_test:seizoensplan')
+    const datums = plan.weekSessies.sessies.map(s => s.datum)
+    expect(datums).not.toContain('2026-01-21') // woensdag, valt binnen de periode
+    expect(datums).toContain('2026-01-19')     // maandag, buiten de periode
+    expect(datums).toContain('2026-01-23')     // vrijdag (ramp-testdag), buiten de periode
+  })
 })

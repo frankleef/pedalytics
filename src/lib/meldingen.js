@@ -24,6 +24,16 @@ const MELDING_TEMPLATES = {
     bron: "fase-overgangcheck-decoupling",
     deeplink: "/voortgang",
   }),
+  afwezigheid_afgerond: (ctx) => ({
+    categorie: "seizoen",
+    titel: "Welkom terug",
+    tekst: ctx.actie === "geen"
+      ? "Je afwezigheidsperiode is verwerkt. Je schema loopt gewoon door — geen aanpassing nodig."
+      : `Je afwezigheidsperiode (${ctx.duurDagen} dagen) is verwerkt — we hebben een ` +
+        `${ctx.actie === "opbouwweek" ? "verlaagde opbouwweek" : "extra lichte week"} ingelast om weer rustig op te bouwen.`,
+    bron: "afwezigheidsperiode",
+    deeplink: "/schema",
+  }),
   fase_overgang: (ctx) => ({
     categorie: "seizoen",
     titel: `Nieuwe fase: ${ctx.faseNaam}`,
@@ -147,6 +157,7 @@ const MELDING_TEMPLATES = {
 const PUSH_WAARDIGE_TYPES = new Set([
   "hrv_overbelastingsgate",
   "opbouwweek_verlengd",
+  "afwezigheid_afgerond",
   "fase_overgang",
   "niveau_gewijzigd",
   "doel_gewijzigd",

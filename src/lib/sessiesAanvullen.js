@@ -18,6 +18,7 @@ import { getAlleArchetypesRaw } from "@/lib/sessie-archetypes";
 import { genereerRampTestSessie } from "@/lib/sessie/rampTest";
 import { logEvent } from "@/lib/posthog";
 import { maakMelding } from "@/lib/meldingen";
+import { haalAfwezigheidsperiodes, valtBinnenAfwezigheid } from "@/lib/afwezigheid";
 
 const VERBODEN_TYPES_VOLUMECORRECTIE = ["kracht_lage_cadans", "sprint_neuraal"];
 
@@ -76,6 +77,12 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
   // Eén keer opgehaald (cache-first, zie sessie-archetypes.js) — solveWeek()
   // wijst binnen deze run mogelijk meerdere weken/sessietypes toe.
   const archetypesData = await getAlleArchetypesRaw();
+
+  // Afwezigheidsperiodes uitsluiten van de open-dagen-pool, vóór budget-
+  // verdeling — zelfde niveau als de beschikbaarheid-uit-check hieronder,
+  // i.p.v. pas bij genereerSessieDag() zelf (dan heeft solveWeek() de dag al
+  // meegeteld bij de TSS-verdeling over de week).
+  const afwezigheidsperiodes = await haalAfwezigheidsperiodes(userId);
 
   const vandaag = vandaagISO();
   const beschikbareDagen = Object.entries(plan.beschikbaarheid).filter(([, v]) => v).map(([k]) => k);
@@ -143,6 +150,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
     const iso = datumISO(d);
     const dagNaam = DAGNAMEN[d.getDay()];
     if (!beschikbareDagen.includes(dagNaam) || bestaandeDatums.has(iso) || iso <= vandaag) continue;
+    if (valtBinnenAfwezigheid(iso, afwezigheidsperiodes)) continue;
 
     const mISO = weekMaandagISO(iso);
     const kaderWeek = kaderWeekVoorDatum(iso);
