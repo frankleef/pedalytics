@@ -2,13 +2,14 @@
 import { useState } from "react";
 import { T } from "../designTokens";
 import BeschikbaarheidEditor from "./BeschikbaarheidEditor";
+import SeizoensduurStepper, { berekenSuggestieWeken } from "./SeizoensduurStepper";
 
 const DOELEN = [
-  { id: "ftp", icon: "⚡", naam: "FTP verhogen", beschrijving: "Meer wattage aan de drempel — algemene prestatiesprong", standaardWeken: 13 },
-  { id: "aerobe_basis", icon: "🫁", naam: "Betere aerobe basis", beschrijving: "Efficiënter rijden op lage intensiteit, verder komen zonder leeg te lopen", standaardWeken: 13 },
-  { id: "klimmen", icon: "⛰️", naam: "Klimmen & W/kg", beschrijving: "Meer vermogen per kilo — de bergen in", standaardWeken: 13 },
-  { id: "uithoudingsvermogen", icon: "🏔️", naam: "Lange ritten", beschrijving: "Een gran fondo, meerdaagse of lange tocht afmaken", standaardWeken: 13 },
-  { id: "sprint", icon: "🚀", naam: "Snelheid & sprint", beschrijving: "Piekvermogen, aanvallen, eindspurt", standaardWeken: 13 },
+  { id: "ftp", icon: "⚡", naam: "FTP verhogen", beschrijving: "Meer wattage aan de drempel — algemene prestatiesprong" },
+  { id: "aerobe_basis", icon: "🫁", naam: "Betere aerobe basis", beschrijving: "Efficiënter rijden op lage intensiteit, verder komen zonder leeg te lopen" },
+  { id: "klimmen", icon: "⛰️", naam: "Klimmen & W/kg", beschrijving: "Meer vermogen per kilo — de bergen in" },
+  { id: "uithoudingsvermogen", icon: "🏔️", naam: "Lange ritten", beschrijving: "Een gran fondo, meerdaagse of lange tocht afmaken" },
+  { id: "sprint", icon: "🚀", naam: "Snelheid & sprint", beschrijving: "Piekvermogen, aanvallen, eindspurt" },
 ];
 
 const NIVEAUS = [
@@ -22,6 +23,7 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
   const [doel, setDoel] = useState(null);
   const [doelExtra, setDoelExtra] = useState({ doel_ftp: null, doel_wkg: null, event_datum: null });
   const [config, setConfig] = useState({ weken: 13 });
+  const [wekenHint, setWekenHint] = useState("");
   const [beschikbaarheidData, setBeschikbaarheidData] = useState(null);
   const [ervaringsniveau, setErvaringsniveau] = useState(null);
 
@@ -69,7 +71,7 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
   // Progress bar
   const ProgressBar = () => (
     <div style={{ display: "flex", gap: 6, marginBottom: 24 }}>
-      {[1, 2, 3, 4].map(s => (
+      {[1, 2, 3, 4, 5].map(s => (
         <div key={s} style={{ flex: 1, height: 6, borderRadius: 3,
           background: s < stap ? T.slate : s === stap ? T.gradient : "oklch(0.91 0.012 82)" }} />
       ))}
@@ -104,7 +106,7 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
           {stap > 1 ? (
             <button onClick={() => setStap(s => s - 1)} style={{ width: 42, height: 42, borderRadius: "50%", background: T.cardBg, border: `1px solid ${T.cardBorder}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 18, color: T.text }}>‹</button>
           ) : <div style={{ width: 42 }} />}
-          <span style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.textSec }}>Stap {stap} van 4</span>
+          <span style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.textSec }}>Stap {stap} van 5</span>
           <div style={{ width: 42 }} />
         </div>
 
@@ -120,7 +122,7 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
             </div>
 
             {DOELEN.map(d => (
-              <div key={d.id} onClick={() => { setDoel(d.id); setConfig(p => ({ ...p, weken: d.standaardWeken })); }}
+              <div key={d.id} onClick={() => setDoel(d.id)}
                 style={{ display: "flex", gap: 14, alignItems: "center", padding: 16, background: T.cardBg,
                   border: `1.5px solid ${doel === d.id ? T.gradientA : T.cardBorder}`,
                   borderRadius: 20, marginBottom: 10, cursor: "pointer", boxShadow: doel === d.id ? "0 2px 14px rgba(60,45,20,0.08)" : T.cardShadow }}>
@@ -175,12 +177,37 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
               </div>
             )}
 
-            <Footer onVolgende={() => { if (doel) setStap(2); }} disabled={!doel} />
+            <Footer onVolgende={() => {
+              if (!doel) return;
+              const { suggestie, hint } = berekenSuggestieWeken(doel, doelExtra.event_datum);
+              setConfig(p => ({ ...p, weken: suggestie }));
+              setWekenHint(hint);
+              setStap(2);
+            }} disabled={!doel} />
           </div>
         )}
 
-        {/* ══ STAP 2: Beschikbaarheid ══ */}
+        {/* ══ STAP 2: Seizoensduur ══ */}
         {stap === 2 && (
+          <div style={{ flex: 1 }}>
+            <div style={{ marginBottom: 20 }}>
+              <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: T.textTert, textTransform: "uppercase" }}>Seizoensdoel · Seizoensduur</span>
+              <h1 style={{ margin: "6px 0 8px", font: "800 27px/1.2 var(--font-nunito), sans-serif", letterSpacing: -0.5, color: T.text }}>Hoe lang duurt je plan?</h1>
+              <p style={{ margin: 0, font: "600 14px/1.45 var(--font-nunito), sans-serif", color: T.textSec }}>We stellen een lengte voor op basis van je doel. Pas aan indien gewenst.</p>
+            </div>
+
+            <SeizoensduurStepper
+              weken={config.weken}
+              onWijzig={(w) => setConfig(p => ({ ...p, weken: w }))}
+              hint={wekenHint}
+            />
+
+            <Footer onTerug={() => setStap(1)} onVolgende={() => setStap(3)} />
+          </div>
+        )}
+
+        {/* ══ STAP 3: Beschikbaarheid ══ */}
+        {stap === 3 && (
           <div style={{ flex: 1 }}>
             <div style={{ marginBottom: 20 }}>
               <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: T.textTert, textTransform: "uppercase" }}>Seizoensdoel · Beschikbaarheid</span>
@@ -193,12 +220,12 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
               onWijzig={setBeschikbaarheidData}
             />
 
-            <Footer onTerug={() => setStap(1)} onVolgende={() => setStap(3)} />
+            <Footer onTerug={() => setStap(2)} onVolgende={() => setStap(4)} />
           </div>
         )}
 
-        {/* ══ STAP 3: Ervaringsniveau ══ */}
-        {stap === 3 && (
+        {/* ══ STAP 4: Ervaringsniveau ══ */}
+        {stap === 4 && (
           <div style={{ flex: 1 }}>
             <div style={{ marginBottom: 20 }}>
               <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: T.textTert, textTransform: "uppercase" }}>Seizoensdoel · Ervaringsniveau</span>
@@ -219,12 +246,12 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
               </div>
             ))}
 
-            <Footer onTerug={() => setStap(2)} onVolgende={() => { if (ervaringsniveau) setStap(4); }} disabled={!ervaringsniveau} />
+            <Footer onTerug={() => setStap(3)} onVolgende={() => { if (ervaringsniveau) setStap(5); }} disabled={!ervaringsniveau} />
           </div>
         )}
 
-        {/* ══ STAP 4: Samenvatting + opslaan ══ */}
-        {stap === 4 && (
+        {/* ══ STAP 5: Samenvatting + opslaan ══ */}
+        {stap === 5 && (
           <div style={{ flex: 1 }}>
             <div style={{ marginBottom: 20 }}>
               <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: T.textTert, textTransform: "uppercase" }}>Seizoensdoel · overzicht</span>
@@ -274,7 +301,7 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
               )}
             </div>
 
-            <Footer onTerug={() => setStap(3)} onVolgende={slaDoelOp} volgendeLabel="Doel opslaan" />
+            <Footer onTerug={() => setStap(4)} onVolgende={slaDoelOp} volgendeLabel="Doel opslaan" />
           </div>
         )}
       </div>

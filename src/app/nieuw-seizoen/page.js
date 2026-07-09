@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { T } from "../designTokens";
 import BeschikbaarheidEditor from "../components/BeschikbaarheidEditor";
 import PlanGenereren from "../components/PlanGenereren";
+import SeizoensduurStepper from "../components/SeizoensduurStepper";
 
 const DOELEN = [
   { id: "ftp", icon: "⚡", naam: "FTP verhogen", beschrijving: "Meer wattage aan de drempel" },
@@ -18,6 +19,7 @@ export default function NieuwSeizoensPage() {
   const [profiel, setProfiel] = useState(null);
   const [doel, setDoel] = useState(null);
   const [beschikbaarheidData, setBeschikbaarheidData] = useState(null);
+  const [weken, setWeken] = useState(16);
   const [genereert, setGenereert] = useState(false);
   const [fout, setFout] = useState(null);
 
@@ -27,6 +29,7 @@ export default function NieuwSeizoensPage() {
         setPlan(d.data);
         setDoel(d.data.seizoensdoel?.type || "ftp");
         setBeschikbaarheidData({ beschikbaar: d.data.beschikbaarheid || {}, uren: d.data.urenPerDag || {} });
+        setWeken(d.data.tijdshorizon_weken || 16);
       }
     });
     fetch("/api/intervals/profiel").then(r => r.json()).then(d => {
@@ -53,7 +56,7 @@ export default function NieuwSeizoensPage() {
         doel_label: DOELEN.find(d => d.id === doel)?.naam,
         doel_icon: DOELEN.find(d => d.id === doel)?.icon,
         seizoensdoel: { type: doel },
-        tijdshorizon_weken: 13,
+        tijdshorizon_weken: weken,
         huidige_ftp: profiel?.ftp || 265,
         huidige_ctl: 0,
         ervaringsniveau: plan?.ervaringsniveau || "recreatief",
@@ -134,6 +137,10 @@ export default function NieuwSeizoensPage() {
             <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: T.textTert, textTransform: "uppercase" }}>Nieuw seizoen · Beschikbaarheid</span>
             <h1 style={{ margin: "6px 0 8px", font: "800 27px/1.2 var(--font-nunito), sans-serif", letterSpacing: -0.5, color: T.text }}>Bevestig je beschikbaarheid</h1>
             <p style={{ margin: "0 0 16px", font: "600 14px/1.45 var(--font-nunito), sans-serif", color: T.textSec }}>Je vorige beschikbaarheid is overgenomen. Pas aan of ga verder.</p>
+
+            <div style={{ marginBottom: 16 }}>
+              <SeizoensduurStepper weken={weken} onWijzig={setWeken} />
+            </div>
 
             <BeschikbaarheidEditor
               initieel={{ beschikbaar: beschikbaarheidData?.beschikbaar, uren: beschikbaarheidData?.uren }}
