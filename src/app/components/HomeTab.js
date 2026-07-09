@@ -17,7 +17,14 @@ import { classificeerRit } from "@/lib/rittype";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
 
-export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagelijkseData, voortgang, seizoensplan, weekSessies, weekSessiesLaden, beschikbaar, weerData, initialCheckin, onCheckinWijziging, onOpenWorkout, onEditBeschikbaarheid, onOpenProfiel, onOpenMeldingen, heeftOngelezenMeldingen }) {
+const AFWEZIGHEID_ICOON = { ziek: "🤒", vakantie: "🌴", anders: "🗓️" };
+const AFWEZIGHEID_WERKWOORD = { ziek: "ziek gemeld", vakantie: "vakantie gemeld", anders: "afgemeld" };
+
+function formatDatumLeesbaarHome(iso) {
+  return new Date(iso).toLocaleDateString("nl-NL", { day: "numeric", month: "long" });
+}
+
+export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagelijkseData, voortgang, seizoensplan, weekSessies, weekSessiesLaden, beschikbaar, weerData, initialCheckin, onCheckinWijziging, onOpenWorkout, onEditBeschikbaarheid, onOpenProfiel, onOpenMeldingen, heeftOngelezenMeldingen, afwezigheidActief, onOpenAfwezigheid, onSluitAfwezigheid, terugkeerMelding, onTerugkeerGezien }) {
   const [checkin, setCheckin] = useState(initialCheckin !== undefined ? initialCheckin : null);
   const [checkinLaden, setCheckinLaden] = useState(initialCheckin === undefined);
   const [checkinModalOpen, setCheckinModalOpen] = useState(false);
@@ -141,6 +148,20 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
 
         <SharedHeader onAvatarClick={onOpenProfiel} onMeldingenClick={onOpenMeldingen} heeftOngelezenMeldingen={heeftOngelezenMeldingen} />
 
+        {/* Terugkeer-highlight — eenmalig, verdwijnt zodra de onderliggende melding gelezen is */}
+        {terugkeerMelding && (
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "15px 16px", borderRadius: 18, background: T.accentBg, border: `1px solid oklch(0.85 0.05 150)`, marginBottom: 16 }}>
+            <span style={{ fontSize: 22, flexShrink: 0 }}>👋</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ font: "700 13.5px var(--font-nunito), sans-serif", color: T.accentText, marginBottom: 3 }}>{terugkeerMelding.titel}</div>
+              <div style={{ font: "600 12.5px/1.5 var(--font-nunito), sans-serif", color: T.text }}>{terugkeerMelding.tekst}</div>
+            </div>
+            <button onClick={() => onTerugkeerGezien?.(terugkeerMelding.id)} aria-label="Sluiten" style={{ background: "none", border: "none", cursor: "pointer", padding: 4, flexShrink: 0 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke={T.accentText} strokeWidth="2.2" strokeLinecap="round"/></svg>
+            </button>
+          </div>
+        )}
+
         {/* Sync health banner */}
         {syncGap && !syncBannerWeg && (
           <div style={{ display: "flex", alignItems: "flex-start", gap: 11, padding: "14px 16px", borderRadius: 18, background: "oklch(0.97 0.022 78)", border: "1px solid oklch(0.9 0.05 75)", marginBottom: 16 }}>
@@ -177,8 +198,36 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
           <SeizoenSamenvattingKaart plan={seizoensplan} profiel={profiel} onNieuwSeizoeen={() => { window.location.href = "/nieuw-seizoen"; }} />
         )}
 
+        {/* Afwezigheidsstatus — vervangt de sessiekaart tijdens een actieve periode */}
+        {!seizoensplan?.seizoen_afgerond && afwezigheidActief && (
+          <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 20px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+              <span style={{ fontSize: 28, flexShrink: 0 }}>{AFWEZIGHEID_ICOON[afwezigheidActief.reden] || "🗓️"}</span>
+              <div style={{ minWidth: 0 }}>
+                <span style={{ font: "700 11px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase", display: "block", marginBottom: 3 }}>Afwezig</span>
+                <span style={{ font: "700 15.5px/1.4 var(--font-nunito), sans-serif", color: T.text }}>
+                  {afwezigheidActief.eindDatum
+                    ? `Je hebt je ${AFWEZIGHEID_WERKWOORD[afwezigheidActief.reden] || "afgemeld"} t/m ${formatDatumLeesbaarHome(afwezigheidActief.eindDatum)}`
+                    : "Je hebt je ziek gemeld — geen einddatum ingesteld"}
+                </span>
+              </div>
+            </div>
+            <p style={{ margin: "0 0 14px", font: "600 13px/1.5 var(--font-nunito), sans-serif", color: T.textSec }}>Geen trainingen gepland. Neem de rust die je nodig hebt.</p>
+            {afwezigheidActief.reden === "ziek" && afwezigheidActief.eindDatum === null && (
+              <button onClick={() => onSluitAfwezigheid?.(afwezigheidActief)}
+                style={{ width: "100%", border: "none", cursor: "pointer", padding: 13, borderRadius: T.pillRadius, background: T.slate, color: "oklch(0.97 0.01 84)", font: "800 14px var(--font-nunito), sans-serif", marginBottom: 10 }}>
+                Ik ben weer beter
+              </button>
+            )}
+            <button onClick={() => onOpenAfwezigheid?.("bewerken", afwezigheidActief)}
+              style={{ background: "none", border: "none", cursor: "pointer", padding: 0, font: "700 12.5px var(--font-nunito), sans-serif", color: "oklch(0.5 0.14 248)" }}>
+              Aanpassen/beëindigen
+            </button>
+          </div>
+        )}
+
         {/* Sessie-preview — compact, linkt naar Sessie-tab */}
-        {!seizoensplan?.seizoen_afgerond && weekSessiesLaden ? (
+        {!afwezigheidActief && (!seizoensplan?.seizoen_afgerond && weekSessiesLaden ? (
           <div style={{ background: T.cardBg, border: `1.5px solid ${T.cardBorder}`, borderRadius: 20, padding: "12px 16px", marginBottom: 16, textAlign: "center" }}>
             <div style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>Sessies laden...</div>
           </div>
@@ -287,7 +336,7 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
               </p>
             </div>
           );
-        })()}
+        })())}
 
 
 

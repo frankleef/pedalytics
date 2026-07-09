@@ -10,6 +10,8 @@ import PlanGenereren from "./components/PlanGenereren";
 import SeizoensplanOverzicht from "./components/SeizoensplanOverzicht";
 import ProfielScherm from "./components/ProfielScherm";
 import MeldingenScherm from "./components/MeldingenScherm";
+import AfwezigheidScherm from "./components/AfwezigheidScherm";
+import { vindActievePeriode } from "@/lib/afwezigheidHelpers";
 import { startJob, startJobRobuust, pollJob } from "@/lib/jobClient";
 import { genereerSeizoensMetadata } from "@/lib/seizoen/metadata";
 import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
@@ -90,6 +92,11 @@ export default function Page() {
   const [profielOpen, setProfielOpen] = useState(false);
   const [meldingenOpen, setMeldingenOpen] = useState(false);
   const [heeftOngelezenMeldingen, setHeeftOngelezenMeldingen] = useState(false);
+  const [terugkeerMelding, setTerugkeerMelding] = useState(null);
+  const [afwezigheidsperiodes, setAfwezigheidsperiodes] = useState([]);
+  const [afwezigheidSchermOpen, setAfwezigheidSchermOpen] = useState(false);
+  const [afwezigheidSchermModus, setAfwezigheidSchermModus] = useState("nieuw");
+  const [afwezigheidBewerkPeriode, setAfwezigheidBewerkPeriode] = useState(null);
   const [nietGekoppeld, setNietGekoppeld] = useState(false);
   const [weerData, setWeerData] = useState(null);
   const [checkinScore, setCheckinScore] = useState(undefined);
@@ -107,10 +114,12 @@ export default function Page() {
   const meldingenOpenRef = useRef(false);
   const beschikbaarheidOpenRef = useRef(false);
   const beschikbaarheidGeneratieIdRef = useRef(null);
+  const afwezigheidOpenRef = useRef(false);
 
   useEffect(() => { profielOpenRef.current = profielOpen; }, [profielOpen]);
   useEffect(() => { meldingenOpenRef.current = meldingenOpen; }, [meldingenOpen]);
   useEffect(() => { beschikbaarheidOpenRef.current = beschikbaarheidSchermOpen; }, [beschikbaarheidSchermOpen]);
+  useEffect(() => { afwezigheidOpenRef.current = afwezigheidSchermOpen; }, [afwezigheidSchermOpen]);
 
   function toonToast() {
     setToastZichtbaar(true);
@@ -129,6 +138,7 @@ export default function Page() {
       if (profielOpenRef.current) { setProfielOpen(false); return; }
       if (meldingenOpenRef.current) { setMeldingenOpen(false); laadOngelezenMeldingen(); return; }
       if (beschikbaarheidOpenRef.current) { setBeschikbaarheidSchermOpen(false); return; }
+      if (afwezigheidOpenRef.current) { setAfwezigheidSchermOpen(false); laadAfwezigheid(); return; }
       if (tabHistoryRef.current.length > 0) {
         const vorigeTab = tabHistoryRef.current.pop();
         setTab(vorigeTab);
@@ -220,6 +230,7 @@ export default function Page() {
     laadDagelijkseData();
     laadRecenteRitten();
     laadOngelezenMeldingen();
+    laadAfwezigheid();
     fetch("/api/archetypes").then(r => r.json()).then(d => { if (d.success) setArchetypesData(d.data); }).catch(() => {});
     fetch("/api/weer").then(r => r.json()).then(d => { if (d.success) setWeerData(d.data); }).catch(() => {});
     fetch("/api/checkin").then(r => r.json()).then(d => { setCheckinScore(d.success && d.data ? d.data.score : null); }).catch(() => { setCheckinScore(null); });
@@ -1053,7 +1064,20 @@ export default function Page() {
 
   const laadOngelezenMeldingen = useCallback(() => {
     fetch("/api/meldingen?ongelezen=1").then(r => r.json()).then(d => {
-      if (d.success) setHeeftOngelezenMeldingen((d.data || []).length > 0);
+      if (d.success) {
+        const lijst = d.data || [];
+        setHeeftOngelezenMeldingen(lijst.length > 0);
+        // Terugkeer-highlight (sectie 55-D): losstaand van de generieke
+        // ongelezen-indicator — deze specifieke melding krijgt een eigen,
+        // prominente kaart op Home i.p.v. alleen de bel-badge.
+        setTerugkeerMelding(lijst.find(m => m.type === "afwezigheid_afgerond") || null);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const laadAfwezigheid = useCallback(() => {
+    fetch("/api/afwezigheid").then(r => r.json()).then(d => {
+      if (d.success) setAfwezigheidsperiodes(d.data || []);
     }).catch(() => {});
   }, []);
 
@@ -1094,6 +1118,37 @@ export default function Page() {
     setBeschikbaarheidSchermOpen(true);
   }, []);
 
+  const openAfwezigheid = useCallback((modus = "nieuw", periode = null) => {
+    if (typeof window !== "undefined") history.pushState({ modal: "afwezigheid" }, "", window.location.pathname);
+    setAfwezigheidSchermModus(modus);
+    setAfwezigheidBewerkPeriode(periode || null);
+    setAfwezigheidSchermOpen(true);
+  }, []);
+
+  const verversPlanEnAfwezigheid = useCallback(() => {
+    laadAfwezigheid();
+    fetch("/api/plan").then(r => r.json()).then(pd => {
+      if (pd.success && pd.data) {
+        setSeizoensplan(pd.data);
+        if (pd.data.weekSessies) setWeekSessies(pd.data.weekSessies);
+      }
+    });
+  }, [laadAfwezigheid]);
+
+  // "Ik ben weer beter"-snelactie direct vanaf de Home-statuskaart — roept
+  // dezelfde sluiten-endpoint aan als de bewerk-modus van AfwezigheidScherm,
+  // zonder eerst dat scherm te hoeven openen.
+  const sluitAfwezigheid = useCallback((periode) => {
+    fetch(`/api/afwezigheid/${periode.periodeId}/sluiten`, { method: "POST" })
+      .then(() => verversPlanEnAfwezigheid())
+      .catch(() => {});
+  }, [verversPlanEnAfwezigheid]);
+
+  const markeerTerugkeerGezien = useCallback((id) => {
+    setTerugkeerMelding(null);
+    fetch(`/api/meldingen/${id}/lezen`, { method: "POST" }).catch(() => {});
+  }, []);
+
   const handleRpeSaved = useCallback((ritId, rpeWaarde) => {
     if (!voortgang?.ritten) return;
     const rit = voortgang.ritten.find(r => r.id === ritId);
@@ -1121,8 +1176,21 @@ export default function Page() {
     setSeizoensplan({ ...seizoensplan, weekSessies: eindWeekSessies });
   }, [weekSessies, seizoensplan]);
 
+  const afwezigheidActief = vindActievePeriode(getVandaag(), afwezigheidsperiodes);
+
   return (
     <div style={{ minHeight: "100vh", fontFamily: "var(--font-nunito), 'Nunito', sans-serif" }}>
+
+      {afwezigheidSchermOpen && (
+        <AfwezigheidScherm
+          modus={afwezigheidSchermModus}
+          periode={afwezigheidBewerkPeriode}
+          onTerug={() => history.back()}
+          onOpgeslagen={() => { history.back(); verversPlanEnAfwezigheid(); }}
+          onGesloten={() => { history.back(); verversPlanEnAfwezigheid(); }}
+          onGeannuleerd={() => { history.back(); laadAfwezigheid(); }}
+        />
+      )}
 
       {beschikbaarheidSchermOpen && (
         <BeschikbaarheidScherm
@@ -1154,6 +1222,8 @@ export default function Page() {
               if (pd.success && pd.data) { setSeizoensplan(pd.data); if (pd.data.weekSessies) setWeekSessies(pd.data.weekSessies); }
             });
           }}
+          afwezigheidActief={afwezigheidActief}
+          onOpenAfwezigheid={openAfwezigheid}
         />
       )}
 
@@ -1238,6 +1308,11 @@ export default function Page() {
               onOpenProfiel={openProfiel}
               onOpenMeldingen={openMeldingen}
               heeftOngelezenMeldingen={heeftOngelezenMeldingen}
+              afwezigheidActief={afwezigheidActief}
+              onOpenAfwezigheid={openAfwezigheid}
+              onSluitAfwezigheid={sluitAfwezigheid}
+              terugkeerMelding={terugkeerMelding}
+              onTerugkeerGezien={markeerTerugkeerGezien}
             />
           )}
 
@@ -1268,6 +1343,8 @@ export default function Page() {
                   }
                 });
               }}
+              afwezigheidActief={afwezigheidActief}
+              onOpenAfwezigheid={openAfwezigheid}
             />
           )}
 

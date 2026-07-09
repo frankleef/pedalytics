@@ -18,6 +18,9 @@ import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import { bijwerkPlanVeilig } from "@/lib/plan/bijwerkPlanVeilig";
 import { voegExtraWeekToe } from "@/lib/seizoen/faseVerlenging";
 import { maakMelding } from "@/lib/meldingen";
+import { effectiefEind, valtBinnenAfwezigheid } from "@/lib/afwezigheidHelpers";
+
+export { valtBinnenAfwezigheid };
 
 const REDENEN = ["ziek", "vakantie", "anders"];
 const MAX_DAGEN_TERUG = 14;
@@ -40,10 +43,6 @@ function afwezigheidKey(userId) {
 export async function haalAfwezigheidsperiodes(userId) {
   const kv = getKV();
   return (await kv.get(afwezigheidKey(userId))) || [];
-}
-
-function effectiefEind(periode) {
-  return periode.eindDatum ?? "9999-12-31";
 }
 
 function periodesOverlappen(a, b) {
@@ -167,13 +166,18 @@ export async function verwijderSessiesInPeriode(userId, periode) {
 }
 
 /**
- * Puur/synchroon: valt `datum` binnen een actieve afwezigheidsperiode?
- * Gebruikt door sessiesAanvullen.js/weekSessiesDeterministisch.js om zulke
- * datums uit te sluiten van de open-dagen-pool, vóór budgetverdeling —
- * dezelfde plek waar een normale beschikbaarheid-uit-check ook gebeurt.
+ * Zij-effect-vrije variant van verwijderSessiesInPeriode: telt hoeveel
+ * geplande (niet-voltooide) sessies binnen [startDatum, eindDatum] zouden
+ * worden verwijderd, zonder te schrijven of intervals.icu aan te roepen.
+ * Voor de live-preview-regel in het invoerscherm, vóór de periode daadwerkelijk
+ * is aangemaakt.
  */
-export function valtBinnenAfwezigheid(datum, periodes) {
-  return (periodes || []).some(p => p.status === "actief" && datum >= p.startDatum && datum <= effectiefEind(p));
+export async function telSessiesInPeriode(userId, startDatum, eindDatum) {
+  const kv = getKV();
+  const plan = await kv.get(`${userId}:seizoensplan`);
+  const eind = eindDatum ?? "9999-12-31";
+  const sessies = plan?.weekSessies?.sessies || [];
+  return sessies.filter(s => s.datum >= startDatum && s.datum <= eind && !s.voltooid).length;
 }
 
 /** Som van icu_training_load van Ride/VirtualRide-activiteiten in [startDatum, eindDatum]. */

@@ -57,7 +57,7 @@ const STEDEN = [
   { stad: "Arnhem", lat: 51.98, lon: 5.91 },
 ];
 
-export default function ProfielScherm({ profiel, seizoensplan, weerData, initialCheckin, onCheckinWijziging, onTerug, onUitloggen, onPlanWijziging }) {
+export default function ProfielScherm({ profiel, seizoensplan, weerData, initialCheckin, onCheckinWijziging, onTerug, onUitloggen, onPlanWijziging, afwezigheidActief, onOpenAfwezigheid }) {
   const [checkin, setCheckin] = useState(initialCheckin ?? null);
   const [weerStad, setWeerStad] = useState(weerData?.stad || "Breda");
   const [hulpOpen, setHulpOpen] = useState(false);
@@ -190,10 +190,23 @@ export default function ProfielScherm({ profiel, seizoensplan, weerData, initial
               </div>
               <div style={{ height: 1, background: T.divider, margin: "0 0 12px" }} />
               <span style={{ font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, display: "block", marginBottom: 10 }}>TRAININGSNIVEAU</span>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: onOpenAfwezigheid ? 12 : 0 }}>
                 <span style={{ font: "600 13.5px var(--font-nunito), sans-serif", color: T.textSec }}>{niveauLabels[huidigNiveau] || "Recreatief"}</span>
                 <button onClick={() => setNiveauModalOpen(true)} style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.5 0.14 248)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Niveau wijzigen →</button>
               </div>
+              {onOpenAfwezigheid && (
+                <>
+                  <div style={{ height: 1, background: T.divider, margin: "0 0 12px" }} />
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ font: "600 13.5px var(--font-nunito), sans-serif", color: T.textSec }}>
+                      {afwezigheidActief ? "Je hebt je afgemeld" : "Even geen training?"}
+                    </span>
+                    <button onClick={() => onOpenAfwezigheid(afwezigheidActief ? "bewerken" : "nieuw", afwezigheidActief)} style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.5 0.14 248)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                      {afwezigheidActief ? "Afwezigheid aanpassen →" : "Afwezigheid melden →"}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           );
         })()}

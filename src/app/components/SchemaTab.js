@@ -233,7 +233,7 @@ export default function SchemaTab({
   seizoensplan, weekSessies, weekSessiesLaden, beschikbaar, voortgang,
   profiel, wellenessHuidig, vandaagInvoer, onEditBeschikbaarheid, initialDagOffset,
   onRpeSaved, onOpenProfiel, onPlanWijziging, onSessieGekozen, weerData,
-  onOpenMeldingen, heeftOngelezenMeldingen,
+  onOpenMeldingen, heeftOngelezenMeldingen, onOpenAfwezigheid, afwezigheidActief,
 }) {
   const [selectedIdx, setSelectedIdx] = useState(10 + (initialDagOffset || 0));
   const [rpeWaarde, setRpeWaarde] = useState(6);
@@ -587,7 +587,7 @@ export default function SchemaTab({
 
         <div style={{ padding: `0 ${T.pad}px` }}>
 
-        <AdaptatieScoreKaart weekTss={werkelijkTss} doelTss={doelTss} fase={kaderWeek?.fase} weekNr={weekNr} weektype={kaderWeek?.weektype} onEditBeschikbaarheid={onEditBeschikbaarheid} />
+        <AdaptatieScoreKaart weekTss={werkelijkTss} doelTss={doelTss} fase={kaderWeek?.fase} weekNr={weekNr} weektype={kaderWeek?.weektype} onEditBeschikbaarheid={onEditBeschikbaarheid} onOpenAfwezigheid={onOpenAfwezigheid} afwezigheidActief={afwezigheidActief} />
 
         {/* ══ PLANNED ══ */}
         {mode === "planned" && sessie && (

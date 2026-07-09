@@ -17,6 +17,7 @@ import {
   valtBinnenAfwezigheid,
   bepaalHeropbouwActie,
   verwerkTerugkeerDetectie,
+  telSessiesInPeriode,
   HEROPBOUW_CONSTANTEN,
 } from '../afwezigheid.js'
 
@@ -299,5 +300,40 @@ describe('verwerkTerugkeerDetectie — onderdeel 4 (idempotentie + orkestratie)'
     expect(verwerkt).toBe(0)
     expect(kv.store.get('u1:seizoensplan').kader.length).toBe(5)
     expect(maakMelding).not.toHaveBeenCalled()
+  })
+})
+
+describe('telSessiesInPeriode — zij-effect-vrije preview (onderdeel A/chunk 0, punt 2)', () => {
+  it('telt niet-voltooide sessies binnen de periode, zonder te schrijven of intervals.icu aan te roepen', async () => {
+    const sessies = [
+      { datum: dagenTerug(2), voltooid: true },
+      { datum: dagenTerug(1), voltooid: false },
+      { datum: VANDAAG, voltooid: false },
+      { datum: dagenVooruit(10), voltooid: false },
+    ]
+    const kv = maakKvMock({ 'u1:seizoensplan': { weekSessies: { sessies } } })
+    vi.mocked(getKV).mockReturnValue(kv)
+
+    const aantal = await telSessiesInPeriode('u1', dagenTerug(2), dagenVooruit(2))
+
+    expect(aantal).toBe(2) // dagenTerug(1) en VANDAAG; voltooide dag en buiten-periode-dag tellen niet mee
+    expect(kv.set).not.toHaveBeenCalled()
+    expect(intervalsDelete).not.toHaveBeenCalled()
+  })
+
+  it('behandelt eindDatum: null (open eind) als doorlopend tot in de toekomst', async () => {
+    const sessies = [{ datum: dagenVooruit(30), voltooid: false }]
+    const kv = maakKvMock({ 'u1:seizoensplan': { weekSessies: { sessies } } })
+    vi.mocked(getKV).mockReturnValue(kv)
+
+    const aantal = await telSessiesInPeriode('u1', VANDAAG, null)
+    expect(aantal).toBe(1)
+  })
+
+  it('geeft 0 zonder fout als er geen plan/sessies zijn', async () => {
+    const kv = maakKvMock({})
+    vi.mocked(getKV).mockReturnValue(kv)
+    const aantal = await telSessiesInPeriode('u1', VANDAAG, dagenVooruit(5))
+    expect(aantal).toBe(0)
   })
 })

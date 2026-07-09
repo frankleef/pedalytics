@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { T } from "../designTokens";
 import { ADAPTATIE_CONFIG, DOMINANT_LABEL } from "@/lib/adaptatie";
 
-export default function AdaptatieScoreKaart({ weekTss, doelTss, fase, weekNr, weektype, onEditBeschikbaarheid }) {
+export default function AdaptatieScoreKaart({ weekTss, doelTss, fase, weekNr, weektype, onEditBeschikbaarheid, onOpenAfwezigheid, afwezigheidActief }) {
   const [adaptatieScore, setAdaptatieScore] = useState(null);
   const [uitklap, setUitklap] = useState(false);
   const [hitteMelding, setHitteMelding] = useState(false);
@@ -27,7 +27,7 @@ export default function AdaptatieScoreKaart({ weekTss, doelTss, fase, weekNr, we
 
   return (
     <div style={{ background: T.cardBg, borderRadius: 24, padding: "15px 17px 16px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 18 }}>
-      {(fase || onEditBeschikbaarheid) && (
+      {(fase || onEditBeschikbaarheid || onOpenAfwezigheid) && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid oklch(0.93 0.01 82)` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {fase && (
@@ -42,45 +42,61 @@ export default function AdaptatieScoreKaart({ weekTss, doelTss, fase, weekNr, we
               <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec, padding: "4px 10px", borderRadius: T.pillRadius, background: T.subtleFill }}>Week {weekNr} · {weektype}</span>
             )}
             {onEditBeschikbaarheid && (
-              <button onClick={onEditBeschikbaarheid} style={{ width: 30, height: 30, borderRadius: "50%", border: `1px solid oklch(0.93 0.01 82)`, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+              <button onClick={onEditBeschikbaarheid} aria-label="Beschikbaarheid aanpassen" style={{ width: 30, height: 30, borderRadius: "50%", border: `1px solid oklch(0.93 0.01 82)`, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke={T.textTert} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke={T.textTert} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </button>
+            )}
+            {onOpenAfwezigheid && (
+              <button onClick={() => onOpenAfwezigheid(afwezigheidActief ? "bewerken" : "nieuw", afwezigheidActief || null)} aria-label={afwezigheidActief ? "Afwezigheid aanpassen" : "Afwezigheid melden"} style={{ width: 30, height: 30, borderRadius: "50%", border: `1px solid oklch(0.93 0.01 82)`, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="17" height="16" rx="3" stroke={T.textTert} strokeWidth="2"/><path d="M3.5 9h17M8 2.5v4M16 2.5v4" stroke={T.textTert} strokeWidth="2" strokeLinecap="round"/><path d="M9.5 14h5" stroke={T.textTert} strokeWidth="2" strokeLinecap="round"/></svg>
               </button>
             )}
           </div>
         </div>
       )}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: T.pillRadius, background: T.subtleFill }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: cfg.kleur }} />
-          <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.4 0.02 72)" }}>{cfg.label}</span>
-        </div>
-      </div>
-      <div style={{ font: "600 12.5px var(--font-nunito), sans-serif", color: T.textSec, marginBottom: 10 }}>{cfg.subtekst}</div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textTert }}>TSS 7d</span>
-        <span style={{ font: "600 12.5px var(--font-nunito), sans-serif", color: T.textSec }}>
-          <span style={{ font: "600 17px var(--font-fredoka), sans-serif", color: T.text }}>{weekTss}</span> / {doelTss}
-        </span>
-      </div>
-      <div style={{ height: 6, borderRadius: T.pillRadius, background: "oklch(0.93 0.012 84)", overflow: "hidden", marginBottom: 8 }}>
-        <div style={{ height: "100%", width: `${tssPct}%`, borderRadius: T.pillRadius, background: cfg.kleur }} />
-      </div>
+      {afwezigheidActief ? (
+        <div style={{ font: "600 13px/1.5 var(--font-nunito), sans-serif", color: T.textSec, padding: "4px 0" }}>
+          {afwezigheidActief.eindDatum
+            ? `Geen trainingen gepland t/m ${new Date(afwezigheidActief.eindDatum).toLocaleDateString("nl-NL", { day: "numeric", month: "long" })}.`
+            : "Geen trainingen gepland — geen einddatum ingesteld."}
+        </div>
+      ) : (
+        <>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: T.pillRadius, background: T.subtleFill }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: cfg.kleur }} />
+              <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.4 0.02 72)" }}>{cfg.label}</span>
+            </div>
+          </div>
+          <div style={{ font: "600 12.5px var(--font-nunito), sans-serif", color: T.textSec, marginBottom: 10 }}>{cfg.subtekst}</div>
 
-      {dominantTekst && (
-        <button onClick={() => setUitklap(!uitklap)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.5 0.14 248)" }}>
-          {uitklap ? "Verberg ▲" : "Waarom? ▼"}
-        </button>
-      )}
-      {uitklap && dominantTekst && (
-        <div style={{ font: "600 12.5px/1.5 var(--font-nunito), sans-serif", color: T.textSec, marginTop: 6 }}>
-          {dominantTekst}
-        </div>
-      )}
-      {hitteMelding && (
-        <div style={{ font: "600 12px/1.5 var(--font-nunito), sans-serif", color: T.textSec, marginTop: 8, paddingTop: 8, borderTop: `1px solid oklch(0.93 0.01 82)` }}>
-          Je recente ritten waren overwegend in warme omstandigheden. De aerobe trend is tijdelijk minder betrouwbaar — dit herstelt zich zodra de omstandigheden normaliseren.
-        </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textTert }}>TSS 7d</span>
+            <span style={{ font: "600 12.5px var(--font-nunito), sans-serif", color: T.textSec }}>
+              <span style={{ font: "600 17px var(--font-fredoka), sans-serif", color: T.text }}>{weekTss}</span> / {doelTss}
+            </span>
+          </div>
+          <div style={{ height: 6, borderRadius: T.pillRadius, background: "oklch(0.93 0.012 84)", overflow: "hidden", marginBottom: 8 }}>
+            <div style={{ height: "100%", width: `${tssPct}%`, borderRadius: T.pillRadius, background: cfg.kleur }} />
+          </div>
+
+          {dominantTekst && (
+            <button onClick={() => setUitklap(!uitklap)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, font: "700 12px var(--font-nunito), sans-serif", color: "oklch(0.5 0.14 248)" }}>
+              {uitklap ? "Verberg ▲" : "Waarom? ▼"}
+            </button>
+          )}
+          {uitklap && dominantTekst && (
+            <div style={{ font: "600 12.5px/1.5 var(--font-nunito), sans-serif", color: T.textSec, marginTop: 6 }}>
+              {dominantTekst}
+            </div>
+          )}
+          {hitteMelding && (
+            <div style={{ font: "600 12px/1.5 var(--font-nunito), sans-serif", color: T.textSec, marginTop: 8, paddingTop: 8, borderTop: `1px solid oklch(0.93 0.01 82)` }}>
+              Je recente ritten waren overwegend in warme omstandigheden. De aerobe trend is tijdelijk minder betrouwbaar — dit herstelt zich zodra de omstandigheden normaliseren.
+            </div>
+          )}
+        </>
       )}
     </div>
   );
