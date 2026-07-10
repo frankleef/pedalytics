@@ -16,7 +16,7 @@ import { intervalsGet, intervalsDelete } from "@/lib/intervals";
 import { vandaagISO, datumISO } from "@/lib/datum";
 import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import { bijwerkPlanVeilig } from "@/lib/plan/bijwerkPlanVeilig";
-import { voegExtraWeekToe } from "@/lib/seizoen/faseVerlenging";
+import { voegExtraWeekToe, verwijderSessiesVanafWeek } from "@/lib/seizoen/faseVerlenging";
 import { maakMelding } from "@/lib/meldingen";
 import { effectiefEind, valtBinnenAfwezigheid } from "@/lib/afwezigheidHelpers";
 
@@ -110,9 +110,16 @@ export async function sluitOpenPeriode(userId, periodeId) {
 }
 
 /**
- * Annuleert een periode. Sessies die al verwijderd waren n.a.v. deze periode
- * blijven verwijderd — retroactief herstellen is bewust geen onderdeel van
- * deze functie (bekende beperking, zie implementatie-opdracht).
+ * Annuleert een periode. Zet alleen de status — geen poging om de eerder
+ * verwijderde sessie-inhoud letterlijk terug te zetten (bewust afgewezen:
+ * als er tussentijds ook een kader-insertie was, zou dat stale content
+ * herintroduceren, zie het diagnoserapport). In plaats daarvan geeft
+ * valtBinnenAfwezigheid() voor deze datums voortaan weer false terug,
+ * waarna de normale rolling-window-vullers (sessiesAanvullen.js/
+ * weekSessiesDeterministisch.js) de nu weer "open" datums vanzelf oppikken
+ * met de op dát moment correcte kader-inhoud. De fire-and-forget-aanroep
+ * hieronder (zelfde stijl als checkin/route.js) triggert dat meteen, i.p.v.
+ * te wachten op de eerstvolgende cron-cyclus.
  */
 export async function annuleerPeriode(userId, periodeId) {
   const kv = getKV();
@@ -123,6 +130,16 @@ export async function annuleerPeriode(userId, periodeId) {
 
   periode.status = "geannuleerd";
   await kv.set(key, periodes);
+
+  // Module-resolutie zelf awaiten (snel, lokaal) — alleen het generatiewerk
+  // zelf is fire-and-forget, zelfde stijl als checkin/route.js:82.
+  const { vulSessiesAanVoorGebruiker } = await import("@/lib/sessiesAanvullen");
+  vulSessiesAanVoorGebruiker(userId, {}).then((r) => {
+    console.log(`[afwezigheid] Sessies aangevuld na annuleren voor ${userId}:`, r);
+  }).catch((e) => {
+    console.warn(`[afwezigheid] Sessies aanvullen na annuleren mislukt voor ${userId}:`, e.message);
+  });
+
   return { periode };
 }
 
@@ -283,18 +300,41 @@ export async function verwerkTerugkeerDetectie(userId, vandaag = vandaagISO()) {
       ? await bepaalHeropbouwActie(plan, userId, periode)
       : { actie: "geen" };
 
+    let stale = { verwijderd: [], intervalsEventIds: [] };
     if (actie !== "geen" && plan?.startdatum && plan?.kader) {
       const weekNr = weeknummerVoorDatum(vandaag, plan.startdatum);
       const weektype = actie === "opbouwweek" ? "opbouw" : "herstel";
       await bijwerkPlanVeilig(kv, planKey, (versPlan) => {
-        const toegepast = voegExtraWeekToe(versPlan, weekNr, { weektype, tssPct });
+        const { toegepast, vanafWeek } = voegExtraWeekToe(versPlan, weekNr, { weektype, tssPct });
         if (toegepast) {
           versPlan.afwezigheid_heropbouw_toegepast_op = [
             ...(versPlan.afwezigheid_heropbouw_toegepast_op || []),
             periode.periodeId,
           ];
+          stale = verwijderSessiesVanafWeek(versPlan, vanafWeek);
         }
       });
+
+      // Async cleanup mag niet binnen bijwerkPlanVeilig's (synchrone) mutator —
+      // zelfde tweefasenpatroon als verwijderSessiesInPeriode hierboven.
+      if (stale.intervalsEventIds.length > 0) {
+        const creds = await getIntervalsCredentials(userId);
+        if (creds) {
+          for (const eventId of stale.intervalsEventIds) {
+            await intervalsDelete(`/events/${eventId}`, creds).catch(
+              (e) => console.warn(`[afwezigheid] intervals.icu-event ${eventId} verwijderen mislukt:`, e.message)
+            );
+          }
+        }
+      }
+      if (stale.verwijderd.length > 0) {
+        const { vulSessiesAanVoorGebruiker } = await import("@/lib/sessiesAanvullen");
+        vulSessiesAanVoorGebruiker(userId, {}).then((r) => {
+          console.log(`[afwezigheid] Sessies aangevuld na heropbouw-insertie voor ${userId}:`, r);
+        }).catch((e) => {
+          console.warn(`[afwezigheid] Sessies aanvullen na heropbouw-insertie mislukt voor ${userId}:`, e.message);
+        });
+      }
     }
 
     // Periode-boekhouding staat onder een eigen KV-sleutel, los van het plan —

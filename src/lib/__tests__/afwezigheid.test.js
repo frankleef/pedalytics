@@ -4,11 +4,13 @@ vi.mock('@/lib/kv', () => ({ getKV: vi.fn() }))
 vi.mock('@/lib/users', () => ({ getIntervalsCredentials: vi.fn() }))
 vi.mock('@/lib/intervals', () => ({ intervalsGet: vi.fn(), intervalsDelete: vi.fn() }))
 vi.mock('@/lib/meldingen', () => ({ maakMelding: vi.fn() }))
+vi.mock('@/lib/sessiesAanvullen', () => ({ vulSessiesAanVoorGebruiker: vi.fn() }))
 
 import { getKV } from '@/lib/kv'
 import { getIntervalsCredentials } from '@/lib/users'
 import { intervalsGet, intervalsDelete } from '@/lib/intervals'
 import { maakMelding } from '@/lib/meldingen'
+import { vulSessiesAanVoorGebruiker } from '@/lib/sessiesAanvullen'
 import {
   maakAfwezigheidsperiode,
   sluitOpenPeriode,
@@ -46,6 +48,8 @@ beforeEach(() => {
   vi.mocked(intervalsDelete).mockClear()
   vi.mocked(intervalsGet).mockReset()
   vi.mocked(getIntervalsCredentials).mockReset()
+  vi.mocked(vulSessiesAanVoorGebruiker).mockReset()
+  vi.mocked(vulSessiesAanVoorGebruiker).mockResolvedValue({ status: 'aangevuld' })
 })
 
 describe('maakAfwezigheidsperiode — onderdeel 1', () => {
@@ -335,5 +339,129 @@ describe('telSessiesInPeriode — zij-effect-vrije preview (onderdeel A/chunk 0,
     vi.mocked(getKV).mockReturnValue(kv)
     const aantal = await telSessiesInPeriode('u1', VANDAAG, dagenVooruit(5))
     expect(aantal).toBe(0)
+  })
+})
+
+describe('verwerkTerugkeerDetectie — opruiming van stale sessies na insertie (implementatie-opdracht, onderdeel 2)', () => {
+  function bouwPlanMetStaleSessies(overrides = {}) {
+    return {
+      startdatum: dagenTerug(7),
+      kader: [
+        { week: 1, fase: 'basis', weektype: 'opbouw', tss_doel: 200 },
+        { week: 2, fase: 'basis', weektype: 'opbouw', tss_doel: 210 },
+        { week: 3, fase: 'basis', weektype: 'opbouw', tss_doel: 220 },
+        { week: 4, fase: 'basis', weektype: 'herstel', tss_doel: 100 },
+        { week: 5, fase: 'sweetspot', weektype: 'opbouw', tss_doel: 230 },
+      ],
+      weekSessies: {
+        sessies: [
+          // week 2 (vóór de invoeging bij week 4) -> blijft ongewijzigd
+          { datum: dagenVooruit(2), voltooid: false, intervalsEventId: 'evt-week2' },
+          // week 5+ (op/na het invoegpunt) -> stale, moet verwijderd worden
+          { datum: dagenVooruit(25), voltooid: false, intervalsEventId: 'evt-stale-1' },
+          { datum: dagenVooruit(32), voltooid: false, intervalsEventId: 'evt-stale-2' },
+        ],
+      },
+      ...overrides,
+    }
+  }
+
+  it('verwijdert stale sessies + hun intervals.icu-events, en vult de gaten opnieuw via vulSessiesAanVoorGebruiker', async () => {
+    const kv = maakKvMock({
+      'u1:seizoensplan': bouwPlanMetStaleSessies(),
+      'u1:afwezigheid': [{ periodeId: 'p1', startDatum: dagenTerug(9), eindDatum: dagenTerug(2), reden: 'ziek', status: 'actief', heropbouwToegepast: false }],
+    })
+    vi.mocked(getKV).mockReturnValue(kv)
+    vi.mocked(getIntervalsCredentials).mockResolvedValue({ apiKey: 'k', athleteId: 'a' })
+    vi.mocked(intervalsDelete).mockResolvedValue({})
+
+    await verwerkTerugkeerDetectie('u1', VANDAAG)
+    // De vulSessiesAanVoorGebruiker-aanroep is fire-and-forget (niet geawaited
+    // door verwerkTerugkeerDetectie), maar de aanroep zelf gebeurt synchroon
+    // vóór de functie terugkeert (await import(...) staat er wél vóór) — de
+    // mock-registratie is dus al gevuld op dit punt.
+
+    const plan = kv.store.get('u1:seizoensplan')
+    const overgeblevenDatums = plan.weekSessies.sessies.map(s => s.datum)
+    expect(overgeblevenDatums).toContain(dagenVooruit(2)) // vóór het invoegpunt, blijft
+    expect(overgeblevenDatums).not.toContain(dagenVooruit(25))
+    expect(overgeblevenDatums).not.toContain(dagenVooruit(32))
+
+    expect(intervalsDelete).toHaveBeenCalledWith('/events/evt-stale-1', { apiKey: 'k', athleteId: 'a' })
+    expect(intervalsDelete).toHaveBeenCalledWith('/events/evt-stale-2', { apiKey: 'k', athleteId: 'a' })
+    expect(intervalsDelete).not.toHaveBeenCalledWith('/events/evt-week2', expect.anything())
+
+    expect(vulSessiesAanVoorGebruiker).toHaveBeenCalledWith('u1', {})
+  })
+
+  it('laat een voltooide sessie ná het invoegpunt ongemoeid', async () => {
+    const plan = bouwPlanMetStaleSessies()
+    plan.weekSessies.sessies.push({ datum: dagenVooruit(26), voltooid: true, intervalsEventId: 'evt-voltooid' })
+    const kv = maakKvMock({
+      'u1:seizoensplan': plan,
+      'u1:afwezigheid': [{ periodeId: 'p1', startDatum: dagenTerug(9), eindDatum: dagenTerug(2), reden: 'ziek', status: 'actief', heropbouwToegepast: false }],
+    })
+    vi.mocked(getKV).mockReturnValue(kv)
+    vi.mocked(getIntervalsCredentials).mockResolvedValue({ apiKey: 'k', athleteId: 'a' })
+    vi.mocked(intervalsDelete).mockResolvedValue({})
+
+    await verwerkTerugkeerDetectie('u1', VANDAAG)
+
+    const overgeblevenDatums = kv.store.get('u1:seizoensplan').weekSessies.sessies.map(s => s.datum)
+    expect(overgeblevenDatums).toContain(dagenVooruit(26))
+    expect(intervalsDelete).not.toHaveBeenCalledWith('/events/evt-voltooid', expect.anything())
+  })
+
+  it('roept vulSessiesAanVoorGebruiker niet aan als er niets te verwijderen viel (geen stale sessies)', async () => {
+    const kv = maakKvMock({
+      'u1:seizoensplan': {
+        startdatum: dagenTerug(7),
+        kader: [
+          { week: 1, fase: 'basis', weektype: 'opbouw', tss_doel: 200 },
+          { week: 2, fase: 'basis', weektype: 'opbouw', tss_doel: 210 },
+          { week: 3, fase: 'basis', weektype: 'opbouw', tss_doel: 220 },
+          { week: 4, fase: 'basis', weektype: 'herstel', tss_doel: 100 },
+          { week: 5, fase: 'sweetspot', weektype: 'opbouw', tss_doel: 230 },
+        ],
+        weekSessies: { sessies: [] }, // niets gegenereerd -> niets stale
+      },
+      'u1:afwezigheid': [{ periodeId: 'p1', startDatum: dagenTerug(9), eindDatum: dagenTerug(2), reden: 'ziek', status: 'actief', heropbouwToegepast: false }],
+    })
+    vi.mocked(getKV).mockReturnValue(kv)
+
+    await verwerkTerugkeerDetectie('u1', VANDAAG)
+
+    expect(vulSessiesAanVoorGebruiker).not.toHaveBeenCalled()
+    expect(intervalsDelete).not.toHaveBeenCalled()
+  })
+})
+
+describe('annuleerPeriode — directe backfill (implementatie-opdracht, onderdeel 3)', () => {
+  it('roept vulSessiesAanVoorGebruiker aan direct na het zetten van status: geannuleerd', async () => {
+    const kv = maakKvMock({
+      'u1:afwezigheid': [{ periodeId: 'p1', startDatum: dagenTerug(2), eindDatum: dagenVooruit(3), reden: 'vakantie', status: 'actief' }],
+    })
+    vi.mocked(getKV).mockReturnValue(kv)
+
+    const resultaat = await annuleerPeriode('u1', 'p1')
+
+    expect(resultaat.periode.status).toBe('geannuleerd')
+    expect(kv.store.get('u1:afwezigheid')[0].status).toBe('geannuleerd')
+    expect(vulSessiesAanVoorGebruiker).toHaveBeenCalledWith('u1', {})
+  })
+
+  it('bevat geen content-restauratie-logica — raakt weekSessies niet, alleen de periode-status', async () => {
+    const kv = maakKvMock({
+      'u1:seizoensplan': { weekSessies: { sessies: [{ datum: dagenVooruit(1), voltooid: false }] } },
+      'u1:afwezigheid': [{ periodeId: 'p1', startDatum: dagenTerug(2), eindDatum: dagenVooruit(3), reden: 'vakantie', status: 'actief' }],
+    })
+    vi.mocked(getKV).mockReturnValue(kv)
+
+    await annuleerPeriode('u1', 'p1')
+
+    // annuleerPeriode() zelf schrijft nooit naar de seizoensplan-sleutel —
+    // dat gebeurt uitsluitend (asynchroon, elders) door
+    // vulSessiesAanVoorGebruiker(), niet door annuleerPeriode() zelf.
+    expect(kv.set).not.toHaveBeenCalledWith('u1:seizoensplan', expect.anything())
   })
 })

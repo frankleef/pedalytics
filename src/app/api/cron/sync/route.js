@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { bijwerkPlanVeilig } from "@/lib/plan/bijwerkPlanVeilig";
-import { voegExtraWeekToe } from "@/lib/seizoen/faseVerlenging";
-import { intervalsGet } from "@/lib/intervals";
+import { voegExtraWeekToe, verwijderSessiesVanafWeek } from "@/lib/seizoen/faseVerlenging";
+import { intervalsGet, intervalsDelete } from "@/lib/intervals";
 import { decrypt } from "@/lib/crypto";
 import { datumOffset } from "@/lib/datum";
 import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
@@ -641,13 +641,37 @@ export async function POST(request) {
                     if (uitstel) {
                       console.log(`[sync] Fase-overgang uitgesteld voor ${userId}: mediaan decoupling ${mediaan}%`);
 
+                      let stale = { verwijderd: [], intervalsEventIds: [] };
                       await bijwerkPlanVeilig(kv, planKey, (versPlan) => {
                         versPlan.fase_verlengd_count = (versPlan.fase_verlengd_count || 0) + 1;
                         versPlan.fase_verlengd = true;
-                        voegExtraWeekToe(versPlan, weekNr);
+                        const { toegepast, vanafWeek } = voegExtraWeekToe(versPlan, weekNr);
+                        if (toegepast) stale = verwijderSessiesVanafWeek(versPlan, vanafWeek);
                       });
 
                       await maakMelding(userId, "opbouwweek_verlengd");
+
+                      // Async cleanup mag niet binnen bijwerkPlanVeilig's (synchrone)
+                      // mutator — zelfde tweefasenpatroon als verwijderSessiesInPeriode
+                      // in afwezigheid.js. Al-gegenereerde sessies ná het invoegpunt zijn
+                      // stale (kader-inhoud is verschoven, zie faseVerlenging.js); ruim
+                      // de gekoppelde intervals.icu-events op en vul de ontstane gaten
+                      // meteen opnieuw, i.p.v. te wachten op de volgende cron-cyclus.
+                      if (stale.intervalsEventIds.length > 0) {
+                        for (const eventId of stale.intervalsEventIds) {
+                          await intervalsDelete(`/events/${eventId}`, { apiKey, athleteId }).catch(
+                            (e) => console.warn(`[sync] intervals.icu-event ${eventId} verwijderen mislukt:`, e.message)
+                          );
+                        }
+                      }
+                      if (stale.verwijderd.length > 0) {
+                        const { vulSessiesAanVoorGebruiker } = await import("@/lib/sessiesAanvullen");
+                        vulSessiesAanVoorGebruiker(userId, {}).then((r) => {
+                          console.log(`[sync] Sessies aangevuld na fase-verlenging voor ${userId}:`, r);
+                        }).catch((e) => {
+                          console.warn(`[sync] Sessies aanvullen na fase-verlenging mislukt voor ${userId}:`, e.message);
+                        });
+                      }
                     }
 
                     await kv.set(`decoupling_check:${userId}:${weekNr}`, { mediaan, uitstel }, { ex: 14 * 86400 });
