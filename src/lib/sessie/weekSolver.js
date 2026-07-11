@@ -432,10 +432,25 @@ const SESSIETYPE_MAX_EFFECTIEVE_UREN = {
  */
 export function schatTssDoel(archetypesData, sessietype, fase, weekInFase, seizoensdoel, gedegradeerd, weektype, beschikbareDuurMin = null) {
   const ifMidden = SESSIETYPE_IF_MIDDEN[sessietype] ?? 0.70;
-  const maxUren = SESSIETYPE_MAX_EFFECTIEVE_UREN[sessietype] ?? 2;
-  const uren = beschikbareDuurMin != null ? Math.min(beschikbareDuurMin / 60, maxUren) : maxUren / 2;
+  const uren = effectieveDuurMin(sessietype, beschikbareDuurMin) / 60;
   const basis = Math.round(ifMidden * ifMidden * uren * 100);
   return gedegradeerd ? Math.round(basis * 0.85) : basis;
+}
+
+/**
+ * Effectieve (gecapte) duur in minuten voor een sessietype, gegeven de
+ * daadwerkelijk beschikbare tijd — het plafond uit SESSIETYPE_MAX_EFFECTIEVE_UREN
+ * hierboven. Gedeeld door schatTssDoel() (dagbudget-schatting) EN
+ * genereerSessieDag() (de daadwerkelijke sessie-opbouw, zie genereren.js) zodat
+ * een sessie nooit voller wordt gebouwd dan het budget waarop hij vervolgens
+ * getoetst wordt — anders bouwt genereerSessieDag() op de volle beschikbare
+ * tijd en knipt corrigeerSessieTssTovDagbudget() 'm achteraf weer terug.
+ * @param {number|null} beschikbareDuurMin - null = geen duurfilter (helft van het maximum)
+ */
+export function effectieveDuurMin(sessietype, beschikbareDuurMin = null) {
+  const maxUren = SESSIETYPE_MAX_EFFECTIEVE_UREN[sessietype] ?? 2;
+  if (beschikbareDuurMin == null) return Math.round((maxUren / 2) * 60);
+  return Math.round(Math.min(beschikbareDuurMin, maxUren * 60));
 }
 
 function bouwToewijzing({ datum, beschikbareUren }, sessietype, { archetypesData, fase, weekInFase, weektype, seizoensdoel, gedegradeerd = false, pad, tssDoelOverride }) {

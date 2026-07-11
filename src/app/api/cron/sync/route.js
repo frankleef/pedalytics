@@ -509,26 +509,20 @@ export async function POST(request) {
             console.warn(`[sync] RPE-trend check mislukt voor ${userId}:`, e.message);
           }
 
-          // Adaptatie-score berekenen
+          // Conditiescore berekenen
           try {
             const rpeTrend = await kv.get(`rpe_trend:${userId}`);
 
-            // HRV: 3d vs 28d uit intervals.icu wellness
-            let hrv7d = null, hrv28d = null, ctlRamp = null;
+            let ctlRamp = null;
             try {
               const wellOldest = datumOffset(-28);
               const wellData = await intervalsGet("/wellness", { oldest: wellOldest, newest: datumOffset(0) }, { apiKey, athleteId });
               if (wellData?.length >= 7) {
-                const hrvWaarden = wellData.filter(w => w.hrv).map(w => w.hrv);
-                if (hrvWaarden.length >= 7) {
-                  hrv7d = hrvWaarden.slice(-7).reduce((a, b) => a + b, 0) / 7;
-                  hrv28d = hrvWaarden.reduce((a, b) => a + b, 0) / hrvWaarden.length;
-                }
                 const ctlWaarden = wellData.filter(w => w.ctl != null).sort((a, b) => (a.id || "").localeCompare(b.id || ""));
                 ctlRamp = ctlRampRegressie(ctlWaarden.map(w => w.ctl));
               }
             } catch (e) {
-              console.warn(`[sync] Wellness voor adaptatie mislukt:`, e.message);
+              console.warn(`[sync] Wellness voor conditiescore mislukt:`, e.message);
             }
 
             // Decoupling medianen voor conditiescore: GEEN filter (ruwe waarden, spec 32-F)

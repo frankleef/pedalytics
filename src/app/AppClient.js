@@ -801,7 +801,7 @@ export default function Page() {
     }
 
     // Nieuw toegevoegde dagen: genereer sessie client-side (via job)
-    const { maxTrainingsdagenPerWeek, heeftTeLangReeks } = await import("@/lib/trainingsfrequentie");
+    const { frequentieVoorWeek, heeftTeLangReeks } = await import("@/lib/trainingsfrequentie");
 
     // Hulp: maandag-ISO voor daggroepering
     function weekMaandagISO(isoDate) {
@@ -831,7 +831,8 @@ export default function Page() {
           const weekNr = seizoensplan.startdatum ? weeknummerVoorDatum(datum, seizoensplan.startdatum) : 1;
           const aankomendWeek = seizoensplan.kader?.find(w => w.week === weekNr) || seizoensplan.kader?.[0];
           const ctl = wellenessHuidig?.icu_ctl ?? seizoensplan.huidige_ctl ?? 40;
-          const trainingsfrequentie = aankomendWeek?.trainingsfrequentie ?? maxTrainingsdagenPerWeek(ctl);
+          const beschikbareDagenNamen = Object.entries(nieuwBeschikbaar).filter(([, v]) => v).map(([k]) => k);
+          const trainingsfrequentie = frequentieVoorWeek({ ctl, kaderWeek: aankomendWeek, beschikbareDagenNamen, urenPerDag: nieuwUren });
 
           // Frequentie-check: alleen sessies in dezelfde kalenderweek (excl. mobiliteit)
           const sessiesDezeWeekFreq = lokaalSessies.filter(s =>

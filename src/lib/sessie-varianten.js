@@ -433,9 +433,15 @@ export const SESSIE_ARCHETYPES = {
 
   sweetspot_intervallen: [
     {
+      // Bovengrens 95->105 opgehoogd: ss_sprint_finish/ss_cadans_hoog
+      // berekenen op 100-103 TSS @90min (zelfstandig gekalibreerd, zie hun
+      // blokken hieronder). De onderliggende som-afwijking van het bestaande
+      // ss_std_3x20 (som=1.068, TSS 100 @90min, onderdeel van de 27
+      // vervolgticket-mismatches) is HIER niet aangepakt — alleen de
+      // archetype-brede tss_range is verruimd voor de nieuwe varianten.
       id: 'ss_standaard',
       naam: 'Sweetspot standaard',
-      tss_range: [70, 95],
+      tss_range: [70, 105],
       fase_beschikbaar: ['sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
@@ -466,6 +472,34 @@ export const SESSIE_ARCHETYPES = {
             { type: 'werk',   zone: 'Z3', pct_ftp: 90, duur_pct: 0.357, reps: 2 },
             { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.107, reps: 2 },
             { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.072 },
+          ]
+        },
+        {
+          // Coach-praktijk, lage extra fysiologische last. Bewust NIET
+          // ss_std_3x20's duur_pct hergebruikt (som=1.068, zie vervolgticket-
+          // notitie) — hier zelfstandig gekalibreerd op een 3×20'-kern met
+          // som≈1.0, plus een korte Z7-sprint direct vóór elk herstelblok.
+          id: 'ss_sprint_finish',
+          zwaartegewicht: 2,
+          naam: '3× 20\' + sprint-finish',
+          blokken: [
+            { type: 'werk',   zone: 'Z3', pct_ftp: 90,  duur_pct: 0.250,    reps: 3 },
+            { type: 'werk',   zone: 'Z7', pct_ftp: 200, duur_pct: 0.002222, reps: 3 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.063,    reps: 3 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.055 },
+          ]
+        },
+        {
+          // Praktijkbron, geen RCT. Zelfde 3×20'-kern als ss_sprint_finish
+          // (zelfstandig gekalibreerd, som≈1.0), met cadans_rpm-override op de
+          // werkblokken i.p.v. zelfgekozen cadans.
+          id: 'ss_cadans_hoog',
+          zwaartegewicht: 2,
+          naam: '3× 20\' hoge cadans',
+          blokken: [
+            { type: 'werk',   zone: 'Z3', pct_ftp: 90, duur_pct: 0.250, reps: 3, cadans_rpm: { min: 90, max: 110 } },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.063, reps: 3 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.062 },
           ]
         },
       ]
@@ -574,6 +608,47 @@ export const SESSIE_ARCHETYPES = {
             { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.042 },
             { type: 'werk',   zone: 'Z3', pct_ftp: 86, duur_pct: 0.125 },
             { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.207 },
+          ]
+        },
+      ]
+    },
+
+    {
+      // Piramidevorm qua bloktijd EN intensiteit (5-10-15-10-5 min-ratio,
+      // 88→90→93→90→88% FTP) — aanvulling naast ss_oplopend (monotoon
+      // oplopend) en ss_afdalend (monotoon aflopend), veelgebruikt op
+      // ROUVY/TrainerRoad. Gebouwd met dezelfde duur_pct-proportionele
+      // techniek als die twee siblings (expliciete opeenvolgende paren i.p.v.
+      // reps-groepering, want de intensiteit varieert per blok) — GEEN
+      // duur_sec_vast: een eerdere versie met vaste ladderminuten (net als
+      // vo2_afbouwend) bleek 3 bestaande invarianten te breken (10%-duur-
+      // afwijkingstest, archetype-maximum-test bij 4 uur, en
+      // berekenZ2AandeelSessietype die duur_sec_vast niet herkent — zie
+      // vervolgticket-notitie). Met duur_pct schaalt de piramide gewoon mee,
+      // net als ss_oplopend/afdalend, en gelden de normale cap/vloer-regels.
+      // Vereist wel een eigen entry in MAXIMUM_BLOKDUUR_PER_ARCHETYPE
+      // (sessie-generatie.js) — anders zou de generieke Z4-cap (480s) het
+      // piek-blok inkorten.
+      id: 'ss_piramide',
+      naam: 'Sweetspot piramide',
+      tss_range: [48, 119],
+      fase_beschikbaar: ['sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'vo2max'],
+      varianten: [
+        {
+          id: 'ss_pir_5_10_15_10_5',
+          zwaartegewicht: 2,
+          naam: '5-10-15-10-5\'',
+          blokken: [
+            { type: 'werk',   zone: 'Z3', pct_ftp: 88, duur_pct: 0.077778 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.05 },
+            { type: 'werk',   zone: 'Z3', pct_ftp: 90, duur_pct: 0.155556 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.05 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 93, duur_pct: 0.233333 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.05 },
+            { type: 'werk',   zone: 'Z3', pct_ftp: 90, duur_pct: 0.155556 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.05 },
+            { type: 'werk',   zone: 'Z3', pct_ftp: 88, duur_pct: 0.077778 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.1 },
           ]
         },
       ]
@@ -829,6 +904,57 @@ export const SESSIE_ARCHETYPES = {
             { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.050 },
             { type: 'werk',   zone: 'Z3', pct_ftp: 88, duur_pct: 0.175, cadans_rpm: 50 },
             { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.150 },
+          ]
+        },
+      ]
+    },
+
+    {
+      // Hebisz & Hebisz 2024 (PLOS ONE) — 8,7% VO2max-winst bij lage cadans
+      // (40-60 rpm) vs 4,6% bij vrije cadans, zelfde arbeid. RPE 7/10 uit het
+      // Wakefield/Bora-protocol vertaald naar 85-92% FTP @ 40-60 rpm (akkoord
+      // vooraf, zie chunk 0-rapportage). Eigen archetype i.p.v. toevoeging aan
+      // kracht_standaard/kracht_lang: bewaart het RCT-onderscheid t.o.v. die
+      // twee (geen evidence-citaat in hun bestaande data). cadans_rpm als
+      // {min,max}-object i.p.v. de bestaande enkel-getal-conventie (50/52 rpm)
+      // — de bron geeft hier expliciet een bandbreedte, geen vast getal.
+      // Cadans-opbouw (hoger beginnen, in 2-4 weken zakken naar 45-50 rpm) is
+      // een instructie voor de sessie-notes, niet iets de generator hoeft te
+      // plannen — buiten scope van deze blokken-structuur.
+      id: 'kracht_torque',
+      naam: 'Kracht torque (lage cadans, RCT)',
+      tss_range: [33, 98],
+      fase_beschikbaar: ['basis', 'sweetspot', 'drempel'],
+      doel_beperking: ['klimmen', 'ftp', 'sprint'],
+      varianten: [
+        {
+          id: 'kracht_torque_kort',
+          zwaartegewicht: 1,
+          naam: '3× 4\' @ 45-55 rpm',
+          blokken: [
+            { type: 'werk',   zone: 'Z3', pct_ftp: 88, duur_pct: 0.044444, cadans_rpm: { min: 45, max: 55 }, reps: 3 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.044444, reps: 3 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.733333 },
+          ]
+        },
+        {
+          id: 'kracht_torque_standaard',
+          zwaartegewicht: 2,
+          naam: '4× 4\' @ 40-55 rpm',
+          blokken: [
+            { type: 'werk',   zone: 'Z3', pct_ftp: 89, duur_pct: 0.044444, cadans_rpm: { min: 40, max: 55 }, reps: 4 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.044444, reps: 4 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.644444 },
+          ]
+        },
+        {
+          id: 'kracht_torque_lang',
+          zwaartegewicht: 3,
+          naam: '3× 10\' @ 45-60 rpm',
+          blokken: [
+            { type: 'werk',   zone: 'Z3', pct_ftp: 85, duur_pct: 0.111111, cadans_rpm: { min: 45, max: 60 }, reps: 3 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.055556, reps: 3 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.5 },
           ]
         },
       ]
@@ -1140,6 +1266,25 @@ export const SESSIE_ARCHETYPES = {
             { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.148 },
           ]
         },
+        {
+          // Coach-praktijk (EVOQ.BIKE), geen RCT. Bewust NIET de duur_pct-
+          // waarden van ou_std_6x2plus1 hergebruikt: die archetype-varianten
+          // hebben een som(duur_pct*reps) van 0.796 i.p.v. 1.0 (zie bevinding
+          // voor het vervolgticket), wat na de Z3/Z4-cap+herverdeling een
+          // onbedoelde ~6 min rust tussen elke [2'+1']-cyclus oplevert i.p.v.
+          // continu doorfietsen. Hier zelfstandig gekalibreerd op een som van
+          // 1.0 zodat de over-unders "direct door" lopen zoals bedoeld —
+          // geverifieerd: geen rust-blok tussen de reps in de uitkomst.
+          id: 'ou_std_hardstart',
+          zwaartegewicht: 3,
+          naam: 'Hard start + 6× [2\'+1\']',
+          blokken: [
+            { type: 'werk',   zone: 'Z5', pct_ftp: 112, duur_pct: 0.033333 },
+            { type: 'werk',   zone: 'Z3', pct_ftp: 88,  duur_pct: 0.022222, reps: 6 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 105, duur_pct: 0.011111, reps: 6 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.766667 },
+          ]
+        },
       ]
     },
 
@@ -1380,40 +1525,238 @@ export const SESSIE_ARCHETYPES = {
     },
 
     {
+      // Was voorheen inconsistent: metadata beschreef "3 sets × 20 reps" (60
+      // herhalingen), maar het codeblok had maar 1 set van 20 reps zonder
+      // buitenste sets-loop — en zelfs die 1-set-versie rekende zich stuk:
+      // duur_pct was gekalibreerd op ~119s werk per rep i.p.v. de bedoelde 40s
+      // (pas de archetype-cap van 60s in MAXIMUM_BLOKDUUR_PER_ARCHETYPE hield
+      // het enigszins in toom, maar zelfs gecapt bleef het 60s i.p.v. 40s).
+      // Hieronder zijn de duur_pct-waarden teruggerekend op de 40s/20s-target
+      // zelf (bij de standaard-testduur van 90 min, zie DEFAULT_TESTDUUR_MIN
+      // in /api/admin/archetypes/preview) i.p.v. losstaand geschat. Dit is de
+      // duur VÓÓR de centrale warming-up-injectie (46-A, voegWarmingUpToe) —
+      // die krimpt elk niet-vast blok in elk archetype met dezelfde ratio om
+      // ruimte te maken voor de opwarming, dus de uiteindelijke sessie toont
+      // hier ~35s/17.5s (bij 90 min). Dat is bewust niet gecompenseerd: geen
+      // ander archetype in dit bestand compenseert voor die krimp, dus 40s als
+      // brontarget met 35s als geleverd resultaat is de consistente conventie.
       id: 'vo2_4020',
       naam: '40/20\'s',
-      tss_range: [60, 80],
+      tss_range: [69, 90],
       fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
       week_in_fase_min: 2,
       varianten: [
         {
-          id: 'vo2_4020_20rep',
-          zwaartegewicht: 2,
-          naam: '20× [40"+20"]',
-          blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 120, duur_pct: 0.022, reps: 20 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.011, reps: 20 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.340 },
-          ]
-        },
-        {
-          id: 'vo2_4020_15rep',
-          zwaartegewicht: 3,
-          naam: '15× [40"+20"] zwaarder',
-          blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 125, duur_pct: 0.022, reps: 15 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.011, reps: 15 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.505 },
-          ]
-        },
-        {
-          id: 'vo2_3020_25rep',
+          id: 'vo2_4020_kort',
           zwaartegewicht: 1,
-          naam: '25× [30"+15"]',
+          naam: '10× [40"+20"]',
           blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 120, duur_pct: 0.017, reps: 25 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.008, reps: 25 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.375 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 120, duur_pct: 0.007407, reps: 10 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.003704, reps: 10 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.888889 },
+          ]
+        },
+        {
+          id: 'vo2_4020_middel',
+          zwaartegewicht: 2,
+          naam: '2× 7× [40"+20"]',
+          blokken: [
+            { type: 'werk',   zone: 'Z5', pct_ftp: 120, duur_pct: 0.007407, reps: 7 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.003704, reps: 7 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044444 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 120, duur_pct: 0.007407, reps: 7 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.003704, reps: 7 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.8 },
+          ]
+        },
+        {
+          id: 'vo2_4020_lang',
+          zwaartegewicht: 3,
+          naam: '3× 10× [40"+20"]',
+          blokken: [
+            { type: 'werk',   zone: 'Z5', pct_ftp: 120, duur_pct: 0.007407, reps: 10 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.003704, reps: 10 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.055556 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 120, duur_pct: 0.007407, reps: 10 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.003704, reps: 10 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.055556 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 120, duur_pct: 0.007407, reps: 10 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.003704, reps: 10 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.555556 },
+          ]
+        },
+      ]
+    },
+
+    {
+      // Rønnestad & Hansen (2013/2020) — 30s@~110%FTP / 15s@~50%FTP, 2:1
+      // werk/rust-verhouding (vs. vo2_4020's 40/20 op dezelfde 2:1-ratio, maar
+      // korter en met meer herhalingen). Slechts 2 varianten (geen "zwaar")
+      // omdat het bronprotocol zelf maar één gevalideerde dosering kent (3×13)
+      // naast een lichtere introductieversie.
+      id: 'vo2_3015',
+      naam: 'Rønnestad 30/15',
+      tss_range: [68, 80],
+      fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
+      week_in_fase_min: 2,
+      varianten: [
+        {
+          id: 'vo2_3015_kort',
+          zwaartegewicht: 1,
+          naam: '2× 9× [30"+15"]',
+          blokken: [
+            { type: 'werk',   zone: 'Z5', pct_ftp: 110, duur_pct: 0.005556, reps: 9 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 50,  duur_pct: 0.002778, reps: 9 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.033333 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 110, duur_pct: 0.005556, reps: 9 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 50,  duur_pct: 0.002778, reps: 9 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.816667 },
+          ]
+        },
+        {
+          id: 'vo2_3015_standaard',
+          zwaartegewicht: 2,
+          naam: '3× 13× [30"+15"]',
+          blokken: [
+            { type: 'werk',   zone: 'Z5', pct_ftp: 110, duur_pct: 0.005556, reps: 13 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 50,  duur_pct: 0.002778, reps: 13 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.033333 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 110, duur_pct: 0.005556, reps: 13 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 50,  duur_pct: 0.002778, reps: 13 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.033333 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 110, duur_pct: 0.005556, reps: 13 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 50,  duur_pct: 0.002778, reps: 13 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.608333 },
+          ]
+        },
+      ]
+    },
+
+    {
+      // Billat — 1:1 werk/rust-verhouding (i.p.v. vo2_4020/vo2_3015's 2:1),
+      // geen sets-structuur: één doorlopende reeks reps.
+      id: 'vo2_3030',
+      naam: 'Billat 30/30',
+      tss_range: [64, 67],
+      fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
+      week_in_fase_min: 2,
+      varianten: [
+        {
+          id: 'vo2_3030_kort',
+          zwaartegewicht: 1,
+          naam: '12× [30"+30"]',
+          blokken: [
+            { type: 'werk',   zone: 'Z5', pct_ftp: 102, duur_pct: 0.005556, reps: 12 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 55,  duur_pct: 0.005556, reps: 12 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.866667 },
+          ]
+        },
+        {
+          id: 'vo2_3030_middel',
+          zwaartegewicht: 2,
+          naam: '16× [30"+30"]',
+          blokken: [
+            { type: 'werk',   zone: 'Z5', pct_ftp: 102, duur_pct: 0.005556, reps: 16 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 55,  duur_pct: 0.005556, reps: 16 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.822222 },
+          ]
+        },
+        {
+          id: 'vo2_3030_lang',
+          zwaartegewicht: 3,
+          naam: '20× [30"+30"]',
+          blokken: [
+            { type: 'werk',   zone: 'Z5', pct_ftp: 102, duur_pct: 0.005556, reps: 20 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 55,  duur_pct: 0.005556, reps: 20 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.777778 },
+          ]
+        },
+      ]
+    },
+
+    {
+      // Gunnarsson & Bangsbo (2012) — binnen elk 5-min blok: 30s laag / 20s
+      // Z3 / 10s maximaal, 5× herhaald (5×60s = exact 5 min). "Laag" is hier
+      // Z2 i.p.v. Z1 (zie chunk 0-rapportage): Z1 is alleen toegestaan voor
+      // sprint_neuraal/z6_anaeroob/kracht_lage_cadans-sessietypes en 3 met-naam
+      // genoemde gemengd-archetypes (valideerZ1Gebruik) — vo2max_intervallen
+      // staat niet in die lijst. 50-60% FTP past ook prima binnen Z2, dus geen
+      // uitzondering nodig op de bestaande Z1-regel. "Piek" (10s maximaal) volgt
+      // de bestaande sprint_kort-conventie: zone Z7, pct_ftp 200 (geen exacte
+      // %FTP-target uit het protocol, puur "maximaal haalbaar").
+      id: 'vo2_102030',
+      naam: '10-20-30',
+      tss_range: [70, 75],
+      fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
+      week_in_fase_min: 2,
+      varianten: [
+        {
+          id: 'vo2_102030_kort',
+          zwaartegewicht: 1,
+          naam: '2× 5× [30"+20"+10"]',
+          blokken: [
+            { type: 'herstel',zone: 'Z2', pct_ftp: 55,  duur_pct: 0.005556, reps: 5 },
+            { type: 'werk',   zone: 'Z3', pct_ftp: 80,  duur_pct: 0.003704, reps: 5 },
+            { type: 'werk',   zone: 'Z7', pct_ftp: 200, duur_pct: 0.001852, reps: 5 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.033333 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 55,  duur_pct: 0.005556, reps: 5 },
+            { type: 'werk',   zone: 'Z3', pct_ftp: 80,  duur_pct: 0.003704, reps: 5 },
+            { type: 'werk',   zone: 'Z7', pct_ftp: 200, duur_pct: 0.001852, reps: 5 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.855556 },
+          ]
+        },
+        {
+          id: 'vo2_102030_standaard',
+          zwaartegewicht: 2,
+          naam: '3× 5× [30"+20"+10"]',
+          blokken: [
+            { type: 'herstel',zone: 'Z2', pct_ftp: 55,  duur_pct: 0.005556, reps: 5 },
+            { type: 'werk',   zone: 'Z3', pct_ftp: 80,  duur_pct: 0.003704, reps: 5 },
+            { type: 'werk',   zone: 'Z7', pct_ftp: 200, duur_pct: 0.001852, reps: 5 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.033333 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 55,  duur_pct: 0.005556, reps: 5 },
+            { type: 'werk',   zone: 'Z3', pct_ftp: 80,  duur_pct: 0.003704, reps: 5 },
+            { type: 'werk',   zone: 'Z7', pct_ftp: 200, duur_pct: 0.001852, reps: 5 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.033333 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 55,  duur_pct: 0.005556, reps: 5 },
+            { type: 'werk',   zone: 'Z3', pct_ftp: 80,  duur_pct: 0.003704, reps: 5 },
+            { type: 'werk',   zone: 'Z7', pct_ftp: 200, duur_pct: 0.001852, reps: 5 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.766667 },
+          ]
+        },
+      ]
+    },
+
+    {
+      // Descending ladder — coach-praktijk (EVOQ.BIKE), geen RCT. Enige
+      // archetype in dit bestand dat duur_sec_vast gebruikt: de ladder-rungs
+      // zijn een vaste, niet-schalende structuur (een 3-min rung moet altijd 3
+      // min blijven, niet uitrekken bij een lange sessie of inkrimpen bij een
+      // korte) — zie schaalVariant's duur_sec_vast-pad. Alleen het afsluitende
+      // Z2-herstelblok is duur_pct (schaalbaar) en vangt het verschil tussen de
+      // vaste ladder (~20 min) en de gevraagde sessieduur op.
+      id: 'vo2_afbouwend',
+      naam: 'Afbouwende ladder',
+      tss_range: [45, 94],
+      fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
+      week_in_fase_min: 2,
+      varianten: [
+        {
+          id: 'vo2_afb_ladder',
+          zwaartegewicht: 3,
+          naam: 'Afbouwende ladder 3\'-2\'-1\'-45"-5×30"',
+          blokken: [
+            { type: 'werk',   zone: 'Z5', pct_ftp: 118, duur_sec_vast: 180 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_sec_vast: 120 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 118, duur_sec_vast: 120 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_sec_vast: 80 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 118, duur_sec_vast: 60 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_sec_vast: 40 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 118, duur_sec_vast: 45 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_sec_vast: 30 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 118, duur_sec_vast: 30, reps: 5 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_sec_vast: 20, reps: 5 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 1.0 },
           ]
         },
       ]

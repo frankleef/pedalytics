@@ -1,15 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
-import { T, STATUS, getStatus } from "../designTokens";
+import { T, STATUS, getStatus, CONDITIE_PILL_KLEUREN } from "../designTokens";
 import { conditieInfoRegels } from "@/lib/conditie";
-
-const PILL_KLEUREN = {
-  groen: { bg: "oklch(0.96 0.02 150)", tekst: "oklch(0.52 0.062 150)", dot: "oklch(0.63 0.06 150)" },
-  geel: { bg: "oklch(0.95 0.04 90)", tekst: "oklch(0.45 0.1 85)", dot: "oklch(0.65 0.12 88)" },
-  oranje: { bg: "oklch(0.95 0.04 55)", tekst: "oklch(0.45 0.1 50)", dot: "oklch(0.63 0.12 52)" },
-  rood: { bg: "oklch(0.95 0.04 28)", tekst: "oklch(0.45 0.1 25)", dot: "oklch(0.58 0.11 28)" },
-  blauw: { bg: "oklch(0.93 0.03 235)", tekst: "oklch(0.38 0.09 245)", dot: "oklch(0.5 0.09 248)" },
-};
+import ConditieUitlegModal from "./ConditieUitlegModal";
 
 const SUBTEKSTEN = {
   vol_gas: "Je lichaam is klaar voor een zware training.",
@@ -37,7 +30,7 @@ export default function GereedheidConditieKaart({ balansScore, ctl, atl, tsb, co
   const st = STATUS[statusKey];
   const scoreVal = balansScore ?? 50;
 
-  const pillKleur = condData?.pill?.kleur ? PILL_KLEUREN[condData.pill.kleur] : null;
+  const pillKleur = condData?.pill?.kleur ? CONDITIE_PILL_KLEUREN[condData.pill.kleur] : null;
   const infoRegels = condData ? conditieInfoRegels(condData.ctl_nu, condData.ctl_4w_geleden, condData.rpe_delta_trend) : {};
 
   return (
@@ -116,25 +109,7 @@ export default function GereedheidConditieKaart({ balansScore, ctl, atl, tsb, co
         </div>
       )}
 
-      {infoOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "oklch(0.2 0.01 262 / 0.42)", zIndex: 50, display: "flex", alignItems: "flex-end" }} onClick={() => setInfoOpen(false)}>
-          <div style={{ background: T.cardBg, borderRadius: "28px 28px 0 0", padding: "22px 22px 26px", width: "100%" }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: "0 0 18px", font: "700 18px var(--font-nunito), sans-serif", color: T.text }}>Hoe werkt de conditiescore?</h3>
-            {[
-              { titel: "Belasting", tekst: "Hoe snel bouw je trainingsbelasting (CTL) op? Optimaal is 3-7 punten per week. Te snel = overbelasting, te langzaam = te weinig stimulus." },
-              { titel: "Conditieontwikkeling", tekst: "Stijgt, stabiliseert of daalt je fitheid (CTL) over de afgelopen 4 weken? Dit is het primaire signaal." },
-              { titel: "Gevoel (RPE-trend)", tekst: "Voelen je trainingen lichter of zwaarder aan dan verwacht? Als gelijke training makkelijker wordt, groei je." },
-              { titel: "Aerobe basis", tekst: "Hoe efficiënt werkt je hart bij lage intensiteit? Gemeten via hartslagstijging tijdens Z2-ritten." },
-            ].map((item, i) => (
-              <div key={i} style={{ marginBottom: 14 }}>
-                <div style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.text, marginBottom: 3 }}>{item.titel}</div>
-                <div style={{ font: "600 12.5px/1.5 var(--font-nunito), sans-serif", color: T.textSec }}>{item.tekst}</div>
-              </div>
-            ))}
-            <button onClick={() => setInfoOpen(false)} style={{ width: "100%", padding: 14, borderRadius: T.pillRadius, border: "none", background: T.slate, color: "oklch(0.97 0.01 84)", font: "700 14.5px var(--font-nunito), sans-serif", cursor: "pointer", marginTop: 6 }}>Sluiten</button>
-          </div>
-        </div>
-      )}
+      {infoOpen && <ConditieUitlegModal onClose={() => setInfoOpen(false)} />}
     </div>
   );
 }

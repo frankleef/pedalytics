@@ -25,7 +25,7 @@ import {
   migreesSessietype,
   valideerZ1Gebruik,
 } from "../sessie-archetypes";
-import { schatTssDoel, degradeerBijLageTsb } from "./weekSolver";
+import { schatTssDoel, degradeerBijLageTsb, effectieveDuurMin } from "./weekSolver";
 import { maakMelding } from "../meldingen";
 import { selecteerVariantOpDagvorm, genereerSessieDeterministisch } from "../sessie-generatie";
 import { bepaalHrvZone } from "../hrv/zone";
@@ -180,7 +180,7 @@ export async function genereerSessieDag(ctx) {
     dagIntentie: dagIntentieVers,
     archetype: gekozenArchetype,
     variant,
-    doelDuurMin: rondDuurMinAf(uren * 60),
+    doelDuurMin: rondDuurMinAf(effectieveDuurMin(effectiefSessietype, Math.round(uren * 60))),
     ftp: profiel.ftp,
     sessietype: effectiefSessietype,
   });

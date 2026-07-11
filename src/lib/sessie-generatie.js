@@ -39,6 +39,7 @@ const MAXIMUM_BLOKDUUR_PER_ARCHETYPE = {
   ss_standaard: 1560,      // 26 min ("2× 25'")
   ss_oplopend: 960,        // 16 min ("3× 15'"/"4× 12'")
   ss_afdalend: 960,        // 16 min ("3× 15'")
+  ss_piramide: 960,        // 16 min (piek-blok "15'", zelfde marge als ss_oplopend/afdalend)
   ss_lang: 2160,           // 36 min ("1× 35'")
   ss_kort_veel: 540,       // 9 min ("6× 8'")
   tempo_continu: 2700,     // 45 min — geen expliciete naam-minuten; bewust lang/aaneengesloten van aard

@@ -86,6 +86,15 @@ export function conditiePillStatus(belasting, conditie) {
   return { label: "Te weinig stimulus", kleur: "oranje" };
 }
 
+// Uitleg van de vier signalen achter de conditiescore — gedeeld tussen de
+// homepage-kaart en de schema-tab-kaart, want het is dezelfde score.
+export const CONDITIE_UITLEG = [
+  { titel: "Belasting", tekst: "Hoe snel bouw je trainingsbelasting (CTL) op? Optimaal is 3-7 punten per week. Te snel = overbelasting, te langzaam = te weinig stimulus." },
+  { titel: "Conditieontwikkeling", tekst: "Stijgt, stabiliseert of daalt je fitheid (CTL) over de afgelopen 4 weken? Dit is het primaire signaal." },
+  { titel: "Gevoel (RPE-trend)", tekst: "Voelen je trainingen lichter of zwaarder aan dan verwacht? Als gelijke training makkelijker wordt, groei je." },
+  { titel: "Aerobe basis", tekst: "Hoe efficiënt werkt je hart bij lage intensiteit? Gemeten via hartslagstijging tijdens Z2-ritten." },
+];
+
 export function conditieInfoRegels(ctl_nu, ctl_4w_geleden, rpe_delta_trend) {
   let ctlRegel = null;
   if (ctl_nu != null && ctl_4w_geleden != null) {

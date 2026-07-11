@@ -15,6 +15,52 @@ export function maxTrainingsdagenPerWeek(ctl) {
   return 6;
 }
 
+// Zelfde IF-midden/max-effectieve-uren als z2_duur in weekSolver.js's
+// SESSIETYPE_IF_MIDDEN/SESSIETYPE_MAX_EFFECTIEVE_UREN — z2_duur is het meest
+// volumineuze sessietype, dus het plafond van wat één dag realistisch kan
+// leveren.
+const Z2_IF_MIDDEN = 0.72;
+const Z2_MAX_EFFECTIEVE_UREN = 4;
+
+/**
+ * Bepaalt hoeveel dagen deze week een sessie mogen krijgen. Basis is de
+ * CTL-gedreven veiligheidscap (of, in de weken vlak na een blokcheck, de
+ * TSB-gecorrigeerde kaderWeek.trainingsfrequentie) — maar die basis kent het
+ * tss_doel van de week niet. Bij een week met een fors hoger tss_doel dan
+ * binnen die cap haalbaar is met de daadwerkelijk beschikbare uren per dag
+ * (bv. een sweetspot-opbouwweek met "hoge belasting gewenst"), zou de
+ * basis-cap dagen wegsnijden die nodig zijn om het doel te halen — vandaar
+ * hier een demand-gedreven ondergrens, nooit hoger dan het aantal
+ * daadwerkelijk beschikbare dagen.
+ *
+ * @param {number} ctl
+ * @param {object|null} kaderWeek - { trainingsfrequentie?, tss_doel?, weektype? }
+ * @param {string[]} beschikbareDagenNamen - dagnamen die de gebruiker heeft aangevinkt
+ * @param {Object<string, number>} [urenPerDag] - { [dagNaam]: uren }
+ */
+export function frequentieVoorWeek({ ctl, kaderWeek, beschikbareDagenNamen = [], urenPerDag = {} }) {
+  const basis = kaderWeek?.trainingsfrequentie ?? maxTrainingsdagenPerWeek(ctl);
+  const weekTssDoel = kaderWeek?.tss_doel ?? 0;
+  if (kaderWeek?.weektype === "herstel" || weekTssDoel <= 0 || beschikbareDagenNamen.length === 0) return basis;
+
+  // Realistische TSS-capaciteit per beschikbare dag, aflopend gesorteerd zodat
+  // de meest waardevolle dagen (langste beschikbare tijd) als eerst meetellen.
+  const capaciteitAflopend = beschikbareDagenNamen
+    .map((dag) => Z2_IF_MIDDEN * Z2_IF_MIDDEN * Math.min(urenPerDag[dag] || 1.5, Z2_MAX_EFFECTIEVE_UREN) * 100)
+    .sort((a, b) => b - a);
+
+  let benodigdeDagen = 0;
+  let cumulatief = 0;
+  for (const capaciteit of capaciteitAflopend) {
+    if (cumulatief >= weekTssDoel) break;
+    cumulatief += capaciteit;
+    benodigdeDagen++;
+  }
+
+  if (benodigdeDagen <= basis) return basis;
+  return Math.min(benodigdeDagen, beschikbareDagenNamen.length, 6);
+}
+
 export function bepaalTrainingsfrequentie({
   ctl,
   tsb,

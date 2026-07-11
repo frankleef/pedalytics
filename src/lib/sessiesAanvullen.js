@@ -2,7 +2,7 @@ import { getKV } from "@/lib/kv";
 import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet, intervalsPost } from "@/lib/intervals";
 import { vandaagISO, datumISO, DAGNAMEN } from "@/lib/datum";
-import { maxTrainingsdagenPerWeek, heeftTeLangReeks } from "@/lib/trainingsfrequentie";
+import { frequentieVoorWeek, heeftTeLangReeks } from "@/lib/trainingsfrequentie";
 import { sessieNaarZwo } from "@/lib/workoutZwo";
 import { normaliseerSessieSegmenten } from "@/lib/sessie/normaliseer";
 import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
@@ -154,7 +154,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
 
     const mISO = weekMaandagISO(iso);
     const kaderWeek = kaderWeekVoorDatum(iso);
-    const frequentie = kaderWeek?.trainingsfrequentie ?? maxTrainingsdagenPerWeek(ctlBasis);
+    const frequentie = frequentieVoorWeek({ ctl: ctlBasis, kaderWeek, beschikbareDagenNamen: beschikbareDagen, urenPerDag });
     const reedsGepland = geplandPerWeek[mISO] || 0;
 
     // Stop-conditie 1: frequentie bereikt voor deze week

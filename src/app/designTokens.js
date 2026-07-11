@@ -98,6 +98,17 @@ export const STATUS = {
   },
 };
 
+// Kleuren voor de conditiescore-pill (lib/conditie.js conditiePillStatus) —
+// gedeeld tussen GereedheidConditieKaart (home) en AdaptatieScoreKaart (schema),
+// zodat dezelfde score overal identiek oogt.
+export const CONDITIE_PILL_KLEUREN = {
+  groen: { bg: 'oklch(0.96 0.02 150)', tekst: 'oklch(0.52 0.062 150)', dot: 'oklch(0.63 0.06 150)' },
+  geel: { bg: 'oklch(0.95 0.04 90)', tekst: 'oklch(0.45 0.1 85)', dot: 'oklch(0.65 0.12 88)' },
+  oranje: { bg: 'oklch(0.95 0.04 55)', tekst: 'oklch(0.45 0.1 50)', dot: 'oklch(0.63 0.12 52)' },
+  rood: { bg: 'oklch(0.95 0.04 28)', tekst: 'oklch(0.45 0.1 25)', dot: 'oklch(0.58 0.11 28)' },
+  blauw: { bg: 'oklch(0.93 0.03 235)', tekst: 'oklch(0.38 0.09 245)', dot: 'oklch(0.5 0.09 248)' },
+};
+
 // Slate insight-kaart tokens (lichte "coach"-kaart — vervangt het oude donkere thema)
 export const SLATE = {
   bg: 'oklch(0.995 0.004 90)',

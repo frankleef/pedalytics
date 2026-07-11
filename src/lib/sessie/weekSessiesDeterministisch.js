@@ -16,7 +16,7 @@
 
 import { vandaagISO, datumISO, DAGNAMEN } from "../datum";
 import { kaderWeekVoorDatum, weekInFaseVoorKaderWeek, getMaandagVanWeek, weeknummerVoorDatum } from "../weekgrenzen";
-import { maxTrainingsdagenPerWeek, heeftTeLangReeks } from "../trainingsfrequentie";
+import { frequentieVoorWeek, heeftTeLangReeks } from "../trainingsfrequentie";
 import { getAlleArchetypesRaw } from "../sessie-archetypes";
 import { solveWeek, pasBudgetToe } from "./weekSolver";
 import { genereerSessieDag, logSessieGegenereerd } from "./genereren";
@@ -127,7 +127,7 @@ export async function genereerWeekSessiesDeterministisch({
   for (const [mISO, dagenDezeWeek] of Object.entries(dagenPerWeek)) {
     const gesorteerd = [...dagenDezeWeek].sort((a, b) => a.datum.localeCompare(b.datum));
     const kaderWeek = kaderWeekVoorDatum(gesorteerd[0].datum, seizoensplan.kader, seizoensplan.startdatum);
-    const frequentie = kaderWeek?.trainingsfrequentie ?? maxTrainingsdagenPerWeek(ctl);
+    const frequentie = frequentieVoorWeek({ ctl, kaderWeek, beschikbareDagenNamen: beschikbareDagen, urenPerDag });
     for (const dag of gesorteerd) {
       const reedsGepland = geplandPerWeek[mISO] || 0;
       if (reedsGepland >= frequentie) continue;

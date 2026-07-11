@@ -88,8 +88,8 @@ export const SESSIE_ARCHETYPES = {
     {
       id: 'ss_standaard',
       naam: 'Sweetspot standaard',
-      structuur: '3× [15–20 min @ 88–93% FTP], 5 min Z2 herstel',
-      tss_range: [70, 95],
+      structuur: '3× [15–20 min @ 88–93% FTP], 5 min Z2 herstel (varianten: sprint-finish met korte Z7-sprint vóór elk herstel, of hoge cadans 90-110 rpm — beide coach-praktijk)',
+      tss_range: [70, 105],
       fase_beschikbaar: ['sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'vo2max'],
     },
     {
@@ -121,6 +121,13 @@ export const SESSIE_ARCHETYPES = {
       fase_beschikbaar: ['sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'vo2max'],
     },
     {
+      id: 'ss_piramide',
+      naam: 'Sweetspot piramide',
+      structuur: '5-10-15-10-5 min-ratio @ 88→90→93→90→88% FTP (piramidevorm), Z2 tussen blokken (veelgebruikt, ROUVY/TrainerRoad)',
+      tss_range: [48, 119],
+      fase_beschikbaar: ['sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'vo2max'],
+    },
+    {
       id: 'ss_kort_veel',
       naam: 'Veel korte sweetspotblokken',
       structuur: '6–8× [8 min @ 90% FTP], 3 min Z2 herstel',
@@ -146,6 +153,14 @@ export const SESSIE_ARCHETYPES = {
       tss_range: [65, 85],
       fase_beschikbaar: ['basis', 'sweetspot', 'drempel'],
       week_in_fase_min: 2,
+      doel_beperking: ['klimmen', 'ftp', 'sprint'],
+    },
+    {
+      id: 'kracht_torque',
+      naam: 'Kracht torque (lage cadans, RCT)',
+      structuur: 'Kort/standaard/lang: 3-4× [4-10 min @ 40-60 rpm, 85-92% FTP], 4-5 min Z2 herstel (Hebisz & Hebisz 2024, PLOS ONE)',
+      tss_range: [33, 98],
+      fase_beschikbaar: ['basis', 'sweetspot', 'drempel'],
       doel_beperking: ['klimmen', 'ftp', 'sprint'],
     },
   ],
@@ -200,7 +215,7 @@ export const SESSIE_ARCHETYPES = {
     {
       id: 'ou_standaard',
       naam: 'Over-unders',
-      structuur: '6× [2 min @ 88% → 1 min @ 105% FTP], 4 min Z2 herstel',
+      structuur: '6× [2 min @ 88% → 1 min @ 105% FTP], 4 min Z2 herstel (zwaarste variant: 2-4 min hard start @ 110-115% FTP direct door in de over-unders, coach-praktijk)',
       tss_range: [70, 90],
       fase_beschikbaar: ['sweetspot', 'drempel', 'vo2max', 'consolidatie'],
     },
@@ -287,10 +302,48 @@ export const SESSIE_ARCHETYPES = {
     {
       id: 'vo2_4020',
       naam: "40/20's",
-      structuur: '20× [40 sec @ 120% FTP + 20 sec Z2] — snel Z5 in en uit',
-      tss_range: [60, 80],
+      structuur: 'Kort/middel/lang: 1-3 sets van 7-10× [40 sec @ 118-122% FTP + 20 sec Z2] — snel Z5 in en uit',
+      tss_range: [69, 90],
       fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
       week_in_fase_min: 2,
+    },
+    {
+      id: 'vo2_3015',
+      naam: 'Rønnestad 30/15',
+      structuur: 'Kort/standaard: 2-3 sets van 9-13× [30 sec @ 108-112% FTP + 15 sec Z2], 3 min Z2 tussen sets (Rønnestad & Hansen)',
+      tss_range: [68, 80],
+      fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
+      week_in_fase_min: 2,
+    },
+    {
+      id: 'vo2_3030',
+      naam: 'Billat 30/30',
+      structuur: 'Kort/middel/lang: 12-20× [30 sec @ 100-105% FTP + 30 sec Z2] — 1:1 werk/rust',
+      tss_range: [64, 67],
+      fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
+      week_in_fase_min: 2,
+    },
+    {
+      id: 'vo2_102030',
+      naam: '10-20-30',
+      structuur: 'Kort/standaard: 2-3× [5 min blok van herhaald 30 sec laag / 20 sec Z3 / 10 sec maximaal], 3 min Z2 tussen blokken (Gunnarsson & Bangsbo)',
+      tss_range: [70, 75],
+      fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
+      week_in_fase_min: 2,
+    },
+    {
+      id: 'vo2_afbouwend',
+      naam: 'Afbouwende ladder',
+      structuur: '3\'-2\'-1\'-45"-5×30" @ 115-120% FTP met aflopende Z2-herstelperiodes, 5 min afsluitend herstel (coach-praktijk, geen RCT)',
+      tss_range: [45, 94],
+      fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
+      week_in_fase_min: 2,
+      // De ladder zelf (925s) + minimale warming-up (300s) = ~20.4 min vaste
+      // bodem. Onder ~25 min doelduur verdringt dat het afsluitende Z2-blok
+      // vrijwel volledig (geverifieerd: bij 20 min doel krimpt het naar ~1s) —
+      // min_duur_min voorkomt dat dit archetype ooit bij zo'n korte sessie
+      // wordt gekozen.
+      min_duur_min: 45,
     },
   ],
 
