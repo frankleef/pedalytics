@@ -27,6 +27,7 @@ import {
 } from "../sessie-archetypes";
 import { schatTssDoel, degradeerBijLageTsb, effectieveDuurMin } from "./weekSolver";
 import { maakMelding } from "../meldingen";
+import { voegZ2VerlengingToe } from "./segmentStaart";
 import { selecteerVariantOpDagvorm, genereerSessieDeterministisch } from "../sessie-generatie";
 import { bepaalHrvZone } from "../hrv/zone";
 import { logEvent } from "../posthog";
@@ -69,6 +70,12 @@ import { logEvent } from "../posthog";
 // een gedegenereerde, bijna-lege sessie) — ongeveer het minimum voor een
 // zinvol actief-herstelritje.
 const MINIMALE_ZINVOLLE_TSS = 30;
+
+// Onder deze duur is een Z2-verlenging (zie hieronder) niet de moeite waard —
+// te weinig om als zinvol duurvolume te tellen, wel genoeg om ruis te geven.
+const MINIMALE_ZINVOLLE_VERLENGING_MIN = 15;
+// Zelfde IF-midden als SESSIETYPE_IF_MIDDEN.z2_duur in weekSolver.js.
+const Z2_IF_MIDDEN = 0.72;
 
 export async function genereerSessieDag(ctx) {
   const {
@@ -176,11 +183,14 @@ export async function genereerSessieDag(ctx) {
 
   const dagIntentieVers = dagIntentie ? { ...dagIntentie, tss_doel: tssDoelVers } : dagIntentie;
 
+  const volleDuurMin = rondDuurMinAf(uren * 60);
+  const gecapteDoelDuurMin = rondDuurMinAf(effectieveDuurMin(effectiefSessietype, Math.round(uren * 60)));
+
   const sessie = genereerSessieDeterministisch({
     dagIntentie: dagIntentieVers,
     archetype: gekozenArchetype,
     variant,
-    doelDuurMin: rondDuurMinAf(effectieveDuurMin(effectiefSessietype, Math.round(uren * 60))),
+    doelDuurMin: gecapteDoelDuurMin,
     ftp: profiel.ftp,
     sessietype: effectiefSessietype,
   });
@@ -226,6 +236,30 @@ export async function genereerSessieDag(ctx) {
   // dag berekende — bv. een archetype met een op zich normale TSS-range dat
   // in een herstelweek toch ver boven zijn dagbudget uitkomt.
   corrigeerSessieTssTovDagbudget(sessie);
+
+  // Sessietypes met een eigen effectieve-urenplafond (SESSIETYPE_MAX_EFFECTIEVE_UREN
+  // in weekSolver.js, bv. kracht_lage_cadans: 1,5u) laten anders onbenutte
+  // beschikbare tijd liggen zodra dat plafond lager ligt dan wat er daadwerkelijk
+  // beschikbaar is — bv. 1,5u kracht terwijl er 2,5u beschikbaar is. Die rest
+  // wordt hier als los Z2-duurblok aangeplakt i.p.v. weggegooid. Alleen als de
+  // sessie zijn oorspronkelijke sessietype nog heeft (de kracht-gate hierboven
+  // kan 'm al naar een volledige-duur z2_duur-sessie hebben omgezet, die al de
+  // volle tijd gebruikt) en als er nog weekbudget over is voor de toevoeging.
+  if (krachtCheck.geldig && volleDuurMin > gecapteDoelDuurMin) {
+    let verlengingMin = volleDuurMin - gecapteDoelDuurMin;
+    if (weekTssDoel != null && alGeleverdTss != null) {
+      const resterendBudget = Math.max(0, weekTssDoel - alGeleverdTss - sessie.tss);
+      const maxVerlengingMin = Math.round((resterendBudget / (Z2_IF_MIDDEN * Z2_IF_MIDDEN * 100)) * 60);
+      verlengingMin = Math.min(verlengingMin, maxVerlengingMin);
+    }
+    if (verlengingMin >= MINIMALE_ZINVOLLE_VERLENGING_MIN) {
+      voegZ2VerlengingToe(sessie, profiel.ftp, verlengingMin);
+      normaliseerSessieSegmenten(sessie);
+      voegVerwachtRpeToe(sessie);
+      corrigeerSessieTss(sessie);
+      console.log(`[genereerSessieDag] ${datum}: Z2-verlenging +${verlengingMin}min (plafond ${effectiefSessietype} was ${gecapteDoelDuurMin}min, ${volleDuurMin}min beschikbaar)`);
+    }
+  }
 
   // Z1-validatie: was voorheen alleen een losse, na-de-feit-check in
   // sessiesAanvullen.js (en dus afwezig voor /api/jobs sessieDag en de

@@ -76,3 +76,30 @@ export function voegTempoAfsluiterToe(sessie, ftp, duurMin = TEMPO_AFSLUITER_DUU
   ]);
   return sessie;
 }
+
+/**
+ * Verlengt een reeds gegenereerde sessie met een los Z2-blok aan het einde —
+ * in tegenstelling tot vervangStaartVanSessie() hierboven wordt de bestaande
+ * kern NIET ingekort, de totale duur groeit gewoon. Bedoeld voor sessietypes
+ * met een eigen effectieve-urenplafond (SESSIETYPE_MAX_EFFECTIEVE_UREN in
+ * weekSolver.js, bv. kracht_lage_cadans: 1,5u): als er meer tijd beschikbaar
+ * is dan dat plafond, hoeft die rest niet onbenut te blijven — het wordt als
+ * aanvullend Z2-duurvolume aangeplakt i.p.v. simpelweg weggegooid.
+ *
+ * @param {object} sessie - een reeds gegenereerde sessie (segmenten, intentie)
+ * @param {number} ftp
+ * @param {number} verlengingMin - lengte van het Z2-staartblok in minuten
+ * @returns {object} dezelfde sessie, gemuteerd
+ */
+export function voegZ2VerlengingToe(sessie, ftp, verlengingMin) {
+  const sessietype = sessie.intentie?.sessietype ?? sessie.type;
+  const staartSegmenten = berekenWattagesVanBlokken(
+    [{ type: 'werk', zone: 'Z2', pct_ftp: 63, blokDuurSeconden: Math.round(verlengingMin * 60) }],
+    ftp,
+    sessietype
+  );
+  const { segmenten, duur_min } = rondSessieAf([...(sessie.segmenten || []), ...staartSegmenten]);
+  sessie.segmenten = segmenten;
+  sessie.duur_min = duur_min;
+  return sessie;
+}
