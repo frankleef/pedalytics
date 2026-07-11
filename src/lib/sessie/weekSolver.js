@@ -506,6 +506,15 @@ export function solveWeek({
   }
   const cap = belastingscap ?? weekTssDoel;
   const alGeleverdTss = alGeleverd.tss ?? 0;
+  // Vaste dagen (al gepland, nog niet gereden) tellen ook mee als verbruikt
+  // budget — anders wijst de z2-opvulling verderop (en de kernstimulus/
+  // secundair-budgetcheck) een veel te hoog restbudget toe aan de laatste open
+  // dag, dat pasBudgetToe() vervolgens alsnog moet terugsnoeien op basis van
+  // hetzelfde vasteDagenTss-cijfer — met als risico dat de dag onder de
+  // minimumduur zakt en volledig geschrapt wordt in plaats van gewoon kleiner.
+  const vasteDagenTss = vasteDagen
+    .filter(d => d.status !== "voltooid")
+    .reduce((s, d) => s + (d.tss_doel ?? 0), 0);
   const prioriteit = haalPrioriteitOp(seizoensdoel, fase, { weekInFase, aantalWekenInFase });
 
   const isHerstelAchtig = weektype === "herstel";
@@ -514,7 +523,7 @@ export function solveWeek({
   const openDagenAflopend = [...openDagen].sort((a, b) => b.beschikbareUren - a.beschikbareUren);
   const gebruikt = new Set();
   const toewijzingen = [];
-  let restBudget = cap - alGeleverdTss;
+  let restBudget = cap - alGeleverdTss - vasteDagenTss;
   let kernstimulusDatum = null;
 
   // Stap 2/3: kernstimulus — eerste kandidaat die deze week nog niet via een
