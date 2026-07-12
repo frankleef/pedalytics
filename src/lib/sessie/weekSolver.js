@@ -25,11 +25,27 @@ const TSB_DEGRADATIE_DREMPEL = -20;
  * (representatieve waarde, onafhankelijk van welke variant later daadwerkelijk
  * gekozen wordt).
  *
+ * duur_sec_vast wordt bewust NIET ondersteund (vervolgticket chunk 2): voor
+ * een archetype met vaste-seconden-blokken (bv. vo2_afbouwend) is "het
+ * Z2-aandeel" geen vaste, duur-onafhankelijke eigenschap — het schaalbare deel
+ * groeit/krimpt met de gevraagde sessieduur, terwijl het vaste deel gelijk
+ * blijft, dus de fractie verandert per doelduur. Eerder gaf deze functie hier
+ * stilzwijgend 0 terug (duur_pct is undefined op zo'n blok -> NaN -> de
+ * ternary hieronder ving dat af tot 0, geen crash, geen zichtbare fout).
+ * Bevestigd getroffen: vo2_afbouwend (écht Z2-aandeel is hoog, berekende
+ * uitkomst was 0). In plaats van een misleidend "duur_pct-equivalent op een
+ * gekozen referentieduur" te verzinnen (dat zou een schijnbaar duur-
+ * onafhankelijk getal opleveren dat feitelijk alleen op dat ene referentiepunt
+ * klopt), gooien we hier expliciet — er zijn op moment van schrijven geen
+ * productie-aanroepers van deze functie (geverifieerd), dus dit raakt geen
+ * bestaand gedrag.
+ *
  * @param {Object<string, Array>} archetypesData - alle archetypes per sessietype
  * @param {string} sessietype
  * @param {string} archetypeId
  * @returns {number} fractie 0-1
- * @throws {Error} als het sessietype/archetype-id geen variantendata heeft
+ * @throws {Error} als het sessietype/archetype-id geen variantendata heeft, of
+ *   als een variant duur_sec_vast-blokken bevat (zie hierboven)
  */
 export function berekenZ2AandeelSessietype(archetypesData, sessietype, archetypeId) {
   const archetype = vindArchetypeMetVarianten(archetypesData?.[sessietype] ?? [], archetypeId);
@@ -37,6 +53,14 @@ export function berekenZ2AandeelSessietype(archetypesData, sessietype, archetype
     throw new Error(
       `berekenZ2AandeelSessietype: geen variantendata voor sessietype "${sessietype}" / archetype "${archetypeId}" — kan Z2-aandeel niet berekenen.`
     );
+  }
+
+  for (const variant of archetype.varianten) {
+    if (variant.blokken.some((b) => b.duur_sec_vast != null)) {
+      throw new Error(
+        `berekenZ2AandeelSessietype: variant "${variant.id}" (${sessietype}/${archetypeId}) bevat duur_sec_vast-blokken — het Z2-aandeel is voor zulke archetypes niet duur-onafhankelijk gedefinieerd, deze functie ondersteunt dat bewust niet.`
+      );
+    }
   }
 
   const isZ2Achtig = (blok) => blok.zone === "Z2" || (blok.type === "herstel" && blok.zone !== "Z1");
@@ -230,6 +254,44 @@ export function haalPrioriteitOp(seizoensdoel, fase, periode = {}) {
   return entry;
 }
 
+// Sectie 22-G: frequentie-opbouw van de kernstimulus binnen een blok (1x->2x
+// per week), generiek mechanisme met een fase-specifieke grens. Fases die hier
+// ontbreken (basis, consolidatie, test) of expliciet maxFrequentie:1 hebben
+// krijgen geen opbouw — precies zoals vandaag (solveWeek wijst 1 kernstimulus-
+// dag toe). sweetspot/overgangsfase mogen opbouwen omdat er geen bestaande
+// secundair-sessietype is om mee te stapelen; drempel/consolidatie bewust
+// uitgesloten — drempel heeft al een aparte vo2max-secundair (twee
+// intensiteitstypen/week vanaf fase-start), dus geen extra 2e drempel-dag
+// erbovenop. Klimmen's Klimspecifiek-laatste-week (KLIMMEN_DREMPEL_LAATSTE_WEEK)
+// is ook een "drempel"-fase-instantie en krijgt dus ook geen opbouw, blijft
+// dus onaangeraakt door dit mechanisme. Het sprint-doel heeft al zijn eigen,
+// doel-specifieke frequentiemechanisme (sprint_neuraal_max_per_week in
+// doelprofielen.js) en wordt hier bewust niet aangeraakt.
+const KERNSTIMULUS_FREQUENTIE_OPBOUW = {
+  sweetspot:     { startFrequentie: 1, maxFrequentie: 2, weekInFaseVoorMax: 3 },
+  overgangsfase: { startFrequentie: 1, maxFrequentie: 2, weekInFaseVoorMax: 3 },
+};
+
+/**
+ * Bepaalt hoe vaak de kernstimulus deze week mag voorkomen (1 of meer),
+ * gegeven de generieke fase, weekInFase en weektype. Fases zonder entry in
+ * KERNSTIMULUS_FREQUENTIE_OPBOUW blijven op 1 (huidig gedrag). Lineaire opbouw
+ * tussen startFrequentie (weekInFase 1) en maxFrequentie (bereikt bij
+ * weekInFaseVoorMax), afgerond naar beneden zodat de opbouw pas op de
+ * aangegeven week daadwerkelijk een extra dag oplevert i.p.v. er te vroeg al
+ * naartoe af te ronden. Een herstelweek krijgt nooit meer dan 1 (feitelijk
+ * krijgt een herstelweek elders al helemaal geen kernstimulus, zie
+ * isHerstelAchtig in solveWeek — deze guard is een expliciet vangnet).
+ */
+function bepaalKernstimulusFrequentie(generiekeFase, weekInFase = 1, weektype = "opbouw") {
+  const entry = KERNSTIMULUS_FREQUENTIE_OPBOUW[generiekeFase];
+  if (!entry || weektype === "herstel") return 1;
+  const { startFrequentie, maxFrequentie, weekInFaseVoorMax } = entry;
+  if (weekInFaseVoorMax <= 1) return maxFrequentie;
+  const voortgang = Math.min(1, Math.max(0, (Math.max(1, weekInFase) - 1) / (weekInFaseVoorMax - 1)));
+  return Math.min(maxFrequentie, Math.floor(startFrequentie + voortgang * (maxFrequentie - startFrequentie)));
+}
+
 // Sectie 26-A, fix 2: kracht_lage_cadans-gating is een HARDE beslissing binnen
 // solveWeek() zelf (stap 5), niet meer een informatief vlag voor een downstream
 // Claude-promptinstructie. aerobe_basis/uithoudingsvermogen krijgen het nooit
@@ -417,6 +479,28 @@ const SESSIETYPE_MAX_EFFECTIEVE_UREN = {
   gemengd: 2,
 };
 
+// Sectie 22-G: week-in-blok duur-/volumeprogressie. Alleen interval-gebaseerde
+// kernstimulus-sessietypes groeien in duur/intervalaantal naarmate weekInFase
+// toeneemt — z2_duur/kracht_lage_cadans/sprint_neuraal/z6_anaeroob/gemengd
+// blijven op factor 1 (exact huidig, flat gedrag). IF/%FTP verandert nooit —
+// die zit vast in de archetype/variant-blokdata (sessie-varianten.js) en wordt
+// door deze factor niet aangeraakt, alleen de duur waarnaar schaalVariant()
+// schaalt groeit mee.
+const PROGRESSIEVE_SESSIETYPES = new Set([
+  "sweetspot_intervallen", "drempel_intervallen", "vo2max_intervallen",
+]);
+
+// Week 3 (of later) van een blok bereikt het bestaande, ongewijzigde
+// SESSIETYPE_MAX_EFFECTIEVE_UREN-plafond (= huidig gedrag van vóór deze
+// wijziging) — week 1/2 zijn dus bewust lichter dan voorheen, in plaats van
+// week 3 zwaarder te maken dan het al gevalideerde fysiologische plafond.
+// Een herstelweek staat nooit op de blok-piek, ongeacht weekInFase.
+function progressieFactor(sessietype, weekInFase = 1, weektype = "opbouw") {
+  if (!PROGRESSIEVE_SESSIETYPES.has(sessietype)) return 1;
+  if (weektype === "herstel") return 0.75;
+  return Math.min(1, 0.75 + 0.125 * (Math.max(1, weekInFase) - 1));
+}
+
 /**
  * Schat het TSS-dagbudget voor een sessietype, rechtstreeks op basis van
  * beschikbare tijd × een representatief intensiteitsniveau (IF) voor dat
@@ -432,7 +516,7 @@ const SESSIETYPE_MAX_EFFECTIEVE_UREN = {
  */
 export function schatTssDoel(archetypesData, sessietype, fase, weekInFase, seizoensdoel, gedegradeerd, weektype, beschikbareDuurMin = null) {
   const ifMidden = SESSIETYPE_IF_MIDDEN[sessietype] ?? 0.70;
-  const uren = effectieveDuurMin(sessietype, beschikbareDuurMin) / 60;
+  const uren = effectieveDuurMin(sessietype, beschikbareDuurMin, weekInFase, weektype) / 60;
   const basis = Math.round(ifMidden * ifMidden * uren * 100);
   return gedegradeerd ? Math.round(basis * 0.85) : basis;
 }
@@ -440,17 +524,26 @@ export function schatTssDoel(archetypesData, sessietype, fase, weekInFase, seizo
 /**
  * Effectieve (gecapte) duur in minuten voor een sessietype, gegeven de
  * daadwerkelijk beschikbare tijd — het plafond uit SESSIETYPE_MAX_EFFECTIEVE_UREN
- * hierboven. Gedeeld door schatTssDoel() (dagbudget-schatting) EN
- * genereerSessieDag() (de daadwerkelijke sessie-opbouw, zie genereren.js) zodat
- * een sessie nooit voller wordt gebouwd dan het budget waarop hij vervolgens
- * getoetst wordt — anders bouwt genereerSessieDag() op de volle beschikbare
- * tijd en knipt corrigeerSessieTssTovDagbudget() 'm achteraf weer terug.
+ * hierboven, vermenigvuldigd met de week-in-blok-progressiefactor (sectie
+ * 22-G) voor interval-sessietypes. Gedeeld door schatTssDoel()
+ * (dagbudget-schatting) EN genereerSessieDag() (de daadwerkelijke
+ * sessie-opbouw, zie genereren.js) zodat een sessie nooit voller wordt
+ * gebouwd dan het budget waarop hij vervolgens getoetst wordt — anders bouwt
+ * genereerSessieDag() op de volle beschikbare tijd en knipt
+ * corrigeerSessieTssTovDagbudget() 'm achteraf weer terug. Omdat duur én
+ * dagbudget via dezelfde progressieFactor() groeien, blijven ze proportioneel
+ * en klemt die dagbudget-clamp de groei niet terug.
  * @param {number|null} beschikbareDuurMin - null = geen duurfilter (helft van het maximum)
+ * @param {number} [weekInFase] - positie binnen de fase-periode; stuurt
+ *   progressieFactor() voor PROGRESSIEVE_SESSIETYPES, genegeerd voor de rest.
+ * @param {string} [weektype] - 'opbouw'|'herstel'; een herstelweek staat nooit
+ *   op de blok-piek.
  */
-export function effectieveDuurMin(sessietype, beschikbareDuurMin = null) {
+export function effectieveDuurMin(sessietype, beschikbareDuurMin = null, weekInFase = 1, weektype = "opbouw") {
   const maxUren = SESSIETYPE_MAX_EFFECTIEVE_UREN[sessietype] ?? 2;
-  if (beschikbareDuurMin == null) return Math.round((maxUren / 2) * 60);
-  return Math.round(Math.min(beschikbareDuurMin, maxUren * 60));
+  const factor = progressieFactor(sessietype, weekInFase, weektype);
+  if (beschikbareDuurMin == null) return Math.round((maxUren / 2) * 60 * factor);
+  return Math.round(Math.min(beschikbareDuurMin, maxUren * 60) * factor);
 }
 
 function bouwToewijzing({ datum, beschikbareUren }, sessietype, { archetypesData, fase, weekInFase, weektype, seizoensdoel, gedegradeerd = false, pad, tssDoelOverride }) {
@@ -473,6 +566,12 @@ function bouwToewijzing({ datum, beschikbareUren }, sessietype, { archetypesData
  * LLM-aanroep. Zie sectie 48. Budgetcorrectie (proportioneel korten/schrappen)
  * gebeurt niet hier maar in pasBudgetToe() (chunk 5) — deze functie wijst alleen
  * toe, op basis van prioriteit, TSB-degradatie, adjacency en vrijheidsdag.
+ *
+ * Sectie 22-G: de kernstimulus-toewijzing kan meer dan 1 dag/week opleveren
+ * (KERNSTIMULUS_FREQUENTIE_OPBOUW, fase-afhankelijk, opbouwend binnen het
+ * blok via weekInFase), en kracht_lage_cadans vervalt hard zodra de week al
+ * 2x de kernstimulus bevat (ongeacht fase) — zie de inline comments bij die
+ * mechanismen verderop in dit bestand.
  *
  * @param {object} ctx
  * @param {Object<string, Array>} ctx.archetypesData - alle archetypes per sessietype
@@ -524,34 +623,49 @@ export function solveWeek({
   const gebruikt = new Set();
   const toewijzingen = [];
   let restBudget = cap - alGeleverdTss - vasteDagenTss;
-  let kernstimulusDatum = null;
+  const kernstimulusDatums = [];
+  const generiekeFaseVoorFrequentie = normaliseerFase(seizoensdoel, fase);
+  let kernstimulusType = null;
 
-  // Stap 2/3: kernstimulus — eerste kandidaat die deze week nog niet via een
-  // vaste dag is geleverd (voorkomt bv. een tweede sweetspot-dag).
+  // Stap 2/3: kernstimulus — vult tot bepaalKernstimulusFrequentie() dagen met
+  // hetzelfde kernstimulus-sessietype (sectie 22-G: standaard 1x/week, kan
+  // binnen sommige fases binnen het blok opbouwen naar 2x/week — zie
+  // KERNSTIMULUS_FREQUENTIE_OPBOUW). Elke extra dag hergebruikt dezelfde
+  // budget-guard als de eerste, plus een adjacency-guard t.o.v. eerder
+  // toegewezen kernstimulusdagen (geen twee zware dagen achter elkaar) — bij
+  // frequentie 1 (het huidige, oorspronkelijke gedrag) is die guard een no-op
+  // omdat er dan nog geen eerdere kernstimulusdag is om aangrenzend aan te zijn.
   if (!isHerstelAchtig && prioriteit.kernstimulus) {
     const kandidaten = Array.isArray(prioriteit.kernstimulus) ? prioriteit.kernstimulus : [prioriteit.kernstimulus];
-    const kernstimulusType = kandidaten.find(t => !bestaandeSessietypesDezeWeek.has(t));
-    const dag = openDagenAflopend.find(d => !gebruikt.has(d.datum));
+    kernstimulusType = kandidaten.find(t => !bestaandeSessietypesDezeWeek.has(t));
+    const frequentie = bepaalKernstimulusFrequentie(generiekeFaseVoorFrequentie, weekInFase, weektype);
 
-    if (kernstimulusType && dag) {
+    for (let i = 0; i < frequentie && kernstimulusType; i++) {
+      const dag = openDagenAflopend.find(
+        d => !gebruikt.has(d.datum) && !kernstimulusDatums.some(kd => zijnAangrenzend(kd, d.datum))
+      );
+      if (!dag) break;
+
       const { gedegradeerd } = degradeerBijLageTsb(kernstimulusType, tsb);
       const tssDoel = schatTssDoel(archetypesData, kernstimulusType, fase, weekInFase, seizoensdoel, gedegradeerd, weektype, Math.round(dag.beschikbareUren * 60));
-      if (tssDoel <= restBudget) {
-        gebruikt.add(dag.datum);
-        kernstimulusDatum = dag.datum;
-        restBudget -= tssDoel;
-        toewijzingen.push(bouwToewijzing(dag, kernstimulusType, { archetypesData, fase, weekInFase, weektype, seizoensdoel, gedegradeerd, pad: "kernstimulus", tssDoelOverride: tssDoel }));
-      }
+      if (tssDoel > restBudget) break;
+
+      gebruikt.add(dag.datum);
+      kernstimulusDatums.push(dag.datum);
+      restBudget -= tssDoel;
+      toewijzingen.push(bouwToewijzing(dag, kernstimulusType, { archetypesData, fase, weekInFase, weektype, seizoensdoel, gedegradeerd, pad: "kernstimulus", tssDoelOverride: tssDoel }));
     }
   }
 
-  // Stap 3/4: secundair — idem, plus adjacency-check t.o.v. de kernstimulusdag,
+  // Stap 3/4: secundair — idem, plus adjacency-check t.o.v. elke kernstimulusdag,
   // plus vrijheidsdag-uitzondering (week 3 van een intensieve fase -> 'gemengd').
   if (!isHerstelAchtig && prioriteit.secundair && !bestaandeSessietypesDezeWeek.has(prioriteit.secundair)) {
     let dag = openDagenAflopend.find(d => !gebruikt.has(d.datum));
 
-    if (dag && kernstimulusDatum && zijnAangrenzend(kernstimulusDatum, dag.datum)) {
-      const alternatief = openDagenAflopend.find(d => !gebruikt.has(d.datum) && d.datum !== dag.datum && !zijnAangrenzend(kernstimulusDatum, d.datum));
+    if (dag && kernstimulusDatums.some(kd => zijnAangrenzend(kd, dag.datum))) {
+      const alternatief = openDagenAflopend.find(
+        d => !gebruikt.has(d.datum) && d.datum !== dag.datum && !kernstimulusDatums.some(kd => zijnAangrenzend(kd, d.datum))
+      );
       if (alternatief) dag = alternatief; // anders: geen alternatief, adjacency toegestaan
     }
 
@@ -576,10 +690,10 @@ export function solveWeek({
   if (
     !isHerstelAchtig && seizoensdoel === "sprint" &&
     normaliseerFase(seizoensdoel, fase) === "sweetspot" &&
-    kernstimulusDatum && !bestaandeSessietypesDezeWeek.has("sprint_neuraal")
+    kernstimulusDatums.length > 0 && !bestaandeSessietypesDezeWeek.has("sprint_neuraal")
   ) {
     const kandidaat = openDagenAflopend.find(
-      d => !gebruikt.has(d.datum) && !zijnAangrenzend(kernstimulusDatum, d.datum)
+      d => !gebruikt.has(d.datum) && !kernstimulusDatums.some(kd => zijnAangrenzend(kd, d.datum))
     );
     if (kandidaat) {
       const { gedegradeerd } = degradeerBijLageTsb("sprint_neuraal", tsb);
@@ -599,12 +713,22 @@ export function solveWeek({
   // deze week geleverd is.
   const z2Dagen = openDagenAflopend.filter(d => !gebruikt.has(d.datum));
   const totaalUrenZ2 = z2Dagen.reduce((s, d) => s + d.beschikbareUren, 0);
-  const generiekeFaseVoorKracht = normaliseerFase(seizoensdoel, fase);
+  const generiekeFaseVoorKracht = generiekeFaseVoorFrequentie;
   let krachtLageCadansGebruiktDezeWeek = bestaandeSessietypesDezeWeek.has("kracht_lage_cadans");
+  // Sectie 22-G, gedrag 3: generieke, fase-onafhankelijke prioriteitsregel —
+  // zodra de week al 2x de actieve kernstimulus bevat (deze solveWeek()-pas
+  // plus eventuele al-vaste, nog niet voltooide dagen), vervalt
+  // kracht_lage_cadans automatisch, ongeacht wat KRACHT_FREQUENTIE toestaat.
+  // Dit is de vervanging voor de statische wekelijkse toestemming uit die
+  // tabel in precies dit geval — de tabel zelf blijft gelden voor het
+  // onderliggende "mag het sowieso van doel/fase"-basisgeval.
+  const kernstimulusTotaalDezeWeek = kernstimulusType
+    ? kernstimulusDatums.length + vasteDagen.filter(d => d.status !== "voltooid" && d.sessietype === kernstimulusType).length
+    : 0;
   for (const dag of z2Dagen) {
     const aandeel = totaalUrenZ2 > 0 ? dag.beschikbareUren / totaalUrenZ2 : 0;
     const tssDoel = Math.max(0, Math.round(restBudget * aandeel));
-    const wordtKracht = !isHerstelAchtig && !krachtLageCadansGebruiktDezeWeek &&
+    const wordtKracht = !isHerstelAchtig && !krachtLageCadansGebruiktDezeWeek && kernstimulusTotaalDezeWeek < 2 &&
       magKrachtLageCadans(seizoensdoel, generiekeFaseVoorKracht, weekNummerInSeizoen, laatsteKrachtLageCadansWeek);
     if (wordtKracht) krachtLageCadansGebruiktDezeWeek = true;
     toewijzingen.push(bouwToewijzing(dag, wordtKracht ? "kracht_lage_cadans" : "z2_duur", { archetypesData, fase, weekInFase, weektype, seizoensdoel, pad: "z2", tssDoelOverride: tssDoel }));

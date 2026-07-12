@@ -266,14 +266,16 @@ describe('solveWeek', () => {
 
   it('regressie: kernstimulusdag met meer beschikbare tijd krijgt een zwaarder archetype/hoger tss_doel (fix: schatTssDoel/bepaalArchetypeHint negeerden beschikbareDuurMin altijd)', () => {
     // sweetspot_intervallen: archetype_hint (welk archetype straks gegenereerd
-    // mag worden) blijft gebaseerd op min_duur_min — tempo_continu (geen
-    // min_duur_min) bij 1u, ss_lang (min_duur_min 90) pas bereikbaar vanaf 2u30.
-    // tss_doel is losgekoppeld van dat ene archetype en gebruikt i.p.v. diens
-    // tss_range de directe IF²×uren×100-formule (zie schatTssDoel,
-    // SESSIETYPE_IF_MIDDEN.sweetspot_intervallen=0.86,
-    // SESSIETYPE_MAX_EFFECTIEVE_UREN.sweetspot_intervallen=2.5):
-    // 1u: uren=min(1,2.5)=1 -> round(0.86²×1×100)=74.
-    // 2u30: uren=min(2.5,2.5)=2.5 -> round(0.86²×2.5×100)=185.
+    // mag worden) blijft gebaseerd op min_duur_min tegen de RUWE beschikbareUren
+    // (ongemoeid door de sectie 22-G-progressiefactor, zie getArchetypesVoorSessietype)
+    // — tempo_continu (geen min_duur_min) bij 1u, ss_lang (min_duur_min 90) pas
+    // bereikbaar vanaf 2u30. tss_doel gebruikt i.p.v. een archetype's tss_range de
+    // directe IF²×uren×100-formule (schatTssDoel, SESSIETYPE_IF_MIDDEN.
+    // sweetspot_intervallen=0.86, SESSIETYPE_MAX_EFFECTIEVE_UREN.sweetspot_intervallen
+    // =2.5) — sinds sectie 22-G schaalt `uren` ook mee met de week-in-blok-
+    // progressiefactor (weekInFase 2 -> 0.875, zie progressieFactor()):
+    // 1u: effectieveDuurMin=round(min(60,150)*0.875)=53min -> round(0.86²×(53/60)×100)=65.
+    // 2u30: effectieveDuurMin=round(min(150,150)*0.875)=131min -> round(0.86²×(131/60)×100)=161.
     const resultaatKort = solveWeek({
       archetypesData: ARCHETYPES_FIXTURE,
       fase: 'sweetspot', weekInFase: 2, weektype: 'opbouw', seizoensdoel: 'ftp',
@@ -297,12 +299,155 @@ describe('solveWeek', () => {
 
     // Weinig tijd (1u): lichte archetype-hint, laag tss_doel.
     expect(kernstimulusKort.archetype_hint).toBe('tempo_continu')
-    expect(kernstimulusKort.tss_doel).toBe(74)
+    expect(kernstimulusKort.tss_doel).toBe(65)
 
     // Meer tijd (2u30): zwaardere archetype-hint, hoger tss_doel.
     expect(kernstimulusLang.archetype_hint).toBe('ss_lang')
-    expect(kernstimulusLang.tss_doel).toBe(185)
+    expect(kernstimulusLang.tss_doel).toBe(161)
     expect(kernstimulusLang.tss_doel).toBeGreaterThan(kernstimulusKort.tss_doel)
+  })
+
+  describe('sectie 22-G: week-in-blok duur-progressie (kernstimulus, interval-sessietypes)', () => {
+    it('sweetspot_intervallen: tss_doel/duur groeit van week 1 naar week 3 binnen hetzelfde blok, bij gelijke beschikbare tijd', () => {
+      const perWeek = [1, 2, 3].map(weekInFase => {
+        const resultaat = solveWeek({
+          archetypesData: ARCHETYPES_FIXTURE,
+          fase: 'sweetspot', weekInFase, weektype: 'opbouw', seizoensdoel: 'ftp',
+          weekTssDoel: 400, vasteDagen: [],
+          openDagen: dagen('2026-07-06:2.5'),
+          alGeleverd: {}, tsb: 0,
+        })
+        return resultaat.find(r => r.pad === 'kernstimulus').tss_doel
+      })
+
+      // 139 (wk1) -> 161 (wk2) -> 185 (wk3): strikt oplopend, wk3 bereikt het
+      // ongewijzigde plafond (effectieveDuurMin zonder progressiefactor = 185,
+      // zie de regressietest hierboven) — nooit erboven.
+      expect(perWeek[0]).toBe(139)
+      expect(perWeek[1]).toBe(161)
+      expect(perWeek[2]).toBe(185)
+      expect(perWeek[1]).toBeGreaterThan(perWeek[0])
+      expect(perWeek[2]).toBeGreaterThan(perWeek[1])
+    })
+
+    it('z2_duur/kracht_lage_cadans: geen enkele week-in-blok-invloed (niet in PROGRESSIEVE_SESSIETYPES)', () => {
+      const perWeekZ2 = [1, 2, 3].map(weekInFase => {
+        const resultaat = solveWeek({
+          archetypesData: ARCHETYPES_FIXTURE,
+          fase: 'basis', weekInFase, weektype: 'opbouw', seizoensdoel: 'ftp',
+          weekTssDoel: 300, vasteDagen: [],
+          openDagen: dagen('2026-07-06:2'),
+          alGeleverd: {}, tsb: 0,
+        })
+        return resultaat.find(r => r.pad === 'z2').tss_doel
+      })
+      expect(perWeekZ2[0]).toBe(perWeekZ2[1])
+      expect(perWeekZ2[1]).toBe(perWeekZ2[2])
+    })
+
+    it('herstelweek: levert geen kernstimulus op, ongeacht weekInFase (progressiefactor "ontgrendelt" geen kernstimulus tijdens herstel)', () => {
+      const opbouw = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
+        fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
+        weekTssDoel: 400, vasteDagen: [], openDagen: dagen('2026-07-06:2.5'),
+        alGeleverd: {}, tsb: 0,
+      })
+      const herstel = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
+        fase: 'sweetspot', weekInFase: 4, weektype: 'herstel', seizoensdoel: 'ftp',
+        weekTssDoel: 400, vasteDagen: [], openDagen: dagen('2026-07-06:2.5'),
+        alGeleverd: {}, tsb: 0,
+      })
+      expect(opbouw.find(r => r.pad === 'kernstimulus')).toBeDefined()
+      expect(herstel.find(r => r.pad === 'kernstimulus')).toBeUndefined()
+    })
+  })
+
+  describe('sectie 22-G: frequentie-opbouw van de kernstimulus (1x->2x binnen het blok)', () => {
+    it('sweetspot: week 1 -> 1x kernstimulus, week 3 -> 2x kernstimulus (bij voldoende budget/dagen)', () => {
+      const week1 = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
+        fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
+        weekTssDoel: 1000, vasteDagen: [],
+        openDagen: dagen('2026-07-06:2', '2026-07-08:2', '2026-07-10:2'),
+        alGeleverd: {}, tsb: 0,
+      })
+      const week3 = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
+        fase: 'sweetspot', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'ftp',
+        weekTssDoel: 1000, vasteDagen: [],
+        openDagen: dagen('2026-07-06:2', '2026-07-08:2', '2026-07-10:2'),
+        alGeleverd: {}, tsb: 0,
+      })
+      const kernstimulusWeek1 = week1.filter(r => r.pad === 'kernstimulus')
+      const kernstimulusWeek3 = week3.filter(r => r.pad === 'kernstimulus')
+
+      expect(kernstimulusWeek1).toHaveLength(1)
+      expect(kernstimulusWeek3).toHaveLength(2)
+      expect(kernstimulusWeek3.every(r => r.sessietype === 'sweetspot_intervallen')).toBe(true)
+      // Niet-aangrenzend: de twee kernstimulusdagen mogen geen opeenvolgende
+      // kalenderdagen zijn.
+      const datums = kernstimulusWeek3.map(r => r.datum).sort()
+      const diffMs = new Date(datums[1]).getTime() - new Date(datums[0]).getTime()
+      expect(diffMs).toBeGreaterThan(86400000)
+    })
+
+    it('drempel: geen frequentie-opbouw, blijft altijd 1x kernstimulus + 1x secundair (vo2max), ook in een late blokweek', () => {
+      // weekInFase 2 (niet 3): week 3 van 'drempel' triggert de bestaande,
+      // losstaande vrijheidsdag-uitzondering (bepaalVrijheidsdag) die secundair
+      // sowieso al naar 'gemengd' omzet — dat mechanisme testen we hier niet,
+      // we isoleren alleen de sectie 22-G-frequentie-opbouw.
+      const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
+        fase: 'drempel', weekInFase: 2, weektype: 'opbouw', seizoensdoel: 'ftp',
+        weekTssDoel: 1000, vasteDagen: [],
+        openDagen: dagen('2026-07-06:2', '2026-07-08:2', '2026-07-10:2'),
+        alGeleverd: {}, tsb: 0,
+      })
+      expect(resultaat.filter(r => r.pad === 'kernstimulus')).toHaveLength(1)
+      expect(resultaat.find(r => r.pad === 'secundair')?.sessietype).toBe('vo2max_intervallen')
+    })
+
+    it('basis: geen kernstimulus, dus ook geen frequentie-opbouw mogelijk (blijft ongewijzigd)', () => {
+      const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
+        fase: 'basis', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'ftp',
+        weekTssDoel: 300, vasteDagen: [],
+        openDagen: dagen('2026-07-06:2', '2026-07-08:2'),
+        alGeleverd: {}, tsb: 0,
+      })
+      expect(resultaat.filter(r => r.pad === 'kernstimulus')).toHaveLength(0)
+    })
+  })
+
+  describe('sectie 22-G: kracht_lage_cadans vervalt bij 2x kernstimulus', () => {
+    it('ftp/sweetspot week 3, 2x kernstimulus gerealiseerd: kracht_lage_cadans wordt niet toegewezen ondanks 1x_per_week-toestemming', () => {
+      // ftp/sweetspot staat kracht_lage_cadans normaal 1x_per_week toe
+      // (KRACHT_FREQUENTIE) — met genoeg dagen zou een Z2-slot dus normaliter
+      // kracht worden. Zodra de week al 2x sweetspot_intervallen bevat, moet dat
+      // hier hard vervallen.
+      const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
+        fase: 'sweetspot', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'ftp',
+        weekTssDoel: 1000, vasteDagen: [],
+        openDagen: dagen('2026-07-06:2', '2026-07-08:2', '2026-07-10:2', '2026-07-12:1.5'),
+        alGeleverd: {}, tsb: 0, weekNummerInSeizoen: 5, laatsteKrachtLageCadansWeek: null,
+      })
+      expect(resultaat.filter(r => r.pad === 'kernstimulus')).toHaveLength(2)
+      expect(resultaat.some(r => r.sessietype === 'kracht_lage_cadans')).toBe(false)
+    })
+
+    it('ftp/sweetspot week 1, slechts 1x kernstimulus: kracht_lage_cadans mag nog gewoon (bestaand gedrag ongewijzigd)', () => {
+      const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
+        fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
+        weekTssDoel: 1000, vasteDagen: [],
+        openDagen: dagen('2026-07-06:2', '2026-07-08:1.5'),
+        alGeleverd: {}, tsb: 0, weekNummerInSeizoen: 5, laatsteKrachtLageCadansWeek: null,
+      })
+      expect(resultaat.filter(r => r.pad === 'kernstimulus')).toHaveLength(1)
+      expect(resultaat.some(r => r.sessietype === 'kracht_lage_cadans')).toBe(true)
+    })
   })
 
   it('sprint: geen extra sprint_neuraal-dag als er al één deze week geleverd is (vaste dag)', () => {
@@ -489,10 +634,10 @@ describe('berekenZ2AandeelSessietype', () => {
     }
   })
 
-  it('vo2max_intervallen/vo2_5x5 ligt tussen 0.5 en 0.7 (5min werk/5min Z2-herstel, ~1:1)', () => {
+  it('vo2max_intervallen/vo2_5x5 ligt tussen 0.5 en 0.75 (na vervolgticket-fix van vo2_6x4: werkduur 6min->4min, dus meer Z2-aandeel dan voorheen)', () => {
     const fractie = berekenZ2AandeelSessietype(ARCHETYPES_FIXTURE, 'vo2max_intervallen', 'vo2_5x5')
     expect(fractie).toBeGreaterThanOrEqual(0.5)
-    expect(fractie).toBeLessThanOrEqual(0.7)
+    expect(fractie).toBeLessThanOrEqual(0.75)
   })
 
   it('sweetspot_intervallen: alleen de Z2-hersteltijd tussen blokken, geen warmup/cooldown in de blokdata', () => {
@@ -508,15 +653,32 @@ describe('berekenZ2AandeelSessietype', () => {
     expect(() => berekenZ2AandeelSessietype(ARCHETYPES_FIXTURE, 'onbekend_type', 'iets')).toThrow(/geen variantendata/)
   })
 
-  it('geen NaN of >1.0 voor alle 42 archetypes', () => {
+  it('geen NaN of >1.0 voor alle archetypes zonder duur_sec_vast — en een expliciete fout (geen silent 0/NaN) voor archetypes die dat wél gebruiken', () => {
+    // Generieke, alle-sessietypes-brede versie van de test die bij vo2_afbouwend
+    // niet bestond (vervolgticket chunk 2) — dat gat liet de duur_sec_vast-
+    // blinde-vlek destijds onopgemerkt, ondanks dat déze test al bestond.
+    let aantalGetest = 0
+    let aantalMetDuurSecVast = 0
     for (const [sessietype, archetypes] of Object.entries(VARIANT_ARCHETYPES)) {
       for (const archetype of archetypes) {
-        const fractie = berekenZ2AandeelSessietype(ARCHETYPES_FIXTURE, sessietype, archetype.id)
-        expect(Number.isNaN(fractie)).toBe(false)
-        expect(fractie).toBeGreaterThanOrEqual(0)
-        expect(fractie).toBeLessThanOrEqual(1.0)
+        aantalGetest++
+        const heeftDuurSecVast = archetype.varianten.some(v => v.blokken.some(b => b.duur_sec_vast != null))
+        if (heeftDuurSecVast) {
+          aantalMetDuurSecVast++
+          expect(() => berekenZ2AandeelSessietype(ARCHETYPES_FIXTURE, sessietype, archetype.id)).toThrow(/duur_sec_vast/)
+        } else {
+          const fractie = berekenZ2AandeelSessietype(ARCHETYPES_FIXTURE, sessietype, archetype.id)
+          expect(Number.isNaN(fractie)).toBe(false)
+          expect(fractie).toBeGreaterThanOrEqual(0)
+          expect(fractie).toBeLessThanOrEqual(1.0)
+        }
       }
     }
+    // Sanity-check dat de test daadwerkelijk beide paden raakt, niet toevallig
+    // altijd dezelfde tak — vo2_afbouwend is op moment van schrijven de enige
+    // duur_sec_vast-gebruiker.
+    expect(aantalGetest).toBeGreaterThan(0)
+    expect(aantalMetDuurSecVast).toBeGreaterThan(0)
   })
 })
 

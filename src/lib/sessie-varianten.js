@@ -965,9 +965,14 @@ export const SESSIE_ARCHETYPES = {
 
   drempel_intervallen: [
     {
+      // Vervolgticket chunk 1 (losse gevallen): alle 3 varianten hadden het
+      // rust-artefact (herstel-blok tussen reps 25-75% te lang t.o.v. de
+      // gestelde "4 min Z2 herstel") — inclusief dr_std_2x20 (som=1.0 exact)
+      // en dr_std_3x18 (som=0.999, wél in de 27-mismatchlijst maar niet in de
+      // som-lijst), beide dus niet gevangen door de oorspronkelijke som-scan.
       id: 'drempel_standaard',
       naam: 'Drempel standaard',
-      tss_range: [75, 100],
+      tss_range: [95, 107],
       fase_beschikbaar: ['drempel','vo2max','consolidatie'],
       varianten: [
         {
@@ -975,9 +980,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 1,
           naam: '3× 15\'',
           blokken: [
-            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.214, reps: 3 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.057, reps: 3 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.143 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.166667, reps: 3 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044444, reps: 3 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.366667 },
           ]
         },
         {
@@ -985,9 +990,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 3,
           naam: '2× 20\'',
           blokken: [
-            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.286, reps: 2 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.071, reps: 2 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.286 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.222222, reps: 2 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044444, reps: 2 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.466667 },
           ]
         },
         {
@@ -995,9 +1000,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 2,
           naam: '3× 18\'',
           blokken: [
-            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.257, reps: 3 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.057, reps: 3 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.057 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.2, reps: 3 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044444, reps: 3 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.266667 },
           ]
         },
       ]
@@ -1105,9 +1110,15 @@ export const SESSIE_ARCHETYPES = {
     },
 
     {
+      // Vervolgticket chunk 3: geen structurele fout — werkduur van alle 3
+      // varianten matcht al exact hun naam (8'/6'/7'), rust wijkt slechts mild
+      // af (2min i.p.v. 3min, zelfde orde als elders geaccepteerde varianten).
+      // De oorspronkelijke TSS-mismatch was puur verouderde documentatie: alle
+      // 3 varianten berekenen consistent op 107-108, ruim boven de oude
+      // bovengrens van 100 — range hier bijgewerkt, blokken ongewijzigd.
       id: 'drempel_kort_veel',
       naam: 'Veel korte drempelblokken',
-      tss_range: [70, 100],
+      tss_range: [107, 108],
       fase_beschikbaar: ['drempel','vo2max','consolidatie'],
       week_in_fase_min: 2,
       varianten: [
@@ -1228,9 +1239,20 @@ export const SESSIE_ARCHETYPES = {
     },
 
     {
+      // Vervolgticket chunk 1 (over-under-familie): alle 6 varianten in dit
+      // en het ou_lang-archetype hadden dezelfde structurele bug — een extra
+      // herstel(reps=N)-blok tussen elke under/over-cyclus, terwijl een
+      // over-under per definitie continu doorfietst (onder direct door naar
+      // boven, geen rust ertussen). Dit gold ook voor varianten wier som
+      // toevallig binnen 2% van 1.0 viel (ou_std_8x90plus45: som=0.992) — de
+      // som-metriek is dus geen betrouwbare indicator voor dit specifieke
+      // probleem. Elke variant hieronder is onafhankelijk herkalibreerd op de
+      // eigen naam (bv. "6×[2'+1']" -> 2 min onder/1 min boven, continu) met
+      // een enkel afsluitend Z2-blok voor de rest van de sessieduur — zelfde
+      // aanpak als ou_std_hardstart (vorig ticket).
       id: 'ou_standaard',
       naam: 'Over-unders',
-      tss_range: [70, 90],
+      tss_range: [70, 77],
       fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
       varianten: [
         {
@@ -1238,10 +1260,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 2,
           naam: '6× [2\'+1\']',
           blokken: [
-            { type: 'werk',   zone: 'Z3', pct_ftp: 88,  duur_pct: 0.044, reps: 6 },
-            { type: 'werk',   zone: 'Z4', pct_ftp: 105, duur_pct: 0.022, reps: 6 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044, reps: 6 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.136 },
+            { type: 'werk',   zone: 'Z3', pct_ftp: 88,  duur_pct: 0.022222, reps: 6 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 105, duur_pct: 0.011111, reps: 6 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.8 },
           ]
         },
         {
@@ -1249,10 +1270,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 1,
           naam: '8× [90"+45"]',
           blokken: [
-            { type: 'werk',   zone: 'Z3', pct_ftp: 88,  duur_pct: 0.033, reps: 8 },
-            { type: 'werk',   zone: 'Z4', pct_ftp: 105, duur_pct: 0.017, reps: 8 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.033, reps: 8 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.328 },
+            { type: 'werk',   zone: 'Z3', pct_ftp: 88,  duur_pct: 0.016667, reps: 8 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 105, duur_pct: 0.008333, reps: 8 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.8 },
           ]
         },
         {
@@ -1260,21 +1280,13 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 3,
           naam: '5× [2\'30"+75"]',
           blokken: [
-            { type: 'werk',   zone: 'Z3', pct_ftp: 88,  duur_pct: 0.058, reps: 5 },
-            { type: 'werk',   zone: 'Z4', pct_ftp: 105, duur_pct: 0.029, reps: 5 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.058, reps: 5 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.148 },
+            { type: 'werk',   zone: 'Z3', pct_ftp: 88,  duur_pct: 0.027778, reps: 5 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 105, duur_pct: 0.013889, reps: 5 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.791667 },
           ]
         },
         {
-          // Coach-praktijk (EVOQ.BIKE), geen RCT. Bewust NIET de duur_pct-
-          // waarden van ou_std_6x2plus1 hergebruikt: die archetype-varianten
-          // hebben een som(duur_pct*reps) van 0.796 i.p.v. 1.0 (zie bevinding
-          // voor het vervolgticket), wat na de Z3/Z4-cap+herverdeling een
-          // onbedoelde ~6 min rust tussen elke [2'+1']-cyclus oplevert i.p.v.
-          // continu doorfietsen. Hier zelfstandig gekalibreerd op een som van
-          // 1.0 zodat de over-unders "direct door" lopen zoals bedoeld —
-          // geverifieerd: geen rust-blok tussen de reps in de uitkomst.
+          // Coach-praktijk (EVOQ.BIKE), geen RCT.
           id: 'ou_std_hardstart',
           zwaartegewicht: 3,
           naam: 'Hard start + 6× [2\'+1\']',
@@ -1291,7 +1303,7 @@ export const SESSIE_ARCHETYPES = {
     {
       id: 'ou_lang',
       naam: 'Lange over-unders',
-      tss_range: [75, 100],
+      tss_range: [73, 76],
       fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
       week_in_fase_min: 2,
       varianten: [
@@ -1300,10 +1312,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 2,
           naam: '4× [3\'+2\']',
           blokken: [
-            { type: 'werk',   zone: 'Z3', pct_ftp: 88,  duur_pct: 0.060, reps: 4 },
-            { type: 'werk',   zone: 'Z4', pct_ftp: 103, duur_pct: 0.040, reps: 4 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.067, reps: 4 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.132 },
+            { type: 'werk',   zone: 'Z3', pct_ftp: 88,  duur_pct: 0.033333, reps: 4 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 103, duur_pct: 0.022222, reps: 4 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.777778 },
           ]
         },
         {
@@ -1311,10 +1322,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 1,
           naam: '5× [2\'30"+2\']',
           blokken: [
-            { type: 'werk',   zone: 'Z3', pct_ftp: 88,  duur_pct: 0.050, reps: 5 },
-            { type: 'werk',   zone: 'Z4', pct_ftp: 103, duur_pct: 0.040, reps: 5 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.060, reps: 5 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.250 },
+            { type: 'werk',   zone: 'Z3', pct_ftp: 88,  duur_pct: 0.027778, reps: 5 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 103, duur_pct: 0.022222, reps: 5 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.75 },
           ]
         },
         {
@@ -1322,10 +1332,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 3,
           naam: '3× [4\'+2\'30"]',
           blokken: [
-            { type: 'werk',   zone: 'Z3', pct_ftp: 88,  duur_pct: 0.089, reps: 3 },
-            { type: 'werk',   zone: 'Z4', pct_ftp: 103, duur_pct: 0.056, reps: 3 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.078, reps: 3 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.175 },
+            { type: 'werk',   zone: 'Z3', pct_ftp: 88,  duur_pct: 0.044444, reps: 3 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 103, duur_pct: 0.027778, reps: 3 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.783333 },
           ]
         },
       ]
@@ -1382,9 +1391,19 @@ export const SESSIE_ARCHETYPES = {
     },
 
     {
+      // Vervolgticket chunk 1 (set-aside-vervolg): alle 3 varianten hadden
+      // duur_pct-waarden die niet van echte doelminuten waren afgeleid — bij
+      // pyr_vol_2_4_6_4_2/3_5_8_5_3 zo ernstig dat de archetype-cap (540s) de
+      // 3 middelste rungs plat sloeg tot dezelfde waarde (bv. 4-8-8-8-4 i.p.v.
+      // 2-4-6-4-2 min — de piek-vorm was volledig verdwenen). Na herkalibratie
+      // op echte doelminuten blijft elke rung ruim onder de cap, dus geen
+      // capping meer nodig en de piramidevorm blijft zichtbaar. pyr_vol_2x's
+      // "2 min Z2 tussenin" was los daarvan te kort (1 min i.p.v. 2 min); geen
+      // rust toegevoegd tussen de twee buitenste herhalingen (2× [...]) — dat
+      // is intentioneel, de vorm loopt al af naar 2 min voor de herhaling.
       id: 'pyr_volledig',
       naam: 'Volledige pyramide',
-      tss_range: [80, 105],
+      tss_range: [76, 93],
       fase_beschikbaar: ['drempel','vo2max','consolidatie'],
       week_in_fase_min: 2,
       varianten: [
@@ -1393,16 +1412,16 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 1,
           naam: '2\'–4\'–6\'–4\'–2\'',
           blokken: [
-            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.056 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.028 },
-            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.111 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.028 },
-            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.167 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.028 },
-            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.111 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.028 },
-            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.056 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.387 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.022222 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.022222 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.044444 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.022222 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.066667 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.022222 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.044444 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.022222 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.022222 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.711111 },
           ]
         },
         {
@@ -1410,16 +1429,16 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 2,
           naam: '3\'–5\'–8\'–5\'–3\'',
           blokken: [
-            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.063 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.025 },
-            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.104 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.025 },
-            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.167 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.025 },
-            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.104 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.025 },
-            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.063 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.399 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.033333 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.022222 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.055556 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.022222 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.088889 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.022222 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.055556 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.022222 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.033333 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.644444 },
           ]
         },
         {
@@ -1427,16 +1446,16 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 3,
           naam: '2× [2\'–4\'–6\'–4\'–2\']',
           blokken: [
-            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.028, reps: 2 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.014, reps: 2 },
-            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.056, reps: 2 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.014, reps: 2 },
-            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.083, reps: 2 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.014, reps: 2 },
-            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.056, reps: 2 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.014, reps: 2 },
-            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.028, reps: 2 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.194 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.022222, reps: 2 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.022222, reps: 2 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.044444, reps: 2 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.022222, reps: 2 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.066667, reps: 2 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.022222, reps: 2 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.044444, reps: 2 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.022222, reps: 2 },
+            { type: 'werk',   zone: 'Z4', pct_ftp: 100, duur_pct: 0.022222, reps: 2 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.422222 },
           ]
         },
       ]
@@ -1447,9 +1466,17 @@ export const SESSIE_ARCHETYPES = {
 
   vo2max_intervallen: [
     {
+      // Vervolgticket chunk 1 (vo2-familie): vo2_5x5_std en vo2_4x6 hadden
+      // hetzelfde soort rust-artefact als de over-under-familie (herstel-
+      // blok tussen reps disproportioneel lang t.o.v. de naam) — onafhankelijk
+      // herkalibreerd op de eigen naam. vo2_6x4 is BEWUST NIET aangepast: die
+      // heeft een andere fout (werkduur zelf onjuist: levert 6 min i.p.v. de
+      // genoemde 4 min) — inmiddels ook gefixt (zie hieronder): werkduur
+      // herkalibreerd naar de daadwerkelijke 4 min i.p.v. de eerder geleverde
+      // 6 min.
       id: 'vo2_5x5',
       naam: 'Klassieke 5×5',
-      tss_range: [70, 90],
+      tss_range: [85, 93],
       fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
@@ -1457,9 +1484,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 2,
           naam: '5× 5\'',
           blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 110, duur_pct: 0.077, reps: 5 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.077, reps: 5 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.115 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 110, duur_pct: 0.055556, reps: 5 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.055556, reps: 5 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.444444 },
           ]
         },
         {
@@ -1467,9 +1494,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 3,
           naam: '6× 4\'',
           blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 112, duur_pct: 0.062, reps: 6 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.062, reps: 6 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.124 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 112, duur_pct: 0.044444, reps: 6 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.055556, reps: 6 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.4 },
           ]
         },
         {
@@ -1477,9 +1504,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 1,
           naam: '4× 6\'',
           blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 108, duur_pct: 0.092, reps: 4 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.092, reps: 4 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.064 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 108, duur_pct: 0.066667, reps: 4 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.055556, reps: 4 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.511111 },
           ]
         },
       ]
@@ -1488,7 +1515,7 @@ export const SESSIE_ARCHETYPES = {
     {
       id: 'vo2_4x4',
       naam: 'Rønnestad 4×4',
-      tss_range: [60, 80],
+      tss_range: [84, 88],
       fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
@@ -1496,9 +1523,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 2,
           naam: '4× 4\' @ 115%',
           blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 115, duur_pct: 0.067, reps: 4 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.067, reps: 4 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.198 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 115, duur_pct: 0.044444, reps: 4 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044444, reps: 4 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.644444 },
           ]
         },
         {
@@ -1506,9 +1533,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 1,
           naam: '5× 4\' @ 112%',
           blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 112, duur_pct: 0.067, reps: 5 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.067, reps: 5 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.165 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 112, duur_pct: 0.044444, reps: 5 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044444, reps: 5 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.555556 },
           ]
         },
         {
@@ -1516,9 +1543,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 3,
           naam: '4× 4\' @ 118%',
           blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 118, duur_pct: 0.067, reps: 4 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.067, reps: 4 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.198 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 118, duur_pct: 0.044444, reps: 4 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044444, reps: 4 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.644444 },
           ]
         },
       ]
@@ -1803,9 +1830,13 @@ export const SESSIE_ARCHETYPES = {
     },
 
     {
+      // Vervolgticket chunk 1 (korte-reps-familie): alle 3 hadden hetzelfde
+      // rust-artefact (herstel-blok tussen reps disproportioneel lang t.o.v.
+      // de naam) — werk- én herstelduur onafhankelijk herkalibreerd op de
+      // eigen naam en de archetype-structuur ("2 min Z2 herstel").
       id: 'vo2_kort',
       naam: 'Korte intervallen',
-      tss_range: [55, 80],
+      tss_range: [72, 78],
       fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
       week_in_fase_min: 2,
       varianten: [
@@ -1814,9 +1845,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 2,
           naam: '10× 1\'',
           blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 123, duur_pct: 0.040, reps: 10 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.080, reps: 10 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.000 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 123, duur_pct: 0.011111, reps: 10 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.022222, reps: 10 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.66667 },
           ]
         },
         {
@@ -1824,9 +1855,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 3,
           naam: '12× 1\'',
           blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 122, duur_pct: 0.033, reps: 12 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.067, reps: 12 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.004 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 122, duur_pct: 0.011111, reps: 12 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.022222, reps: 12 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.600004 },
           ]
         },
         {
@@ -1834,9 +1865,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 1,
           naam: '8× 90"',
           blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 118, duur_pct: 0.060, reps: 8 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.100, reps: 8 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.080 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 118, duur_pct: 0.016667, reps: 8 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.022222, reps: 8 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.688888 },
           ]
         },
       ]
@@ -1845,7 +1876,7 @@ export const SESSIE_ARCHETYPES = {
     {
       id: 'vo2_lang',
       naam: 'Lange VO2max-blokken',
-      tss_range: [75, 100],
+      tss_range: [82, 86],
       fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
       week_in_fase_min: 2,
       varianten: [
@@ -1854,9 +1885,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 1,
           naam: '3× 7\'',
           blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 108, duur_pct: 0.108, reps: 3 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.108, reps: 3 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.148 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 108, duur_pct: 0.077778, reps: 3 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.077778, reps: 3 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.533333 },
           ]
         },
         {
@@ -1864,9 +1895,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 2,
           naam: '3× 8\'',
           blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 106, duur_pct: 0.123, reps: 3 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.123, reps: 3 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.139 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 106, duur_pct: 0.088889, reps: 3 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.077778, reps: 3 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.5 },
           ]
         },
         {
@@ -1874,9 +1905,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 3,
           naam: '4× 6\'',
           blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 110, duur_pct: 0.092, reps: 4 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.092, reps: 4 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.064 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 110, duur_pct: 0.066667, reps: 4 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.077778, reps: 4 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.422222 },
           ]
         },
       ]
@@ -1885,7 +1916,7 @@ export const SESSIE_ARCHETYPES = {
     {
       id: 'vo2_oplopend',
       naam: 'Oplopende VO2max',
-      tss_range: [65, 85],
+      tss_range: [77, 81],
       fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
       week_in_fase_min: 2,
       varianten: [
@@ -1894,16 +1925,16 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 1,
           naam: '5× 3\' (106→118%)',
           blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 106, duur_pct: 0.050 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.050 },
-            { type: 'werk',   zone: 'Z5', pct_ftp: 109, duur_pct: 0.050 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.050 },
-            { type: 'werk',   zone: 'Z5', pct_ftp: 112, duur_pct: 0.050 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.050 },
-            { type: 'werk',   zone: 'Z5', pct_ftp: 115, duur_pct: 0.050 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.050 },
-            { type: 'werk',   zone: 'Z5', pct_ftp: 118, duur_pct: 0.050 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.500 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 106, duur_pct: 0.033333 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044444 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 109, duur_pct: 0.033333 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044444 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 112, duur_pct: 0.033333 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044444 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 115, duur_pct: 0.033333 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044444 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 118, duur_pct: 0.033333 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.655556 },
           ]
         },
         {
@@ -1911,18 +1942,18 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 2,
           naam: '6× 2\' (106→121%)',
           blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 106, duur_pct: 0.033 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.033 },
-            { type: 'werk',   zone: 'Z5', pct_ftp: 109, duur_pct: 0.033 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.033 },
-            { type: 'werk',   zone: 'Z5', pct_ftp: 112, duur_pct: 0.033 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.033 },
-            { type: 'werk',   zone: 'Z5', pct_ftp: 115, duur_pct: 0.033 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.033 },
-            { type: 'werk',   zone: 'Z5', pct_ftp: 118, duur_pct: 0.033 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.033 },
-            { type: 'werk',   zone: 'Z5', pct_ftp: 121, duur_pct: 0.033 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.604 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 106, duur_pct: 0.022222 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044444 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 109, duur_pct: 0.022222 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044444 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 112, duur_pct: 0.022222 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044444 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 115, duur_pct: 0.022222 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044444 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 118, duur_pct: 0.022222 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044444 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 121, duur_pct: 0.022222 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.644444 },
           ]
         },
         {
@@ -1930,14 +1961,14 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 3,
           naam: '4× 4\' (106→115%)',
           blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 106, duur_pct: 0.067 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.067 },
-            { type: 'werk',   zone: 'Z5', pct_ftp: 109, duur_pct: 0.067 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.067 },
-            { type: 'werk',   zone: 'Z5', pct_ftp: 112, duur_pct: 0.067 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.067 },
-            { type: 'werk',   zone: 'Z5', pct_ftp: 115, duur_pct: 0.067 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.399 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 106, duur_pct: 0.044444 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044444 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 109, duur_pct: 0.044444 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044444 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 112, duur_pct: 0.044444 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.044444 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 115, duur_pct: 0.044444 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.688889 },
           ]
         },
       ]
@@ -1946,7 +1977,7 @@ export const SESSIE_ARCHETYPES = {
     {
       id: 'vo2_klim',
       naam: 'Klimsimulatie',
-      tss_range: [60, 85],
+      tss_range: [81, 87],
       fase_beschikbaar: ['drempel', 'consolidatie', 'vo2max'],
       week_in_fase_min: 2,
       doel_beperking: ['klimmen'],
@@ -1956,9 +1987,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 2,
           naam: '6× 3\' @ 116%',
           blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 116, duur_pct: 0.050, reps: 6 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.083, reps: 6 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.200 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 116, duur_pct: 0.033333, reps: 6 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.055556, reps: 6 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.466667 },
           ]
         },
         {
@@ -1966,9 +1997,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 3,
           naam: '8× 2\' @ 118%',
           blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 118, duur_pct: 0.033, reps: 8 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.067, reps: 8 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.200 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 118, duur_pct: 0.022222, reps: 8 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.055556, reps: 8 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.377778 },
           ]
         },
         {
@@ -1976,9 +2007,9 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 1,
           naam: '5× 3\'30" @ 114%',
           blokken: [
-            { type: 'werk',   zone: 'Z5', pct_ftp: 114, duur_pct: 0.058, reps: 5 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.083, reps: 5 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.125 },
+            { type: 'werk',   zone: 'Z5', pct_ftp: 114, duur_pct: 0.038889, reps: 5 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.055556, reps: 5 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.527778 },
           ]
         },
       ]
@@ -1989,9 +2020,17 @@ export const SESSIE_ARCHETYPES = {
 
   sprint_neuraal: [
     {
+      // Vervolgticket chunk 1 (korte-reps-familie): som=0.998/1.02/0.991 —
+      // alle 3 lagen al binnen 2% tolerantie (dus niet op de oorspronkelijke
+      // 41-lijst), maar hadden toch het rust-artefact (Z1-herstel 2-3× te
+      // lang t.o.v. de archetype-structuur "3 min Z1 herstel") — zelfde les
+      // als bij ou_std_8x90plus45/ou_lang_5x2half. Werkblok-duur (Z7) bewust
+      // ONGEWIJZIGD gelaten: die loopt file-breed 30-100% over t.o.v. de naam,
+      // een apart, breder patroon buiten scope van dit ticket (zie
+      // vervolgticket-notitie).
       id: 'sprint_kort',
       naam: 'Korte sprints',
-      tss_range: [30, 45],
+      tss_range: [64, 67],
       fase_beschikbaar: ['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max'],
       varianten: [
         {
@@ -2000,8 +2039,8 @@ export const SESSIE_ARCHETYPES = {
           naam: '8× 10"',
           blokken: [
             { type: 'werk',   zone: 'Z7', pct_ftp: 200, duur_pct: 0.022, reps: 8 },
-            { type: 'herstel',zone: 'Z1', pct_ftp: 45,  duur_pct: 0.100, reps: 8 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.022 },
+            { type: 'herstel',zone: 'Z1', pct_ftp: 45,  duur_pct: 0.033333, reps: 8 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.557336 },
           ]
         },
         {
@@ -2010,8 +2049,8 @@ export const SESSIE_ARCHETYPES = {
           naam: '10× 10"',
           blokken: [
             { type: 'werk',   zone: 'Z7', pct_ftp: 200, duur_pct: 0.018, reps: 10 },
-            { type: 'herstel',zone: 'Z1', pct_ftp: 45,  duur_pct: 0.082, reps: 10 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.020 },
+            { type: 'herstel',zone: 'Z1', pct_ftp: 45,  duur_pct: 0.033333, reps: 10 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.48667 },
           ]
         },
         {
@@ -2020,17 +2059,20 @@ export const SESSIE_ARCHETYPES = {
           naam: '6× 12"',
           blokken: [
             { type: 'werk',   zone: 'Z7', pct_ftp: 200, duur_pct: 0.027, reps: 6 },
-            { type: 'herstel',zone: 'Z1', pct_ftp: 45,  duur_pct: 0.109, reps: 6 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.175 },
+            { type: 'herstel',zone: 'Z1', pct_ftp: 45,  duur_pct: 0.033333, reps: 6 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.638002 },
           ]
         },
       ]
     },
 
     {
+      // Zelfde patroon en zelfde uitzondering (werkblok-duur ongewijzigd) als
+      // sprint_kort hierboven — allemaal buiten de oorspronkelijke 41 (som
+      // 0.97-1.0) maar wel het Z1-rust-artefact (2-3× de gestelde 4 min).
       id: 'sprint_lang',
       naam: 'Langere sprints',
-      tss_range: [35, 50],
+      tss_range: [63, 67],
       fase_beschikbaar: ['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max'],
       week_in_fase_min: 2,
       varianten: [
@@ -2040,8 +2082,8 @@ export const SESSIE_ARCHETYPES = {
           naam: '6× 15"',
           blokken: [
             { type: 'werk',   zone: 'Z7', pct_ftp: 190, duur_pct: 0.033, reps: 6 },
-            { type: 'herstel',zone: 'Z1', pct_ftp: 45,  duur_pct: 0.100, reps: 6 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.202 },
+            { type: 'herstel',zone: 'Z1', pct_ftp: 45,  duur_pct: 0.044444, reps: 6 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.535336 },
           ]
         },
         {
@@ -2050,8 +2092,8 @@ export const SESSIE_ARCHETYPES = {
           naam: '8× 15"',
           blokken: [
             { type: 'werk',   zone: 'Z7', pct_ftp: 190, duur_pct: 0.025, reps: 8 },
-            { type: 'herstel',zone: 'Z1', pct_ftp: 45,  duur_pct: 0.083, reps: 8 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.136 },
+            { type: 'herstel',zone: 'Z1', pct_ftp: 45,  duur_pct: 0.044444, reps: 8 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.444448 },
           ]
         },
         {
@@ -2060,8 +2102,8 @@ export const SESSIE_ARCHETYPES = {
           naam: '5× 20"',
           blokken: [
             { type: 'werk',   zone: 'Z7', pct_ftp: 185, duur_pct: 0.044, reps: 5 },
-            { type: 'herstel',zone: 'Z1', pct_ftp: 45,  duur_pct: 0.133, reps: 5 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.085 },
+            { type: 'herstel',zone: 'Z1', pct_ftp: 45,  duur_pct: 0.044444, reps: 5 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.55778 },
           ]
         },
       ]
@@ -2139,9 +2181,14 @@ export const SESSIE_ARCHETYPES = {
 
   z6_anaeroob: [
     {
+      // Vervolgticket chunk 1 (korte-reps-familie): raw werkwaarde (Z6) ligt
+      // hier al ~5-6× boven het genoemde aantal seconden, ruim vóór enige
+      // som-invloed — de archetype-cap (60s) vangt dit al af tot ~53s
+      // (ongewijzigd gelaten). Alleen het Z1-herstel (was 2-3× de gestelde
+      // 5 min) is hier gefixt.
       id: 'z6_standaard',
       naam: 'Anaeroob standaard',
-      tss_range: [50, 70],
+      tss_range: [61, 63],
       fase_beschikbaar: ['sweetspot','drempel','vo2max','consolidatie'],
       doel_beperking: ['sprint','klimmen'],
       varianten: [
@@ -2151,8 +2198,8 @@ export const SESSIE_ARCHETYPES = {
           naam: '5× 40"',
           blokken: [
             { type: 'werk',   zone: 'Z6', pct_ftp: 140, duur_pct: 0.044, reps: 5 },
-            { type: 'herstel',zone: 'Z1', pct_ftp: 45,  duur_pct: 0.222, reps: 5 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.110 },
+            { type: 'herstel',zone: 'Z1', pct_ftp: 45,  duur_pct: 0.055556, reps: 5 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.50222 },
           ]
         },
         {
@@ -2161,8 +2208,8 @@ export const SESSIE_ARCHETYPES = {
           naam: '6× 35"',
           blokken: [
             { type: 'werk',   zone: 'Z6', pct_ftp: 140, duur_pct: 0.039, reps: 6 },
-            { type: 'herstel',zone: 'Z1', pct_ftp: 45,  duur_pct: 0.194, reps: 6 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.106 },
+            { type: 'herstel',zone: 'Z1', pct_ftp: 45,  duur_pct: 0.055556, reps: 6 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.432664 },
           ]
         },
         {
@@ -2171,8 +2218,8 @@ export const SESSIE_ARCHETYPES = {
           naam: '4× 50"',
           blokken: [
             { type: 'werk',   zone: 'Z6', pct_ftp: 138, duur_pct: 0.056, reps: 4 },
-            { type: 'herstel',zone: 'Z1', pct_ftp: 45,  duur_pct: 0.222, reps: 4 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.112 },
+            { type: 'herstel',zone: 'Z1', pct_ftp: 45,  duur_pct: 0.055556, reps: 4 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.553776 },
           ]
         },
       ]
@@ -2209,9 +2256,15 @@ export const SESSIE_ARCHETYPES = {
     },
 
     {
+      // Vervolgticket chunk 1: het slotblok ("5 min tempo" in de structuur)
+      // leverde 10 min — precies dubbel. Sprint(Z7)/Z1-herstel/sweetspot(Z3)
+      // ongewijzigd gelaten (sprint blijft door de systemische Z7-precisie-
+      // kwestie, zie vervolgticket-notitie; sweetspot en Z1-herstel bleven al
+      // binnen hun archetype-cap verzadigd, dus onveranderd na herberekening
+      // — geverifieerd). Enige variant -> tss_range via duur-sweep.
       id: 'raketstart',
       naam: 'Raketstart',
-      tss_range: [55, 80],
+      tss_range: [43, 93],
       fase_beschikbaar: ['sweetspot', 'drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
@@ -2222,9 +2275,9 @@ export const SESSIE_ARCHETYPES = {
             { type: 'werk',   zone: 'Z7', pct_ftp: 200, duur_pct: 0.011, reps: 3 },
             { type: 'herstel',zone: 'Z1', pct_ftp: 45,  duur_pct: 0.056, reps: 3 },
             { type: 'werk',   zone: 'Z3', pct_ftp: 90,  duur_pct: 0.333 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.050 },
-            { type: 'werk',   zone: 'Z3', pct_ftp: 83,  duur_pct: 0.117 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.232 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.05 },
+            { type: 'werk',   zone: 'Z3', pct_ftp: 83,  duur_pct: 0.055556 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.360444 },
           ]
         },
       ]
@@ -2253,9 +2306,18 @@ export const SESSIE_ARCHETYPES = {
     },
 
     {
+      // Vervolgticket chunk 3: structurele fout, geen documentatie-kwestie.
+      // Archetype-cap (Z3/Z4: 540s/9min) verzadigde de Z3/Z4-fasen stilzwijgend
+      // (leverde 9min i.p.v. 8min), terwijl de ongecapte Z2-fasen (Z1/Z2 zijn
+      // altijd vrijgesteld van caps) hun werkelijke, te hoge auteurswaarde
+      // (12min i.p.v. 8min) rechtstreeks doorgaven — geen van beide kwam uit
+      // op de gestelde "8 min" per fase. Alle 7 fasen onafhankelijk
+      // herkalibreerd op 8 min; archetype begint al met Z2 (geen aparte
+      // warming-up-injectie nodig/toegepast), dus geen krimp-afronding — elke
+      // fase levert nu exact 480s.
       id: 'pieken_en_dalen',
       naam: 'Pieken en dalen',
-      tss_range: [60, 80],
+      tss_range: [40, 103],
       fase_beschikbaar: ['sweetspot', 'drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
@@ -2263,23 +2325,29 @@ export const SESSIE_ARCHETYPES = {
           zwaartegewicht: 2,
           naam: 'Standaard',
           blokken: [
-            { type: 'werk', zone: 'Z2', pct_ftp: 66, duur_pct: 0.133 },
-            { type: 'werk', zone: 'Z3', pct_ftp: 90, duur_pct: 0.133 },
-            { type: 'werk', zone: 'Z2', pct_ftp: 66, duur_pct: 0.133 },
-            { type: 'werk', zone: 'Z4', pct_ftp: 98, duur_pct: 0.133 },
-            { type: 'werk', zone: 'Z2', pct_ftp: 66, duur_pct: 0.133 },
-            { type: 'werk', zone: 'Z3', pct_ftp: 90, duur_pct: 0.133 },
-            { type: 'werk', zone: 'Z2', pct_ftp: 66, duur_pct: 0.132 },
-            { type: 'herstel', zone: 'Z2', pct_ftp: 63, duur_pct: 0.068 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 66, duur_pct: 0.088889 },
+            { type: 'werk', zone: 'Z3', pct_ftp: 90, duur_pct: 0.088889 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 66, duur_pct: 0.088889 },
+            { type: 'werk', zone: 'Z4', pct_ftp: 98, duur_pct: 0.088889 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 66, duur_pct: 0.088889 },
+            { type: 'werk', zone: 'Z3', pct_ftp: 90, duur_pct: 0.088889 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 66, duur_pct: 0.088889 },
+            { type: 'herstel', zone: 'Z2', pct_ftp: 63, duur_pct: 0.377778 },
           ]
         },
       ]
     },
 
     {
+      // Vervolgticket chunk 1: rust-artefact tussen reps (5 min bedoeld,
+      // 8 min geleverd) — werkblokken ongewijzigd gelaten (Z3/Z5/Z7 blijven
+      // al door hun archetype-caps begrensd, dus geen zichtbaar effect van
+      // deze fix op die blokken; geverifieerd). Enige variant, dus tss_range
+      // via duur-sweep (45-120 min) i.p.v. 90-min-only — geen gewichtsas om
+      // op te baseren.
       id: 'klim_simulator',
       naam: 'Klimsimulator',
-      tss_range: [65, 85],
+      tss_range: [37, 93],
       fase_beschikbaar: ['sweetspot', 'drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
@@ -2290,17 +2358,21 @@ export const SESSIE_ARCHETYPES = {
             { type: 'werk',   zone: 'Z3', pct_ftp: 90,  duur_pct: 0.033, reps: 4 },
             { type: 'werk',   zone: 'Z5', pct_ftp: 112, duur_pct: 0.008, reps: 4 },
             { type: 'werk',   zone: 'Z7', pct_ftp: 200, duur_pct: 0.003, reps: 4 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.083, reps: 4 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.364 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.055556, reps: 4 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63,  duur_pct: 0.601776 },
           ]
         },
       ]
     },
 
     {
+      // Vervolgticket chunk 1: beide rust-blokken exact verdubbeld t.o.v. de
+      // gestelde 3 min / 2 min — werkblokken (5 min drempel, 2 min VO2max)
+      // matchten al exact en zijn ongewijzigd gelaten (blijven door hun
+      // archetype-caps begrensd). Enige variant -> duur-sweep voor tss_range.
       id: 'negatieve_vermoeidheid',
       naam: 'Negatieve vermoeidheid',
-      tss_range: [70, 90],
+      tss_range: [46, 104],
       fase_beschikbaar: ['sweetspot', 'drempel', 'consolidatie', 'vo2max'],
       varianten: [
         {
@@ -2309,10 +2381,10 @@ export const SESSIE_ARCHETYPES = {
           naam: 'Standaard',
           blokken: [
             { type: 'werk',   zone: 'Z4', pct_ftp: 98, duur_pct: 0.100, reps: 3 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.050, reps: 3 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.033333, reps: 3 },
             { type: 'werk',   zone: 'Z5', pct_ftp: 110,duur_pct: 0.033, reps: 4 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.033, reps: 4 },
-            { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.216 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.022222, reps: 4 },
+            { type: 'herstel',zone: 'Z2', pct_ftp: 63, duur_pct: 0.379113 },
           ]
         },
       ]

@@ -184,7 +184,7 @@ export async function genereerSessieDag(ctx) {
   const dagIntentieVers = dagIntentie ? { ...dagIntentie, tss_doel: tssDoelVers } : dagIntentie;
 
   const volleDuurMin = rondDuurMinAf(uren * 60);
-  const gecapteDoelDuurMin = rondDuurMinAf(effectieveDuurMin(effectiefSessietype, Math.round(uren * 60)));
+  const gecapteDoelDuurMin = rondDuurMinAf(effectieveDuurMin(effectiefSessietype, Math.round(uren * 60), weekInFase, weektype));
 
   const sessie = genereerSessieDeterministisch({
     dagIntentie: dagIntentieVers,
