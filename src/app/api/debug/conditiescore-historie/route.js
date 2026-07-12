@@ -3,7 +3,7 @@ import { getSessionUser } from "@/lib/auth";
 import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet } from "@/lib/intervals";
 import { datumISO } from "@/lib/datum";
-import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus, ctlRampRegressie } from "@/lib/conditie";
+import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus } from "@/lib/conditie";
 import { getKV } from "@/lib/kv";
 
 export async function GET(request) {
@@ -16,7 +16,7 @@ export async function GET(request) {
 
     const oldest = datumISO(new Date(Date.now() - 90 * 86400000));
     const newest = datumISO(new Date());
-    const wellness = await intervalsGet("/wellness", { oldest, newest }, creds);
+    const wellness = await intervalsGet("/wellness", { oldest, newest, fields: "id,ctl,atl,rampRate" }, creds);
     if (!wellness?.length) return NextResponse.json({ success: true, data: [] });
 
     const kv = getKV();
@@ -30,8 +30,10 @@ export async function GET(request) {
       const datum = dag.id?.split("T")[0];
       const ctlNu = dag.ctl;
       const ctl4w = ctlPerDag[i - 27]?.ctl;
-      const window28 = ctlPerDag.slice(Math.max(0, i - 27), i + 1).map(w => w.ctl);
-      const ramp = ctlRampRegressie(window28);
+      // Rechtstreeks intervals.icu's eigen rampRate i.p.v. lokale regressie — zie
+      // ramp-rate-fix-en-impact.md, Deel A. TODO: "ramp_optimaal": "1.5-5.0/week" (verderop) is
+      // gekalibreerd op de oude berekening, apart herijken.
+      const ramp = dag.rampRate ?? null;
 
       const score = berekenConditieScore({
         ctl_nu: ctlNu,

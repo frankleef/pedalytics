@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { getSessionUser, getUserIntervalsConfig } from "@/lib/auth";
-import { intervalsActivityGet, intervalsAuth } from "@/lib/intervals";
-import { berekenDecoupling } from "@/lib/decoupling";
+import { intervalsActivityGet } from "@/lib/intervals";
 
 // De uur-cron (zie /api/cron/sync) cachet decoupling normaal pas ná zijn
 // volgende run — voor een rit van vandaag blijft de kaart dan tot een uur
-// leeg. Bij een cache-miss hier daarom live herberekenen (zelfde eligibility
+// leeg. Bij een cache-miss hier daarom live ophalen (zelfde eligibility
 // als de cron: >45 min, IF 55-75%) en cachen in hetzelfde object-formaat, zodat
 // de cron er nadien alleen nog de hitte-velden aan hoeft toe te voegen.
 async function berekenLiveDecoupling(kv, ritId) {
@@ -22,13 +21,7 @@ async function berekenLiveDecoupling(kv, ritId) {
     const np = activiteit?.icu_weighted_avg_watts;
     if (!np || np / ftp < 0.55 || np / ftp > 0.75) return null;
 
-    const streams = await fetch(`https://intervals.icu/api/v1/activity/${ritId}/streams?types=watts,heartrate`, {
-      headers: { Authorization: intervalsAuth(creds.apiKey) },
-    }).then(r => r.json());
-    const watts = (Array.isArray(streams) ? streams.find(s => s.type === "watts") : streams?.watts)?.data || [];
-    const heartrate = (Array.isArray(streams) ? streams.find(s => s.type === "heartrate") : streams?.heartrate)?.data || [];
-
-    const dc = berekenDecoupling(watts, heartrate);
+    const dc = activiteit?.decoupling;
     if (dc == null) return null;
 
     const entry = {

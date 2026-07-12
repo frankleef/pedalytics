@@ -11,12 +11,12 @@ import { verifyQStash } from "@/lib/qstash";
 import { verwerkFtpTest, isEindtest } from "@/lib/sessie/ftpUpdate";
 import { berekenGemiddeldeUrenPerWeek, berekenStartTss } from "@/lib/rijhistorie";
 import { berekenDistributie } from "@/lib/sessie/distributie";
-import { checkFaseOvergang, berekenEnCacheDecoupling, bijwerkenDecouplingBaseline, backfillDecoupling } from "@/lib/decoupling";
+import { checkFaseOvergang, cacheDecoupling, bijwerkenDecouplingBaseline, backfillDecoupling } from "@/lib/decoupling";
 import { verwerkRitVoorEf, backfillEf } from "@/lib/ef";
 import { waitUntil } from "@vercel/functions";
 import { berekenRpeTrend, verwerkRpeTrend } from "@/lib/sessie/rpeTrend";
 import { berekenUitvoeringsscoreMetDetails, scoreLabel, zoneTimesNaarObject } from "@/lib/uitvoeringsscore";
-import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus, ctlRampRegressie } from "@/lib/conditie";
+import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus } from "@/lib/conditie";
 import { haalRitTemperatuur, berekenTempBaseline, berekenHitteVlag } from "@/lib/hitte";
 import { herberekenHrvProfiel, checkDataStatus } from "@/lib/hrv/profiel";
 import { herberekenGewichtenHrvCheckin } from "@/lib/hrv/leerdata";
@@ -172,7 +172,7 @@ export async function POST(request) {
           oldest,
           newest: datumOffset(0),
           limit: "10",
-          fields: "id,start_date_local,type,icu_training_load,moving_time,icu_weighted_avg_watts,icu_rpe,icu_intensity,icu_zone_times",
+          fields: "id,start_date_local,type,icu_training_load,moving_time,icu_weighted_avg_watts,average_watts,icu_rpe,icu_intensity,icu_zone_times,decoupling,icu_efficiency_factor",
         }, { apiKey, athleteId });
 
         const ritten = (activities || []).filter(a => a.type === "Ride" || a.type === "VirtualRide");
@@ -205,13 +205,17 @@ export async function POST(request) {
           // Herbereken conditiescore met verse wellness-data, ook zonder nieuwe rit
           try {
             if (plan) {
-              const wellData = await intervalsGet("/wellness", { oldest: datumOffset(-28), newest: datumOffset(0) }, { apiKey, athleteId });
+              const wellData = await intervalsGet("/wellness", { oldest: datumOffset(-28), newest: datumOffset(0), fields: "id,ctl,atl,rampRate" }, { apiKey, athleteId });
               let ctlNu = null, ctl4wGeleden = null, ctlRamp = null;
               if (wellData?.length >= 7) {
                 const ctlW = wellData.filter(w => w.ctl != null).sort((a,b) => (a.id||"").localeCompare(b.id||""));
                 ctlNu = ctlW.length > 0 ? ctlW[ctlW.length - 1].ctl : null;
                 ctl4wGeleden = ctlW.length > 0 ? ctlW[0].ctl : null;
-                ctlRamp = ctlRampRegressie(ctlW.map(w => w.ctl));
+                // Rechtstreeks intervals.icu's eigen rampRate van de ctl_nu-dag i.p.v. een lokale
+                // regressie over het venster — zie ramp-rate-fix-en-impact.md, Deel A.
+                // TODO: belastingsStatus()-drempels (1.5-5.0/week, conditie.js) zijn gekalibreerd
+                // op de oude regressie-berekening en moeten apart herijkt worden.
+                ctlRamp = ctlW[ctlW.length - 1].rampRate ?? null;
               }
               const rpeTrend = await kv.get(`rpe_trend:${userId}`);
               const gereedheidsscore = 50;
@@ -442,34 +446,26 @@ export async function POST(request) {
             }
 
             try {
-              const streams = await fetch(`https://intervals.icu/api/v1/activity/${rit.id}/streams?types=watts,heartrate`, {
-                headers: { Authorization: "Basic " + Buffer.from("API_KEY:" + apiKey).toString("base64") },
-              }).then(r => r.json());
-              const wattsArr = (Array.isArray(streams) ? streams.find(s => s.type === "watts") : streams?.watts)?.data || [];
-              const hrArr = (Array.isArray(streams) ? streams.find(s => s.type === "heartrate") : streams?.heartrate)?.data || [];
-              berekenEnCacheDecoupling(rit.id, wattsArr, hrArr)
-                .then(async (dc) => {
-                  if (dc != null) {
-                    await kv.set(`decoupling:${rit.id}`, { decoupling: dc, apparent_temp_celsius, temp_baseline, hitte_gecorrigeerd, startTijd: rit.start_date_local, duurMinuten: Math.round(duurMin), userId });
-                  }
-                  await bijwerkenDecouplingBaseline(userId).catch(() => {});
-                  if (temp_baseline != null) {
-                    await kv.set(`temp_baseline:${userId}`, temp_baseline, { ex: 90 * 86400 });
-                  }
-                })
-                .catch(e => console.warn(`[sync] Decoupling cache mislukt:`, e.message));
+              const dc = await cacheDecoupling(rit.id, rit.decoupling);
+              if (dc != null) {
+                await kv.set(`decoupling:${rit.id}`, { decoupling: dc, apparent_temp_celsius, temp_baseline, hitte_gecorrigeerd, startTijd: rit.start_date_local, duurMinuten: Math.round(duurMin), userId });
+              }
+              await bijwerkenDecouplingBaseline(userId).catch(() => {});
+              if (temp_baseline != null) {
+                await kv.set(`temp_baseline:${userId}`, temp_baseline, { ex: 90 * 86400 });
+              }
             } catch (e) {
-              console.warn(`[sync] Streams ophalen mislukt voor rit ${rit.id}:`, e.message);
+              console.warn(`[sync] Decoupling cache mislukt voor rit ${rit.id}:`, e.message);
             }
           }
 
           // Efficiency Factor-trend per intensiteitsband (z2/sweetspot/drempel/vo2max) —
           // eligibility op basis van de bestaande sectie 33-classificatie (IF-band) van
-          // de hele rit; de daadwerkelijke EF wordt daarbinnen berekend over alleen de
-          // seconden die per-seconde in de doelband vallen (zie lib/ef.js).
+          // de hele rit; EF zelf is intervals.icu's eigen icu_efficiency_factor
+          // (whole-ride, zie lib/ef.js).
           for (const rit of ritten) {
             try {
-              await verwerkRitVoorEf(kv, userId, rit, plan.huidige_ftp || 265, apiKey);
+              await verwerkRitVoorEf(kv, userId, rit, plan.huidige_ftp || 265);
             } catch (e) {
               console.warn(`[sync] EF-berekening mislukt voor rit ${rit.id}:`, e.message);
             }
@@ -513,13 +509,17 @@ export async function POST(request) {
           try {
             const rpeTrend = await kv.get(`rpe_trend:${userId}`);
 
-            let ctlRamp = null;
+            let ctlRamp = null, ctlNu = null, ctl4wGeleden = null;
             try {
-              const wellOldest = datumOffset(-28);
-              const wellData = await intervalsGet("/wellness", { oldest: wellOldest, newest: datumOffset(0) }, { apiKey, athleteId });
-              if (wellData?.length >= 7) {
-                const ctlWaarden = wellData.filter(w => w.ctl != null).sort((a, b) => (a.id || "").localeCompare(b.id || ""));
-                ctlRamp = ctlRampRegressie(ctlWaarden.map(w => w.ctl));
+              const wellAll = await intervalsGet("/wellness", { oldest: datumOffset(-28), newest: datumOffset(0), fields: "id,ctl,atl,rampRate" }, { apiKey, athleteId });
+              const ctlAll = (wellAll || []).filter(w => w.ctl != null).sort((a,b) => (a.id||"").localeCompare(b.id||""));
+              if (ctlAll.length > 0) {
+                ctlNu = ctlAll[ctlAll.length - 1].ctl;
+                ctl4wGeleden = ctlAll[0].ctl;
+                // Rechtstreeks intervals.icu's eigen rampRate van de ctl_nu-dag — zie
+                // ramp-rate-fix-en-impact.md, Deel A. TODO: belastingsStatus()-drempels apart
+                // herijken.
+                ctlRamp = ctlAll[ctlAll.length - 1].rampRate ?? null;
               }
             } catch (e) {
               console.warn(`[sync] Wellness voor conditiescore mislukt:`, e.message);
@@ -546,14 +546,6 @@ export async function POST(request) {
             } else {
               await kv.del(`conditie-hitte-melding:${userId}`).catch(() => {});
             }
-
-            // CTL 4 weken geleden
-            let ctlNu = null, ctl4wGeleden = null;
-            try {
-              const wellAll = await intervalsGet("/wellness", { oldest: datumOffset(-28), newest: datumOffset(0) }, { apiKey, athleteId });
-              const ctlAll = (wellAll || []).filter(w => w.ctl != null).sort((a,b) => (a.id||"").localeCompare(b.id||""));
-              if (ctlAll.length > 0) { ctlNu = ctlAll[ctlAll.length - 1].ctl; ctl4wGeleden = ctlAll[0].ctl; }
-            } catch {}
 
             const gereedheidsscore = 50; // TODO: lezen uit KV als beschikbaar
             const condScore = berekenConditieScore({ ctl_nu: ctlNu, ctl_4w_geleden: ctl4wGeleden, rpe_delta_trend: rpeTrend ?? null, decoupling_huidig: dcHuidig, decoupling_vorig: dcVorig });

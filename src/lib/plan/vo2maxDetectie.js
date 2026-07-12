@@ -2,7 +2,6 @@ import { getKV } from "../kv";
 import { getIntervalsCredentials } from "../users";
 import { intervalsGet } from "../intervals";
 import { datumOffset } from "../datum";
-import { berekenDecoupling } from "../decoupling";
 import { weeknummerVoorDatum } from "../weekgrenzen";
 
 /**

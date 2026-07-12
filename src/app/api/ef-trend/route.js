@@ -22,11 +22,11 @@ async function verwerkRecenteRittenLive(kv, userId) {
       oldest: datumOffset(-2),
       newest: vandaagISO(),
       limit: "20",
-      fields: "id,start_date_local,type,moving_time,icu_weighted_avg_watts,average_watts",
+      fields: "id,start_date_local,type,moving_time,icu_weighted_avg_watts,average_watts,icu_efficiency_factor",
     }, creds);
     const ritten = (acts || []).filter(a => a.type === "Ride" || a.type === "VirtualRide");
     for (const rit of ritten) {
-      await verwerkRitVoorEf(kv, userId, rit, ftp, creds.apiKey).catch(() => {});
+      await verwerkRitVoorEf(kv, userId, rit, ftp).catch(() => {});
     }
   } catch {}
 }

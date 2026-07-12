@@ -1,80 +1,27 @@
-// Cardiac decoupling: NP-gebaseerd met arbeidssplit.
-// NB: berekenNP() wordt hier per halve rit aangeroepen (na arbeidssplit).
-// icu_weighted_avg_watts van intervals.icu is de NP van de hele rit en is
-// niet bruikbaar als vervanging — per-helft NP moet uit de streams berekend worden.
+// Cardiac decoupling: overgenomen van intervals.icu's eigen Activity.decoupling
+// (Pw:Hr-drift eerste vs. tweede rithelft) i.p.v. zelf uit de ruwe streams
+// herberekend. intervals.icu levert dit als kant-en-klaar veld op de
+// /activities-lijst (fields=...,decoupling) en op de losse /activity/{id}-call.
 
 import { getKV } from "./kv";
-import { berekenNP } from "./np";
-
-function splitOpArbeid(watts, heartrate) {
-  const totaal = watts.reduce((a, w) => a + w, 0);
-  const helft = totaal / 2;
-  let cumulatief = 0;
-  let splitIndex = Math.floor(watts.length / 2);
-  for (let i = 0; i < watts.length; i++) {
-    cumulatief += watts[i];
-    if (cumulatief >= helft) { splitIndex = i; break; }
-  }
-  return {
-    watts_eerste: watts.slice(0, splitIndex),
-    watts_tweede: watts.slice(splitIndex),
-    hr_eerste: heartrate.slice(0, splitIndex),
-    hr_tweede: heartrate.slice(splitIndex),
-  };
-}
-
-export function filterNulWatt(watts, heartrate) {
-  const wGef = [], hrGef = [];
-  for (let i = 0; i < watts.length; i++) {
-    if (watts[i] > 0 && heartrate[i] > 0) { wGef.push(watts[i]); hrGef.push(heartrate[i]); }
-  }
-  return { watts: wGef, heartrate: hrGef };
-}
 
 /**
- * Berekent cardiac decoupling via EF = NP / gem HR per arbeidssplit.
- * @param {number[]} rawWatts
- * @param {number[]} rawHr
- * @returns {number|null} decoupling in procent (positief = drift)
+ * Cachet de door intervals.icu berekende cardiac decoupling voor een activiteit.
+ * @param {number|string} activiteitId
+ * @param {number|null|undefined} decouplingRuw - Activity.decoupling van intervals.icu
+ * @returns {Promise<number|null>}
  */
-export function berekenDecoupling(rawWatts, rawHr) {
-  if (!rawWatts?.length || !rawHr?.length) return null;
-  const n = Math.min(rawWatts.length, rawHr.length);
-  const { watts, heartrate } = filterNulWatt(rawWatts.slice(0, n), rawHr.slice(0, n));
-  if (watts.length < 2700) return null;
-
-  const { watts_eerste, watts_tweede, hr_eerste, hr_tweede } = splitOpArbeid(watts, heartrate);
-
-  const np1 = berekenNP(watts_eerste);
-  const np2 = berekenNP(watts_tweede);
-  if (!np1 || !np2) return null;
-
-  const gemHr1 = hr_eerste.reduce((a, b) => a + b, 0) / hr_eerste.length;
-  const gemHr2 = hr_tweede.reduce((a, b) => a + b, 0) / hr_tweede.length;
-  if (!gemHr1 || !gemHr2) return null;
-
-  const ef1 = np1 / gemHr1;
-  const ef2 = np2 / gemHr2;
-
-  return ((ef1 - ef2) / ef1) * 100;
-}
-
-/**
- * Berekent en cachet decoupling voor een activiteit.
- */
-export async function berekenEnCacheDecoupling(activiteitId, watts, heartrate) {
+export async function cacheDecoupling(activiteitId, decouplingRuw) {
   const kv = getKV();
   const cacheKey = `decoupling:${activiteitId}`;
 
   const cached = await kv.get(cacheKey);
   if (cached !== null && cached !== undefined) return cached;
 
-  const result = berekenDecoupling(watts, heartrate);
-  if (result !== null) {
-    await kv.set(cacheKey, Math.round(result * 10) / 10);
-  }
-
-  return result;
+  if (decouplingRuw == null) return null;
+  const afgerond = Math.round(decouplingRuw * 10) / 10;
+  await kv.set(cacheKey, afgerond);
+  return afgerond;
 }
 
 /**
@@ -95,7 +42,8 @@ export function checkFaseOvergang(decouplingWaarden, aantalVerlengingen = 0) {
 }
 
 /**
- * Eenmalige backfill: berekent en cachet decoupling voor alle historische Z2-ritten.
+ * Eenmalige backfill: cachet decoupling voor alle historische Z2-ritten, direct
+ * uit het Activity.decoupling-veld van intervals.icu (geen streams meer nodig).
  */
 export async function backfillDecoupling(userId, ftpWaarde, apiKey, athleteId) {
   const kv = getKV();
@@ -106,7 +54,7 @@ export async function backfillDecoupling(userId, ftpWaarde, apiKey, athleteId) {
     const vandaag = new Date().toISOString().slice(0, 10);
     const auth = "Basic " + Buffer.from("API_KEY:" + apiKey).toString("base64");
 
-    const resp = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/activities?oldest=${tweeJaarGeleden}&newest=${vandaag}&fields=id,start_date_local,type,moving_time,icu_weighted_avg_watts`, {
+    const resp = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/activities?oldest=${tweeJaarGeleden}&newest=${vandaag}&fields=id,start_date_local,type,moving_time,icu_weighted_avg_watts,decoupling`, {
       headers: { Authorization: auth },
     });
     const acts = await resp.json();
@@ -122,17 +70,8 @@ export async function backfillDecoupling(userId, ftpWaarde, apiKey, athleteId) {
       const bestaand = await kv.get(`decoupling:${rit.id}`);
       if (bestaand != null) { overgeslagen++; continue; }
 
-      try {
-        const sResp = await fetch(`https://intervals.icu/api/v1/activity/${rit.id}/streams?types=watts,heartrate`, { headers: { Authorization: auth } });
-        const streams = await sResp.json();
-        const wattsArr = (Array.isArray(streams) ? streams.find(s => s.type === "watts") : streams?.watts)?.data || [];
-        const hrArr = (Array.isArray(streams) ? streams.find(s => s.type === "heartrate") : streams?.heartrate)?.data || [];
-        await berekenEnCacheDecoupling(rit.id, wattsArr, hrArr);
-        verwerkt++;
-        await new Promise(r => setTimeout(r, 300));
-      } catch (e) {
-        console.warn(`[backfill] Rit ${rit.id} mislukt:`, e.message);
-      }
+      const dc = await cacheDecoupling(rit.id, rit.decoupling);
+      if (dc != null) verwerkt++; else overgeslagen++;
     }
 
     await kv.set(`decoupling_backfill_voltooid:${userId}`, { datum: new Date().toISOString(), verwerkt, overgeslagen, totaalZ2: z2Ritten.length });

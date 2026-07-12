@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet } from "@/lib/intervals";
-import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus, ctlRampRegressie } from "@/lib/conditie";
+import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus } from "@/lib/conditie";
 import { datumOffset } from "@/lib/datum";
 
 export async function POST(request) {
@@ -16,12 +16,13 @@ export async function POST(request) {
   const creds = await getIntervalsCredentials(userId);
   if (!creds) return NextResponse.json({ error: "Geen credentials" }, { status: 400 });
 
-  const wellData = await intervalsGet("/wellness", { oldest: datumOffset(-28), newest: datumOffset(0) }, creds);
+  const wellData = await intervalsGet("/wellness", { oldest: datumOffset(-28), newest: datumOffset(0), fields: "id,ctl,atl,rampRate" }, creds);
   const ctlAll = (wellData || []).filter(w => w.ctl != null).sort((a, b) => (a.id || "").localeCompare(b.id || ""));
 
   const ctlNu = ctlAll.length > 0 ? ctlAll[ctlAll.length - 1].ctl : null;
   const ctl4wGeleden = ctlAll.length > 0 ? ctlAll[0].ctl : null;
-  const ctlRamp = ctlRampRegressie(ctlAll.map(w => w.ctl));
+  // Rechtstreeks intervals.icu's eigen rampRate — zie ramp-rate-fix-en-impact.md, Deel A.
+  const ctlRamp = ctlAll.length > 0 ? (ctlAll[ctlAll.length - 1].rampRate ?? null) : null;
 
   const rpeTrend = await kv.get(`rpe_trend:${userId}`);
 

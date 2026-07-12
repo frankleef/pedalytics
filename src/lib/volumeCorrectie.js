@@ -2,7 +2,6 @@ import { getKV } from "./kv";
 import { getIntervalsCredentials } from "./users";
 import { intervalsGet } from "./intervals";
 import { datumOffset } from "./datum";
-import { ctlRampRegressie } from "./conditie";
 import { weeknummerVoorDatum } from "./weekgrenzen";
 import { maakMelding } from "./meldingen";
 import { vulSessiesAanVoorGebruiker } from "./sessiesAanvullen";
@@ -82,21 +81,24 @@ export async function haalRampRate(userId) {
     const creds = await getIntervalsCredentials(userId);
     if (!creds) return null;
 
+    // Rechtstreeks intervals.icu's eigen rampRate i.p.v. een lokale regressie — zie
+    // ramp-rate-fix-en-impact.md, Deel A. Klein venster (7 dagen) volstaat, we hebben alleen
+    // de meest recente dag met een rampRate-waarde nodig.
     const wellData = await intervalsGet("/wellness", {
-      oldest: datumOffset(-29),
+      oldest: datumOffset(-7),
       newest: datumOffset(0),
+      fields: "id,ctl,atl,rampRate",
     }, creds);
 
     if (!wellData?.length) return null;
 
-    const ctlWaarden = wellData
-      .filter(w => w.ctl != null)
-      .sort((a, b) => (a.id || "").localeCompare(b.id || ""))
-      .map(w => w.ctl);
+    const dagen = wellData
+      .filter(w => w.rampRate != null)
+      .sort((a, b) => (a.id || "").localeCompare(b.id || ""));
 
-    if (ctlWaarden.length < 29) return null;
+    if (!dagen.length) return null;
 
-    return ctlRampRegressie(ctlWaarden);
+    return dagen[dagen.length - 1].rampRate;
   } catch {
     return null;
   }
@@ -210,8 +212,13 @@ export function bepaalVolumeCorrectie({ rampRate, tsbGemiddelde14d, rpeDeltaTren
   const rampTeHoog      = rampRate !== null && rampRate > 7.0;
   // > +5 = fresh/transition: te weinig prikkel, sporter zit boven grey zone
   const tsbTePositief   = tsbGemiddelde14d !== null && tsbGemiddelde14d > 5;
-  // < -30 = risk zone: onder optimal, ophoping richting overtraining
-  const tsbTeNegatief   = tsbGemiddelde14d !== null && tsbGemiddelde14d < -30;
+  // < -20 = risk zone. LET OP: dit is een 14-daags gemiddelde, geen actuele TSB — de
+  // gangbare "-30 = risk zone"-vuistregel geldt voor de actuele waarde en is op een 14-daags
+  // gemiddelde vrijwel onbereikbaar (vereist ~2 aaneengesloten weken zware overbelasting).
+  // -30 (t/m 11 juli 2026) bleek daardoor in de praktijk niet te triggeren; -20 is een
+  // tussenwaarde, geen definitief herijkte drempel — verifieer via
+  // /api/debug/volumecorrectie-log zodra er weer live data is. Zie ramp-rate-fix-en-impact.md.
+  const tsbTeNegatief   = tsbGemiddelde14d !== null && tsbGemiddelde14d < -20;
   const adaptatieSlecht = rpeDeltaTrend !== null && rpeDeltaTrend > 1.0;
 
   const omhoog = (rampTeLaag || tsbTePositief) && !adaptatieSlecht && !tsbTeNegatief;
@@ -224,7 +231,7 @@ export function bepaalVolumeCorrectie({ rampRate, tsbGemiddelde14d, rpeDeltaTren
   }
 
   if (omlaag) {
-    if (tsbTeNegatief && tsbGemiddelde14d < -40) return { richting: "omlaag", pct: 0.12 };
+    if (tsbTeNegatief && tsbGemiddelde14d < -30) return { richting: "omlaag", pct: 0.12 };
     if (tsbTeNegatief) return { richting: "omlaag", pct: 0.08 };
     return { richting: "omlaag", pct: 0.05 };
   }

@@ -1,90 +1,56 @@
-import { describe, it, expect } from "vitest";
-import { berekenEF, selecteerHoofdblokken, berekenEFTrend } from "../ef";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+
+vi.mock("../kv.js", () => {
+  const store = new Map();
+  return {
+    getKV: () => ({
+      get: async (k) => store.get(k) ?? null,
+      set: async (k, v) => { store.set(k, v); },
+      _store: store,
+    }),
+  };
+});
+
+import { berekenEFTrend, verwerkRitVoorEf } from "../ef";
+import { getKV } from "../kv.js";
 
 const FTP = 200;
 
-function constant(waarde, lengte) {
-  return new Array(lengte).fill(waarde);
-}
+describe("verwerkRitVoorEf", () => {
+  const kv = getKV();
+  beforeEach(() => kv._store.clear());
 
-describe("selecteerHoofdblokken", () => {
-  it("scenario A — Z2-sessie: selecteert alleen het Z2-hoofddeel, ongeacht ontbrekende type/isSpecifiek-info", () => {
-    // 90 min: 15 min Z1 warming-up (40% FTP) + 65 min Z2 (65% FTP) + 10 min Z1 cooldown (40% FTP)
-    const warmup = constant(80, 15 * 60);   // 40% van 200W
-    const hoofddeel = constant(130, 65 * 60); // 65% van 200W — binnen Z2 (55-75%)
-    const cooldown = constant(80, 10 * 60);
-    const vermogen = [...warmup, ...hoofddeel, ...cooldown];
-    const hr = constant(140, vermogen.length);
-
-    const resultaat = selecteerHoofdblokken({ vermogenStream: vermogen, hrStream: hr }, "z2", FTP);
-
-    expect(resultaat).not.toBeNull();
-    // Alleen Z2-hoofddeel-waarden (130W) mogen geselecteerd zijn, nooit de 80W-warmup/cooldown
-    expect(resultaat.vermogen.every(w => w === 130)).toBe(true);
-    // Kleine edge-verliezen door de 30-sec rolling-smoothing bij de overgangen zijn ok
-    expect(resultaat.vermogen.length).toBeGreaterThan(65 * 60 - 120);
-    expect(resultaat.vermogen.length).toBeLessThanOrEqual(65 * 60);
+  it("z2-rit (45+ min, IF binnen duur_lang) pusht een datapunt met icu_efficiency_factor", async () => {
+    const rit = { id: 1, start_date_local: "2026-06-01T10:00:00", moving_time: 3600, icu_weighted_avg_watts: 140, icu_efficiency_factor: 1.23 };
+    const band = await verwerkRitVoorEf(kv, "u1", rit, FTP);
+    expect(band).toBe("z2");
+    const reeks = await kv.get("ef_trend:u1:z2");
+    expect(reeks).toEqual([{ datum: "2026-06-01", ef: 1.23, activityId: 1 }]);
   });
 
-  it("scenario B — drempelsessie: voegt alleen de Z4-werkblokken samen, sluit Z2-herstel en warming-up/cooldown uit", () => {
-    const warmup = constant(100, 10 * 60);   // 50% FTP
-    const werk = constant(200, 15 * 60);     // 100% FTP — binnen drempel (95-100%)
-    const herstel = constant(130, 4 * 60);   // 65% FTP — Z2-herstel tussen intervallen
-    const cooldown = constant(100, 10 * 60);
-
-    const vermogen = [
-      ...warmup,
-      ...werk, ...herstel,
-      ...werk, ...herstel,
-      ...werk,
-      ...cooldown,
-    ];
-    const hr = constant(160, vermogen.length);
-
-    const resultaat = selecteerHoofdblokken({ vermogenStream: vermogen, hrStream: hr }, "drempel", FTP);
-
-    expect(resultaat).not.toBeNull();
-    expect(resultaat.vermogen.every(w => w === 200)).toBe(true);
-    const verwachteWerkSeconden = 3 * 15 * 60;
-    expect(resultaat.vermogen.length).toBeGreaterThan(verwachteWerkSeconden - 200);
-    expect(resultaat.vermogen.length).toBeLessThanOrEqual(verwachteWerkSeconden);
+  it("z2-rit korter dan 45 minuten wordt overgeslagen", async () => {
+    const rit = { id: 2, start_date_local: "2026-06-01T10:00:00", moving_time: 1800, icu_weighted_avg_watts: 140, icu_efficiency_factor: 1.23 };
+    expect(await verwerkRitVoorEf(kv, "u1", rit, FTP)).toBeNull();
   });
 
-  it("scenario C — te korte Z2-rit (30 min, onder de 45-minuten-eligibility-grens) retourneert null", () => {
-    const vermogen = constant(130, 30 * 60); // 65% FTP, 30 minuten
-    const hr = constant(140, vermogen.length);
-
-    const resultaat = selecteerHoofdblokken({ vermogenStream: vermogen, hrStream: hr }, "z2", FTP);
-
-    expect(resultaat).toBeNull();
+  it("ontbrekende icu_efficiency_factor levert geen datapunt op", async () => {
+    const rit = { id: 3, start_date_local: "2026-06-01T10:00:00", moving_time: 3600, icu_weighted_avg_watts: 140, icu_efficiency_factor: null };
+    expect(await verwerkRitVoorEf(kv, "u1", rit, FTP)).toBeNull();
   });
 
-  it("retourneert null bij ontbrekende stream-data", () => {
-    expect(selecteerHoofdblokken({ vermogenStream: [], hrStream: [] }, "z2", FTP)).toBeNull();
-    expect(selecteerHoofdblokken(null, "sweetspot", FTP)).toBeNull();
-    expect(selecteerHoofdblokken({ vermogenStream: constant(130, 3000), hrStream: constant(140, 3000) }, "z2", null)).toBeNull();
+  it("dedupet op activityId — tweede aanroep voor dezelfde rit voegt niets toe", async () => {
+    const rit = { id: 4, start_date_local: "2026-06-01T10:00:00", moving_time: 3600, icu_weighted_avg_watts: 140, icu_efficiency_factor: 1.23 };
+    await verwerkRitVoorEf(kv, "u1", rit, FTP);
+    const tweede = await verwerkRitVoorEf(kv, "u1", rit, FTP);
+    expect(tweede).toBeNull();
+    const reeks = await kv.get("ef_trend:u1:z2");
+    expect(reeks).toHaveLength(1);
   });
 
-  it("retourneert null als een sweetspot/drempel/vo2max-rit te weinig tijd in de doelband doorbrengt", () => {
-    // Vrijwel de hele rit in Z2, slechts een paar seconden boven de drempelgrens — ruis, geen werkblok
-    const vermogen = [...constant(130, 3000), ...constant(200, 5)];
-    const hr = constant(140, vermogen.length);
-    const resultaat = selecteerHoofdblokken({ vermogenStream: vermogen, hrStream: hr }, "drempel", FTP);
-    expect(resultaat).toBeNull();
-  });
-});
-
-describe("berekenEF", () => {
-  it("berekent NP / gemiddelde hartslag over de geselecteerde data", () => {
-    const vermogen = constant(200, 300);
-    const hr = constant(160, 300);
-    const ef = berekenEF(vermogen, hr);
-    expect(ef).toBeCloseTo(200 / 160, 2);
-  });
-
-  it("retourneert null bij onvoldoende data", () => {
-    expect(berekenEF(constant(200, 10), constant(160, 10))).toBeNull();
-    expect(berekenEF([], [])).toBeNull();
+  it("drempelrit (IF ~0.97) komt in de drempel-band terecht", async () => {
+    const rit = { id: 5, start_date_local: "2026-06-01T10:00:00", moving_time: 1200, icu_weighted_avg_watts: 194, icu_efficiency_factor: 1.4 };
+    const band = await verwerkRitVoorEf(kv, "u1", rit, FTP);
+    expect(band).toBe("drempel");
   });
 });
 
