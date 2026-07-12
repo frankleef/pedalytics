@@ -50,8 +50,27 @@ export function normaliseerRpeDelta(rpe_delta_trend) {
 
 export function normaliseerDecoupling(mediaan_huidig, mediaan_vorig) {
   if (mediaan_vorig == null) return 0;
-  const verbetering = (mediaan_vorig - mediaan_huidig) / mediaan_vorig;
-  return Math.max(-1, Math.min(1, verbetering * 4));
+  // Absoluut verschil in procentpunten i.p.v. relatief percentage — de relatieve formule deelt
+  // door mediaan_vorig, wat bij waarden dicht bij 0% instabiel is (zie decoupling-clamp-verificatie.md:
+  // 0,38% → 2,85% gaf met de relatieve formule -1,0, terwijl het een bescheiden absolute verschuiving is).
+  // TODO: 5pp voor volledige clamp is een beargumenteerde keuze (gangbare <5%-decoupling-richtlijn
+  // als absolute schaal), geen empirisch geverifieerd optimum — zie decoupling-fix-en-backtest.md.
+  const verbetering_pp = mediaan_vorig - mediaan_huidig;
+  return Math.max(-1, Math.min(1, verbetering_pp / 5));
+}
+
+/**
+ * Bepaalt de decoupling-medianen voor de conditiescore uit een chronologisch geordende pool
+ * kwalificerende ritten (oudste eerst). Venster: laatste 5 ritten vs. de 5 daaraan voorafgaande.
+ * Bij <10 kwalificerende ritten is er geen signaal (null, geen bijvangst — gewicht in
+ * berekenConditieScore() wordt dan herverdeeld over CTL/RPE). Bij >10 tellen alleen de meest
+ * recente 10 mee, oudere ritten worden genegeerd.
+ */
+export function bepaalDecouplingMedianen(dcAlleWaarden) {
+  if (!dcAlleWaarden || dcAlleWaarden.length < 10) return { huidig: null, vorig: null };
+  const huidig = [...dcAlleWaarden.slice(-5)].sort((a, b) => a - b)[2];
+  const vorig = [...dcAlleWaarden.slice(-10, -5)].sort((a, b) => a - b)[2];
+  return { huidig, vorig };
 }
 
 export function berekenConditieScore({ ctl_nu, ctl_4w_geleden, rpe_delta_trend, decoupling_huidig, decoupling_vorig }) {

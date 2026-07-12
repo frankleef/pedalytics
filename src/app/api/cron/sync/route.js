@@ -16,7 +16,7 @@ import { verwerkRitVoorEf, backfillEf } from "@/lib/ef";
 import { waitUntil } from "@vercel/functions";
 import { berekenRpeTrend, verwerkRpeTrend } from "@/lib/sessie/rpeTrend";
 import { berekenUitvoeringsscoreMetDetails, scoreLabel, zoneTimesNaarObject } from "@/lib/uitvoeringsscore";
-import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus } from "@/lib/conditie";
+import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus, bepaalDecouplingMedianen } from "@/lib/conditie";
 import { haalRitTemperatuur, berekenTempBaseline, berekenHitteVlag } from "@/lib/hitte";
 import { herberekenHrvProfiel, checkDataStatus } from "@/lib/hrv/profiel";
 import { herberekenGewichtenHrvCheckin } from "@/lib/hrv/leerdata";
@@ -231,8 +231,7 @@ export async function POST(request) {
                   const w = typeof dc === "number" ? dc : dc?.decoupling;
                   if (w != null) dcAlleWaarden.push(w);
                 }
-                if (dcAlleWaarden.length >= 3) dcHuidigUp = dcAlleWaarden.slice(-3).sort((a,b)=>a-b)[1];
-                if (dcAlleWaarden.length >= 6) dcVorigUp = dcAlleWaarden.slice(-6, -3).sort((a,b)=>a-b)[1];
+                ({ huidig: dcHuidigUp, vorig: dcVorigUp } = bepaalDecouplingMedianen(dcAlleWaarden));
               } catch {}
               const score = berekenConditieScore({ ctl_nu: ctlNu, ctl_4w_geleden: ctl4wGeleden, rpe_delta_trend: rpeTrend ?? null, decoupling_huidig: dcHuidigUp, decoupling_vorig: dcVorigUp });
               const belasting = belastingsStatus(ctlRamp ?? 0, gereedheidsscore);
@@ -535,8 +534,7 @@ export async function POST(request) {
               if (waarde != null) dcAlleEntries.push({ waarde, isHitte });
             }
             const dcAlleWaarden = dcAlleEntries.map(e => e.waarde);
-            const dcHuidig = dcAlleWaarden.length >= 3 ? dcAlleWaarden.slice(-3).sort((a,b)=>a-b)[1] : null;
-            const dcVorig = dcAlleWaarden.length >= 6 ? dcAlleWaarden.slice(-6, -3).sort((a,b)=>a-b)[1] : null;
+            const { huidig: dcHuidig, vorig: dcVorig } = bepaalDecouplingMedianen(dcAlleWaarden);
 
             // >50% hitte-fallback (spec 32-F): informatiemelding als decoupling-trend onbetrouwbaar
             const laatste6 = dcAlleEntries.slice(-6);

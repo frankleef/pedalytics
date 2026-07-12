@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getKV } from "@/lib/kv";
 import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet } from "@/lib/intervals";
-import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus } from "@/lib/conditie";
+import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus, bepaalDecouplingMedianen } from "@/lib/conditie";
 import { datumOffset } from "@/lib/datum";
 
 export async function POST(request) {
@@ -36,8 +36,7 @@ export async function POST(request) {
     const w = typeof dc === "number" ? dc : dc?.decoupling;
     if (w != null) dcWaarden.push(w);
   }
-  const dcHuidig = dcWaarden.length >= 3 ? dcWaarden.slice(-3).sort((a, b) => a - b)[1] : null;
-  const dcVorig = dcWaarden.length >= 6 ? dcWaarden.slice(-6, -3).sort((a, b) => a - b)[1] : null;
+  const { huidig: dcHuidig, vorig: dcVorig } = bepaalDecouplingMedianen(dcWaarden);
 
   const score = berekenConditieScore({ ctl_nu: ctlNu, ctl_4w_geleden: ctl4wGeleden, rpe_delta_trend: rpeTrend ?? null, decoupling_huidig: dcHuidig, decoupling_vorig: dcVorig });
   const belasting = belastingsStatus(ctlRamp ?? 0, 50);
