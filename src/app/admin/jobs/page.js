@@ -45,6 +45,7 @@ const ONDERHOUD_GROEPEN = [
       { actie: "herbereken-sessies", label: "Herbereken sessies", scope: "alle sporters", beschrijving: "Toekomstige sessies opnieuw genereren met de huidige methode.", confirm: true },
       { actie: "rond-sessieduren-af", label: "Rond sessieduren af", scope: "alle sporters", beschrijving: "Blokken naar hele minuten en sessieduur naar een veelvoud van 5 min afronden, zonder de sessie zelf opnieuw te genereren.", confirm: true },
       { actie: "herbereken-conditiescore", label: "Herbereken conditiescore", scope: "alle sporters", beschrijving: "Conditie-/belastingscore opnieuw berekenen.", confirm: true },
+      { actie: "herbereken-fitnessprogressie", label: "Herbereken fitnessprogressie", scope: "alle sporters", beschrijving: "CTL-/decoupling-trend (los van de dagelijkse conditiescore) opnieuw berekenen en naar fitnessprogressie:{userId} wegschrijven.", confirm: true },
       { actie: "herbereken-hrv-profiel", label: "Herbereken HRV-profiel", scope: "alle sporters", beschrijving: "HRV-basislijn en drempels opnieuw berekenen.", confirm: true },
       { actie: "herbereken-rpe-gisteren", label: "Herbereken RPE gisteren", scope: "alle sporters", beschrijving: "Verwacht-RPE en RPE-delta van gisteren herberekenen.", confirm: true },
     ],
