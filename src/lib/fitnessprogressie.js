@@ -135,9 +135,7 @@ export function fitnessprogressieContextlijn({ ctlTrend, decouplingTrend } = {})
   if (!ctlTrend || ctlTrend.status === "onvoldoende_data") {
     ctlRegel = "Nog te weinig trainingsgeschiedenis voor een betrouwbare fitnesstrend — beschikbaar na een paar weken training.";
   } else if (ctlTrend.richting === "stijgend") {
-    ctlRegel = ctlTrend.helling_per_week >= 3
-      ? `Je fitheid stijgt sterk — +${ctlTrend.helling_per_week} CTL-punten/week over de laatste ${ctlTrend.venster_dagen} dagen.`
-      : `Je fitheid stijgt gestaag — +${ctlTrend.helling_per_week} CTL-punten/week.`;
+    ctlRegel = `Je fitheid stijgt — +${ctlTrend.helling_per_week} CTL-punten/week over de laatste ${ctlTrend.venster_dagen} dagen.`;
   } else if (ctlTrend.richting === "dalend") {
     ctlRegel = `Je fitheid daalt — ${ctlTrend.helling_per_week} CTL-punten/week. Controleer je belasting en herstel de komende weken.`;
   } else {

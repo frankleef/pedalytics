@@ -177,17 +177,25 @@ describe("fitnessprogressieContextlijn", () => {
     expect(ctlRegel).toMatch(/te weinig trainingsgeschiedenis/i);
   });
 
-  it("CTL stijgend, helling < 3/week -> 'gestaag' (niet 'sterk')", () => {
-    const { ctlRegel } = fitnessprogressieContextlijn({ ctlTrend: { status: "ok", richting: "stijgend", helling_per_week: 1.5, venster_dagen: 70 } });
-    expect(ctlRegel).toMatch(/gestaag/i);
-    expect(ctlRegel).not.toMatch(/sterk/i);
-    expect(ctlRegel).toContain("1.5");
+  // Geen sterk/gestaag-onderscheid: een eerdere >=3 CTL/week-subdrempel bleek
+  // op de backtest-data (fitnessprogressie-en-kracht-fase-check.md, hoogste
+  // gemeten helling +2,61/week) nooit te triggeren en was geen correcte
+  // overname van de oude ctlDelta4w>=8-regel (die ~2/week impliceerde, niet
+  // 3) — dus verwijderd i.p.v. hersteld. Eén tekst voor elke "stijgend"-helling.
+  it("CTL stijgend, lage helling -> dezelfde formulering als een hoge helling (geen sub-drempel)", () => {
+    const laag = fitnessprogressieContextlijn({ ctlTrend: { status: "ok", richting: "stijgend", helling_per_week: 1.5, venster_dagen: 70 } }).ctlRegel;
+    expect(laag).not.toMatch(/sterk/i);
+    expect(laag).not.toMatch(/gestaag/i);
+    expect(laag).toContain("1.5");
+    expect(laag).toContain("70");
   });
 
-  it("CTL stijgend, helling >= 3/week -> 'sterk'", () => {
-    const { ctlRegel } = fitnessprogressieContextlijn({ ctlTrend: { status: "ok", richting: "stijgend", helling_per_week: 3.2, venster_dagen: 70 } });
-    expect(ctlRegel).toMatch(/sterk/i);
-    expect(ctlRegel).toContain("70");
+  it("CTL stijgend, hoge helling -> zelfde formulering, alleen het cijfer verschilt", () => {
+    const hoog = fitnessprogressieContextlijn({ ctlTrend: { status: "ok", richting: "stijgend", helling_per_week: 3.2, venster_dagen: 70 } }).ctlRegel;
+    expect(hoog).not.toMatch(/sterk/i);
+    expect(hoog).not.toMatch(/gestaag/i);
+    expect(hoog).toContain("3.2");
+    expect(hoog).toContain("70");
   });
 
   it("CTL stabiel -> geen richting-uitspraak, aanmoediging tot meer stimulus", () => {
