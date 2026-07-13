@@ -103,6 +103,9 @@ export default function AdaptatieScoreKaart({ weekTss, doelTss, fase, weekNr, we
               Je recente ritten waren overwegend in warme omstandigheden. De aerobe trend is tijdelijk minder betrouwbaar — dit herstelt zich zodra de omstandigheden normaliseren.
             </div>
           )}
+          <div style={{ font: "500 10.5px var(--font-nunito), sans-serif", color: T.textTert, marginTop: 8 }}>
+            Combineert je huidige trainingsbelasting met de conditierichting — voor de losse trend, zie Fitnessprogressie op Vandaag.
+          </div>
         </>
       )}
 

@@ -1,0 +1,138 @@
+// I/O-laag voor fitnessprogressie (zie src/lib/fitnessprogressie.js voor de
+// pure berekening). Analoog aan hoe conditie.js (pure) en cron/sync/route.js
+// (I/O) al gescheiden zijn — hier gescheiden in twee bestanden omdat deze I/O
+// ook los, vanuit de wekelijkse volumeCorrectie-job, aangeroepen wordt.
+import { getKV } from "./kv";
+import { getIntervalsCredentials } from "./users";
+import { intervalsGet } from "./intervals";
+import { datumOffset } from "./datum";
+import { weeknummerVoorDatum } from "./weekgrenzen";
+import { berekenFitnessprogressie } from "./fitnessprogressie";
+
+// 8-10 weken venster (zie fitnessprogressie-en-kracht-fase-check.md, Deel A) —
+// 70 dagen = 10 weken, ruim boven CTL_TREND_MIN_DAGEN zodat de regressie altijd
+// het volledige gevraagde venster ziet zodra er genoeg geschiedenis is.
+const CTL_TREND_VENSTER_DAGEN = 70;
+const DECOUPLING_TREND_VENSTER_DAGEN = 70;
+
+export async function haalCtlReeksVoorTrend(userId, dagen = CTL_TREND_VENSTER_DAGEN) {
+  try {
+    const creds = await getIntervalsCredentials(userId);
+    if (!creds) return [];
+    const wellData = await intervalsGet("/wellness", {
+      oldest: datumOffset(-dagen), newest: datumOffset(0), fields: "id,ctl",
+    }, creds);
+    return (wellData || [])
+      .filter(w => w.ctl != null && w.id)
+      .map(w => ({ datum: w.id, ctl: w.ctl }))
+      .sort((a, b) => a.datum.localeCompare(b.datum));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Alle kwalificerende decoupling-punten (zelfde eligibiliteit als
+ * bepaalDecouplingMedianen()/haalDecouplingMediaan: Ride/VirtualRide, ≥45 min,
+ * IF 0,55-0,75) in de periode, met datum — voor de trendregressie. In
+ * tegenstelling tot haalDecouplingMediaan() (volumeCorrectie.js, mediaan van
+ * laatste N) geeft dit de volledige puntenwolk terug.
+ */
+export async function haalDecouplingReeksVoorTrend(userId, dagen = DECOUPLING_TREND_VENSTER_DAGEN) {
+  try {
+    const kv = getKV();
+    const creds = await getIntervalsCredentials(userId);
+    if (!creds) return [];
+
+    const plan = await kv.get(`${userId}:seizoensplan`);
+    const ftp = plan?.huidige_ftp || 265;
+
+    const activiteiten = await intervalsGet("/activities", {
+      oldest: datumOffset(-dagen), newest: datumOffset(0), limit: "100",
+      fields: "id,type,start_date_local,moving_time,icu_weighted_avg_watts",
+    }, creds);
+    if (!activiteiten?.length) return [];
+
+    const kwalificerend = activiteiten.filter(a => {
+      if (a.type !== "Ride" && a.type !== "VirtualRide") return false;
+      const duurMin = (a.moving_time || 0) / 60;
+      if (duurMin < 45) return false;
+      if (!a.icu_weighted_avg_watts) return false;
+      const ifVal = a.icu_weighted_avg_watts / ftp;
+      return ifVal >= 0.55 && ifVal <= 0.75;
+    });
+
+    const punten = [];
+    for (const rit of kwalificerend) {
+      const dc = await kv.get(`decoupling:${rit.id}`);
+      if (dc == null) continue;
+      const waarde = typeof dc === "number" ? dc : dc?.decoupling;
+      const isHitte = typeof dc === "object" && (dc?.hitte_gecorrigeerd ?? false);
+      if (waarde == null || isHitte) continue;
+      const datum = rit.start_date_local?.slice(0, 10);
+      if (datum) punten.push({ datum, waarde });
+    }
+    return punten.sort((a, b) => a.datum.localeCompare(b.datum));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * FTP-test-ankerpunten voor de trendgrafiek: elke kaderweek met
+ * `bevat_tussentijdse_ftp_test` (altijd week 3, zie bouwKader.js), plus de
+ * werkelijke datum zodra de bijbehorende sessie is voltooid (intentie.rol ===
+ * "ftp_test", inclusief handmatig gemarkeerde tests via
+ * /api/sessie/markeer-als-test, die dezelfde rol krijgen).
+ */
+export async function haalFtpTestMarkers(userId) {
+  try {
+    const kv = getKV();
+    const plan = await kv.get(`${userId}:seizoensplan`);
+    if (!plan?.kader) return [];
+
+    const kaderMarkers = plan.kader
+      .filter(w => w.bevat_tussentijdse_ftp_test)
+      .map(w => ({ week: w.week, datum: null }));
+
+    const sessieMarkers = (plan.weekSessies?.sessies || [])
+      .filter(s => s.intentie?.rol === "ftp_test" && s.voltooid && s.datum)
+      .map(s => ({
+        week: plan.startdatum ? weeknummerVoorDatum(s.datum, plan.startdatum) : null,
+        datum: s.datum,
+      }));
+
+    // Merge: voltooide sessie-datum vult de kaderweek aan als ze samenvallen,
+    // losse sessies (bv. handmatig gemarkeerd buiten een geplande testweek om)
+    // blijven als eigen ankerpunt staan.
+    const merged = [...kaderMarkers];
+    for (const sm of sessieMarkers) {
+      const idx = merged.findIndex(m => m.week === sm.week);
+      if (idx >= 0) merged[idx] = { ...merged[idx], datum: sm.datum };
+      else merged.push(sm);
+    }
+    return merged.sort((a, b) => (a.week ?? 0) - (b.week ?? 0));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Berekent de fitnessprogressie en schrijft 'm naar KV
+ * (`fitnessprogressie:{userId}`, TTL 90 dagen — ruim boven het wekelijkse
+ * herberekenritme). Aangeroepen vanuit hetzelfde wekelijkse ritme als
+ * voerWekelijkseEvaluatieUit() (volumeCorrectie.js) — zie de aanroep daar.
+ * Best-effort: fouten hier mogen de wekelijkse volumecorrectie zelf nooit
+ * breken, dus caller vangt dit af (zie volumeCorrectie.js).
+ */
+export async function berekenEnSlaFitnessprogressieOp(userId) {
+  const kv = getKV();
+  const [ctlReeks, decouplingReeks, ftpTestMarkers] = await Promise.all([
+    haalCtlReeksVoorTrend(userId),
+    haalDecouplingReeksVoorTrend(userId),
+    haalFtpTestMarkers(userId),
+  ]);
+  const resultaat = berekenFitnessprogressie({ ctlReeks, decouplingReeks, ftpTestMarkers });
+  await kv.set(`fitnessprogressie:${userId}`, resultaat, { ex: 90 * 86400 });
+  return resultaat;
+}

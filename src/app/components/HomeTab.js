@@ -13,6 +13,7 @@ import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import SessieUitkomstKaart from "./SessieUitkomstKaart";
 import SeizoenSamenvattingKaart from "./SeizoenSamenvattingKaart";
 import GereedheidConditieKaart from "./GereedheidConditieKaart";
+import FitnessprogressieKaart from "./FitnessprogressieKaart";
 import { classificeerRit } from "@/lib/rittype";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
@@ -370,6 +371,9 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
           tsb={tsb}
           paragraaf={readinessParagraaf}
         />
+
+        {/* Fitnessprogressie — traag, wekelijks signaal, apart van gereedheid vandaag */}
+        <FitnessprogressieKaart />
 
         {/* Sync health banner — onderaan, laagste prioriteit */}
         {syncGap && !syncBannerWeg && (

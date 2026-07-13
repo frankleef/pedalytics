@@ -103,6 +103,9 @@ export default function GereedheidConditieKaart({ balansScore, ctl, atl, tsb, co
         </div>
       )}
       {!condData?.pill && <div style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec, marginTop: 8 }}>Meer ritten nodig — beschikbaar na 4 weken training.</div>}
+      <div style={{ font: "500 11px var(--font-nunito), sans-serif", color: T.textTert, marginTop: 8 }}>
+        Combineert je huidige trainingsbelasting met de conditierichting — voor de losse trend, zie Fitnessprogressie hieronder.
+      </div>
       {hitteMelding && (
         <div style={{ font: "600 12px/1.5 var(--font-nunito), sans-serif", color: T.textSec, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${T.divider}` }}>
           Je recente ritten waren overwegend in warme omstandigheden. De aerobe trend is tijdelijk minder betrouwbaar — dit herstelt zich zodra de omstandigheden normaliseren.

@@ -5,6 +5,7 @@ import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import SharedHeader from "./SharedHeader";
 import InfoTooltip from "./InfoTooltip";
 import { datumISO } from "@/lib/datum";
+import { fitnessprogressieContextlijn } from "@/lib/fitnessprogressie";
 import { ResponsiveContainer, ComposedChart, LineChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ReferenceArea } from "recharts";
 
 const CARD = { background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 18px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 };
@@ -43,16 +44,6 @@ function ftpContextlijn({ huidigeFtp, startFtp }) {
   if (delta <= 0) return "Je FTP is nog ongewijzigd dit seizoen.";
   if (delta < 5) return `Kleine stijging van ${delta}W — de basis wordt gelegd.`;
   return `${pct}% sterker dan bij de start van dit seizoen.`;
-}
-
-function conditieTrendContextlijn({ conditie, ctlDelta4w, aantalWeken }) {
-  const weken = aantalWeken === 1 ? "week" : "weken";
-  if (conditie === "groeit" && ctlDelta4w >= 8) return `Je fitheid stijgt sterk — ${ctlDelta4w} punten in 4 weken. Houd dit vast.`;
-  if (conditie === "groeit") return `Je fitheid stijgt gestaag. ${aantalWeken} ${weken} op rij in de goede richting.`;
-  if (conditie === "lichte_groei") return "Lichte groei — het gaat de goede kant op, maar er is ruimte voor meer stimulus.";
-  if (conditie === "stabiel") return "Je fitheid houdt stand. Meer volume of intensiteit zou de groei aanzwengelen.";
-  if (conditie === "lichte_daling") return "Kleine daling — normaal na een zware periode. Herstel goed en het keert terug.";
-  return "Je fitheid daalt. Controleer je belasting en herstel de komende weken.";
 }
 
 function aerobeEfficiëntieContextlijn({ mediaan, trend }) {
@@ -107,6 +98,7 @@ function efContextlijn({ trend, band, aantalRecent, minPunten }) {
 export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voortgang, seizoensplan, onOpenProfiel, weekSessies, onOpenMeldingen, heeftOngelezenMeldingen }) {
   const [ftpHistorie, setFtpHistorie] = useState([]);
   const [conditieData, setConditieData] = useState(null);
+  const [fitnessprogressie, setFitnessprogressie] = useState(null);
   const [dcPunten, setDcPunten] = useState([]);
   const [efData, setEfData] = useState(null);
   const [efBand, setEfBand] = useState("z2");
@@ -114,6 +106,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
   useEffect(() => {
     fetch("/api/ftp-historie").then(r => r.json()).then(d => { if (d.success && d.data) setFtpHistorie(d.data); }).catch(() => {});
     fetch("/api/plan/conditie-score").then(r => r.json()).then(d => { if (d.success && d.data) setConditieData(d.data); }).catch(() => {});
+    fetch("/api/plan/fitnessprogressie").then(r => r.json()).then(d => { if (d.success && d.data) setFitnessprogressie(d.data); }).catch(() => {});
     fetch("/api/ef-trend").then(r => r.json()).then(d => { if (d.success && d.data) setEfData(d); }).catch(() => {});
   }, []);
 
@@ -146,22 +139,6 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
     if (dagPunten.length < 28) return null;
     const vierWekenGeleden = dagPunten[dagPunten.length - 28]?.ctl;
     return huidigCtl != null && vierWekenGeleden != null ? huidigCtl - vierWekenGeleden : null;
-  })();
-
-  const conditieLabel = conditieData?.conditie || "onbekend";
-  const aantalWekenGroei = (() => {
-    if (!dagPunten.length || dagPunten.length < 14) return 1;
-    let weken = 0;
-    for (let w = 0; w < 12; w++) {
-      const start = dagPunten.length - (w + 1) * 7;
-      const eind = dagPunten.length - w * 7;
-      if (start < 0) break;
-      const weekStart = dagPunten[start]?.ctl;
-      const weekEind = dagPunten[Math.min(eind, dagPunten.length) - 1]?.ctl;
-      if (weekStart != null && weekEind != null && weekEind >= weekStart) weken++;
-      else break;
-    }
-    return Math.max(1, weken);
   })();
 
   // Decoupling
@@ -324,9 +301,17 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
                 <InfoTooltip metricKey="ctl" />
               </div>
             </div>
-            <p style={{ font: "600 13px/1.5 var(--font-nunito), sans-serif", color: T.textSec, margin: "10px 0 0" }}>
-              {conditieTrendContextlijn({ conditie: conditieLabel, ctlDelta4w: ctlDelta4w ?? 0, aantalWeken: aantalWekenGroei })}
-            </p>
+            {(() => {
+              const { ctlRegel, decouplingRegel } = fitnessprogressieContextlijn({
+                ctlTrend: fitnessprogressie?.ctl_trend,
+                decouplingTrend: fitnessprogressie?.decoupling_trend,
+              });
+              return (
+                <p style={{ font: "600 13px/1.5 var(--font-nunito), sans-serif", color: T.textSec, margin: "10px 0 0" }}>
+                  {ctlRegel}<br />{decouplingRegel}
+                </p>
+              );
+            })()}
           </div>
         ) : (
           <div style={{ ...CARD, padding: "20px 22px" }}>
