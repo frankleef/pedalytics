@@ -420,6 +420,51 @@ describe('solveWeek', () => {
     })
   })
 
+  describe('sectie 22-G: week 1/2/3 met precies 3 beschikbare dagen (live-planconfiguratie)', () => {
+    // Regressietest voor de simulatie tegen het live plan (u_frank_001, doel
+    // ftp_verhogen, beschikbaarheid Di/Do/Za) uit
+    // fitnessprogressie-kracht-en-weekinfase-implementatie.md: met slechts 3
+    // beschikbare dagen/week moet week 3 van het sweetspot-blok nog steeds 2x
+    // kernstimulus + 1x z2 opleveren, zonder gat en zonder budgetoverschrijding.
+    it('week 3 met slechts 3 open dagen: 2x kernstimulus + 1x z2, geen gat, geen budgetoverschrijding', () => {
+      const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
+        fase: 'sweetspot', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'ftp',
+        weekTssDoel: 427, aantalWekenInFase: 4, vasteDagen: [],
+        openDagen: dagen('2026-07-28:2', '2026-07-30:2', '2026-08-01:3'),
+        alGeleverd: { tss: 0 }, tsb: 13, weekNummerInSeizoen: 7, laatsteKrachtLageCadansWeek: null,
+      })
+      expect(resultaat).toHaveLength(3)
+      expect(resultaat.filter(r => r.pad === 'kernstimulus')).toHaveLength(2)
+      expect(resultaat.filter(r => r.pad === 'z2')).toHaveLength(1)
+      expect(resultaat.reduce((s, r) => s + r.tss_doel, 0)).toBeLessThanOrEqual(427)
+    })
+
+    it('week 1 met dezelfde 3 dagen: slechts 1x kernstimulus, lagere TSS dan week 3 (duurprogressie)', () => {
+      const week1 = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
+        fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
+        weekTssDoel: 353, aantalWekenInFase: 4, vasteDagen: [],
+        openDagen: dagen('2026-07-14:2', '2026-07-16:2', '2026-07-18:3'),
+        alGeleverd: { tss: 0 }, tsb: 13, weekNummerInSeizoen: 5, laatsteKrachtLageCadansWeek: null,
+      })
+      expect(week1.filter(r => r.pad === 'kernstimulus')).toHaveLength(1)
+      const kernstimulusTssWeek1 = week1.find(r => r.pad === 'kernstimulus').tss_doel
+
+      const week3 = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
+        fase: 'sweetspot', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'ftp',
+        weekTssDoel: 427, aantalWekenInFase: 4, vasteDagen: [],
+        openDagen: dagen('2026-07-28:2', '2026-07-30:2', '2026-08-01:3'),
+        alGeleverd: { tss: 0 }, tsb: 13, weekNummerInSeizoen: 7, laatsteKrachtLageCadansWeek: null,
+      })
+      const kernstimulusTssWeek3 = Math.max(...week3.filter(r => r.pad === 'kernstimulus').map(r => r.tss_doel))
+      // Week 3's zwaarste kernstimulusdag (hoogste progressiefactor + hoogste
+      // weekTssDoel) moet zwaarder zijn dan week 1's enige kernstimulusdag.
+      expect(kernstimulusTssWeek3).toBeGreaterThan(kernstimulusTssWeek1)
+    })
+  })
+
   describe('sectie 22-G: kracht_lage_cadans vervalt bij 2x kernstimulus', () => {
     // klimmen/sweetspot i.p.v. ftp/sweetspot: klimmen staat kracht_lage_cadans in
     // sweetspot nog steeds 1x/week toe (KRACHT_FREQUENTIE.klimmen.sweetspot),
