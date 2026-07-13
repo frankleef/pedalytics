@@ -15,13 +15,25 @@ import { berekenFitnessprogressie } from "./fitnessprogressie";
 const CTL_TREND_VENSTER_DAGEN = 70;
 const DECOUPLING_TREND_VENSTER_DAGEN = 70;
 
-export async function haalCtlReeksVoorTrend(userId, dagen = CTL_TREND_VENSTER_DAGEN) {
+/**
+ * @param {string} userId
+ * @param {number} [dagen]
+ * @param {Array|null} [wellDataVooraf] - al opgehaalde, rauwe /wellness-respons
+ *   (moet minimaal `id`/`ctl` per dag bevatten) — als meegegeven, wordt er
+ *   geen eigen intervals.icu-call gedaan. Zie sync/route.js: conditiescore
+ *   haalt daar al wellness op in hetzelfde verzoek, dus die wordt hier
+ *   hergebruikt i.p.v. een tweede keer opgehaald.
+ */
+export async function haalCtlReeksVoorTrend(userId, dagen = CTL_TREND_VENSTER_DAGEN, wellDataVooraf = null) {
   try {
-    const creds = await getIntervalsCredentials(userId);
-    if (!creds) return [];
-    const wellData = await intervalsGet("/wellness", {
-      oldest: datumOffset(-dagen), newest: datumOffset(0), fields: "id,ctl",
-    }, creds);
+    let wellData = wellDataVooraf;
+    if (!wellData) {
+      const creds = await getIntervalsCredentials(userId);
+      if (!creds) return [];
+      wellData = await intervalsGet("/wellness", {
+        oldest: datumOffset(-dagen), newest: datumOffset(0), fields: "id,ctl",
+      }, creds);
+    }
     return (wellData || [])
       .filter(w => w.ctl != null && w.id)
       .map(w => ({ datum: w.id, ctl: w.ctl }))
@@ -37,20 +49,29 @@ export async function haalCtlReeksVoorTrend(userId, dagen = CTL_TREND_VENSTER_DA
  * IF 0,55-0,75) in de periode, met datum — voor de trendregressie. In
  * tegenstelling tot haalDecouplingMediaan() (volumeCorrectie.js, mediaan van
  * laatste N) geeft dit de volledige puntenwolk terug.
+ *
+ * @param {string} userId
+ * @param {number} [dagen]
+ * @param {Array|null} [activiteitenVooraf] - al opgehaalde, rauwe
+ *   /activities-respons (moet minimaal `id,type,start_date_local,moving_time,
+ *   icu_weighted_avg_watts` per rit bevatten) — als meegegeven, wordt er geen
+ *   eigen intervals.icu-call gedaan.
  */
-export async function haalDecouplingReeksVoorTrend(userId, dagen = DECOUPLING_TREND_VENSTER_DAGEN) {
+export async function haalDecouplingReeksVoorTrend(userId, dagen = DECOUPLING_TREND_VENSTER_DAGEN, activiteitenVooraf = null) {
   try {
     const kv = getKV();
-    const creds = await getIntervalsCredentials(userId);
-    if (!creds) return [];
-
     const plan = await kv.get(`${userId}:seizoensplan`);
     const ftp = plan?.huidige_ftp || 265;
 
-    const activiteiten = await intervalsGet("/activities", {
-      oldest: datumOffset(-dagen), newest: datumOffset(0), limit: "100",
-      fields: "id,type,start_date_local,moving_time,icu_weighted_avg_watts",
-    }, creds);
+    let activiteiten = activiteitenVooraf;
+    if (!activiteiten) {
+      const creds = await getIntervalsCredentials(userId);
+      if (!creds) return [];
+      activiteiten = await intervalsGet("/activities", {
+        oldest: datumOffset(-dagen), newest: datumOffset(0), limit: "100",
+        fields: "id,type,start_date_local,moving_time,icu_weighted_avg_watts",
+      }, creds);
+    }
     if (!activiteiten?.length) return [];
 
     const kwalificerend = activiteiten.filter(a => {
@@ -119,17 +140,22 @@ export async function haalFtpTestMarkers(userId) {
 
 /**
  * Berekent de fitnessprogressie en schrijft 'm naar KV
- * (`fitnessprogressie:{userId}`, TTL 90 dagen — ruim boven het wekelijkse
- * herberekenritme). Aangeroepen vanuit hetzelfde wekelijkse ritme als
- * voerWekelijkseEvaluatieUit() (volumeCorrectie.js) — zie de aanroep daar.
- * Best-effort: fouten hier mogen de wekelijkse volumecorrectie zelf nooit
- * breken, dus caller vangt dit af (zie volumeCorrectie.js).
+ * (`fitnessprogressie:{userId}`, TTL 90 dagen). Aangeroepen vanuit
+ * cron/sync/route.js (beide paden — idempotent en nieuwe-activiteit), waar
+ * conditiescore al wellness/activities heeft opgehaald in hetzelfde verzoek.
+ * Best-effort: fouten hier mogen de aanroepende job nooit breken, dus caller
+ * vangt dit af.
+ * @param {string} userId
+ * @param {{wellData?: Array|null, activiteiten?: Array|null}} [vooraf] - al
+ *   opgehaalde rauwe intervals.icu-data, zie haalCtlReeksVoorTrend()/
+ *   haalDecouplingReeksVoorTrend() voor de vereiste velden. Weglaten = eigen
+ *   fetch (bv. voor het admin-endpoint, dat geen voorafgaande fetch heeft).
  */
-export async function berekenEnSlaFitnessprogressieOp(userId) {
+export async function berekenEnSlaFitnessprogressieOp(userId, { wellData = null, activiteiten = null } = {}) {
   const kv = getKV();
   const [ctlReeks, decouplingReeks, ftpTestMarkers] = await Promise.all([
-    haalCtlReeksVoorTrend(userId),
-    haalDecouplingReeksVoorTrend(userId),
+    haalCtlReeksVoorTrend(userId, CTL_TREND_VENSTER_DAGEN, wellData),
+    haalDecouplingReeksVoorTrend(userId, DECOUPLING_TREND_VENSTER_DAGEN, activiteiten),
     haalFtpTestMarkers(userId),
   ]);
   const resultaat = berekenFitnessprogressie({ ctlReeks, decouplingReeks, ftpTestMarkers });

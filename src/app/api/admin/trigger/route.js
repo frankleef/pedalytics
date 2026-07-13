@@ -14,6 +14,7 @@ const ACTIES = {
   "herbereken-sessies": { pad: "/api/admin/herbereken-sessies" },
   "rond-sessieduren-af": { pad: "/api/admin/rond-sessieduren-af" },
   "herbereken-conditiescore": { pad: "/api/admin/herbereken-conditiescore" },
+  "herbereken-fitnessprogressie": { pad: "/api/admin/herbereken-fitnessprogressie", vereistUserId: true },
   "herbereken-hrv-profiel": { pad: "/api/admin/herbereken-hrv-profiel" },
   "herbereken-rpe-gisteren": { pad: "/api/admin/herbereken-rpe-gisteren" },
   "migreer-16-weken": { pad: "/api/admin/migreer-16-weken" },

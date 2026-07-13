@@ -6,7 +6,6 @@ import { weeknummerVoorDatum } from "./weekgrenzen";
 import { maakMelding } from "./meldingen";
 import { vulSessiesAanVoorGebruiker } from "./sessiesAanvullen";
 import { bepaalTrainingsfrequentie } from "./trainingsfrequentie";
-import { berekenEnSlaFitnessprogressieOp } from "./fitnessprogressieIO";
 
 // ====== Interne hulpfuncties ======
 
@@ -445,16 +444,6 @@ export async function voerWekelijkseEvaluatieUit(userId, { forceer = false } = {
   if (!plan?.kader) {
     console.log(`[volumecorrectie] ${userId}: geen plan`);
     return { overgeslagen: true, reden: "geen plan" };
-  }
-
-  // Fitnessprogressie (trend, los van de dagelijkse conditie_score-pil) op
-  // hetzelfde wekelijkse ritme herberekenen — ook in een herstel-/taperweek,
-  // dus vóór die vroege returns hieronder. Best-effort: een fout hier mag de
-  // volumecorrectie zelf nooit breken.
-  try {
-    await berekenEnSlaFitnessprogressieOp(userId);
-  } catch (e) {
-    console.warn(`[volumecorrectie] Fitnessprogressie-berekening mislukt voor ${userId}:`, e.message);
   }
 
   const maandagISO = berekenAankomendeMaandagISO(nu);
