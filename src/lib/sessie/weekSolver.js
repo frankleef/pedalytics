@@ -303,9 +303,15 @@ function bepaalKernstimulusFrequentie(generiekeFase, weekInFase = 1, weektype = 
 // tabel hiervoor gevonden in de codebase — zie project-memory).
 const KRACHT_LAGE_CADANS_VERBODEN_DOELEN = new Set(['aerobe_basis', 'uithoudingsvermogen', 'sprint']);
 
-// Frequentietabel, opgegeven door de gebruiker (geen bestaande tabel hiervoor
-// gevonden in de codebase — zie project-memory). Fases die hier ontbreken
-// (overgangsfase, consolidatie, test) staan kracht_lage_cadans nooit toe.
+// Frequentietabel. Voor `ftp` is dit op 13 juli 2026 strak gezet op
+// design/IMPLEMENTATIE.md regels 3056-3070 — die spec-tabel staat
+// kracht_lage_cadans voor het `ftp`-doel uitsluitend in Basis (week 1-3) toe,
+// nergens anders. Een eerdere versie van deze tabel stond `ftp` ook in
+// sweetspot/drempel toe; dat bleek niet terug te voeren op een bewuste,
+// gedocumenteerde beslissing en week af van de spec, dus is het teruggedraaid
+// (zie fitnessprogressie-en-kracht-fase-check.md, Deel B). `klimmen` is
+// ongewijzigd. Fases die hier ontbreken (overgangsfase, consolidatie, test)
+// staan kracht_lage_cadans nooit toe.
 const KRACHT_FREQUENTIE = {
   klimmen: {
     basis:         { toegestaan: true,  frequentie: '1x_per_week' },
@@ -317,9 +323,9 @@ const KRACHT_FREQUENTIE = {
   },
   ftp: {
     basis:         { toegestaan: true,  frequentie: '1x_per_2_weken' },
-    sweetspot:     { toegestaan: true,  frequentie: '1x_per_week' },
+    sweetspot:     { toegestaan: false },
     overgangsfase: { toegestaan: false },
-    drempel:       { toegestaan: true,  frequentie: '1x_per_2_weken' },
+    drempel:       { toegestaan: false },
     consolidatie:  { toegestaan: false },
     test:          { toegestaan: false },
   },

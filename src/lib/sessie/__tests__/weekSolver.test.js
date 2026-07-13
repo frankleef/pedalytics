@@ -46,10 +46,10 @@ describe('solveWeek', () => {
     })
     // ftp's Sweetspot-fase heeft maar één kernstimulus-kandidaat (sweetspot_intervallen)
     // en geen secundair — als die al geleverd is, wordt er geen ander intensiteitstype
-    // ingevuld, alle open dagen worden z2_duur (of, sinds fix 2, evt. één daarvan
-    // kracht_lage_cadans — ftp/sweetspot staat dat 1x/week toe).
+    // ingevuld, alle open dagen worden z2_duur. ftp/sweetspot staat kracht_lage_cadans
+    // sinds 13 juli 2026 niet meer toe (zie KRACHT_FREQUENTIE.ftp).
     expect(resultaat.some(r => r.sessietype === 'sweetspot_intervallen')).toBe(false)
-    expect(resultaat.every(r => r.sessietype === 'z2_duur' || r.sessietype === 'kracht_lage_cadans')).toBe(true)
+    expect(resultaat.every(r => r.sessietype === 'z2_duur')).toBe(true)
   })
 
   it('scenario 3: week 3 van de fase (klimmen, Drempel+VO2max) -> vrijheidsessie (gemengd) op het secundair-slot', () => {
@@ -421,14 +421,16 @@ describe('solveWeek', () => {
   })
 
   describe('sectie 22-G: kracht_lage_cadans vervalt bij 2x kernstimulus', () => {
-    it('ftp/sweetspot week 3, 2x kernstimulus gerealiseerd: kracht_lage_cadans wordt niet toegewezen ondanks 1x_per_week-toestemming', () => {
-      // ftp/sweetspot staat kracht_lage_cadans normaal 1x_per_week toe
-      // (KRACHT_FREQUENTIE) — met genoeg dagen zou een Z2-slot dus normaliter
-      // kracht worden. Zodra de week al 2x sweetspot_intervallen bevat, moet dat
-      // hier hard vervallen.
+    // klimmen/sweetspot i.p.v. ftp/sweetspot: klimmen staat kracht_lage_cadans in
+    // sweetspot nog steeds 1x/week toe (KRACHT_FREQUENTIE.klimmen.sweetspot),
+    // ftp/sweetspot niet meer sinds 13 juli 2026 (zie de 'ftp: kracht_lage_cadans
+    // strikt volgens spec'-describe-block hieronder). Deze test isoleert het
+    // 2x-kernstimulus-mechanisme zelf, los van welke fase/doel het basisgeval
+    // toestaat.
+    it('klimmen/sweetspot week 3, 2x kernstimulus gerealiseerd: kracht_lage_cadans wordt niet toegewezen ondanks 1x_per_week-toestemming', () => {
       const resultaat = solveWeek({
         archetypesData: ARCHETYPES_FIXTURE,
-        fase: 'sweetspot', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'ftp',
+        fase: 'sweetspot', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'klimmen',
         weekTssDoel: 1000, vasteDagen: [],
         openDagen: dagen('2026-07-06:2', '2026-07-08:2', '2026-07-10:2', '2026-07-12:1.5'),
         alGeleverd: {}, tsb: 0, weekNummerInSeizoen: 5, laatsteKrachtLageCadansWeek: null,
@@ -437,7 +439,21 @@ describe('solveWeek', () => {
       expect(resultaat.some(r => r.sessietype === 'kracht_lage_cadans')).toBe(false)
     })
 
-    it('ftp/sweetspot week 1, slechts 1x kernstimulus: kracht_lage_cadans mag nog gewoon (bestaand gedrag ongewijzigd)', () => {
+    it('klimmen/sweetspot week 1, slechts 1x kernstimulus: kracht_lage_cadans mag nog gewoon (bestaand gedrag ongewijzigd)', () => {
+      const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
+        fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'klimmen',
+        weekTssDoel: 1000, vasteDagen: [],
+        openDagen: dagen('2026-07-06:2', '2026-07-08:1.5'),
+        alGeleverd: {}, tsb: 0, weekNummerInSeizoen: 5, laatsteKrachtLageCadansWeek: null,
+      })
+      expect(resultaat.filter(r => r.pad === 'kernstimulus')).toHaveLength(1)
+      expect(resultaat.some(r => r.sessietype === 'kracht_lage_cadans')).toBe(true)
+    })
+  })
+
+  describe('ftp: kracht_lage_cadans strikt volgens spec (design/IMPLEMENTATIE.md regels 3056-3070, 13 juli 2026)', () => {
+    it('ftp/sweetspot: kracht_lage_cadans wordt nooit toegewezen, ook niet bij slechts 1x kernstimulus', () => {
       const resultaat = solveWeek({
         archetypesData: ARCHETYPES_FIXTURE,
         fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
@@ -445,8 +461,29 @@ describe('solveWeek', () => {
         openDagen: dagen('2026-07-06:2', '2026-07-08:1.5'),
         alGeleverd: {}, tsb: 0, weekNummerInSeizoen: 5, laatsteKrachtLageCadansWeek: null,
       })
-      expect(resultaat.filter(r => r.pad === 'kernstimulus')).toHaveLength(1)
-      expect(resultaat.some(r => r.sessietype === 'kracht_lage_cadans')).toBe(true)
+      expect(resultaat.some(r => r.sessietype === 'kracht_lage_cadans')).toBe(false)
+    })
+
+    it('ftp/drempel: kracht_lage_cadans wordt nooit toegewezen', () => {
+      const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
+        fase: 'drempel', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
+        weekTssDoel: 1000, vasteDagen: [],
+        openDagen: dagen('2026-07-06:2', '2026-07-08:1.5', '2026-07-10:2'),
+        alGeleverd: {}, tsb: 0, weekNummerInSeizoen: 11, laatsteKrachtLageCadansWeek: null,
+      })
+      expect(resultaat.some(r => r.sessietype === 'kracht_lage_cadans')).toBe(false)
+    })
+
+    it('ftp/basis: blijft ongewijzigd toegestaan (1x per 2 weken, binnen de frequentiegrens)', () => {
+      const resultaat = solveWeek({
+        archetypesData: ARCHETYPES_FIXTURE,
+        fase: 'basis', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
+        weekTssDoel: 200, vasteDagen: [],
+        openDagen: dagen('2026-07-06:2', '2026-07-08:1.5'),
+        alGeleverd: {}, tsb: 0, weekNummerInSeizoen: 1, laatsteKrachtLageCadansWeek: null,
+      })
+      expect(resultaat.filter(r => r.sessietype === 'kracht_lage_cadans')).toHaveLength(1)
     })
   })
 
