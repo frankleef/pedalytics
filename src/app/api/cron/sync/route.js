@@ -217,10 +217,16 @@ export async function POST(request) {
                 ctlNu = ctlW.length > 0 ? ctlW[ctlW.length - 1].ctl : null;
                 // ctl_4w_geleden blijft het oudste punt binnen de laatste 28 dagen
                 // (ongewijzigd gedrag) — expliciet gefilterd, niet meer ctlW[0],
-                // want ctlW bestrijkt nu 70 dagen i.p.v. 28.
+                // want ctlW bestrijkt nu 70 dagen i.p.v. 28. Bij een sync-gat dat
+                // de volledige laatste 28 dagen beslaat: null (zoals de oude
+                // 28-dagen-only-fetch ook null gaf), NIET terugvallen op een punt
+                // van tot 70 dagen oud — dat zou een misleidende "4-weken-delta"
+                // in de conditiescore introduceren (geverifieerd met een
+                // synthetische testcase, zie fitnessprogressie-kracht-en-
+                // weekinfase-implementatie.md-vervolgsessies).
                 const grens28 = datumOffset(-28);
                 const binnen28 = ctlW.filter(w => (w.id || "") >= grens28);
-                ctl4wGeleden = binnen28.length > 0 ? binnen28[0].ctl : (ctlW.length > 0 ? ctlW[0].ctl : null);
+                ctl4wGeleden = binnen28.length > 0 ? binnen28[0].ctl : null;
                 // Rechtstreeks intervals.icu's eigen rampRate van de ctl_nu-dag i.p.v. een lokale
                 // regressie over het venster — zie ramp-rate-fix-en-impact.md, Deel A.
                 // TODO: belastingsStatus()-drempels (1.5-5.0/week, conditie.js) zijn gekalibreerd
@@ -539,10 +545,13 @@ export async function POST(request) {
               if (ctlAll.length > 0) {
                 ctlNu = ctlAll[ctlAll.length - 1].ctl;
                 // ctl_4w_geleden blijft het oudste punt binnen de laatste 28
-                // dagen (ongewijzigd gedrag) — ctlAll bestrijkt nu 70 dagen.
+                // dagen (ongewijzigd gedrag) — ctlAll bestrijkt nu 70 dagen. Bij
+                // een sync-gat over de volledige laatste 28 dagen: null, niet
+                // terugvallen op een punt tot 70 dagen oud (zie idempotente pad
+                // hierboven voor de onderbouwing).
                 const grens28 = datumOffset(-28);
                 const binnen28 = ctlAll.filter(w => (w.id || "") >= grens28);
-                ctl4wGeleden = binnen28.length > 0 ? binnen28[0].ctl : ctlAll[0].ctl;
+                ctl4wGeleden = binnen28.length > 0 ? binnen28[0].ctl : null;
                 // Rechtstreeks intervals.icu's eigen rampRate van de ctl_nu-dag — zie
                 // ramp-rate-fix-en-impact.md, Deel A. TODO: belastingsStatus()-drempels apart
                 // herijken.
