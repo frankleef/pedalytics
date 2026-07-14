@@ -85,30 +85,48 @@ function groepeerOpDag(meldingen) {
   return Object.entries(groepen).filter(([, lijst]) => lijst.length > 0);
 }
 
-function MeldingKaart({ melding, onTik }) {
-  const kleur = kleurVoorMelding(melding);
+function VerwijderIcoon({ kleur }) {
   return (
-    <button onClick={() => onTik(melding)} style={{
-      display: "flex", alignItems: "flex-start", gap: 12, width: "100%", textAlign: "left",
-      background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: T.tileRadius,
-      padding: "13px 14px", cursor: "pointer",
-    }}>
-      <div style={{ flex: "none", width: 36, height: 36, borderRadius: "50%", background: kleur.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        {(CATEGORIE_ICOON[melding.categorie] || CATEGORIE_ICOON.sessie)(kleur.tekst)}
-      </div>
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          {!melding.gelezen && <span style={{ flex: "none", width: 7, height: 7, borderRadius: "50%", background: kleur.dot }} />}
-          <span style={{ font: "800 13.5px var(--font-nunito), sans-serif", color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{melding.titel}</span>
-        </div>
-        <span style={{ font: "500 12.5px/1.4 var(--font-nunito), sans-serif", color: T.textSec, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{melding.tekst}</span>
-      </div>
-      <span style={{ flex: "none", font: "600 11px var(--font-nunito), sans-serif", color: T.textTert }}>{formatTijd(melding.aangemaakt_op)}</span>
-    </button>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+      <path d="M4 7h16M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7m2 0-.6 12.1a2 2 0 0 1-2 1.9H9.6a2 2 0 0 1-2-1.9L7 7" stroke={kleur} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
-function DetailSheet({ melding, onSluiten, onNavigeer }) {
+function MeldingKaart({ melding, onTik, onVerwijder }) {
+  const kleur = kleurVoorMelding(melding);
+  return (
+    <div style={{
+      display: "flex", alignItems: "flex-start", gap: 12, width: "100%",
+      background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: T.tileRadius,
+      padding: "13px 14px",
+    }}>
+      <button onClick={() => onTik(melding)} style={{
+        display: "flex", alignItems: "flex-start", gap: 12, flex: 1, minWidth: 0, textAlign: "left",
+        border: "none", background: "none", padding: 0, cursor: "pointer",
+      }}>
+        <div style={{ flex: "none", width: 36, height: 36, borderRadius: "50%", background: kleur.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {(CATEGORIE_ICOON[melding.categorie] || CATEGORIE_ICOON.sessie)(kleur.tekst)}
+        </div>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+            {!melding.gelezen && <span style={{ flex: "none", width: 7, height: 7, borderRadius: "50%", background: kleur.dot }} />}
+            <span style={{ font: "800 13.5px var(--font-nunito), sans-serif", color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{melding.titel}</span>
+          </div>
+          <span style={{ font: "500 12.5px/1.4 var(--font-nunito), sans-serif", color: T.textSec, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{melding.tekst}</span>
+        </div>
+      </button>
+      <div style={{ flex: "none", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+        <span style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textTert }}>{formatTijd(melding.aangemaakt_op)}</span>
+        <button onClick={() => onVerwijder(melding.id)} aria-label="Melding verwijderen" style={{ border: "none", background: "none", padding: 2, cursor: "pointer", display: "flex" }}>
+          <VerwijderIcoon kleur={T.textTert} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DetailSheet({ melding, onSluiten, onNavigeer, onVerwijder }) {
   const kleur = kleurVoorMelding(melding);
   return (
     <div
@@ -122,11 +140,16 @@ function DetailSheet({ melding, onSluiten, onNavigeer }) {
         boxShadow: "0 -4px 24px rgba(0,0,0,0.12)",
       }}>
         <div style={{ width: 36, height: 4, borderRadius: 99, background: T.divider, margin: "0 auto 16px" }} />
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-          <div style={{ width: 30, height: 30, borderRadius: "50%", background: kleur.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {(CATEGORIE_ICOON[melding.categorie] || CATEGORIE_ICOON.sessie)(kleur.tekst)}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 30, height: 30, borderRadius: "50%", background: kleur.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {(CATEGORIE_ICOON[melding.categorie] || CATEGORIE_ICOON.sessie)(kleur.tekst)}
+            </div>
+            <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: kleur.tekst, textTransform: "uppercase" }}>{melding.categorie}</span>
           </div>
-          <span style={{ font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: kleur.tekst, textTransform: "uppercase" }}>{melding.categorie}</span>
+          <button onClick={() => onVerwijder(melding.id)} aria-label="Melding verwijderen" style={{ border: "none", background: "none", padding: 4, cursor: "pointer", display: "flex" }}>
+            <VerwijderIcoon kleur={T.textTert} />
+          </button>
         </div>
         <h2 style={{ margin: "0 0 10px", font: "800 20px var(--font-nunito), sans-serif", color: T.text }}>{melding.titel}</h2>
         <p style={{ margin: "0 0 16px", font: "500 14px/1.55 var(--font-nunito), sans-serif", color: T.textSec }}>{melding.tekst}</p>
@@ -173,6 +196,12 @@ export default function MeldingenScherm({ onTerug, onNavigeer }) {
   function allesGelezen() {
     setMeldingen(prev => prev?.map(m => ({ ...m, gelezen: true })) ?? prev);
     fetch("/api/meldingen/alles-lezen", { method: "POST" }).catch(() => {});
+  }
+
+  function verwijderMelding(id) {
+    setMeldingen(prev => prev?.filter(m => m.id !== id) ?? prev);
+    setDetailMelding(prev => (prev?.id === id ? null : prev));
+    fetch(`/api/meldingen/${id}`, { method: "DELETE" }).catch(() => {});
   }
 
   function tikMelding(melding) {
@@ -228,14 +257,14 @@ export default function MeldingenScherm({ onTerug, onNavigeer }) {
           <div key={label} style={{ marginBottom: 22 }}>
             <span style={{ display: "block", marginBottom: 10, font: "800 11px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase" }}>{label}</span>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {lijst.map(m => <MeldingKaart key={m.id} melding={m} onTik={tikMelding} />)}
+              {lijst.map(m => <MeldingKaart key={m.id} melding={m} onTik={tikMelding} onVerwijder={verwijderMelding} />)}
             </div>
           </div>
         ))}
       </div>
 
       {detailMelding && (
-        <DetailSheet melding={detailMelding} onSluiten={() => setDetailMelding(null)} onNavigeer={onNavigeer} />
+        <DetailSheet melding={detailMelding} onSluiten={() => setDetailMelding(null)} onNavigeer={onNavigeer} onVerwijder={verwijderMelding} />
       )}
     </div>
   );

@@ -167,14 +167,25 @@ const PUSH_WAARDIGE_TYPES = new Set([
 ]);
 
 const MAX_MELDINGEN = 200;
+// Meldingen verlopen automatisch 48u na aanmaak — voorkomt dat het meldingen-
+// centrum onbeperkt volloopt. Er is geen per-item Redis-TTL mogelijk (alle
+// meldingen van een gebruiker staan in één JSON-blob), dus dit wordt op
+// applicatieniveau gefilterd op aangemaakt_op, met opschonen bij elke lees-
+// en schrijfactie.
+const MELDING_TTL_MS = 48 * 60 * 60 * 1000;
 
 function meldingenKey(userId) {
   return `meldingen:${userId}`;
 }
 
+function nietVerlopen(melding) {
+  return Date.now() - new Date(melding.aangemaakt_op).getTime() < MELDING_TTL_MS;
+}
+
 /**
- * Maakt een melding aan, slaat 'm op (nieuwste eerst, gecapt op 200) en stuurt
- * — indien het type daarvoor in aanmerking komt — ook een Web Push.
+ * Maakt een melding aan, slaat 'm op (nieuwste eerst, verlopen meldingen
+ * opgeschoond, gecapt op 200) en stuurt — indien het type daarvoor in
+ * aanmerking komt — ook een Web Push.
  *
  * @param {string} userId
  * @param {string} type - moet een sleutel uit MELDING_TEMPLATES zijn
@@ -201,20 +212,25 @@ export async function maakMelding(userId, type, ctx = {}) {
   }
 
   const kv = getKV();
-  const huidige = (await kv.get(meldingenKey(userId))) ?? [];
+  const huidige = ((await kv.get(meldingenKey(userId))) ?? []).filter(nietVerlopen);
   const bijgewerkt = [melding, ...huidige].slice(0, MAX_MELDINGEN);
   await kv.set(meldingenKey(userId), bijgewerkt);
   return melding;
 }
 
 /**
- * Haalt de meldingen van een gebruiker op, nieuwste eerst.
+ * Haalt de meldingen van een gebruiker op, nieuwste eerst. Meldingen ouder
+ * dan 48u worden er stilzwijgend uit gefilterd en (indien nodig) meteen
+ * opgeschoond in de opslag.
  * @param {string} userId
  * @param {{categorie?: string, ongelezenAlleen?: boolean}} [opts]
  */
 export async function haalMeldingen(userId, { categorie, ongelezenAlleen } = {}) {
   const kv = getKV();
-  let lijst = (await kv.get(meldingenKey(userId))) ?? [];
+  const key = meldingenKey(userId);
+  const ruw = (await kv.get(key)) ?? [];
+  let lijst = ruw.filter(nietVerlopen);
+  if (lijst.length !== ruw.length) await kv.set(key, lijst);
   if (categorie) lijst = lijst.filter((m) => m.categorie === categorie);
   if (ongelezenAlleen) lijst = lijst.filter((m) => !m.gelezen);
   return lijst;
@@ -232,5 +248,18 @@ export async function markeerGelezen(userId, id) {
   const bijgewerkt = id === "alle"
     ? lijst.map((m) => ({ ...m, gelezen: true }))
     : lijst.map((m) => (m.id === id ? { ...m, gelezen: true } : m));
+  await kv.set(key, bijgewerkt);
+}
+
+/**
+ * Verwijdert één melding definitief.
+ * @param {string} userId
+ * @param {string} id
+ */
+export async function verwijderMelding(userId, id) {
+  const kv = getKV();
+  const key = meldingenKey(userId);
+  const lijst = (await kv.get(key)) ?? [];
+  const bijgewerkt = lijst.filter((m) => m.id !== id);
   await kv.set(key, bijgewerkt);
 }
