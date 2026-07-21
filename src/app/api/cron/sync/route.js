@@ -5,21 +5,26 @@ import { voegExtraWeekToe, verwijderSessiesVanafWeek } from "@/lib/seizoen/faseV
 import { intervalsGet, intervalsDelete } from "@/lib/intervals";
 import { decrypt } from "@/lib/crypto";
 import { datumOffset } from "@/lib/datum";
-import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
+import { weeknummerVoorDatum, haalFaseGebondenTeller, hoogFaseGebondenTellerOp } from "@/lib/weekgrenzen";
 import { sendPush } from "@/lib/pushNotify";
 import { verifyQStash } from "@/lib/qstash";
 import { verwerkFtpTest, isEindtest } from "@/lib/sessie/ftpUpdate";
+import { voegCpWprimeDatapuntToe } from "@/lib/cpWprime";
 import { berekenGemiddeldeUrenPerWeek, berekenStartTss } from "@/lib/rijhistorie";
 import { berekenDistributie } from "@/lib/sessie/distributie";
 import { checkFaseOvergang, cacheDecoupling, bijwerkenDecouplingBaseline, backfillDecoupling } from "@/lib/decoupling";
 import { verwerkRitVoorEf, backfillEf } from "@/lib/ef";
+import { haalWattsStream, detecteerMogelijkeInstorting } from "@/lib/instorting";
 import { waitUntil } from "@vercel/functions";
 import { berekenRpeTrend, verwerkRpeTrend } from "@/lib/sessie/rpeTrend";
 import { berekenUitvoeringsscoreMetDetails, scoreLabel, zoneTimesNaarObject } from "@/lib/uitvoeringsscore";
+import { bepaalComplianceRecord, evalueerComplianceGate, haalLaatsteZwareSessieDatum } from "@/lib/sessie/compliance";
 import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus, bepaalDecouplingMedianen } from "@/lib/conditie";
 import { haalRitTemperatuur, berekenTempBaseline, berekenHitteVlag } from "@/lib/hitte";
-import { herberekenHrvProfiel, checkDataStatus } from "@/lib/hrv/profiel";
+import { herberekenHrvProfiel, checkDataStatus, berekenRhrBasislijn } from "@/lib/hrv/profiel";
 import { herberekenGewichtenHrvCheckin } from "@/lib/hrv/leerdata";
+import { voegHrvTrendPuntToe, voegRhrTrendPuntToe } from "@/lib/hrv/basislijnTrend";
+import { berekenSchoneReferentie, berekenHerstelDagen } from "@/lib/hrv/herstelsnelheid";
 import { isWekelijkseCheckVerschuldigd, voerWekelijkseEvaluatieUit, voerHerstelweekEvaluatieUit } from "@/lib/volumeCorrectie";
 import { berekenEnSlaFitnessprogressieOp } from "@/lib/fitnessprogressieIO";
 import { logEvent } from "@/lib/posthog";
@@ -35,6 +40,77 @@ export const runtime = "nodejs";
 
 export async function GET() {
   return NextResponse.json({ error: "Gebruik POST (via QStash)" }, { status: 405 });
+}
+
+// Compliance-dedupgate-lezing + evalueerComplianceGate-aanroep + cache-write-
+// bij-uitstel (FIX 1: "alleen cachen bij trigger") — de EVALUATIE-slice, los
+// van de guard/schrijf-afhandeling die per aanroeper (helper hieronder resp.
+// het volledige pad) apart blijft. Puur wat betreft plan/KV-lezen: geen
+// bijwerkPlanVeilig, geen voegExtraWeekToe, geen melding.
+export async function evalueerComplianceUitstel(kv, userId, plan, weekNr) {
+  const complianceCached = await kv.get(`compliance_check:${userId}:${weekNr}`);
+  if (complianceCached) return { uitstel: false };
+
+  const complianceVerlengdCount = haalFaseGebondenTeller(plan, "compliance_verlengd_count", "compliance_verlengd_count_faseAnker");
+  const { uitstel, nietGeleverd } = await evalueerComplianceGate(userId, plan, complianceVerlengdCount);
+  if (!uitstel) return { uitstel: false };
+
+  console.log(`[sync] Fase-overgang uitgesteld voor ${userId}: ${nietGeleverd} niet_geleverd kernsessies deze fase`);
+  await kv.set(`compliance_check:${userId}:${weekNr}`, { nietGeleverd, uitstel }, { ex: 14 * 86400 });
+  return { uitstel: true, nietGeleverd };
+}
+
+// Compliance-poort (D1) losgekoppeld van de "nieuwe activiteit"-idempotentie
+// (regel ±211-212 hieronder): evalueerComplianceGate heeft geen intervals.icu-
+// credentials nodig (leest uitsluitend via haalComplianceVenster, KV-only), dus
+// hoeft niet te wachten op een nieuwe rit. Aanroepbaar vanuit zowel de vroege-
+// return-tak (geen nieuwe activiteit) als het volledige pad (zie call sites).
+//
+// Gedeelde fase-gebonden guard (opbouwweek_verlengd_count/-faseAnker, via
+// dezelfde haalFaseGebondenTeller/hoogFaseGebondenTellerOp-infrastructuur als
+// fase_verlengd_count/compliance_verlengd_count): voegExtraWeekToe is niet
+// idempotent binnen een fase (splice + hernummering vindt bij een tweede
+// aanroep gewoon opnieuw dezelfde herstelweek, faseVerlenging.js:44-74) — dus
+// als een ANDER signaal deze fase al een extra week invoegde, wordt deze
+// aanroep hier volledig genegeerd (geen teller, geen melding, geen invoeging).
+// Los van (niet i.p.v.) de bestaande compliance_check-dedupgate hierboven, die
+// alleen "compliance deze week al geëvalueerd" voorkomt, niet "een ANDER
+// signaal heeft deze fase al verlengd".
+async function verlengBijComplianceIndienNodig(kv, planKey, userId, plan, weekNr, apiKey, athleteId) {
+  const { uitstel } = await evalueerComplianceUitstel(kv, userId, plan, weekNr);
+  if (!uitstel) return;
+
+  let verlengd = false;
+  let stale = { verwijderd: [], intervalsEventIds: [] };
+  await bijwerkPlanVeilig(kv, planKey, (versPlan) => {
+    if (haalFaseGebondenTeller(versPlan, "opbouwweek_verlengd_count", "opbouwweek_verlengd_count_faseAnker") > 0) return;
+
+    hoogFaseGebondenTellerOp(versPlan, "compliance_verlengd_count", "compliance_verlengd_count_faseAnker");
+    versPlan.compliance_verlengd = true;
+    hoogFaseGebondenTellerOp(versPlan, "opbouwweek_verlengd_count", "opbouwweek_verlengd_count_faseAnker");
+    const { toegepast, vanafWeek } = voegExtraWeekToe(versPlan, weekNr);
+    if (toegepast) stale = verwijderSessiesVanafWeek(versPlan, vanafWeek);
+    verlengd = true;
+  });
+  if (!verlengd) return;
+
+  await maakMelding(userId, "compliance_opbouwweek_verlengd");
+
+  if (stale.intervalsEventIds.length > 0) {
+    for (const eventId of stale.intervalsEventIds) {
+      await intervalsDelete(`/events/${eventId}`, { apiKey, athleteId }).catch(
+        (e) => console.warn(`[sync] intervals.icu-event ${eventId} verwijderen mislukt:`, e.message)
+      );
+    }
+  }
+  if (stale.verwijderd.length > 0) {
+    const { vulSessiesAanVoorGebruiker } = await import("@/lib/sessiesAanvullen");
+    vulSessiesAanVoorGebruiker(userId, {}).then((r) => {
+      console.log(`[sync] Sessies aangevuld na fase-verlenging voor ${userId}:`, r);
+    }).catch((e) => {
+      console.warn(`[sync] Sessies aanvullen na fase-verlenging mislukt voor ${userId}:`, e.message);
+    });
+  }
 }
 
 // Deze cron-run leest het plan van een gebruiker één keer aan het begin en houdt
@@ -121,6 +197,27 @@ export async function POST(request) {
           if (athleteResp.ok) {
             const athlete = await athleteResp.json();
             const rideSport = (athlete.sportSettings || []).find(s => s.types?.includes("Ride"));
+
+            // D4: CP/W'-dataverzameling. Eigen, geneste try/catch — losstaand
+            // van de FTP-update-if hieronder, zodat een fout hier de
+            // FTP-sync-beslissing niet raakt en vice versa. Uitsluitend via
+            // dit al-opgehaalde /athlete/{id}-object lezen, NOOIT via het
+            // dedicated /athlete/{id}/sport-settings/Ride-endpoint — dat
+            // retourneert reproduceerbaar null voor mmp_model op hetzelfde
+            // record (bevestigd via een live API-call). Geen nieuwe fetch.
+            try {
+              const mmpModel = rideSport?.mmp_model ?? null;
+              if (mmpModel) {
+                await voegCpWprimeDatapuntToe(kv, userId, {
+                  datum: datumOffset(0),
+                  criticalPower: mmpModel.criticalPower,
+                  wPrime: mmpModel.wPrime,
+                  pMax: mmpModel.pMax,
+                  modelEftp: mmpModel.ftp,
+                });
+              }
+            } catch (e) { console.warn(`[cp-wprime-sync] Opslag mislukt voor ${userId}:`, e.message); }
+
             const ftpVanIntervals = rideSport?.ftp ?? null;
             const ftpInPlan = plan?.huidige_ftp ?? null;
             if (ftpVanIntervals && ftpInPlan && Math.abs(ftpVanIntervals - ftpInPlan) > 1) {
@@ -147,12 +244,54 @@ export async function POST(request) {
               const bestaand = typeof huidigProfiel === "string" ? JSON.parse(huidigProfiel) : huidigProfiel;
               const nieuwProfiel = herberekenHrvProfiel(genormaliseerd, bestaand);
               const statusCheck = checkDataStatus(genormaliseerd, bestaand);
+              // B6: RHR-tegenhanger van de HRV-basislijn, uit dezelfde al-opgehaalde
+              // 90-dagen-wellnessdata — geen nieuwe intervals.icu-call. Los van (niet
+              // i.p.v.) plan.profiel.hr_basislijn, dat statisch en weergave-only blijft
+              // (zie checkinAanpassing.js voor de toelichting bij de twee basislijnen).
+              const rhrBasislijn28d = berekenRhrBasislijn(genormaliseerd);
+
+              // B2: herstelsnelheid-personalisatie — versie-gate, want oudere
+              // hrv-profiel:${userId}.herstelsnelheid-data (indien aanwezig) is
+              // berekend met de oude drempelformule (basislijn_28d - 0.5*sd_90d,
+              // vóór de reparatie in hrv/herstelsnelheid.js). Zonder deze gate
+              // zouden oude en nieuwe (schone-referentie-gebaseerde) observaties
+              // door elkaar gemiddeld worden. Ontbreekt versie:2: schone lei.
+              const herstelsnelheidBestaand = bestaand?.herstelsnelheid?.versie === 2 ? bestaand.herstelsnelheid : {};
+              const zwareSessieDatum = haalLaatsteZwareSessieDatum(plan);
+              if (zwareSessieDatum) {
+                const zwareSessie = plan.weekSessies.sessies.find(s => s.datum === zwareSessieDatum);
+                const sessietype = zwareSessie?.intentie?.sessietype;
+                const schoneReferentie = berekenSchoneReferentie(genormaliseerd, zwareSessieDatum);
+                const dagen = berekenHerstelDagen(sessietype, zwareSessieDatum, genormaliseerd, schoneReferentie);
+                if (dagen != null && sessietype) {
+                  const bestaandeVoorType = herstelsnelheidBestaand[sessietype];
+                  const nieuweObservaties = (bestaandeVoorType?.observaties || 0) + 1;
+                  const nieuwGemiddelde = bestaandeVoorType
+                    ? ((bestaandeVoorType.dagen * bestaandeVoorType.observaties) + dagen) / nieuweObservaties
+                    : dagen;
+                  herstelsnelheidBestaand[sessietype] = { dagen: Math.round(nieuwGemiddelde * 10) / 10, observaties: nieuweObservaties };
+                }
+              }
 
               const observatiesRaw = await kv.get(`hrv-observaties:${userId}`);
               const observaties = Array.isArray(observatiesRaw) ? observatiesRaw : (typeof observatiesRaw === "string" ? JSON.parse(observatiesRaw) : []);
               const hrvCheckinGewichten = herberekenGewichtenHrvCheckin(observaties, bestaand?.hrv_checkin_gewichten ?? DEFAULT_HRV_CHECKIN_GEWICHTEN);
 
-              await kv.set(`hrv-profiel:${userId}`, { ...(bestaand || {}), ...nieuwProfiel, ...statusCheck, hrv_checkin_gewichten: hrvCheckinGewichten });
+              await kv.set(`hrv-profiel:${userId}`, {
+                ...(bestaand || {}), ...nieuwProfiel, ...statusCheck, hrv_checkin_gewichten: hrvCheckinGewichten,
+                ...(rhrBasislijn28d != null ? { rhr_basislijn_28d: rhrBasislijn28d } : {}),
+                herstelsnelheid: { ...herstelsnelheidBestaand, versie: 2 },
+              });
+
+              // B6: longitudinale trendpunten — alleen toevoegen als deze pas een
+              // geldige, betrouwbare basislijn opleverde (niet in de "leren"-tak,
+              // waar nieuwProfiel.basislijn_28d ontbreekt).
+              if (nieuwProfiel.betrouwbaar) {
+                await voegHrvTrendPuntToe(kv, userId, { datum: datumOffset(0), basislijn: nieuwProfiel.basislijn_28d });
+              }
+              if (rhrBasislijn28d != null) {
+                await voegRhrTrendPuntToe(kv, userId, { datum: datumOffset(0), basislijn: rhrBasislijn28d });
+              }
 
               if (statusCheck.modus_overgang) {
                 const notKey = `hrv-profiel-modus-notificatie-gestuurd:${userId}`;
@@ -283,6 +422,18 @@ export async function POST(request) {
             }
           } catch (e) { console.warn(`[sync] Volume-evaluatie mislukt voor ${userId}:`, e.message); }
 
+          // D1: compliance-poort ook in het idempotente pad — evalueerComplianceGate
+          // heeft geen nieuwe activiteit nodig (KV-only), dus hoeft niet te wachten
+          // op de volledige, activiteit-gedreven tak hieronder (zie toelichting bij
+          // verlengBijComplianceIndienNodig hierboven).
+          try {
+            const weekNr = plan?.startdatum ? weeknummerVoorDatum(new Date(), plan.startdatum) : 1;
+            const isLaatsteOpbouwWeek = weekNr % 4 === 3;
+            if (plan?.kader && isLaatsteOpbouwWeek) {
+              await verlengBijComplianceIndienNodig(kv, planKey, userId, plan, weekNr, apiKey, athleteId);
+            }
+          } catch (e) { console.warn(`[sync] Compliance-poort (idempotent pad) mislukt voor ${userId}:`, e.message); }
+
           results.push({ userId, status: "up_to_date" });
           continue;
         }
@@ -330,6 +481,7 @@ export async function POST(request) {
           // Markeer sessie als voltooid + bereken uitvoeringsscore
           if (sessie && !sessie.voltooid) {
             let scoreData = null;
+            let complianceRecord = null;
 
             // Bereken uitvoeringsscore alleen voor geplande ritten
             if (sessie.intentie) {
@@ -361,6 +513,30 @@ export async function POST(request) {
               } catch (e) {
                 console.warn(`[sync] Uitvoeringsscore mislukt voor ${userId}/${nieuwste.id}:`, e.message);
               }
+
+              // E1: mogelijke-instorting-detectie — uitsluitend voor ritten met
+              // minstens één gepland werk-segment (kostenbeheersing: geen
+              // streams-fetch voor duurritten/sessies zonder segmenten). Gebruikt
+              // nieuwste.decoupling — deze RIT se EIGEN, whole-ride decoupling-
+              // waarde (al aanwezig in de /activities-respons, fields= regel
+              // hierboven bevat "decoupling") — NIET de cross-ride
+              // decoupling_baseline-mediaan: die laatste is een trendsignaal
+              // (hetzelfde concept als checkFaseOvergang/D2), geen bevestiging
+              // dat DEZE specifieke rit een instortingssignatuur toont.
+              try {
+                const werkSegmenten = (sessie.segmenten || []).filter(s => s.type === "werk" && s.blokDuurSeconden > 0);
+                if (werkSegmenten.length > 0) {
+                  const watts = await haalWattsStream(apiKey, athleteId, nieuwste.id);
+                  if (watts) {
+                    const instortingResultaat = detecteerMogelijkeInstorting(watts, sessie.segmenten, nieuwste.decoupling ?? null);
+                    if (instortingResultaat) {
+                      await kv.set(`segment_instorting:${userId}:${nieuwste.id}`, instortingResultaat, { ex: 365 * 86400 });
+                    }
+                  }
+                }
+              } catch (e) {
+                console.warn(`[sync] Instorting-detectie mislukt voor ${userId}/${nieuwste.id}:`, e.message);
+              }
             }
 
             await bijwerkPlanVeilig(kv, planKey, (versPlan) => {
@@ -368,8 +544,37 @@ export async function POST(request) {
               if (versSessie && !versSessie.voltooid) {
                 versSessie.voltooid = true;
                 if (scoreData) versSessie.uitvoeringsScore = scoreData;
+
+                // Compliance-record (C1) — gebruikt versSessie.intentie (het
+                // aangepaste plan binnen déze verse callback), niet de stale
+                // sessie.intentie hierboven, conform ontwerpbeslissing "toets
+                // tegen het aangepaste plan". bijwerkPlanVeilig() roept deze
+                // callback synchroon aan (bijwerkPlanVeilig.js:14, geen await),
+                // dus de KV-write voor dit record gebeurt bewust ná de
+                // bijwerkPlanVeilig-aanroep hieronder i.p.v. hierbinnen.
+                if (versSessie.intentie) {
+                  const complianceSessietype = versSessie.intentie?.sessietype ?? versSessie.type ?? null;
+                  complianceRecord = bepaalComplianceRecord({
+                    sessietype: complianceSessietype,
+                    tssDoel: versSessie.tss,
+                    toegestaneZones: versSessie.intentie?.toegestane_zones,
+                    icuTrainingLoad: nieuwste.icu_training_load,
+                    icuZoneTimes: nieuwste.icu_zone_times,
+                    activiteitId: nieuwste.id,
+                    // B5: verplaatst_van/verplaatst_naar (zonder hrv_-prefix) is het
+                    // bron-neutrale veldpaar dat een niet-HRV-gedreven herschikking
+                    // (probeerHerschikking, sessie/herschikking.js) vult — hrv_-
+                    // geprefixt blijft de HRV-keuze-flow (hrv/verwerking.js) zelf.
+                    verplaatstVan: versSessie.verplaatst_van ?? versSessie.hrv_verplaatst_van,
+                    verplaatstNaar: versSessie.verplaatst_naar ?? versSessie.hrv_verplaatst_naar,
+                    datum: versSessie.datum,
+                  });
+                }
               }
             });
+            if (complianceRecord) {
+              await kv.set(`sessie_compliance:${userId}:${complianceRecord.datum}`, complianceRecord, { ex: 365 * 86400 });
+            }
             sessie.voltooid = true; // lokale referentie ook bijwerken voor de rest van dit blok
 
             logEvent("sessie_voltooid", userId, {
@@ -631,6 +836,9 @@ export async function POST(request) {
 
             if (isLaatsteOpbouwWeek) {
               try {
+                let decouplingUitstel = false;
+                let complianceUitstel = false;
+
                 const decouplingWaarden = [];
                 const cached = await kv.get(`decoupling_check:${userId}:${weekNr}`);
                 if (!cached) {
@@ -668,46 +876,83 @@ export async function POST(request) {
                   // 3 waarden, dus bij minder is er geen enkele bescherming tegen één
                   // ruizige meting die de mediaan over de uitstel-drempel tilt.
                   if (decouplingWaarden.length >= 3) {
-                    const aantalVerlengingen = plan.fase_verlengd_count || 0;
+                    const aantalVerlengingen = haalFaseGebondenTeller(plan, "fase_verlengd_count", "fase_verlengd_count_faseAnker");
                     const { uitstel, mediaan } = checkFaseOvergang(decouplingWaarden, aantalVerlengingen);
+                    decouplingUitstel = uitstel;
 
                     if (uitstel) {
                       console.log(`[sync] Fase-overgang uitgesteld voor ${userId}: mediaan decoupling ${mediaan}%`);
+                      await kv.set(`decoupling_check:${userId}:${weekNr}`, { mediaan, uitstel }, { ex: 14 * 86400 });
+                    }
+                  }
+                }
 
-                      let stale = { verwijderd: [], intervalsEventIds: [] };
-                      await bijwerkPlanVeilig(kv, planKey, (versPlan) => {
-                        versPlan.fase_verlengd_count = (versPlan.fase_verlengd_count || 0) + 1;
-                        versPlan.fase_verlengd = true;
-                        const { toegepast, vanafWeek } = voegExtraWeekToe(versPlan, weekNr);
-                        if (toegepast) stale = verwijderSessiesVanafWeek(versPlan, vanafWeek);
-                      });
+                // D1: compliance-poort — eigen dedup-gate (compliance_check),
+                // zelfde per-week-eenmalig-patroon als decoupling_check hierboven,
+                // onafhankelijk van decoupling's eigen >=3-datavoorwaarde. Eigen
+                // teller (compliance_verlengd_count, NIET fase_verlengd_count —
+                // D1-plan beslissing #2: een fysiologisch en een uitvoeringssignaal
+                // mogen niet om hetzelfde verlengingsbudget concurreren).
+                ({ uitstel: complianceUitstel } = await evalueerComplianceUitstel(kv, userId, plan, weekNr));
 
-                      await maakMelding(userId, "opbouwweek_verlengd");
+                const moetVerlengen = decouplingUitstel || complianceUitstel;
 
-                      // Async cleanup mag niet binnen bijwerkPlanVeilig's (synchrone)
-                      // mutator — zelfde tweefasenpatroon als verwijderSessiesInPeriode
-                      // in afwezigheid.js. Al-gegenereerde sessies ná het invoegpunt zijn
-                      // stale (kader-inhoud is verschoven, zie faseVerlenging.js); ruim
-                      // de gekoppelde intervals.icu-events op en vul de ontstane gaten
-                      // meteen opnieuw, i.p.v. te wachten op de volgende cron-cyclus.
-                      if (stale.intervalsEventIds.length > 0) {
-                        for (const eventId of stale.intervalsEventIds) {
-                          await intervalsDelete(`/events/${eventId}`, { apiKey, athleteId }).catch(
-                            (e) => console.warn(`[sync] intervals.icu-event ${eventId} verwijderen mislukt:`, e.message)
-                          );
-                        }
-                      }
-                      if (stale.verwijderd.length > 0) {
-                        const { vulSessiesAanVoorGebruiker } = await import("@/lib/sessiesAanvullen");
-                        vulSessiesAanVoorGebruiker(userId, {}).then((r) => {
-                          console.log(`[sync] Sessies aangevuld na fase-verlenging voor ${userId}:`, r);
-                        }).catch((e) => {
-                          console.warn(`[sync] Sessies aanvullen na fase-verlenging mislukt voor ${userId}:`, e.message);
-                        });
+                if (moetVerlengen) {
+                  let stale = { verwijderd: [], intervalsEventIds: [] };
+                  // Gedeelde fase-gebonden guard (zie toelichting bij
+                  // verlengBijComplianceIndienNodig hierboven): check EENMAAL, vóór
+                  // de per-signaal-tellers, zodat een gelijktijdige trigger van beide
+                  // signalen bínnen deze ene synchrone evaluatie (moetVerlengen
+                  // hierboven) ongewijzigd blijft werken — beide tellers verhogen,
+                  // één voegExtraWeekToe — terwijl een signaal dat pas triggert nadat
+                  // een ANDER signaal deze fase al eerder (in een aparte cron-run,
+                  // bv. via de idempotente tak) heeft verlengd, hier alsnog volledig
+                  // wordt genegeerd.
+                  let verlengd = false;
+                  await bijwerkPlanVeilig(kv, planKey, (versPlan) => {
+                    if (haalFaseGebondenTeller(versPlan, "opbouwweek_verlengd_count", "opbouwweek_verlengd_count_faseAnker") > 0) return;
+
+                    if (decouplingUitstel) {
+                      hoogFaseGebondenTellerOp(versPlan, "fase_verlengd_count", "fase_verlengd_count_faseAnker");
+                      versPlan.fase_verlengd = true;
+                    }
+                    if (complianceUitstel) {
+                      hoogFaseGebondenTellerOp(versPlan, "compliance_verlengd_count", "compliance_verlengd_count_faseAnker");
+                      versPlan.compliance_verlengd = true;
+                    }
+                    hoogFaseGebondenTellerOp(versPlan, "opbouwweek_verlengd_count", "opbouwweek_verlengd_count_faseAnker");
+                    const { toegepast, vanafWeek } = voegExtraWeekToe(versPlan, weekNr);
+                    if (toegepast) stale = verwijderSessiesVanafWeek(versPlan, vanafWeek);
+                    verlengd = true;
+                  });
+
+                  if (verlengd) {
+                    // Beide onafhankelijk van elkaar — bij gelijktijdig triggeren
+                    // dus allebei verstuurd (D1-plan, aanpassing op stap D).
+                    if (decouplingUitstel) await maakMelding(userId, "opbouwweek_verlengd");
+                    if (complianceUitstel) await maakMelding(userId, "compliance_opbouwweek_verlengd");
+
+                    // Async cleanup mag niet binnen bijwerkPlanVeilig's (synchrone)
+                    // mutator — zelfde tweefasenpatroon als verwijderSessiesInPeriode
+                    // in afwezigheid.js. Al-gegenereerde sessies ná het invoegpunt zijn
+                    // stale (kader-inhoud is verschoven, zie faseVerlenging.js); ruim
+                    // de gekoppelde intervals.icu-events op en vul de ontstane gaten
+                    // meteen opnieuw, i.p.v. te wachten op de volgende cron-cyclus.
+                    if (stale.intervalsEventIds.length > 0) {
+                      for (const eventId of stale.intervalsEventIds) {
+                        await intervalsDelete(`/events/${eventId}`, { apiKey, athleteId }).catch(
+                          (e) => console.warn(`[sync] intervals.icu-event ${eventId} verwijderen mislukt:`, e.message)
+                        );
                       }
                     }
-
-                    await kv.set(`decoupling_check:${userId}:${weekNr}`, { mediaan, uitstel }, { ex: 14 * 86400 });
+                    if (stale.verwijderd.length > 0) {
+                      const { vulSessiesAanVoorGebruiker } = await import("@/lib/sessiesAanvullen");
+                      vulSessiesAanVoorGebruiker(userId, {}).then((r) => {
+                        console.log(`[sync] Sessies aangevuld na fase-verlenging voor ${userId}:`, r);
+                      }).catch((e) => {
+                        console.warn(`[sync] Sessies aanvullen na fase-verlenging mislukt voor ${userId}:`, e.message);
+                      });
+                    }
                   }
                 }
               } catch (e) {

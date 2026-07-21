@@ -71,11 +71,11 @@ export function bouwNotificatieTekst(type, sessie, hrvProfiel, huidigHrv) {
   const TEKSTEN = {
     rood_intensiteit: {
       titel: "Je herstel is laag vandaag",
-      body: `Je hebt een ${sessieLabel} gepland. ${rpeVoorspelling ?? "Je HRV is significant lager dan normaal."} Wat wil je doen?`,
+      body: `Je hebt een ${sessieLabel} gepland. ${rpeVoorspelling ?? "Je HRV is significant lager dan normaal."} We hebben je training vandaag aangepast — tik om terug te zetten naar je oorspronkelijke plan.`,
     },
     rood_aeroob: {
       titel: "Je herstel is laag vandaag",
-      body: `Je hebt een ${sessieLabel} gepland. Wil je de sessie verder verlichten of schrappen?`,
+      body: `Je hebt een ${sessieLabel} gepland. We hebben je training vandaag aangepast — tik om terug te zetten naar je oorspronkelijke plan.`,
     },
     geel_intensiteit: {
       titel: "Je herstel is iets lager dan normaal",

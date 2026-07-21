@@ -6,6 +6,7 @@ import { verifyQStash } from "@/lib/qstash";
 import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import { bepaalHrvZone } from "@/lib/hrv/zone";
 import { bepaalNotificatie, checkNotificatieLimiet, verhoogNotificatieTeller, bouwNotificatieTekst } from "@/lib/hrv/notificatie";
+import { verwerkSchrappen } from "@/lib/hrv/verwerking";
 import { bepaalOpportunistischeTraining } from "@/lib/hrv/opportunistisch";
 import { berekenHrvBaseline, berekenHrvTrend, verwerkHrvTrend } from "@/lib/hrv/trend";
 import { getIntervalsCredentials } from "@/lib/users";
@@ -51,6 +52,22 @@ async function verwerkHrvNotificatie(userId, kv, vandaag) {
 
     const notificatie = bepaalNotificatie({ hrvZone, geplandeSessie: sessie });
 
+    // B1: rood wordt automatisch toegepast, zonder bevestiging vooraf (geel
+    // blijft de bestaande bevestigingsflow via /api/hrv/keuze). Vóór de
+    // sturen/niet-sturen-branch, zodat de mutatie ook plaatsvindt als de
+    // wekelijkse pushlimiet al bereikt is (zie checkNotificatieLimiet-
+    // ontkoppeling verderop) — anders blijft een zware sessie op een
+    // rood-dag onaangeroerd staan zodra er die week al 3 pushes zijn geweest.
+    if (hrvZone === "rood" && sessie) {
+      try {
+        const weekNr = plan.startdatum ? weeknummerVoorDatum(vandaag, plan.startdatum) : 1;
+        const fase = plan.kader?.find(w => w.week === weekNr)?.fase || "basis";
+        await verwerkSchrappen(userId, vandaag, { hrv_vandaag: huidigHrv, fase }, plan);
+      } catch (e) {
+        console.warn(`[morning] Automatische HRV-schrapping mislukt voor ${userId}:`, e.message);
+      }
+    }
+
     if (!notificatie.sturen) {
       // Check opportunistische training
       if (hrvZone === "hoog" && !sessie) {
@@ -78,7 +95,10 @@ async function verwerkHrvNotificatie(userId, kv, vandaag) {
       return "hrv_ok";
     }
 
-    const magSturen = await checkNotificatieLimiet(userId);
+    // Rood is nu een automatisch-toegepaste mutatie, geen bevestigingsverzoek —
+    // de wekelijkse advieslimiet (bedoeld om bevestigingsvragen te temperen)
+    // blijft daarom uitsluitend gelden voor geel.
+    const magSturen = hrvZone === "rood" ? true : await checkNotificatieLimiet(userId);
     const checkIn = await kv.get(`${userId}:checkin:${vandaag}`);
     if (!magSturen) {
       logEvent("hrv_waarschuwing", userId, { niveau: notificatie.type, hrv_score: huidigHrv, check_in_score: checkIn?.score ?? null, actie_genomen: "limiet_bereikt" });

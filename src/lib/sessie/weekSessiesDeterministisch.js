@@ -18,11 +18,15 @@ import { vandaagISO, datumISO, DAGNAMEN } from "../datum";
 import { kaderWeekVoorDatum, weekInFaseVoorKaderWeek, getMaandagVanWeek, weeknummerVoorDatum } from "../weekgrenzen";
 import { frequentieVoorWeek, heeftTeLangReeks } from "../trainingsfrequentie";
 import { getAlleArchetypesRaw } from "../sessie-archetypes";
-import { solveWeek, pasBudgetToe } from "./weekSolver";
+import { solveWeek, pasBudgetToe, verlaagBijHogeMonotonie } from "./weekSolver";
 import { genereerSessieDag, logSessieGegenereerd } from "./genereren";
 import { bepaalAlGeleverd, haalWellnessVoorDatum } from "./context";
 import { bouwRampTestSessie } from "../sessiesAanvullen";
 import { haalAfwezigheidsperiodes, valtBinnenAfwezigheid } from "../afwezigheid";
+import { haalDagelijkseTssReeks, berekenMonotonieEnStrain } from "./monotonieStrain";
+import { maakMelding } from "../meldingen";
+import { haalBevrorenWeekInFase } from "./compliance";
+import { zetWeekVoorzichtig, leesWeekVoorzichtig } from "./weekVoorzichtig";
 
 const DAGVOLGORDE_MAANDAG_EERST = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag", "Zondag"];
 
@@ -82,6 +86,21 @@ export async function genereerWeekSessiesDeterministisch({
   // i.p.v. pas bij genereerSessieDag() zelf (zie sessiesAanvullen.js voor
   // dezelfde overweging).
   const afwezigheidsperiodes = await haalAfwezigheidsperiodes(userId);
+
+  // Blok A (monotonie/strain): eenmaal per run, niet per iso-week-in-lus —
+  // Foster's venster is een rollend 7-dagenvenster vanaf vandaag, los van
+  // welke kalenderweek(en) dit rolling-7-dagenvenster (i=0..6 hierboven)
+  // toevallig doorkruist. Fail-open naar "geen trigger" zonder credentials of
+  // bij een mislukte fetch (haalDagelijkseTssReeks geeft dan null) — nooit
+  // een berekening proberen op onvolledige/afwezige data.
+  const dagelijkseTssReeks = userId ? await haalDagelijkseTssReeks(userId, 7) : null;
+  const monotonieResultaat = dagelijkseTssReeks ? berekenMonotonieEnStrain(dagelijkseTssReeks) : { trigger: false };
+
+  // STAP 0 (compliance-freeze) en A3 (weekVoorzichtig): eenmaal per run,
+  // zelfde reden als monotonie hierboven — beide zijn per-user-vlaggen, geen
+  // per-iso-week-data.
+  const bevrorenWeekInFase = await haalBevrorenWeekInFase(kv, userId, seizoensplan);
+  const weekVoorzichtig = userId ? await leesWeekVoorzichtig(kv, userId) : false;
 
   const planDagen = [];
   for (let i = 0; i <= 6; i++) {
@@ -214,7 +233,42 @@ export async function genereerWeekSessiesDeterministisch({
           vasteDagen: vasteDagenDezeWeek,
           openDagen: dagenVoorSolver.map((d) => ({ datum: d.datum, beschikbareUren: d.uren })),
           alGeleverd, tsb: tsbDezeWeek,
+          bevrorenWeekInFase, weekVoorzichtig,
         });
+
+        // Blok A: vóór pasBudgetToe (regel hieronder), zodat diens eigen
+        // z2-herverdeling het vrijgekomen budget van een eventuele degradatie
+        // meteen correct meerekent (zie weekSolver.js, verlaagBijHogeMonotonie).
+        const { gedegradeerdeDatum } = verlaagBijHogeMonotonie(ruweToewijzingen, monotonieResultaat.trigger, {
+          archetypesData,
+          fase: huidigeFaseVoorDeze,
+          weekInFase: weekInFaseVoorDeze,
+          weektype: kaderWeekVoorDeze?.weektype || "opbouw",
+          seizoensdoel: seizoensplan.seizoensdoel?.type ?? "ftp",
+        });
+        if (gedegradeerdeDatum && userId) {
+          const dagLabel = DAGNAMEN[new Date(gedegradeerdeDatum).getDay()];
+          maakMelding(userId, "monotonie_degradatie", { datum: gedegradeerdeDatum, dagLabel, monotonie: monotonieResultaat.monotonie }).catch(
+            (e) => console.warn(`[weekSessiesDeterministisch] Melding-aanmaak (monotonie_degradatie) mislukt voor ${userId}:`, e.message)
+          );
+          // A3: hier schrijven, NIET bij het latere beschermd_herschikking-
+          // doorkopieerpunt (per-dag-lus verderop) — pasBudgetToe (hieronder)
+          // kan deze dag alsnog tot "rust" schrappen, waarna die latere lus
+          // 'm overslaat vóórdat dat punt bereikt wordt. Dit punt vuurt altijd
+          // wanneer de degradatie plaatsvond, ongeacht wat er later met het
+          // budget gebeurt — consistent met de melding hierboven.
+          zetWeekVoorzichtig(kv, userId, gedegradeerdeDatum).catch(
+            (e) => console.warn(`[weekSessiesDeterministisch] zetWeekVoorzichtig mislukt voor ${userId}:`, e.message)
+          );
+          // B5-correctie: monotonie-degradatie triggert bewust GEEN
+          // herschikkingspoging meer (zie STAP-overleg) — B1 (HRV-rood) blijft
+          // de enige trigger voor probeerHerschikking. De gedegradeerde dag
+          // blijft simpelweg staan zoals hierboven gegenereerd (z2_duur); de
+          // beschermd_herschikking-markering (weekSolver.js:824, doorgekopieerd
+          // hieronder) blijft wél bestaan, puur om deze dag uit te sluiten als
+          // doelwit van een LATERE, onafhankelijke B1-herschikking.
+        }
+
         const toewijzingen = pasBudgetToe(ruweToewijzingen, kaderWeekVoorDeze?.tss_doel ?? 0, alGeleverd.tss, vasteDagenTss);
         for (const t of toewijzingen) toewijzingPerDatum[t.datum] = t;
       } catch (e) {
@@ -272,6 +326,12 @@ export async function genereerWeekSessiesDeterministisch({
         console.log(`[weekSessiesDeterministisch] ${datum}: resterend weekbudget te klein — geen sessie aangemaakt`);
         continue;
       }
+
+      // B5: verlaagBijHogeMonotonie (weekSolver.js) zet beschermd_herschikking
+      // op de TOEWIJZING (solveWeek-tussenobject) — genereerSessieDag bouwt de
+      // uiteindelijke sessie als een los object en neemt dat veld niet vanzelf
+      // over, dus hier expliciet doorzetten naar de daadwerkelijk opgeslagen sessie.
+      if (toewijzing.beschermd_herschikking) sessie.beschermd_herschikking = true;
 
       logSessieGegenereerd(sessie, { userId, huidigeFase, weekInFase });
       gegenereerd.push(sessie);

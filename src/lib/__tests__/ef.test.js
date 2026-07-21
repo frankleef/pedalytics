@@ -52,6 +52,38 @@ describe("verwerkRitVoorEf", () => {
     const band = await verwerkRitVoorEf(kv, "u1", rit, FTP);
     expect(band).toBe("drempel");
   });
+
+  describe("E1: bestaande band-bepaling blijft ongewijzigd zonder segment_instorting-record", () => {
+    it("geen segment_instorting-record (default null): gedraagt zich exact als vóór E1", async () => {
+      const rit = { id: 100, start_date_local: "2026-06-01T10:00:00", moving_time: 3600, icu_weighted_avg_watts: 140, icu_efficiency_factor: 1.23 };
+      const band = await verwerkRitVoorEf(kv, "u1", rit, FTP);
+      expect(band).toBe("z2");
+      expect(await kv.get("ef_trend:u1:z2")).toEqual([{ datum: "2026-06-01", ef: 1.23, activityId: 100 }]);
+    });
+
+    it("segment_instorting-record met mogelijkIngestort:false, waarschijnlijkIngestort:false: geen wijziging", async () => {
+      await kv.set("segment_instorting:u1:101", { mogelijkIngestort: false, waarschijnlijkIngestort: false });
+      const rit = { id: 101, start_date_local: "2026-06-01T10:00:00", moving_time: 3600, icu_weighted_avg_watts: 140, icu_efficiency_factor: 1.23 };
+      const band = await verwerkRitVoorEf(kv, "u1", rit, FTP);
+      expect(band).toBe("z2");
+    });
+  });
+
+  describe("E1: skip bij mogelijkIngestort/waarschijnlijkIngestort", () => {
+    it("mogelijkIngestort:true skipt de EF-datapunt-toevoeging, geen wijziging aan de rest van de functie", async () => {
+      await kv.set("segment_instorting:u1:200", { mogelijkIngestort: true, waarschijnlijkIngestort: false });
+      const rit = { id: 200, start_date_local: "2026-06-01T10:00:00", moving_time: 3600, icu_weighted_avg_watts: 140, icu_efficiency_factor: 1.23 };
+      expect(await verwerkRitVoorEf(kv, "u1", rit, FTP)).toBeNull();
+      expect(await kv.get("ef_trend:u1:z2")).toBeNull();
+    });
+
+    it("waarschijnlijkIngestort:true skipt eveneens", async () => {
+      await kv.set("segment_instorting:u1:201", { mogelijkIngestort: true, waarschijnlijkIngestort: true });
+      const rit = { id: 201, start_date_local: "2026-06-01T10:00:00", moving_time: 3600, icu_weighted_avg_watts: 140, icu_efficiency_factor: 1.23 };
+      expect(await verwerkRitVoorEf(kv, "u1", rit, FTP)).toBeNull();
+      expect(await kv.get("ef_trend:u1:z2")).toBeNull();
+    });
+  });
 });
 
 describe("berekenEFTrend", () => {

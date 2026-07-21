@@ -26,11 +26,12 @@ async function hogql(query) {
   return (data.results || []).map(row => Object.fromEntries(row.map((v, i) => [columns[i], v])));
 }
 
-// Sectie 44-C, 5 onderdelen. Voltooiingsratio/TSS-progressie/uitvoeringsscore-trend
-// leunen op sessie_voltooid, dat (nog) niet gelogd wordt — geen server-side
-// state-transitie beschikbaar (zie sectie 44-observability-gesprek). Die drie
-// queries zijn wel al correct HogQL en beginnen vanzelf data te tonen zodra dat
-// event ooit wordt toegevoegd; tot dan geven ze lege resultaten, geen fout.
+// Sectie 44-C, 5 onderdelen. voltooiingsratio leunt op sessie_voltooid (gelogd
+// sinds cron/sync/route.js:375) én sessie_overgeslagen (gelogd sinds C1,
+// cron/compliance-check/route.js) — deze query zou dus voor beide helften
+// data moeten tonen. TSS-progressie/uitvoeringsscore-trend leunden oorspronkelijk
+// op dezelfde aanname; die queries zijn correct HogQL en tonen vanzelf data
+// zodra de betreffende events voorkomen.
 const QUERIES = {
   archetypeRotatie: `
     SELECT properties.sessietype AS sessietype, properties.archetype_id AS archetype_id, count() AS aantal

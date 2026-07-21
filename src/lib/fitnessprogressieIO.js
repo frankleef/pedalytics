@@ -162,3 +162,15 @@ export async function berekenEnSlaFitnessprogressieOp(userId, { wellData = null,
   await kv.set(`fitnessprogressie:${userId}`, resultaat, { ex: 90 * 86400 });
   return resultaat;
 }
+
+/**
+ * Leest de laatst berekende fitnessprogressie (zie berekenFitnessprogressie,
+ * fitnessprogressie.js), tot nu toe geen bestaande leesfunctie — alleen de
+ * schrijfkant (berekenEnSlaFitnessprogressieOp) bestond. Puur-lezend.
+ * @param {object} kv
+ * @param {string} userId
+ * @returns {Promise<object|null>}
+ */
+export async function leesFitnessprogressie(kv, userId) {
+  return (await kv.get(`fitnessprogressie:${userId}`)) ?? null;
+}

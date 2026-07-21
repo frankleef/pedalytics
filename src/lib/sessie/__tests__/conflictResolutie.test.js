@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { detecteerWeekConflicten, degradeerSessie, corrigeerWeekBudget } from '../conflictResolutie.js'
+import { detecteerWeekConflicten, degradeerSessie, corrigeerWeekBudget, normaliseerVoor48uCheck } from '../conflictResolutie.js'
 import { ARCHETYPES_FIXTURE } from '../../__tests__/fixtures/archetypesFixture.js'
 
 describe('detecteerWeekConflicten', () => {
@@ -133,5 +133,42 @@ describe('corrigeerWeekBudget', () => {
     ]
     const resultaat = corrigeerWeekBudget(sessies, 300)
     expect(resultaat[0].actie).toBe('ongewijzigd')
+  })
+})
+
+describe('normaliseerVoor48uCheck — mapping-adapter (Fix 3a), dekt elke legacy-typenaam uit dit bestand', () => {
+  it('sweetspot -> sweetspot_intervallen', () => {
+    expect(normaliseerVoor48uCheck({ type: 'sweetspot' }).intentie.sessietype).toBe('sweetspot_intervallen')
+  })
+
+  it('drempel -> drempel_intervallen', () => {
+    expect(normaliseerVoor48uCheck({ type: 'drempel' }).intentie.sessietype).toBe('drempel_intervallen')
+  })
+
+  it('vo2max -> vo2max_intervallen', () => {
+    expect(normaliseerVoor48uCheck({ type: 'vo2max' }).intentie.sessietype).toBe('vo2max_intervallen')
+  })
+
+  it('sprint_neuraal -> sprint_neuraal (identiek, behoudt eigen naam)', () => {
+    expect(normaliseerVoor48uCheck({ type: 'sprint_neuraal' }).intentie.sessietype).toBe('sprint_neuraal')
+  })
+
+  it('kracht_lage_cadans -> kracht_lage_cadans (identiek, behoudt eigen naam)', () => {
+    expect(normaliseerVoor48uCheck({ type: 'kracht_lage_cadans' }).intentie.sessietype).toBe('kracht_lage_cadans')
+  })
+
+  it('interval -> GEEN mapping gevonden (bevestigd via brede grep) -> null, geen crash', () => {
+    // Dit is het enige niet-neutrale randgeval van Fix 3a: "interval" stond in
+    // de oude ZWARE_TYPES-lijst maar heeft geen vindbare moderne tegenhanger.
+    // Een sessie met alleen s.type==="interval" (geen s.intentie.sessietype)
+    // wordt na normalisatie dus niet meer als zware sessie herkend.
+    expect(normaliseerVoor48uCheck({ type: 'interval' }).intentie.sessietype).toBeNull()
+  })
+
+  it('een al-aanwezige s.intentie.sessietype krijgt voorrang boven de legacy-vertaling van s.type', () => {
+    const sessie = { type: 'sweetspot', intentie: { sessietype: 'sweetspot_intervallen', rol: 'intensiteitsdag' } }
+    const genormaliseerd = normaliseerVoor48uCheck(sessie)
+    expect(genormaliseerd.intentie.sessietype).toBe('sweetspot_intervallen')
+    expect(genormaliseerd.intentie.rol).toBe('intensiteitsdag') // overige intentie-velden blijven behouden
   })
 })

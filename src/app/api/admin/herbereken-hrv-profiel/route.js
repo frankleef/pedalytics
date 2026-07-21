@@ -3,7 +3,6 @@ import { getKV } from "@/lib/kv";
 import { getIntervalsCredentials } from "@/lib/users";
 import { intervalsGet } from "@/lib/intervals";
 import { herberekenHrvProfiel, checkDataStatus } from "@/lib/hrv/profiel";
-import { berekenHerstelDagen } from "@/lib/hrv/herstelsnelheid";
 import { berekenHrvRpeCorrelatie } from "@/lib/hrv/correlatie";
 import { herberekenGewichtenHrvCheckin } from "@/lib/hrv/leerdata";
 import { datumOffset } from "@/lib/datum";
@@ -41,30 +40,6 @@ export async function POST(request) {
   // Basisprofiel
   const profiel = herberekenHrvProfiel(genormaliseerd, null);
   const statusCheck = checkDataStatus(genormaliseerd, null);
-
-  // Herstelsnelheid per sessiecategorie
-  const plan = await kv.get(`${userId}:seizoensplan`);
-  const sessies = plan?.weekSessies?.sessies || [];
-  const voltooide = sessies.filter(s => s.voltooid && s.intentie?.sessietype);
-
-  const herstelsnelheid = {};
-  for (const s of voltooide) {
-    const dagen = berekenHerstelDagen(s.intentie.sessietype, s.datum, genormaliseerd, profiel);
-    if (dagen != null) {
-      const type = s.intentie.sessietype;
-      if (!herstelsnelheid[type]) herstelsnelheid[type] = { totaal: 0, observaties: 0 };
-      herstelsnelheid[type].totaal += dagen;
-      herstelsnelheid[type].observaties++;
-    }
-  }
-
-  const herstelsnelheidGemiddeld = {};
-  for (const [type, data] of Object.entries(herstelsnelheid)) {
-    herstelsnelheidGemiddeld[type] = {
-      dagen: Math.round((data.totaal / data.observaties) * 10) / 10,
-      observaties: data.observaties,
-    };
-  }
 
   // RPE-correlatie: haal alle ritten met icu_rpe rechtstreeks uit intervals.icu
   const wellnessByDatum = {};
@@ -104,10 +79,18 @@ export async function POST(request) {
   const observatiesCheckin = Array.isArray(observatiesRaw) ? observatiesRaw : (typeof observatiesRaw === "string" ? JSON.parse(observatiesRaw) : []);
   const hrvCheckinGewichten = herberekenGewichtenHrvCheckin(observatiesCheckin, bestaandProfiel?.hrv_checkin_gewichten ?? DEFAULT_HRV_CHECKIN_GEWICHTEN);
 
+  // Baseert op bestaandProfiel i.p.v. puur op de lokale berekeningen hierboven
+  // — anders wist elke aanroep van deze admin-actie stilzwijgend velden die
+  // deze route niet zelf beheert (bv. rhr_basislijn_28d uit B6, herstelsnelheid
+  // dat sinds B2 alleen nog door de wekelijkse cron wordt bijgehouden, en
+  // eventuele toekomstige HRV/RHR-trendvelden). Alleen de velden die DEZE
+  // route daadwerkelijk berekent worden overridden; profiel zelf blijft
+  // bewust een ongedempte volledige herberekening (huidigProfiel: null,
+  // regel 41 — dat gaat over de BEREKENING, dit hier alleen over het SCHRIJVEN).
   const volledigProfiel = {
+    ...bestaandProfiel,
     ...profiel,
     ...statusCheck,
-    herstelsnelheid: { ...herstelsnelheidGemiddeld, _fallback_gebruikt: Object.keys(herstelsnelheidGemiddeld).length < 3 },
     hrv_rpe_correlatie: correlatie,
     hrv_checkin_gewichten: hrvCheckinGewichten,
     checkin_actief: true,
@@ -118,8 +101,6 @@ export async function POST(request) {
   return NextResponse.json({
     profiel: volledigProfiel,
     wellness_dagen: genormaliseerd.length,
-    voltooide_sessies: voltooide.length,
-    observaties_herstelsnelheid: Object.values(herstelsnelheidGemiddeld).reduce((s, d) => s + d.observaties, 0),
     observaties_correlatie: correlatie.observaties,
     ritten_met_rpe: rittenMetRpe.length,
     ritten_met_hrv_en_rpe: metDelta.length,

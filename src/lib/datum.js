@@ -17,4 +17,12 @@ export function datumOffset(dagen) {
   return datumISO(d);
 }
 
+/**
+ * Laatste n kalenderdagen (inclusief vandaag) als ISO-datumstrings, oplopend
+ * (chronologisch) gesorteerd — van datumOffset(-(n-1)) tot en met vandaag.
+ */
+export function laatsteNDagen(n) {
+  return Array.from({ length: n }, (_, i) => datumOffset(-(n - 1) + i));
+}
+
 export const DAGNAMEN = ["Zondag", "Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag"];

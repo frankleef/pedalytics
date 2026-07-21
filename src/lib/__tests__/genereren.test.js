@@ -2,12 +2,17 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { genereerSessieDag } from '../sessie/genereren.js'
 import { PRIORITEIT_PER_FASE } from '../sessie/weekSolver.js'
 import { _wisArchetypeCacheVoorTests } from '../sessie-archetypes.js'
+import { _wisWbalDrempelsCacheVoorTests } from '../wbalDrempels.js'
 import { ARCHETYPES_FIXTURE } from './fixtures/archetypesFixture.js'
 
-// De module-level archetype-cache (sessie-archetypes.js) moet vóór elke test
-// leeg zijn — anders lekt de mock-KV-data van de ene test naar de volgende
-// (TTL is 5 min, ruim langer dan het hele testbestand duurt).
-beforeEach(() => { _wisArchetypeCacheVoorTests() })
+// De module-level archetype-cache (sessie-archetypes.js) en de wbal-drempels-
+// cache (wbalDrempels.js, D5) moeten vóór elke test leeg zijn — anders lekt de
+// mock-KV-data van de ene test naar de volgende (TTL is 5 min, ruim langer
+// dan het hele testbestand duurt).
+beforeEach(() => {
+  _wisArchetypeCacheVoorTests()
+  _wisWbalDrempelsCacheVoorTests()
+})
 
 function maakKv(seed = {}) {
   // archetypes:{sessietype} is sinds de KV-migratie de enige databron voor
@@ -225,5 +230,127 @@ describe('genereerSessieDag — min_duur_min (feature: "deze sessie kan alleen v
       effectiefSessietype: 'kracht_lage_cadans',
       oudeSessie: { intentie: { sessietype: 'kracht_lage_cadans' } },
     })).rejects.toThrow(/min_duur_min/)
+  })
+})
+
+describe('genereerSessieDag — compliance-freeze (C3/C4/C5)', () => {
+  // vo2max_intervallen/drempel-fase/doel=klimmen is dezelfde, elders in dit
+  // bestand al gevalideerde combinatie (zie de fase-dekkingsregressietest
+  // hierboven, "klimmen's drempel-fase wijst vo2max_intervallen toe").
+  const freezeCtx = {
+    ...basisCtx,
+    plan: { seizoensdoel: { type: 'klimmen' } },
+    huidigeFase: 'drempel',
+    weekInFase: 3,
+    effectiefSessietype: 'vo2max_intervallen',
+    oudeSessie: { intentie: { sessietype: 'vo2max_intervallen' } },
+    // Klein genoeg t.o.v. het archetype-plafond zodat effectieveDuurMin() de
+    // beperkende factor is (min(beschikbaar, plafond)), niet de
+    // Z2-verlenging/TSS-ondergrens-correctie verderop in de generatie-pijplijn
+    // — anders wordt het duur-effect van de freeze daardoor gemaskeerd.
+    uren: 0.5,
+  }
+
+  it('actief-gate: een INACTIEF freeze-record met een oude laatsteTriggerDatum beïnvloedt de sessie niet', async () => {
+    const kvOnbevroren = maakKv()
+    const sessieOnbevroren = await genereerSessieDag({ ...freezeCtx, kv: kvOnbevroren })
+
+    const kvMetOudeVlag = maakKv({
+      'compliance_freeze:test_user': { actief: false, laatsteTriggerDatum: '2020-01-01' },
+    })
+    const sessieMetOudeVlag = await genereerSessieDag({ ...freezeCtx, kv: kvMetOudeVlag })
+
+    expect(sessieMetOudeVlag.duur_min).toBe(sessieOnbevroren.duur_min)
+  })
+
+  it('actief=true, ECHTE route (kv.get("compliance_freeze:..."), geen handmatig doorgegeven bevrorenWeekInFase): zowel duur (effectieveDuurMin) als TSS (schatTssDoel) bevriezen consistent in dezelfde aanroep — dekt de exacte bug-vorm uit het plan (duur bevriest, TSS groeit los door)', async () => {
+    const kvOnbevroren = maakKv()
+    const sessieOnbevroren = await genereerSessieDag({ ...freezeCtx, kv: kvOnbevroren })
+
+    // laatsteTriggerDatum valt op dezelfde datum als de sessie zelf -> zonder
+    // plan.kader/startdatum (basisCtx heeft die niet) valt weekInFaseVoorDatum()
+    // terug op 1 (weekgrenzen.js: "if (!kaderWeek || !kader) return 1"). Het
+    // freeze-record wordt hier uitsluitend via kv.get() gelezen door
+    // genereerSessieDag zelf — geen enkele test-aanroep geeft bevrorenWeekInFase
+    // rechtstreeks door.
+    const kvBevroren = maakKv({
+      'compliance_freeze:test_user': { actief: true, laatsteTriggerDatum: freezeCtx.datum },
+    })
+    const sessieBevroren = await genereerSessieDag({ ...freezeCtx, kv: kvBevroren })
+
+    // Concrete, empirisch bepaalde waarden (niet alleen een relatieve
+    // vergelijking) — vastgelegd zodat een regressie waarbij één van beide
+    // dimensies stilzwijgend loskoppelt van de freeze wordt opgemerkt.
+    expect(sessieOnbevroren.duur_min).toBe(30)
+    expect(sessieBevroren.duur_min).toBe(25)
+    expect(sessieBevroren.duur_min).toBeLessThan(sessieOnbevroren.duur_min)
+
+    // TSS-doel (schatTssDoel-uitkomst, vóór archetype-ondergrens-correctie)
+    expect(sessieOnbevroren.intentie.tss_doel).toBe(45)
+    expect(sessieBevroren.intentie.tss_doel).toBe(35)
+    expect(sessieBevroren.intentie.tss_doel).toBeLessThan(sessieOnbevroren.intentie.tss_doel)
+
+    // Daadwerkelijke sessie-TSS (ná archetype-ondergrens-correctie) — blijft
+    // óók lager bevroren, dus de freeze overleeft de volledige generatie-
+    // pijplijn, niet alleen de kale schatTssDoel()-uitkomst.
+    expect(sessieOnbevroren.tss).toBe(45)
+    expect(sessieBevroren.tss).toBe(38)
+    expect(sessieBevroren.tss).toBeLessThan(sessieOnbevroren.tss)
+  })
+
+  it('een leesfout op het freeze-record blokkeert de generatie niet (fail-open)', async () => {
+    const kv = maakKv()
+    kv.get = async (k) => {
+      if (k === 'compliance_freeze:test_user') throw new Error('KV-storing (simulatie)')
+      return kv.store.get(k) ?? null
+    }
+    const sessie = await genereerSessieDag({ ...freezeCtx, kv })
+    expect(sessie.gegenereerd_door).toBe('deterministisch')
+  })
+})
+
+describe('genereerSessieDag — D5: CP/W-kalibratie end-to-end', () => {
+  const vo2maxCtx = {
+    ...basisCtx,
+    uren: 1,
+    effectiefSessietype: 'vo2max_intervallen',
+    oudeSessie: { intentie: { sessietype: 'vo2max_intervallen' } },
+    huidigeFase: 'vo2max',
+  }
+
+  it('krijgt gekalibreerde werk-/rustblokken (standaardBlokDuurSeconden) wanneer cp_wprime_trend beschikbaar is in KV', async () => {
+    const kv = maakKv()
+    await kv.set(`cp_wprime_trend:${vo2maxCtx.userId}`, [
+      { datum: '2026-07-01', criticalPower: 230, wPrime: 20000, pMax: 800, modelEftp: 240 },
+    ])
+    const sessie = await genereerSessieDag({ ...vo2maxCtx, kv })
+
+    const gekalibreerd = sessie.segmenten.filter(s => s.standaardBlokDuurSeconden != null)
+    expect(gekalibreerd.length).toBeGreaterThan(0)
+  })
+
+  it('fail-open: geen cp_wprime_trend in KV (te weinig D4-data) -> archetype-standaardduur, geen crash', async () => {
+    const kv = maakKv()
+    const sessie = await genereerSessieDag({ ...vo2maxCtx, kv })
+
+    expect(sessie.gegenereerd_door).toBe('deterministisch')
+    expect(sessie.segmenten.every(s => s.standaardBlokDuurSeconden == null)).toBe(true)
+  })
+
+  it('regressie: een niet-VO2max/anaerobe sessie leest cp_wprime_trend niet uit KV, ook als het toevallig aanwezig is', async () => {
+    const kv = maakKv()
+    await kv.set('cp_wprime_trend:test_user', [{ datum: '2026-07-01', criticalPower: 230, wPrime: 20000 }])
+    const kvGetSpy = []
+    const origGet = kv.get
+    kv.get = async (k) => { kvGetSpy.push(k); return origGet(k) }
+
+    const sessie = await genereerSessieDag({
+      ...basisCtx, kv,
+      effectiefSessietype: 'z2_duur',
+      oudeSessie: { intentie: { sessietype: 'z2_duur' } },
+    })
+
+    expect(sessie.segmenten.every(s => s.standaardBlokDuurSeconden == null)).toBe(true)
+    expect(kvGetSpy).not.toContain('cp_wprime_trend:test_user')
   })
 })

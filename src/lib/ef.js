@@ -20,6 +20,7 @@
 // het niet meer zelf hoeven ophalen/verwerken van streams.
 
 import { classificeerRit } from "./rittype";
+import { berekenLineaireTrendPerWeek } from "./trend";
 
 const RIT_TYPE_NAAR_BAND = { duur_lang: "z2", sweetspot: "sweetspot", drempel: "drempel", vo2max: "vo2max" };
 
@@ -27,34 +28,18 @@ const CAP_DATAPUNTEN = 20;
 
 /**
  * Lineaire regressie over EF-datapunten (datum, ef) → trend (EF/week).
- * ctlRampRegressie() (lib/conditie.js) is niet herbruikbaar: die gebruikt de
- * array-index als x-as en veronderstelt equidistante (dagelijkse) metingen —
- * EF-datapunten liggen onregelmatig verspreid (niet elke dag een kwalificerende
- * rit), dus hier expliciet op echte datumverschillen (in dagen) geregresseerd.
+ * Dunne wrapper om de gedeelde, generieke regressiekern (trend.js) — zie
+ * die functie voor waarom datum- i.p.v. index-gebaseerd (ctlRampRegressie()
+ * in lib/conditie.js) hier bewust gekozen is: EF-datapunten liggen
+ * onregelmatig verspreid (niet elke dag een kwalificerende rit).
  * @param {{datum: string, ef: number}[]} punten
  * @returns {number|null} trend in EF-verandering per week, of null bij <4 punten
  */
 export function berekenEFTrend(punten) {
-  if (!punten?.length || punten.length < 4) return null;
-
-  const gesorteerd = [...punten].sort((a, b) => a.datum.localeCompare(b.datum));
-  const t0 = new Date(gesorteerd[0].datum).getTime();
-  const dagenSindsStart = gesorteerd.map(p => (new Date(p.datum).getTime() - t0) / 86400000);
-  const efWaarden = gesorteerd.map(p => p.ef);
-
-  const n = dagenSindsStart.length;
-  let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-  for (let i = 0; i < n; i++) {
-    sumX += dagenSindsStart[i];
-    sumY += efWaarden[i];
-    sumXY += dagenSindsStart[i] * efWaarden[i];
-    sumX2 += dagenSindsStart[i] * dagenSindsStart[i];
-  }
-  const noemer = n * sumX2 - sumX * sumX;
-  if (noemer === 0) return null; // alle punten op dezelfde dag — geen tijdsspreiding
-
-  const hellingPerDag = (n * sumXY - sumX * sumY) / noemer;
-  return Math.round(hellingPerDag * 7 * 1000) / 1000;
+  if (!punten?.length) return null;
+  const resultaat = berekenLineaireTrendPerWeek(punten.map(p => ({ datum: p.datum, waarde: p.ef })));
+  if (resultaat == null) return null;
+  return Math.round(resultaat.hellingPerWeek * 1000) / 1000;
 }
 
 function efTrendKey(userId, band) {
@@ -90,6 +75,13 @@ export async function haalEfTrendOp(kv, userId, band) {
 export async function verwerkRitVoorEf(kv, userId, rit, ftp) {
   const np = rit.icu_weighted_avg_watts;
   if (!np) return null;
+
+  // E1: een (mogelijk/waarschijnlijk) ingestorte rit levert geen betrouwbaar
+  // EF-datapunt op — de gemiddelde efficiëntie over de hele rit wordt dan
+  // vertekend door het instortingsdeel. Skip stil, geen backfill van
+  // historische data (zie instorting.js).
+  const instorting = await kv.get(`segment_instorting:${userId}:${rit.id}`);
+  if (instorting?.mogelijkIngestort || instorting?.waarschijnlijkIngestort) return null;
 
   const classificatie = classificeerRit({ np, avgWatts: rit.average_watts }, ftp);
   const band = RIT_TYPE_NAAR_BAND[classificatie.type];

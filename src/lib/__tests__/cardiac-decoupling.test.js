@@ -11,7 +11,7 @@ vi.mock("../kv.js", () => {
   };
 });
 
-import { cacheDecoupling, checkFaseOvergang } from "../decoupling.js";
+import { cacheDecoupling, checkFaseOvergang, leesDecouplingBaseline } from "../decoupling.js";
 import { getKV } from "../kv.js";
 
 describe("cacheDecoupling", () => {
@@ -52,5 +52,21 @@ describe("checkFaseOvergang", () => {
   it("geen uitstel bij lage decoupling", () => {
     const { uitstel } = checkFaseOvergang([2, 3, 4]);
     expect(uitstel).toBe(false);
+  });
+});
+
+describe("leesDecouplingBaseline", () => {
+  it("leest een bestaande decoupling_baseline:${userId}-record ongewijzigd terug", async () => {
+    const baseline = { mediaan: 4.2, trend: -0.3, aantalMetingen: 8, bijgewerkt: "2026-07-19T10:00:00.000Z" };
+    const kv = { get: vi.fn(async (k) => (k === "decoupling_baseline:u1" ? baseline : null)) };
+    const resultaat = await leesDecouplingBaseline(kv, "u1");
+    expect(resultaat).toEqual(baseline);
+    expect(kv.get).toHaveBeenCalledWith("decoupling_baseline:u1");
+  });
+
+  it("geeft null terug bij een ontbrekend record", async () => {
+    const kv = { get: vi.fn(async () => null) };
+    const resultaat = await leesDecouplingBaseline(kv, "u1");
+    expect(resultaat).toBeNull();
   });
 });

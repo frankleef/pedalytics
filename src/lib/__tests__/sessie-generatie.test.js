@@ -9,6 +9,7 @@ import {
   genereerSessieDeterministisch,
   vindArchetypeMetVarianten,
   bepaalMaximumBlokduur,
+  bepaalDoelGewicht,
 } from '../sessie-generatie.js'
 import { SESSIE_ARCHETYPES as VARIANT_ARCHETYPES } from '../sessie-varianten.js'
 import { ARCHETYPES_FIXTURE } from './fixtures/archetypesFixture.js'
@@ -595,5 +596,106 @@ describe('schaalVariant — vaste blokduur (duur_sec_vast, feature: "precies 30 
     })
     const vastBlok = sessie.segmenten.find(s => s.blokDuurSeconden === 600 && s.zone === 'Z2')
     expect(vastBlok).toBeDefined()
+  })
+})
+
+describe('genereerSessieDeterministisch — D5: CP/W-kalibratie', () => {
+  const CP_WPRIME = { criticalPower: 230, wPrime: 20000 }
+  const DREMPELS = { depletiePct: 60, herstelPct: 75 }
+
+  it('vo2max_intervallen krijgt een gekalibreerde duur met standaardBlokDuurSeconden erbij wanneer CP/W beschikbaar is', () => {
+    const archetype = vindArchetypeMetVarianten(ARCHETYPES_FIXTURE['vo2max_intervallen'], 'vo2_5x5')
+    const variant = archetype.varianten.find(v => v.id === 'vo2_5x5_std')
+
+    const zonderKalibratie = genereerSessieDeterministisch({
+      dagIntentie: null, archetype, variant, doelDuurMin: 60, ftp: 260, sessietype: 'vo2max_intervallen',
+    })
+    const metKalibratie = genereerSessieDeterministisch({
+      dagIntentie: null, archetype, variant, doelDuurMin: 60, ftp: 260, sessietype: 'vo2max_intervallen',
+      cpWprime: CP_WPRIME, wbalDrempels: DREMPELS,
+    })
+
+    const werkZonder = zonderKalibratie.segmenten.find(s => s.zone === 'Z5')
+    const werkMet = metKalibratie.segmenten.find(s => s.zone === 'Z5')
+    expect(werkZonder.standaardBlokDuurSeconden).toBeUndefined()
+    expect(werkMet.standaardBlokDuurSeconden).toBe(werkZonder.blokDuurSeconden)
+    expect(werkMet.blokDuurSeconden).not.toBe(werkZonder.blokDuurSeconden)
+    expect(werkMet.blokDuurSeconden).toBeGreaterThan(0)
+
+    // Het herstelblok van dezelfde reps-cyclus (Z2, 63%) is ook gekalibreerd.
+    const rustBlokkenMet = metKalibratie.segmenten.filter(s => s.zone === 'Z2' && s.standaardBlokDuurSeconden != null)
+    expect(rustBlokkenMet.length).toBeGreaterThan(0)
+  })
+
+  it('regressie: niet-VO2max/anaerobe sessietypes blijven volledig ongewijzigd, ook als cpWprime toevallig wordt meegegeven', () => {
+    const archetype = vindArchetypeMetVarianten(ARCHETYPES_FIXTURE['sweetspot_intervallen'], 'ss_klassiek') ?? ARCHETYPES_FIXTURE['sweetspot_intervallen'].find(a => a.varianten?.length)
+    const variant = archetype.varianten[0]
+
+    const zonder = genereerSessieDeterministisch({
+      dagIntentie: null, archetype, variant, doelDuurMin: 60, ftp: 260, sessietype: 'sweetspot_intervallen',
+    })
+    const metCpWprimeToch = genereerSessieDeterministisch({
+      dagIntentie: null, archetype, variant, doelDuurMin: 60, ftp: 260, sessietype: 'sweetspot_intervallen',
+      cpWprime: CP_WPRIME, wbalDrempels: DREMPELS,
+    })
+
+    expect(metCpWprimeToch.segmenten).toEqual(zonder.segmenten)
+    expect(metCpWprimeToch.duur_min).toBe(zonder.duur_min)
+    expect(metCpWprimeToch.segmenten.every(s => s.standaardBlokDuurSeconden === undefined)).toBe(true)
+  })
+
+  it('fail-open: cpWprime null (bv. te weinig data voor D4) levert exact de archetype-standaardsessie op, geen crash', () => {
+    const archetype = vindArchetypeMetVarianten(ARCHETYPES_FIXTURE['z6_anaeroob'], 'z6_standaard')
+    const variant = archetype.varianten[0]
+
+    expect(() => genereerSessieDeterministisch({
+      dagIntentie: null, archetype, variant, doelDuurMin: 45, ftp: 260, sessietype: 'z6_anaeroob',
+      cpWprime: null, wbalDrempels: null,
+    })).not.toThrow()
+
+    const sessie = genereerSessieDeterministisch({
+      dagIntentie: null, archetype, variant, doelDuurMin: 45, ftp: 260, sessietype: 'z6_anaeroob',
+      cpWprime: null, wbalDrempels: null,
+    })
+    expect(sessie.segmenten.every(s => s.standaardBlokDuurSeconden === undefined)).toBe(true)
+  })
+})
+
+describe('bepaalDoelGewicht — B6: hrvTrendTrigger/rhrTrendTrigger', () => {
+  it('hrvTrendTrigger triggert gewicht 1, ook met verder gunstige tsb/hrv (zuivere OR, geen AND-afhankelijkheid)', () => {
+    const gewicht = bepaalDoelGewicht({ tsb: 10, hrv: 'hoog', rpeDeltaTrend: 0, hrvTrendTrigger: true, rhrTrendTrigger: false })
+    expect(gewicht).toBe(1)
+  })
+
+  it('rhrTrendTrigger triggert gewicht 1, ook met verder gunstige tsb/hrv', () => {
+    const gewicht = bepaalDoelGewicht({ tsb: 10, hrv: 'normaal', rpeDeltaTrend: 0, hrvTrendTrigger: false, rhrTrendTrigger: true })
+    expect(gewicht).toBe(1)
+  })
+
+  it('geen van beide trend-triggers, verder gunstige dagvorm -> ongewijzigd gedrag (gewicht 3)', () => {
+    const gewicht = bepaalDoelGewicht({ tsb: 10, hrv: 'hoog', rpeDeltaTrend: 0, hrvTrendTrigger: false, rhrTrendTrigger: false })
+    expect(gewicht).toBe(3)
+  })
+
+  it('ontbrekende hrvTrendTrigger/rhrTrendTrigger-velden (bestaande aanroepers die B6 niet kennen) -> ongewijzigd gedrag', () => {
+    const gewicht = bepaalDoelGewicht({ tsb: 10, hrv: 'hoog', rpeDeltaTrend: 0 })
+    expect(gewicht).toBe(3)
+  })
+})
+
+describe('bepaalDoelGewicht — B2: herstelsnelheidTrigger', () => {
+  it('herstelsnelheidTrigger triggert gewicht 1, ook met verder gunstige tsb/hrv en zonder de B6-triggers (zuivere OR)', () => {
+    const gewicht = bepaalDoelGewicht({ tsb: 10, hrv: 'hoog', rpeDeltaTrend: 0, hrvTrendTrigger: false, rhrTrendTrigger: false, herstelsnelheidTrigger: true })
+    expect(gewicht).toBe(1)
+  })
+
+  it('geen herstelsnelheidTrigger, verder gunstige dagvorm -> ongewijzigd gedrag (gewicht 3)', () => {
+    const gewicht = bepaalDoelGewicht({ tsb: 10, hrv: 'hoog', rpeDeltaTrend: 0, herstelsnelheidTrigger: false })
+    expect(gewicht).toBe(3)
+  })
+
+  it('ontbrekend herstelsnelheidTrigger-veld (bestaande aanroepers die B2 niet kennen) -> ongewijzigd gedrag', () => {
+    const gewicht = bepaalDoelGewicht({ tsb: 10, hrv: 'hoog', rpeDeltaTrend: 0, hrvTrendTrigger: false, rhrTrendTrigger: false })
+    expect(gewicht).toBe(3)
   })
 })

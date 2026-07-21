@@ -12,24 +12,62 @@
 // Puur, geen KV/fetch-afhankelijkheid — synchroon aanroepbaar vanuit de client
 // (AppClient.js) zonder job-omweg.
 
-import { vindArchetypeMetVarianten, genereerSessieDeterministisch } from "../sessie-generatie";
+import { vindArchetypeMetVarianten, genereerSessieDeterministisch, LEGACY_TYPE_MAP } from "../sessie-generatie";
 import { pasBudgetToe } from "./weekSolver";
 import { rondSessieAf } from "./duurAfronding";
+import { isBinnen48uVanAndereZwareSessie, isZwareSessieVoorHerstel } from "./compliance";
 
-// Zelfde intensiteitsclassificatie als context.js' ZWAAR_TYPES en de
-// adjacency-/frequentiegevoelige types in weekSolver.js — sprint_neuraal en
-// kracht_lage_cadans behouden hun eigen naam als sessie.type (zie
-// LEGACY_TYPE_MAP in sessie-generatie.js) en moeten dus expliciet genoemd
-// worden, anders mist deze 48u-/budgetscanner ze.
-const ZWARE_TYPES = ["sweetspot", "interval", "drempel", "vo2max", "sprint_neuraal", "kracht_lage_cadans"];
 const Z2_ACHTIGE_SESSIETYPES = new Set(["z2_duur", "kracht_lage_cadans"]);
-const BUDGET_OVERSCHRIJDING_DREMPEL = 1.15;
+// Geëxporteerd (was intern) zodat src/lib/review/prompt.js (Blok F, fase 2)
+// deze drempel kan citeren in de systeeminstructie i.p.v. een eigen kopie.
+export const BUDGET_OVERSCHRIJDING_DREMPEL = 1.15;
+
+// Sessies hier dragen vaak alleen het legacy s.type-veld (korte naam, zie
+// LEGACY_TYPE_MAP), niet altijd s.intentie.sessietype — terwijl de canonieke
+// 48u-/zwaar-classificatie (compliance.js: isBinnen48uVanAndereZwareSessie,
+// isZwareSessieVoorHerstel) uitsluitend op s.intentie.sessietype toetst.
+// Omgekeerde afleiding van LEGACY_TYPE_MAP (geen eigen, losse vertaaltabel) —
+// dekt exact de vijf legacy-namen die ZWARE_TYPES vroeger noemde (sweetspot,
+// drempel, vo2max, sprint_neuraal, kracht_lage_cadans). "interval" had GEEN
+// vindbare moderne tegenhanger (niet in LEGACY_TYPE_MAP, ook niet in enige
+// andere mapping in de codebase — bevestigd via brede grep) en blijft dus
+// bewust ongemapt: een sessie met s.type==="interval" en geen
+// s.intentie.sessietype wordt na normalisatie niet meer als zwaar herkend.
+// Dat is een klein, onvermijdelijk gedragsverschil t.o.v. de oude ZWARE_TYPES-
+// lijst (zie verificatierapport) — "interval" komt in geen enkele test/fixture
+// in dit bestand voor, dus geen speculatieve mapping toegevoegd.
+const SESSIETYPE_VAN_LEGACY_TYPE = Object.fromEntries(
+  Object.entries(LEGACY_TYPE_MAP).map(([modern, legacy]) => [legacy, modern])
+);
+
+/**
+ * Normaliseert een sessie zodat isBinnen48uVanAndereZwareSessie/
+ * isZwareSessieVoorHerstel 'm kunnen classificeren: geeft voorrang aan een
+ * al-aanwezige s.intentie.sessietype (moderne sessies dragen dat al), valt
+ * anders terug op de vertaling van het legacy s.type-veld.
+ * @param {object} sessie
+ * @returns {object} sessie met intentie.sessietype gegarandeerd modern (of null)
+ */
+export function normaliseerVoor48uCheck(sessie) {
+  return {
+    ...sessie,
+    intentie: {
+      ...sessie.intentie,
+      sessietype: sessie.intentie?.sessietype ?? SESSIETYPE_VAN_LEGACY_TYPE[sessie.type] ?? null,
+    },
+  };
+}
 
 /**
  * Detecteert conflicten in de lopende week — 1-op-1 dezelfde scanlogica als de
  * oude checkImpact: (a) twee "zware" sessies binnen 48u waarvan de laatste in
  * gewijzigdeDatums zit, (b) totale week-TSS > tss_doel * 1.15 (gewicht op de
  * zwaarste gewijzigde, niet-voltooide sessie).
+ *
+ * 48u-classificatie/-berekening consolideert nu naar isBinnen48uVanAndereZwareSessie
+ * (compliance.js, canonieke bron) i.p.v. een eigen ZWARE_TYPES-lijst/verschilUren-
+ * berekening — sessies worden eerst genormaliseerd (normaliseerVoor48uCheck)
+ * zodat de legacy s.type-vocabulaire hier ook herkend wordt.
  *
  * @param {Array} sessies - alle sessies van de lopende week (vast + gewijzigd)
  * @param {object} kaderWeek - { tss_doel }
@@ -38,16 +76,16 @@ const BUDGET_OVERSCHRIJDING_DREMPEL = 1.15;
  */
 export function detecteerWeekConflicten(sessies, kaderWeek, gewijzigdeDatums) {
   const tssTarget = kaderWeek?.tss_doel || 300;
-  const zwareSessies = sessies.filter(s => ZWARE_TYPES.includes(s.type));
+  const genormaliseerdeSessies = sessies.map(normaliseerVoor48uCheck);
+  const zwareSessies = genormaliseerdeSessies.filter(s => isZwareSessieVoorHerstel(s.intentie?.sessietype));
   const conflicten = new Set();
 
   for (const s of zwareSessies) {
     if (!s.datum) continue;
-    const d = new Date(s.datum);
     for (const andere of zwareSessies) {
       if (andere === s || !andere.datum) continue;
-      const verschilUren = Math.abs(d - new Date(andere.datum)) / 3600000;
-      if (verschilUren > 0 && verschilUren < 48) {
+      const isBinnen48u = isBinnen48uVanAndereZwareSessie({ weekSessies: { sessies: [andere] } }, s.datum);
+      if (isBinnen48u) {
         const later = s.datum > andere.datum ? s.datum : andere.datum;
         if (gewijzigdeDatums.includes(later)) conflicten.add(later);
       }

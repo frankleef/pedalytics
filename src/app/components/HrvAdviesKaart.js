@@ -32,13 +32,47 @@ export function bepaalKeuzes(zone, notificatieType) {
   return KEUZES_GEEL_INTENSITEIT;
 }
 
-export default function HrvAdviesKaart({ zone, keuzes, onKeuze, rpeVoorspelling, isVerwerkt }) {
+export default function HrvAdviesKaart({ zone, keuzes, onKeuze, rpeVoorspelling, isVerwerkt, postActie }) {
   const [keuzeGemaakt, setKeuzeGemaakt] = useState(isVerwerkt ? "verwerkt" : null);
   const [isLaden, setIsLaden] = useState(false);
 
   const accentKleur = zone === "rood" ? "oklch(0.65 0.2 25)" : "oklch(0.72 0.13 70)";
   const achtergrond = zone === "rood" ? "oklch(0.97 0.03 25)" : "oklch(0.97 0.04 70)";
   const rand = zone === "rood" ? "oklch(0.88 0.08 25)" : "oklch(0.88 0.08 70)";
+
+  // B1: rood is al automatisch toegepast (geen bevestiging vooraf) — deze
+  // variant vervangt de keuzelijst door een constatering + een expliciete
+  // correctiemogelijkheid achteraf. Zelfde laag-structuur als de statische
+  // bevestigingsview hieronder (achtergrond/rand/radius/padding), aangevuld
+  // met een knop.
+  if (postActie) {
+    return (
+      <div style={{ background: "oklch(0.96 0.04 168)", border: "1px solid oklch(0.88 0.06 168)", borderRadius: T.cardRadius, padding: "18px 20px", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <span style={{ fontSize: 20 }}>&#x2705;</span>
+          <p style={{ margin: 0, font: "600 14px/1.5 var(--font-nunito), sans-serif", color: "oklch(0.35 0.06 168)" }}>
+            Je herstel was laag — we hebben je training vandaag omgezet naar een herstelrit.
+          </p>
+        </div>
+        <button
+          disabled={isLaden}
+          onClick={async () => {
+            setIsLaden(true);
+            await onKeuze("origineel");
+            setIsLaden(false);
+          }}
+          style={{
+            width: "100%", padding: "13px 16px", borderRadius: 16, border: "none", cursor: "pointer", textAlign: "left",
+            background: "#fff", opacity: isLaden ? 0.6 : 1,
+          }}
+        >
+          <div style={{ font: "700 14px var(--font-nunito), sans-serif", color: "oklch(0.35 0.06 168)" }}>
+            Toch doorzetten met origineel plan
+          </div>
+        </button>
+      </div>
+    );
+  }
 
   if (keuzeGemaakt) {
     return (

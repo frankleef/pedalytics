@@ -30,7 +30,16 @@ import { maakMelding } from "../meldingen";
 import { voegZ2VerlengingToe } from "./segmentStaart";
 import { selecteerVariantOpDagvorm, genereerSessieDeterministisch } from "../sessie-generatie";
 import { bepaalHrvZone } from "../hrv/zone";
+import { haalHrvTrendOp, haalRhrTrendOp, bepaalHrvTrendTrigger, bepaalRhrTrendTrigger } from "../hrv/basislijnTrend";
+import { berekenSchoneReferentie, bepaalHerstelsnelheidTrigger, HERSTEL_PLAFOND_DAGEN } from "../hrv/herstelsnelheid";
+import { haalLaatsteZwareSessieDatum, haalBevrorenWeekInFase } from "./compliance";
+import { getIntervalsCredentials } from "../users";
+import { intervalsGet } from "../intervals";
+import { datumISO, datumOffset } from "../datum";
 import { logEvent } from "../posthog";
+import { haalCpWprimeTrendOp } from "../cpWprime";
+import { WBAL_KALIBRATIE_SESSIETYPES } from "../wbalSimulatie";
+import { haalWbalDrempels } from "../wbalDrempels";
 
 /**
  * Genereert één sessiedag, volledig deterministisch.
@@ -138,7 +147,56 @@ export async function genereerSessieDag(ctx) {
   const tsb = wellness ? Math.round((wellness.ctl ?? 0) - (wellness.atl ?? 0)) : 0;
   const hrvZone = hrvProfiel ? bepaalHrvZone(wellness?.hrv, hrvProfiel) : "onbekend";
   const rpeTrend = (await kv.get(`rpe_trend:${userId}`)) ?? 0;
-  const dagvorm = { tsb, hrv: hrvZone, rpeDeltaTrend: rpeTrend };
+  // B6: meerdere-weken-trendsignalen (structureel, niet de acute 14-dagen-
+  // check uit hrv/trend.js) — puntenreeksen zijn al KV-lezingen, geen nieuwe
+  // intervals.icu-call.
+  const hrvTrendPunten = userId ? await haalHrvTrendOp(kv, userId) : [];
+  const rhrTrendPunten = userId ? await haalRhrTrendOp(kv, userId) : [];
+  const hrvTrendTrigger = bepaalHrvTrendTrigger(hrvTrendPunten);
+  const rhrTrendTrigger = bepaalRhrTrendTrigger(rhrTrendPunten);
+
+  // B2: acute per-sessie-hersteltijd. haalLaatsteZwareSessieDatum is een
+  // gratis, verse plan-scan (geen IO) — dus altijd actueel, in tegenstelling
+  // tot de wekelijkse hrv-profiel-herberekening in cron/sync. Een verse,
+  // extra /wellness-call wordt ALLEEN gedaan als er daadwerkelijk een zware
+  // sessie binnen het hersteltijd-plafond ligt — op de meeste dagen (geen
+  // recente zware sessie) kost dit dus niets, i.p.v. een call op elke
+  // genereerSessieDag-aanroep.
+  let herstelsnelheidTrigger = false;
+  if (userId && plan) {
+    const zwareSessieDatum = haalLaatsteZwareSessieDatum(plan);
+    if (zwareSessieDatum) {
+      const dagenGeleden = Math.floor((new Date() - new Date(zwareSessieDatum)) / 86400000);
+      if (dagenGeleden <= HERSTEL_PLAFOND_DAGEN) {
+        try {
+          const creds = await getIntervalsCredentials(userId);
+          if (creds) {
+            const veertienDagenVoorSessie = new Date(zwareSessieDatum);
+            veertienDagenVoorSessie.setDate(veertienDagenVoorSessie.getDate() - 14);
+            const wellnessData = await intervalsGet("/wellness", {
+              oldest: datumISO(veertienDagenVoorSessie), newest: datumOffset(0),
+            }, creds);
+            const schoneReferentie = berekenSchoneReferentie(
+              (wellnessData || []).map(w => ({ ...w, datum: w.id || w.datum })),
+              zwareSessieDatum
+            );
+            const zwareSessie = plan.weekSessies.sessies.find(s => s.datum === zwareSessieDatum);
+            herstelsnelheidTrigger = bepaalHerstelsnelheidTrigger({
+              zwareSessieDatum,
+              huidigeHrv: wellness?.hrv ?? null,
+              schoneReferentie,
+              sessietype: zwareSessie?.intentie?.sessietype,
+              hrvProfiel,
+            });
+          }
+        } catch (e) {
+          console.warn(`[genereerSessieDag] ${datum}: herstelsnelheid-check mislukt (fail-open):`, e.message);
+        }
+      }
+    }
+  }
+
+  const dagvorm = { tsb, hrv: hrvZone, rpeDeltaTrend: rpeTrend, hrvTrendTrigger, rhrTrendTrigger, herstelsnelheidTrigger };
 
   const { variant, doelGewicht } = await selecteerVariantOpDagvorm(kv, gekozenArchetype, userId, dagvorm);
 
@@ -155,6 +213,11 @@ export async function genereerSessieDag(ctx) {
       (e) => console.warn(`[genereerSessieDag] ${datum}: melding-aanmaak (tsb_degradatie) mislukt:`, e.message)
     );
   }
+  // Compliance-freeze (C3/C4/C5): gedeelde leesfunctie met
+  // weekSessiesDeterministisch.js (solveWeek) — zie compliance.js voor de
+  // volledige toelichting (fail-open, record.actief-gegateerd).
+  const bevrorenWeekInFase = await haalBevrorenWeekInFase(kv, userId, plan);
+
   let tssDoelVers = schatTssDoel(
     { [effectiefSessietype]: archetypesVoorType },
     effectiefSessietype,
@@ -163,7 +226,8 @@ export async function genereerSessieDag(ctx) {
     plan?.seizoensdoel?.type ?? null,
     gedegradeerd,
     weektype,
-    Math.round(uren * 60)
+    Math.round(uren * 60),
+    bevrorenWeekInFase
   );
 
   // Clamp op het resterende weekbudget — alleen als de caller dat kent
@@ -184,7 +248,23 @@ export async function genereerSessieDag(ctx) {
   const dagIntentieVers = dagIntentie ? { ...dagIntentie, tss_doel: tssDoelVers } : dagIntentie;
 
   const volleDuurMin = rondDuurMinAf(uren * 60);
-  const gecapteDoelDuurMin = rondDuurMinAf(effectieveDuurMin(effectiefSessietype, Math.round(uren * 60), weekInFase, weektype));
+  const gecapteDoelDuurMin = rondDuurMinAf(effectieveDuurMin(effectiefSessietype, Math.round(uren * 60), weekInFase, weektype, bevrorenWeekInFase));
+
+  // D5: CP/W'-kalibratie (wbalSimulatie.js) — alleen opgehaald voor de
+  // sessietypes waar het daadwerkelijk toegepast wordt, om onnodige KV-reads
+  // te vermijden op elke andere generatie. Fail-open: geen/onvolledige
+  // CP/W'-data (D4, cpWprime.js) -> cpWprime blijft null, genereerSessieDeterministisch
+  // valt terug op de archetype-standaardduur, geen crash.
+  let cpWprime = null;
+  let wbalDrempels = null;
+  if (WBAL_KALIBRATIE_SESSIETYPES.has(effectiefSessietype)) {
+    const cpWprimePunten = await haalCpWprimeTrendOp(kv, userId);
+    const laatste = cpWprimePunten[cpWprimePunten.length - 1];
+    if (laatste?.criticalPower != null && laatste?.wPrime != null) {
+      cpWprime = { criticalPower: laatste.criticalPower, wPrime: laatste.wPrime };
+      wbalDrempels = await haalWbalDrempels(kv);
+    }
+  }
 
   const sessie = genereerSessieDeterministisch({
     dagIntentie: dagIntentieVers,
@@ -193,12 +273,19 @@ export async function genereerSessieDag(ctx) {
     doelDuurMin: gecapteDoelDuurMin,
     ftp: profiel.ftp,
     sessietype: effectiefSessietype,
+    cpWprime,
+    wbalDrempels,
   });
   sessie.datum = datum;
   sessie.dag = dagNaam;
   sessie.variant_gewicht = doelGewicht;
   sessie.dagvorm_tsb = dagvorm.tsb;
   sessie.dagvorm_hrv = dagvorm.hrv;
+  // B5: gewicht 1 (tsb/hrv-rood/hrvTrendTrigger/rhrTrendTrigger/
+  // herstelsnelheidTrigger, gezamenlijk — geen onderscheid nodig) betekent al
+  // een lichtere uitvoering van dit sessietype; beschermt deze dag tegen een
+  // latere herschikkingspoging die 'm als doelwit zou kiezen.
+  if (doelGewicht === 1) sessie.beschermd_herschikking = true;
 
   console.log(`Deterministisch: ${datum} ${effectiefSessietype}/${gekozenArchetype.id}/${variant.id} gewicht=${doelGewicht} TSS=${sessie.tss} in ${sessie.generatie_ms}ms`);
 

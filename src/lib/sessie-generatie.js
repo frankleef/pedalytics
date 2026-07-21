@@ -8,6 +8,9 @@
 import { berekenSpread, cadansVoorBlok } from "./vermogensbereik";
 import { berekenVerwachtRpe } from "./sessie/rpe";
 import { normaliseerGeschaaldeBlokDuren } from "./sessie/duurAfronding";
+import { TSB_DEGRADATIE_DREMPEL } from "./sessie/weekSolver";
+import { pasWbalKalibratieToe } from "./wbalSimulatie";
+import { STANDAARD_WBAL_DREMPELS } from "./wbalDrempels";
 
 const HERSTEL_MIN_SEC = 60;
 const WERK_MIN_SEC = 90;
@@ -257,6 +260,10 @@ export function berekenWattagesVanBlokken(blokken, ftp, sessietype) {
       cadansMax: cadansRpm.max,
       cadans_rpm: cadansRpm,
       sessietype,
+      // D5: CP/W'-transparantie — alleen aanwezig als pasWbalKalibratieToe()
+      // dit blok daadwerkelijk overschreef (wbalSimulatie.js). Zonder spread
+      // van `b` hierboven zou dit veld anders stilzwijgend verdwijnen.
+      ...(b.standaardBlokDuurSeconden != null ? { standaardBlokDuurSeconden: b.standaardBlokDuurSeconden } : {}),
     };
   };
 
@@ -331,9 +338,15 @@ export function groeperenInSets(blokken) {
  * @returns {number} 1, 2 of 3
  */
 export function bepaalDoelGewicht(dagvorm) {
-  const { tsb = 0, hrv = "normaal", rpeDeltaTrend = 0 } = dagvorm ?? {};
+  const { tsb = 0, hrv = "normaal", rpeDeltaTrend = 0, hrvTrendTrigger = false, rhrTrendTrigger = false, herstelsnelheidTrigger = false } = dagvorm ?? {};
 
-  if (tsb < -20 || hrv === "rood") return 1;
+  // B6: een aanhoudende meerdere-weken-daling (HRV) of -stijging (RHR) van de
+  // basislijn is minstens zo veelzeggend als een acute rode dag of zwaar
+  // negatieve TSB — zuiver additief (OR) naast de bestaande drie voorwaarden,
+  // geen AND-afhankelijkheid met tsb/hrv. B2 (herstelsnelheidTrigger): nog
+  // niet teruggeveerd van de laatste zware sessie — zelfde besluitvormings-
+  // niveau als de twee trend-triggers, dus geen apart/hoger gewicht.
+  if (tsb < TSB_DEGRADATIE_DREMPEL || hrv === "rood" || hrvTrendTrigger || rhrTrendTrigger || herstelsnelheidTrigger) return 1;
   if (tsb < -10 || hrv === "geel" || rpeDeltaTrend > 1.0) return 2;
   if (tsb >= 5 && (hrv === "normaal" || hrv === "hoog") && rpeDeltaTrend < 0.5) return 3;
   return 2;
@@ -366,8 +379,11 @@ export async function selecteerVariantOpDagvorm(kv, archetype, userId, dagvorm) 
 // intentie.sessietype (archetype-vocabulaire) -> sessie.type (legacy vocabulaire,
 // gebruikt door corrigeerSessieTss/IF_BEREIK en UI-labels). Sessietypes zonder
 // mapping (z6_anaeroob, gemengd) vallen terug op zichzelf; corrigeerSessieTss
-// no-opt dan veilig omdat er geen IF_BEREIK-entry voor bestaat.
-const LEGACY_TYPE_MAP = {
+// no-opt dan veilig omdat er geen IF_BEREIK-entry voor bestaat. Geëxporteerd
+// (was intern) zodat conflictResolutie.js hier de OMGEKEERDE mapping (legacy
+// s.type -> modern intentie.sessietype) uit kan afleiden i.p.v. een eigen,
+// los-gedefinieerde vertaaltabel te bouwen — geen tweede bron van waarheid.
+export const LEGACY_TYPE_MAP = {
   z2_duur: "duur_variabel",
   sweetspot_intervallen: "sweetspot",
   drempel_intervallen: "drempel",
@@ -422,8 +438,15 @@ function voegWarmingUpToe(geschaaldeBlokken, doelDuurSec) {
 
 /**
  * Genereert een volledige sessie deterministisch, zonder Claude-aanroep.
+ * @param {{criticalPower: number, wPrime: number}|null} [cpWprime] - D5:
+ *   renner-eigen CP/W' (cpWprime.js); alleen relevant voor
+ *   WBAL_KALIBRATIE_SESSIETYPES (wbalSimulatie.js). null -> geen kalibratie,
+ *   archetype-standaardduur (fail-open, bestaand gedrag).
+ * @param {{depletiePct: number, herstelPct: number}|null} [wbalDrempels] - D5:
+ *   admin-instelbare drempels (wbalDrempels.js). Alleen relevant samen met
+ *   cpWprime; ontbreekt-ie, dan gelden de vaste standaardwaarden.
  */
-export function genereerSessieDeterministisch({ dagIntentie, archetype, variant, doelDuurMin, ftp, sessietype }) {
+export function genereerSessieDeterministisch({ dagIntentie, archetype, variant, doelDuurMin, ftp, sessietype, cpWprime = null, wbalDrempels = null }) {
   const t0 = Date.now();
   let geschaald = schaalVariant(variant, doelDuurMin * 60, sessietype, archetype.id, archetype.max_blokduur_sec ?? null);
   if (sessietype !== "z2_duur") {
@@ -440,7 +463,16 @@ export function genereerSessieDeterministisch({ dagIntentie, archetype, variant,
   };
   const genormaliseerd = normaliseerGeschaaldeBlokDuren(geschaald, isGepind, doelDuurMin * 60);
   geschaald = genormaliseerd.blokken;
-  const duurMin = Math.round(genormaliseerd.totaalSec / 60);
+
+  // D5: CP/W'-kalibratie NA de reguliere afronding hierboven — overschrijft
+  // blokDuurSeconden van werk/rust-reps-paren met second-precisie fysiologische
+  // waarden voor vo2max/anaerobe sessietypes (wbalSimulatie.js). Bewust NIET
+  // vóór de afronding toegepast: dat 5-minutengrid is bedoeld voor de
+  // auteurs-gedreven standaardduur, niet voor een individueel gekalibreerde
+  // duur. Fail-open (geen cpWprime, of geen geldige simulatie): retourneert
+  // `geschaald` ongewijzigd, dus duurMin hieronder blijft exact zoals voorheen.
+  geschaald = pasWbalKalibratieToe(geschaald, sessietype, ftp, cpWprime, wbalDrempels ?? STANDAARD_WBAL_DREMPELS);
+  const duurMin = Math.round(geschaald.reduce((s, b) => s + b.blokDuurSeconden * (b.reps ?? 1), 0) / 60);
 
   const segmenten = berekenWattagesVanBlokken(geschaald, ftp, sessietype);
   const tss = berekenTssVanBlokken(segmenten, ftp);

@@ -40,6 +40,26 @@ export function herberekenHrvProfiel(wellnessData, huidigProfiel) {
   };
 }
 
+/**
+ * RHR-tegenhanger van herberekenHrvProfiel's basislijn (regel 4-18): 28-dagen
+ * voortschrijdend gemiddelde van .restingHR, zelfde structuur/venster/
+ * minimum-datapunten-eis. Geen drempels/modus nodig zoals bij HRV (RHR heeft
+ * geen rood/geel-zone-concept) — puur het levende basislijn-getal, gebruikt
+ * door checkinAanpassing.js (balansscore) en hrv/basislijnTrend.js (B6).
+ * @param {Array} wellnessData
+ * @returns {number|null} null bij <14 bruikbare datapunten
+ */
+export function berekenRhrBasislijn(wellnessData) {
+  const rhr28d = wellnessData
+    .slice(-28)
+    .map(d => d.restingHR)
+    .filter(v => v != null && v > 0);
+
+  if (rhr28d.length < 14) return null;
+
+  return Math.round(gemiddelde(rhr28d) * 10) / 10;
+}
+
 export function checkDataStatus(wellnessData, huidigProfiel) {
   const vandaag = new Date().toISOString().slice(0, 10);
   const recente = wellnessData

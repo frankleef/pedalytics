@@ -24,6 +24,14 @@ const MELDING_TEMPLATES = {
     bron: "fase-overgangcheck-decoupling",
     deeplink: "/voortgang",
   }),
+  compliance_opbouwweek_verlengd: () => ({
+    categorie: "seizoen",
+    titel: "Extra opbouwweek ingelast",
+    tekst: "Je hebt de afgelopen periode meerdere kernsessies gemist — we geven je een extra " +
+           "week voordat we de belasting verhogen.",
+    bron: "fase-overgangcheck-compliance",
+    deeplink: "/voortgang",
+  }),
   afwezigheid_afgerond: (ctx) => ({
     categorie: "seizoen",
     titel: "Welkom terug",
@@ -95,6 +103,16 @@ const MELDING_TEMPLATES = {
     bron: "tsb-degradatie",
     deeplink: `/schema?datum=${ctx.datum}`,
   }),
+  monotonie_degradatie: (ctx) => ({
+    categorie: "sessie",
+    titel: "Sessie verlicht — te weinig variatie",
+    tekst: (ctx.monotonie === Infinity
+      ? "Je trainingsbelasting was deze week elke dag vrijwel identiek."
+      : `Je trainingsbelasting van de afgelopen dagen was weinig gevarieerd (monotonie ${ctx.monotonie.toFixed(1)}).`
+    ) + ` ${ctx.dagLabel} is daarom vervangen door een lichte duurrit om die variatie terug te brengen.`,
+    bron: "monotonie-correctie",
+    deeplink: `/schema?datum=${ctx.datum}`,
+  }),
   kritieke_rust: (ctx) => ({
     categorie: "sessie",
     titel: "Rust geadviseerd — advies opgevolgd",
@@ -147,6 +165,22 @@ const MELDING_TEMPLATES = {
     bron: "missed-detectie",
     deeplink: `/schema?datum=${ctx.datum}`,
   }),
+  compliance_eerste_misser: (ctx) => ({
+    categorie: "systeem",
+    titel: "Sessie gemist",
+    tekst: `${ctx.dagLabel} is niet gereden. Eén gemiste kernsessie is geen probleem — je schema loopt door.`,
+    bron: "compliance-freeze",
+    deeplink: `/schema?datum=${ctx.datum}`,
+  }),
+  compliance_freeze_geactiveerd: (ctx) => ({
+    categorie: "seizoen",
+    titel: "Opbouw tijdelijk vastgehouden",
+    tekst: ctx.aantalMissers
+      ? `Je hebt ${ctx.aantalMissers} kernsessies gemist in de afgelopen periode — we houden je opbouw tijdelijk vast tot je weer een schone week hebt.`
+      : "Je hebt meerdere kernsessies gemist in de afgelopen periode — we houden je opbouw tijdelijk vast tot je weer een schone week hebt.",
+    bron: "compliance-freeze",
+    deeplink: "/voortgang",
+  }),
 };
 
 // Vuistregel: alleen pushen als (a) het een achtergrondproces is dat de
@@ -164,6 +198,8 @@ const PUSH_WAARDIGE_TYPES = new Set([
   "trainingsblok_herijkt",
   "ftp_gedetecteerd",
   "koppeling_verbroken",
+  "compliance_freeze_geactiveerd",
+  "compliance_opbouwweek_verlengd",
 ]);
 
 const MAX_MELDINGEN = 200;

@@ -5,6 +5,15 @@
 
 import { getKV } from "./kv";
 
+// Bloktrend-drempel (D2 faseovergang-uitstel, D3 blok-volumecorrectie):
+// mediaan cardiac decoupling over meerdere ritten. Canonieke bron — ook
+// gebruikt door bepaalVolumeCorrectie (volumeCorrectie.js), die 'm importeert
+// i.p.v. een eigen kopie van 7 te hardcoden. Los van instorting.js se
+// DECOUPLING_BOOST_DREMPEL (E1): dat meet een ANDER concept (rit-EIGEN,
+// whole-ride decoupling van één specifieke rit, geen mediaan over meerdere
+// ritten) — toevallig dezelfde waarde, bewust niet samengevoegd.
+export const DECOUPLING_BLOKTREND_DREMPEL = 7;
+
 /**
  * Cachet de door intervals.icu berekende cardiac decoupling voor een activiteit.
  * @param {number|string} activiteitId
@@ -36,7 +45,7 @@ export function checkFaseOvergang(decouplingWaarden, aantalVerlengingen = 0) {
     ? (gesorteerd[mid - 1] + gesorteerd[mid]) / 2
     : gesorteerd[mid];
 
-  const uitstel = mediaan > 7 && aantalVerlengingen < 2;
+  const uitstel = mediaan > DECOUPLING_BLOKTREND_DREMPEL && aantalVerlengingen < 2;
 
   return { uitstel, mediaan: Math.round(mediaan * 10) / 10 };
 }
@@ -122,4 +131,16 @@ export async function bijwerkenDecouplingBaseline(userId) {
 
   await kv.set(`decoupling_baseline:${userId}`, baseline);
   return baseline;
+}
+
+/**
+ * Leest de laatst berekende decoupling-baseline ({mediaan, trend,
+ * aantalMetingen, bijgewerkt}), tot nu toe alleen inline gelezen in
+ * api/plan/decoupling-baseline/route.js. Puur-lezend, geen herevaluatie.
+ * @param {object} kv
+ * @param {string} userId
+ * @returns {Promise<{mediaan: number, trend: number, aantalMetingen: number, bijgewerkt: string}|null>}
+ */
+export async function leesDecouplingBaseline(kv, userId) {
+  return (await kv.get(`decoupling_baseline:${userId}`)) ?? null;
 }

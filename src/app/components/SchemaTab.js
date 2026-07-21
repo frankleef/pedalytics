@@ -8,6 +8,7 @@ import { classificeerRit, ritMatchesSessie } from "@/lib/rittype";
 import { datumISO } from "@/lib/datum";
 import InfoTooltip from "./InfoTooltip";
 import ScaleInput from "./ScaleInput";
+import { bouwWbalAfwijkingTekst } from "./wbalAfwijking";
 import { isRpeAanpasbaar, berekenVerwachtRpe } from "@/lib/sessie/rpe";
 import { zoneTimesNaarObject } from "@/lib/uitvoeringsscore";
 import SharedHeader from "./SharedHeader";
@@ -16,6 +17,7 @@ import AdaptatieScoreKaart from "./AdaptatieScoreKaart"; // TSS+fase kaart op Sc
 import SessiePicker from "./SessiePicker";
 import MarkeerAlsFtpTest from "./MarkeerAlsFtpTest";
 import HrvAdviesKaart, { bepaalKeuzes } from "./HrvAdviesKaart";
+import ReviewVoorstelKaart from "./ReviewVoorstelKaart";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
 const DAG_KORT = ["ZO","MA","DI","WO","DO","VR","ZA"];
@@ -119,7 +121,7 @@ function bouwBlockGroups(segmenten, ftp) {
     const label = seg.label?.replace(/\s*\d+$/, "") || zoneLabel;
     const cadans = seg.cadans_rpm && typeof seg.cadans_rpm === "object" && seg.cadans_rpm.max ? `${seg.cadans_rpm.min || "?"}–${seg.cadans_rpm.max} rpm` : null;
     const duurMin = seg.duur_min || (seg.blokDuurSeconden ? seg.blokDuurSeconden / 60 : 0);
-    return { title: label, zone: zn, rpe: segRpeRange(pct), time: segTimeStr(duurMin), watt: segWattRange(seg, ftpW), bg: BLOCK_BG[zn], cadans };
+    return { title: label, zone: zn, rpe: segRpeRange(pct), time: segTimeStr(duurMin), watt: segWattRange(seg, ftpW), bg: BLOCK_BG[zn], cadans, wbalAfwijking: bouwWbalAfwijkingTekst(seg) };
   };
 
   const sigKey = (seg) => {
@@ -587,6 +589,8 @@ export default function SchemaTab({
 
         <div style={{ padding: `0 ${T.pad}px` }}>
 
+        <ReviewVoorstelKaart onPlanWijziging={onPlanWijziging} />
+
         <AdaptatieScoreKaart weekTss={werkelijkTss} doelTss={doelTss} fase={kaderWeek?.fase} weekNr={weekNr} weektype={kaderWeek?.weektype} onEditBeschikbaarheid={onEditBeschikbaarheid} onOpenAfwezigheid={onOpenAfwezigheid} afwezigheidActief={afwezigheidActief} />
 
         {/* ══ PLANNED ══ */}
@@ -602,6 +606,16 @@ export default function SchemaTab({
                 }}
                 rpeVoorspelling={null}
                 isVerwerkt={false}
+              />
+            )}
+            {sessie.hrv_keuze === "schrappen" && sessie.hrv_keuze_gemaakt && !sessie.hrv_override && dayOffset === 0 && (
+              <HrvAdviesKaart
+                zone={sessie.hrv_zone}
+                postActie
+                onKeuze={async (keuze) => {
+                  await fetch("/api/hrv/keuze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ datum: cur.iso, keuze }) });
+                  onPlanWijziging?.();
+                }}
               />
             )}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -706,6 +720,11 @@ export default function SchemaTab({
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
                               <span style={{ font: "800 9.5px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: "rgba(255,255,255,0.74)" }}>CADANS</span>
                               <span style={{ font: "600 15px var(--font-fredoka), sans-serif", color: "oklch(0.85 0.08 200)", whiteSpace: "nowrap" }}>↓ {b.cadans}</span>
+                            </div>
+                          )}
+                          {b.wbalAfwijking && (
+                            <div style={{ marginTop: 8, font: "600 11px var(--font-nunito), sans-serif", color: "rgba(255,255,255,0.74)" }}>
+                              {b.wbalAfwijking}
                             </div>
                           )}
                         </div>

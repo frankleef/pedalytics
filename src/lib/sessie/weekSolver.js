@@ -12,8 +12,10 @@ import { IF_BEREIK } from "./tssValidatie";
 // Zelfde TSB-drempel als bepaalDoelGewicht() in sessie-generatie.js (gewicht 1
 // als tsb < TSB_DEGRADATIE_DREMPEL) — één bron van waarheid voor "wanneer is
 // dagvorm zo slecht dat we moeten degraderen", of dat nu op weekplan-niveau
-// (hier) of op generatiemoment (selecteerVariantOpDagvorm) gebeurt.
-const TSB_DEGRADATIE_DREMPEL = -20;
+// (hier) of op generatiemoment (selecteerVariantOpDagvorm) gebeurt. Geëxporteerd
+// zodat sessie-generatie.js (bepaalDoelGewicht) dezelfde constante importeert
+// i.p.v. een eigen kopie van -20 te hardcoden.
+export const TSB_DEGRADATIE_DREMPEL = -20;
 
 /**
  * Berekent het verwachte Z2-aandeel (fractie 0-1) van een archetype, op basis
@@ -282,14 +284,29 @@ const KERNSTIMULUS_FREQUENTIE_OPBOUW = {
  * naartoe af te ronden. Een herstelweek krijgt nooit meer dan 1 (feitelijk
  * krijgt een herstelweek elders al helemaal geen kernstimulus, zie
  * isHerstelAchtig in solveWeek — deze guard is een expliciet vangnet).
+ *
+ * A3: `weekVoorzichtig` (zie weekVoorzichtig.js) verlaagt de zo-berekende
+ * frequentie eenmalig met 1, ná alle drie de bovenstaande paden — niet per
+ * pad herhaald — met een Math.max(0, ...) ondergrens. Bij frequentie 0 wijst
+ * solveWeek() géén kernstimulusdag toe; de open dag valt automatisch terug
+ * op de bestaande Z2-fallback (stap 5), geen aparte afhandeling nodig.
+ * @param {boolean} [weekVoorzichtig] - default false = ongewijzigd gedrag.
  */
-function bepaalKernstimulusFrequentie(generiekeFase, weekInFase = 1, weektype = "opbouw") {
+export function bepaalKernstimulusFrequentie(generiekeFase, weekInFase = 1, weektype = "opbouw", weekVoorzichtig = false) {
   const entry = KERNSTIMULUS_FREQUENTIE_OPBOUW[generiekeFase];
-  if (!entry || weektype === "herstel") return 1;
-  const { startFrequentie, maxFrequentie, weekInFaseVoorMax } = entry;
-  if (weekInFaseVoorMax <= 1) return maxFrequentie;
-  const voortgang = Math.min(1, Math.max(0, (Math.max(1, weekInFase) - 1) / (weekInFaseVoorMax - 1)));
-  return Math.min(maxFrequentie, Math.floor(startFrequentie + voortgang * (maxFrequentie - startFrequentie)));
+  let frequentie;
+  if (!entry || weektype === "herstel") {
+    frequentie = 1;
+  } else {
+    const { startFrequentie, maxFrequentie, weekInFaseVoorMax } = entry;
+    if (weekInFaseVoorMax <= 1) {
+      frequentie = maxFrequentie;
+    } else {
+      const voortgang = Math.min(1, Math.max(0, (Math.max(1, weekInFase) - 1) / (weekInFaseVoorMax - 1)));
+      frequentie = Math.min(maxFrequentie, Math.floor(startFrequentie + voortgang * (maxFrequentie - startFrequentie)));
+    }
+  }
+  return Math.max(0, frequentie - (weekVoorzichtig ? 1 : 0));
 }
 
 // Sectie 26-A, fix 2: kracht_lage_cadans-gating is een HARDE beslissing binnen
@@ -466,7 +483,13 @@ function ifMiddenVanBereik(key) {
   const bereik = IF_BEREIK[key];
   return (bereik.min + bereik.max) / 2;
 }
-const SESSIETYPE_IF_MIDDEN = {
+// Geëxporteerd (was intern) zodat src/lib/review/validatie.js (Blok F, fase 3)
+// hiermee intensivering/verzachting tussen sessietypes kan classificeren —
+// er bestaat geen aparte "intensiteits-hiërarchie" elders (verlaagBijHogeMonotonie
+// gebruikt er zelf ook geen, zie dat commentaar hierboven), dit IF-midden is de
+// enige bestaande, sessietype-dekkende intensiteitsmaat (geen duurplafond zoals
+// SESSIETYPE_MAX_EFFECTIEVE_UREN — dat meet iets anders).
+export const SESSIETYPE_IF_MIDDEN = {
   z2_duur: 0.72,
   z6_anaeroob: 0.55,
   gemengd: 0.80,
@@ -474,7 +497,9 @@ const SESSIETYPE_IF_MIDDEN = {
     Object.entries(SESSIETYPE_NAAR_IF_BEREIK_KEY).map(([sessietype, key]) => [sessietype, ifMiddenVanBereik(key)])
   ),
 };
-const SESSIETYPE_MAX_EFFECTIEVE_UREN = {
+// Geëxporteerd (was intern) zodat src/lib/review/prompt.js (Blok F, fase 2)
+// dit plafond kan citeren in de systeeminstructie i.p.v. een eigen kopie.
+export const SESSIETYPE_MAX_EFFECTIEVE_UREN = {
   z2_duur: 4,
   sweetspot_intervallen: 2.5,
   kracht_lage_cadans: 1.5,
@@ -501,10 +526,16 @@ const PROGRESSIEVE_SESSIETYPES = new Set([
 // wijziging) — week 1/2 zijn dus bewust lichter dan voorheen, in plaats van
 // week 3 zwaarder te maken dan het al gevalideerde fysiologische plafond.
 // Een herstelweek staat nooit op de blok-piek, ongeacht weekInFase.
-function progressieFactor(sessietype, weekInFase = 1, weektype = "opbouw") {
+//
+// bevrorenWeekInFase (C3/C4/C5, compliance-freeze): optioneel, capt weekInFase
+// naar het niveau van vóór de freeze i.p.v. door te laten groeien — de
+// formule zelf blijft ongewijzigd, alleen de effectieve weekInFase-invoer
+// wordt geclamped. null/undefined = geen freeze, exact bestaand gedrag.
+function progressieFactor(sessietype, weekInFase = 1, weektype = "opbouw", bevrorenWeekInFase = null) {
   if (!PROGRESSIEVE_SESSIETYPES.has(sessietype)) return 1;
   if (weektype === "herstel") return 0.75;
-  return Math.min(1, 0.75 + 0.125 * (Math.max(1, weekInFase) - 1));
+  const effectieveWeekInFase = bevrorenWeekInFase != null ? Math.min(weekInFase, bevrorenWeekInFase) : weekInFase;
+  return Math.min(1, 0.75 + 0.125 * (Math.max(1, effectieveWeekInFase) - 1));
 }
 
 /**
@@ -519,10 +550,14 @@ function progressieFactor(sessietype, weekInFase = 1, weektype = "opbouw") {
  * waarbinnen die generatie moet passen.
  * @param {number|null} [beschikbareDuurMin] - beschikbare tijd voor de dag in
  *   minuten; null = gebruik de helft van de maximale effectieve duur.
+ * @param {number|null} [bevrorenWeekInFase] - zie effectieveDuurMin(); moet
+ *   consistent worden meegegeven met de duur-berekening — anders groeit het
+ *   TSS-dagbudget los van de sessieduur (zie effectieveDuurMin()'s
+ *   proportionaliteits-toelichting hierboven).
  */
-export function schatTssDoel(archetypesData, sessietype, fase, weekInFase, seizoensdoel, gedegradeerd, weektype, beschikbareDuurMin = null) {
+export function schatTssDoel(archetypesData, sessietype, fase, weekInFase, seizoensdoel, gedegradeerd, weektype, beschikbareDuurMin = null, bevrorenWeekInFase = null) {
   const ifMidden = SESSIETYPE_IF_MIDDEN[sessietype] ?? 0.70;
-  const uren = effectieveDuurMin(sessietype, beschikbareDuurMin, weekInFase, weektype) / 60;
+  const uren = effectieveDuurMin(sessietype, beschikbareDuurMin, weekInFase, weektype, bevrorenWeekInFase) / 60;
   const basis = Math.round(ifMidden * ifMidden * uren * 100);
   return gedegradeerd ? Math.round(basis * 0.85) : basis;
 }
@@ -544,10 +579,13 @@ export function schatTssDoel(archetypesData, sessietype, fase, weekInFase, seizo
  *   progressieFactor() voor PROGRESSIEVE_SESSIETYPES, genegeerd voor de rest.
  * @param {string} [weektype] - 'opbouw'|'herstel'; een herstelweek staat nooit
  *   op de blok-piek.
+ * @param {number|null} [bevrorenWeekInFase] - compliance-freeze (C3/C4/C5):
+ *   als gezet, groeit de progressie niet verder dan dit niveau, ongeacht de
+ *   daadwerkelijke weekInFase. null = geen freeze, exact bestaand gedrag.
  */
-export function effectieveDuurMin(sessietype, beschikbareDuurMin = null, weekInFase = 1, weektype = "opbouw") {
+export function effectieveDuurMin(sessietype, beschikbareDuurMin = null, weekInFase = 1, weektype = "opbouw", bevrorenWeekInFase = null) {
   const maxUren = SESSIETYPE_MAX_EFFECTIEVE_UREN[sessietype] ?? 2;
-  const factor = progressieFactor(sessietype, weekInFase, weektype);
+  const factor = progressieFactor(sessietype, weekInFase, weektype, bevrorenWeekInFase);
   if (beschikbareDuurMin == null) return Math.round((maxUren / 2) * 60 * factor);
   return Math.round(Math.min(beschikbareDuurMin, maxUren * 60) * factor);
 }
@@ -599,12 +637,22 @@ function bouwToewijzing({ datum, beschikbareUren }, sessietype, { archetypesData
  *   voor de kracht_lage_cadans-frequentiegate (zie magKrachtLageCadans)
  * @param {number|null} [ctx.laatsteKrachtLageCadansWeek] - weeknummer van de laatst
  *   bekende kracht_lage_cadans-toewijzing, uit vaste/voltooide sessies
+ * @param {number|null} [ctx.bevrorenWeekInFase] - compliance-freeze (C3/C4/C5,
+ *   zie compliance.js:haalBevrorenWeekInFase); doorgegeven aan schatTssDoel()'s
+ *   eigen budgetboekhouding hieronder (STAP 0-fix — voorheen bereikte dit
+ *   signaal alleen genereerSessieDag(), nooit solveWeek()'s eigen "past dit in
+ *   het budget"-beslissing).
+ * @param {boolean} [ctx.weekVoorzichtig] - A3: stil, intern signaal (zie
+ *   weekVoorzichtig.js) dat de kernstimulus-frequentie met 1 verlaagt
+ *   (bepaalKernstimulusFrequentie hieronder), los van bevrorenWeekInFase (dat
+ *   tempert budget/duur, dit tempert het AANTAL kernstimulusdagen).
  * @returns {Array<{datum, sessietype, tss_doel, toegestane_zones, archetype_hint, gedegradeerd, pad}>}
  */
 export function solveWeek({
   archetypesData, fase, weekInFase, weektype, seizoensdoel, weekTssDoel, belastingscap, aantalWekenInFase,
   vasteDagen = [], openDagen = [], alGeleverd = {}, tsb = null,
   weekNummerInSeizoen = null, laatsteKrachtLageCadansWeek = null,
+  bevrorenWeekInFase = null, weekVoorzichtig = false,
 }) {
   if (!archetypesData || typeof archetypesData !== "object") {
     throw new Error("solveWeek: archetypesData ontbreekt — moet vooraf opgehaald zijn (server: getAlleArchetypesRaw(), client: GET /api/archetypes).");
@@ -644,7 +692,7 @@ export function solveWeek({
   if (!isHerstelAchtig && prioriteit.kernstimulus) {
     const kandidaten = Array.isArray(prioriteit.kernstimulus) ? prioriteit.kernstimulus : [prioriteit.kernstimulus];
     kernstimulusType = kandidaten.find(t => !bestaandeSessietypesDezeWeek.has(t));
-    const frequentie = bepaalKernstimulusFrequentie(generiekeFaseVoorFrequentie, weekInFase, weektype);
+    const frequentie = bepaalKernstimulusFrequentie(generiekeFaseVoorFrequentie, weekInFase, weektype, weekVoorzichtig);
 
     for (let i = 0; i < frequentie && kernstimulusType; i++) {
       const dag = openDagenAflopend.find(
@@ -653,7 +701,7 @@ export function solveWeek({
       if (!dag) break;
 
       const { gedegradeerd } = degradeerBijLageTsb(kernstimulusType, tsb);
-      const tssDoel = schatTssDoel(archetypesData, kernstimulusType, fase, weekInFase, seizoensdoel, gedegradeerd, weektype, Math.round(dag.beschikbareUren * 60));
+      const tssDoel = schatTssDoel(archetypesData, kernstimulusType, fase, weekInFase, seizoensdoel, gedegradeerd, weektype, Math.round(dag.beschikbareUren * 60), bevrorenWeekInFase);
       if (tssDoel > restBudget) break;
 
       gebruikt.add(dag.datum);
@@ -679,7 +727,7 @@ export function solveWeek({
       const isVrijheid = bepaalVrijheidsdag({ weekInFase, dagRol: "tweede_intensiteit", fase });
       const secundairType = isVrijheid ? "gemengd" : prioriteit.secundair;
       const { gedegradeerd } = degradeerBijLageTsb(secundairType, tsb);
-      const tssDoel = schatTssDoel(archetypesData, secundairType, fase, weekInFase, seizoensdoel, gedegradeerd, weektype, Math.round(dag.beschikbareUren * 60));
+      const tssDoel = schatTssDoel(archetypesData, secundairType, fase, weekInFase, seizoensdoel, gedegradeerd, weektype, Math.round(dag.beschikbareUren * 60), bevrorenWeekInFase);
       if (tssDoel <= restBudget) {
         gebruikt.add(dag.datum);
         restBudget -= tssDoel;
@@ -703,7 +751,7 @@ export function solveWeek({
     );
     if (kandidaat) {
       const { gedegradeerd } = degradeerBijLageTsb("sprint_neuraal", tsb);
-      const tssDoel = schatTssDoel(archetypesData, "sprint_neuraal", fase, weekInFase, seizoensdoel, gedegradeerd, weektype, Math.round(kandidaat.beschikbareUren * 60));
+      const tssDoel = schatTssDoel(archetypesData, "sprint_neuraal", fase, weekInFase, seizoensdoel, gedegradeerd, weektype, Math.round(kandidaat.beschikbareUren * 60), bevrorenWeekInFase);
       if (tssDoel <= restBudget) {
         gebruikt.add(kandidaat.datum);
         restBudget -= tssDoel;
@@ -753,6 +801,64 @@ function schrapToewijzing(toewijzing) {
   toewijzing.beschikbareUren = 0;
   toewijzing.toegestane_zones = [];
   toewijzing.archetype_hint = null;
+}
+
+/**
+ * Blok A (monotonie/strain): degradeert bij trigger de niet-z2-toewijzing
+ * (kernstimulus/secundair/sprint-extra, pad !== "z2") met de HOOGSTE tss_doel
+ * naar een lichte z2_duur-dag — TSS-hoogte i.p.v. een vaste type-hiërarchie,
+ * want sprint_neuraal-sessies zijn kort/neuraal met doorgaans lage TSS en
+ * zouden bij een hiërarchie de verkeerde (kleinste) uitschieter degraderen.
+ * Lost zo ook op dat sprint-extra en generieke secundair hetzelfde pad-veld
+ * delen (regel 723 vs 699) — met TSS als criterium hoeft dat onderscheid niet
+ * meer gemaakt te worden.
+ *
+ * Tie-break bij exact gelijke tss_doel: eerste in array-volgorde. `toewijzingen`
+ * is op dat moment nog solveWeek()'s eigen, op datum gesorteerde output
+ * (regel 756) — "eerste in array-volgorde" is dus in de praktijk "vroegste
+ * datum in de week", een deterministische, voorspelbare keuze.
+ *
+ * Geen kandidaat (bv. herstelweek/basis-fase: alles al pad "z2"): no-op,
+ * ongewijzigd terug — geen dag om te degraderen is geen foutsituatie.
+ *
+ * Muteert de gekozen toewijzing in-place (zelfde stijl als schrapToewijzing),
+ * behalve beschikbareUren/archetype_hint — die blijven ongewijzigd, want dit
+ * is een lichte dag, geen rustdag: de tijd blijft beschikbaar, alleen de
+ * stimulus/het budget wordt lichter. Bedoeld om vóór pasBudgetToe() te draaien
+ * (zie weekSessiesDeterministisch.js) zodat diens eigen z2-herverdeling het
+ * vrijgekomen budget van de gedegradeerde dag meteen correct meerekent.
+ *
+ * @param {Array} toewijzingen - output van solveWeek(), vóór pasBudgetToe()
+ * @param {boolean} trigger - berekenMonotonieEnStrain(...).trigger
+ * @param {object} ctx
+ * @param {Object<string, Array>} ctx.archetypesData
+ * @param {string} ctx.fase
+ * @param {number} ctx.weekInFase
+ * @param {string} ctx.weektype
+ * @param {string} ctx.seizoensdoel
+ * @returns {{toewijzingen: Array, gedegradeerdeDatum: string|null}}
+ */
+export function verlaagBijHogeMonotonie(toewijzingen, trigger, { archetypesData, fase, weekInFase, weektype, seizoensdoel }) {
+  if (!trigger) return { toewijzingen, gedegradeerdeDatum: null, gemisteSessietype: null };
+
+  const kandidaten = toewijzingen.filter(t => t.pad !== "z2");
+  if (kandidaten.length === 0) return { toewijzingen, gedegradeerdeDatum: null, gemisteSessietype: null };
+
+  const gekozen = kandidaten.reduce((hoogste, t) => (t.tss_doel > hoogste.tss_doel ? t : hoogste), kandidaten[0]);
+  // B5: bewaard vóór de sessietype-vervanging hieronder — het gemiste type is
+  // nodig als input voor een latere herschikkingspoging (weekSessiesDeterministisch.js).
+  const gemisteSessietype = gekozen.sessietype;
+
+  const beschikbareDuurMin = Math.round(gekozen.beschikbareUren * 60);
+  gekozen.pad = "z2";
+  gekozen.sessietype = "z2_duur";
+  gekozen.tss_doel = schatTssDoel(archetypesData, "z2_duur", fase, weekInFase, seizoensdoel, /*gedegradeerd*/ true, weektype, beschikbareDuurMin);
+  gekozen.toegestane_zones = TOEGESTANE_ZONES_PER_SESSIETYPE.z2_duur;
+  // B5: beschermt deze dag tegen een latere herschikkingspoging die 'm als
+  // doelwit zou kiezen — dezelfde markering als B1/B6/B2 zetten.
+  gekozen.beschermd_herschikking = true;
+
+  return { toewijzingen, gedegradeerdeDatum: gekozen.datum, gemisteSessietype };
 }
 
 /**

@@ -6,6 +6,11 @@ import { weeknummerVoorDatum } from "./weekgrenzen";
 import { maakMelding } from "./meldingen";
 import { vulSessiesAanVoorGebruiker } from "./sessiesAanvullen";
 import { bepaalTrainingsfrequentie } from "./trainingsfrequentie";
+import { haalComplianceVenster } from "./sessie/compliance";
+import { haalEfTrendOp, berekenEFTrend } from "./ef";
+import { haalHrvTrendOp, haalRhrTrendOp } from "./hrv/basislijnTrend";
+import { berekenLineaireTrendPerWeek } from "./trend";
+import { DECOUPLING_BLOKTREND_DREMPEL } from "./decoupling";
 
 // ====== Interne hulpfuncties ======
 
@@ -15,7 +20,10 @@ function datumVoegDagenToe(isoDate, dagen) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function dagNaamVanDatum(isoDate) {
+// Geëxporteerd (was intern) zodat src/lib/review/validatie.js (Blok F, fase 3)
+// dezelfde dag-naam-afleiding gebruikt als Stap 1 hieronder (MIN_TSS_VOOR_NIEUWE_DAG-
+// schatting), i.p.v. een eigen kopie van deze array te maken.
+export function dagNaamVanDatum(isoDate) {
   const dag = new Date(isoDate).getDay();
   return ["Zondag", "Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag"][dag];
 }
@@ -42,7 +50,10 @@ function berekenAankomendWeekNr(plan) {
   return weeknummerVoorDatum(new Date(), plan.startdatum) + 1;
 }
 
-function berekenBlokIndex(plan) {
+// Geëxporteerd (was intern) zodat src/lib/review/context.js dezelfde,
+// canonieke blokIndex-afleiding kan hergebruiken voor leesBlokBasisLogBlok
+// i.p.v. de weeknummer/4-logica daar te dupliceren.
+export function berekenBlokIndex(plan) {
   if (!plan?.startdatum) return 0;
   const weekNr = weeknummerVoorDatum(new Date(), plan.startdatum);
   return Math.floor((weekNr - 1) / 4);
@@ -205,9 +216,27 @@ export async function haalVolumeSignalen(userId) {
 
 // ====== Chunk 2: Beslissingslogica ======
 
-export function bepaalVolumeCorrectie({ rampRate, tsbGemiddelde14d, rpeDeltaTrend, decouplingMediaan }) {
-  void decouplingMediaan; // signaal beschikbaar voor toekomstig gebruik
+// STAP 3 — eigen blok-drempel voor de HRV/RHR-bloktrend, BEWUST NIET hetzelfde
+// als B6's TREND_DREMPEL_PCT (hrv/basislijnTrend.js, 5%/21-dagen-geëxtrapoleerd,
+// gebruikt voor de dagelijkse hrvTrendTrigger/rhrTrendTrigger). Een volume-blok
+// duurt hier 4 weken, geen 21 dagen — de wekelijkse regressie-helling
+// (hellingPerWeek) wordt daarom RECHTSTREEKS als percentage van de laatste
+// waarde vergeleken, zonder eerst naar een geëxtrapoleerd N-dagen-venster om te
+// rekenen (dat zou de bloktoets impliciet strenger/losser maken afhankelijk
+// van welk venster je zou kiezen, ook al is de onderliggende ernst gelijk
+// bedoeld aan B6's drempel).
+export const BLOK_TREND_DREMPEL_PCT = 1.7;
 
+// Verplaatst van functie-lokaal naar moduleniveau (was intern in
+// bepaalVolumeAanpassing) en geëxporteerd zodat src/lib/review/prompt.js
+// (Blok F, fase 2) deze drempel kan citeren i.p.v. een eigen kopie. Puur een
+// scope-verplaatsing — waarde en gebruik in bepaalVolumeAanpassing ongewijzigd.
+export const MIN_TSS_VOOR_NIEUWE_DAG = 40;
+
+export function bepaalVolumeCorrectie({
+  rampRate, tsbGemiddelde14d, rpeDeltaTrend, decouplingMediaan,
+  efTrendPct = null, hrvBloktrendPct = null, rhrBloktrendPct = null,
+}) {
   const rampTeLaag      = rampRate !== null && rampRate < 2.0;
   const rampTeHoog      = rampRate !== null && rampRate > 7.0;
   // > +5 = fresh/transition: te weinig prikkel, sporter zit boven grey zone
@@ -221,8 +250,25 @@ export function bepaalVolumeCorrectie({ rampRate, tsbGemiddelde14d, rpeDeltaTren
   const tsbTeNegatief   = tsbGemiddelde14d !== null && tsbGemiddelde14d < -20;
   const adaptatieSlecht = rpeDeltaTrend !== null && rpeDeltaTrend > 1.0;
 
-  const omhoog = (rampTeLaag || tsbTePositief) && !adaptatieSlecht && !tsbTeNegatief;
-  const omlaag = tsbTeNegatief || (rampTeHoog && adaptatieSlecht);
+  // STAP 1 — zelfde drempel als checkFaseOvergang (decoupling.js): DECOUPLING_BLOKTREND_DREMPEL, geïmporteerd.
+  const decouplingSlecht = decouplingMediaan !== null && decouplingMediaan > DECOUPLING_BLOKTREND_DREMPEL;
+
+  // STAP 2 — dalende EF-trend (minder watt voor dezelfde hartslag/band over
+  // tijd) betekent dat het blok niet de bedoelde aerobe aanpassing oplevert.
+  const efTrendSlecht = efTrendPct !== null && efTrendPct < 0;
+
+  // STAP 3 — zie BLOK_TREND_DREMPEL_PCT hierboven voor de rationale.
+  const hrvBloktrendSlecht = hrvBloktrendPct !== null && hrvBloktrendPct < -BLOK_TREND_DREMPEL_PCT;
+  const rhrBloktrendSlecht = rhrBloktrendPct !== null && rhrBloktrendPct > BLOK_TREND_DREMPEL_PCT;
+
+  // De vier nieuwe "slecht"-signalen blokkeren omhoog op dezelfde manier als
+  // adaptatieSlecht dat al deed (niet alleen tsbTeNegatief) — incoherent om
+  // volume te verhogen terwijl decoupling/EF/HRV-RHR net aangeven dat het
+  // vorige blok niet goed verwerkt werd.
+  const omhoog = (rampTeLaag || tsbTePositief) && !adaptatieSlecht && !tsbTeNegatief &&
+    !decouplingSlecht && !efTrendSlecht && !hrvBloktrendSlecht && !rhrBloktrendSlecht;
+  const omlaag = tsbTeNegatief || (rampTeHoog && adaptatieSlecht) ||
+    decouplingSlecht || efTrendSlecht || hrvBloktrendSlecht || rhrBloktrendSlecht;
 
   if (omhoog) {
     if (rampTeLaag && tsbGemiddelde14d > 15) return { richting: "omhoog", pct: 0.12 };
@@ -350,7 +396,6 @@ export function bepaalVolumeAanpassing({ plan, aankomendWeek, correctie, signale
   const bezetteDatums = new Set(sessiesInWeek.map(s => s.datum));
 
   // Stap 1: beschikbare dag zonder sessie én voldoende TSS-ruimte (≥40 TSS ≈ 60 min Z2)
-  const MIN_TSS_VOOR_NIEUWE_DAG = 40;
   const vrijeDagen = weekDatums.filter(datum => {
     const naam = dagNaamVanDatum(datum);
     if (!beschikbareDagen.includes(naam) || bezetteDatums.has(datum)) return false;
@@ -375,14 +420,18 @@ export function bepaalVolumeAanpassing({ plan, aankomendWeek, correctie, signale
       const huidigeUren = (s.duur_min || 90) / 60;
       if (huidigeUren >= maxUren) return false;
 
-      // 48u-regel: geen sessie grenst aan intensiteitsdag
-      const sDagIdx = new Date(s.datum).getDay();
+      // Kalenderlijk-direct-aangrenzende-dag-regel: geen sessie grenst aan een
+      // intensiteitsdag. Echte datumverschil-berekening (in kalenderdagen),
+      // NIET dag-van-de-week-index — die laatste had een bug: zondag(0) en
+      // maandag(1) van DEZELFDE week hebben indexverschil 1 ("aangrenzend")
+      // maar liggen in werkelijkheid 6 kalenderdagen (144u) uit elkaar.
+      // Bewust nog steeds een SMALLERE check dan isBinnen48uVanAndereZwareSessie
+      // (compliance.js) — alleen de exact aangrenzende kalenderdag (1 dag),
+      // geen volledige 48u-tijdsberekening; geen consolidatie daarnaartoe.
       const heeftIntensieveBuur = sessiesInWeek.some(bs => {
         if (bs.datum === s.datum) return false;
-        const bDagIdx = new Date(bs.datum).getDay();
-        const diff = Math.abs(bDagIdx - sDagIdx);
-        const aaneengrenzend = diff === 1 || diff === 6;
-        return aaneengrenzend && bs.intentie?.rol === "intensiteitsdag";
+        const dagVerschil = Math.abs(new Date(bs.datum) - new Date(s.datum)) / 86400000;
+        return dagVerschil === 1 && bs.intentie?.rol === "intensiteitsdag";
       });
       return !heeftIntensieveBuur;
     })
@@ -556,6 +605,36 @@ export async function voerWekelijkseEvaluatieUit(userId, { forceer = false } = {
 
 // ====== Chunk 6: Herstelweek-evaluatie (blok-ijkmoment) ======
 
+// STAP 2 — band-selectie voor de EF-trend: de fase van de EERSTE opbouwweek
+// van het net-afgesloten blok (blokOpbouwWeken, hieronder al bepaald voor de
+// piekweek-tss). "overgangsfase"/"consolidatie"/"test" hebben geen dominant
+// intensiteitstype en dus geen 1-op-1 EF-band -> geen EF-signaal die cyclus
+// (bestaand fail-open-patroon, geen crash/blokkade).
+const FASE_NAAR_EF_BAND = { basis: "z2", sweetspot: "sweetspot", drempel: "drempel" };
+
+function bepaalBlokEfBand(blokOpbouwWeken) {
+  const fase = blokOpbouwWeken[0]?.fase;
+  return FASE_NAAR_EF_BAND[fase] ?? null;
+}
+
+// STAP 3 — HRV/RHR-bloktrend RECHTSTREEKS uit hellingPerWeek (geen
+// dagen-extrapolatie zoals B6's bepaalTrendTrigger in hrv/basislijnTrend.js
+// doet), uitgedrukt als percentage van de meest recente waarde. Fail-open
+// (null) bij <4 punten — bestaand gedrag van berekenLineaireTrendPerWeek.
+function berekenBloktrendPct(punten) {
+  const resultaat = berekenLineaireTrendPerWeek((punten || []).map(p => ({ datum: p.datum, waarde: p.basislijn })));
+  if (resultaat == null || !resultaat.laatsteWaarde) return null;
+  return (resultaat.hellingPerWeek / resultaat.laatsteWaarde) * 100;
+}
+
+// STAP 4 — compliance-poort: venster = één blok (4 weken = 28 dagen), niet
+// C1/C3's vaste 10-dagenvenster en niet C4's faseStartdatum-venster (die is
+// specifiek voor de fase-verlengingsbeslissing, zie D1-comment in
+// sessie/compliance.js) — dit evalueert het zojuist afgesloten volume-blok.
+// Drempel (>=2 niet-geleverd) is dezelfde als evalueerComplianceGate's C4-drempel.
+const BLOK_COMPLIANCE_VENSTER_DAGEN = 28;
+const BLOK_COMPLIANCE_ONVOLDOENDE_DREMPEL = 2;
+
 export async function voerHerstelweekEvaluatieUit(userId) {
   const kv = getKV();
   const planKey = `${userId}:seizoensplan`;
@@ -590,6 +669,34 @@ export async function voerHerstelweekEvaluatieUit(userId) {
 
   const signalen = await haalVolumeSignalen(userId);
 
+  // STAP 4 — compliance-poort: bij onvoldoende geleverde kernsessies in het
+  // zojuist afgesloten blok worden decoupling/EF-trend/HRV-RHR-bloktrend voor
+  // deze cyclus als niet-beschikbaar (null) behandeld — exact hetzelfde
+  // fail-open-patroon als bepaalVolumeCorrectie nu al hanteert voor elk
+  // signaal dat null is. rampRate/tsb/rpeDeltaTrend blijven ongemoeid (die
+  // vallen buiten deze poort, zie D1-beslissing in de opdracht).
+  const complianceVenster = await haalComplianceVenster(userId, BLOK_COMPLIANCE_VENSTER_DAGEN);
+  const voldoendeCompliant = complianceVenster.nietGeleverd < BLOK_COMPLIANCE_ONVOLDOENDE_DREMPEL;
+
+  const efBand = bepaalBlokEfBand(blokOpbouwWeken);
+  const efTrendPct = (voldoendeCompliant && efBand)
+    ? berekenEFTrend(await haalEfTrendOp(kv, userId, efBand))
+    : null;
+  const hrvBloktrendPct = voldoendeCompliant
+    ? berekenBloktrendPct(await haalHrvTrendOp(kv, userId))
+    : null;
+  const rhrBloktrendPct = voldoendeCompliant
+    ? berekenBloktrendPct(await haalRhrTrendOp(kv, userId))
+    : null;
+
+  const blokSignalen = {
+    ...signalen,
+    decouplingMediaan: voldoendeCompliant ? signalen.decouplingMediaan : null,
+    efTrendPct,
+    hrvBloktrendPct,
+    rhrBloktrendPct,
+  };
+
   // Trainingsfrequentie bepalen voor het aankomende blok
   const beschikbareCount = Object.values(plan.beschikbaarheid || {}).filter(Boolean).length;
   // Wellness ophalen voor actuele TSB
@@ -611,7 +718,7 @@ export async function voerHerstelweekEvaluatieUit(userId) {
     beschikbareDagen: beschikbareCount,
   });
 
-  const nieuweBasis = bepaalNieuweBlokBasis({ huidigePiekweekTss, signalen, ervaringsniveau, blokIndex });
+  const nieuweBasis = bepaalNieuweBlokBasis({ huidigePiekweekTss, signalen: blokSignalen, ervaringsniveau, blokIndex });
 
   const opbouwPct = { starter: 0.05, recreatief: 0.10, getraind: 0.15 }[ervaringsniveau] || 0.10;
   const herstelweekPct = { starter: 0.40, recreatief: 0.50, getraind: 0.60 }[ervaringsniveau] || 0.50;
@@ -661,7 +768,7 @@ export async function voerHerstelweekEvaluatieUit(userId) {
 
   // Melding + push — dit is een echte blokgrens (zwaarder dan routinematige
   // wekelijkse volumecorrectie), verdient dus wel een eigen pushmoment.
-  const correctie = bepaalVolumeCorrectie(signalen);
+  const correctie = bepaalVolumeCorrectie(blokSignalen);
   if (correctie.richting !== "geen") {
     const tekst = correctie.richting === "omlaag"
       ? "Nieuw blok gestart met iets minder volume — rustige opbouw is nu het juiste tempo."
@@ -677,11 +784,41 @@ export async function voerHerstelweekEvaluatieUit(userId) {
     nieuweBasis,
     richting: correctie.richting,
     pct: correctie.pct,
-    signalen,
+    signalen: blokSignalen,
+    complianceGate: { voldoendeCompliant, nietGeleverd: complianceVenster.nietGeleverd },
   }, { ex: 180 * 86400 });
 
   // KV-vlag (voorkomt dat wekelijkse evaluatie daarna alsnog draait)
   await kv.set(`weekcheck_gedaan:${userId}:${weekNr}`, "1", { ex: 8 * 86400 });
 
   console.log(`[blokcheck] ${userId}: blok ${blokIndex} → ${blokIndex + 1}, basis ${huidigePiekweekTss} → ${nieuweBasis} (${correctie.richting})`);
+}
+
+// ====== Chunk 7: Blok F — review-context leesfuncties ======
+// Tot nu toe werden blokcheck_log/volumecorrectie_log alleen inline gelezen
+// in api/debug/volumecorrectie-log/route.js. Deze twee functies zijn de
+// eerste herbruikbare leeslaag erbovenop, voor src/lib/review/context.js.
+
+/**
+ * Leest blokcheck_log:${userId}:${blokIndex} — het log-record van de
+ * herstelweek-evaluatie (elke 4 weken) voor één specifiek blok.
+ * @param {object} kv
+ * @param {string} userId
+ * @param {number} blokIndex
+ * @returns {Promise<object|null>}
+ */
+export async function leesBlokBasisLogBlok(kv, userId, blokIndex) {
+  return (await kv.get(`blokcheck_log:${userId}:${blokIndex}`)) ?? null;
+}
+
+/**
+ * Leest volumecorrectie_log:${userId}:${weekNr} — het log-record van de
+ * wekelijkse volume-evaluatie. Default weekNr = huidige ISO-weeknummer.
+ * @param {object} kv
+ * @param {string} userId
+ * @param {number} [weekNr]
+ * @returns {Promise<object|null>}
+ */
+export async function leesBlokBasisLogWeek(kv, userId, weekNr = haalIsoWeeknummer(new Date())) {
+  return (await kv.get(`volumecorrectie_log:${userId}:${weekNr}`)) ?? null;
 }

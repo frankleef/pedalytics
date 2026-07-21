@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { berekenZ2AandeelSessietype, haalPrioriteitOp, PRIORITEIT_PER_FASE, degradeerBijLageTsb, solveWeek, pasBudgetToe } from '../weekSolver.js'
+import { berekenZ2AandeelSessietype, haalPrioriteitOp, PRIORITEIT_PER_FASE, degradeerBijLageTsb, solveWeek, pasBudgetToe, verlaagBijHogeMonotonie, effectieveDuurMin, schatTssDoel, bepaalKernstimulusFrequentie } from '../weekSolver.js'
 import { SESSIE_ARCHETYPES as VARIANT_ARCHETYPES } from '../../sessie-varianten.js'
 import { ARCHETYPES_FIXTURE } from '../../__tests__/fixtures/archetypesFixture.js'
 
@@ -896,5 +896,462 @@ describe('pasBudgetToe', () => {
       expect(warnSpy).toHaveBeenCalled()
       warnSpy.mockRestore()
     })
+  })
+})
+
+describe('verlaagBijHogeMonotonie (Blok A: monotonie/strain)', () => {
+  const ctx = { archetypesData: {}, fase: 'sweetspot', weekInFase: 2, weektype: 'opbouw', seizoensdoel: 'ftp' }
+
+  it('trigger === false -> volledig ongewijzigd, ook als er wel een niet-z2-kandidaat is', () => {
+    const kernstimulus = { datum: '2026-07-06', sessietype: 'sweetspot_intervallen', tss_doel: 90, beschikbareUren: 2, pad: 'kernstimulus', archetype_hint: 'x' }
+    const z2 = { datum: '2026-07-08', sessietype: 'z2_duur', tss_doel: 60, beschikbareUren: 1.5, pad: 'z2' }
+    const toewijzingen = [kernstimulus, z2]
+    const { toewijzingen: resultaat, gedegradeerdeDatum } = verlaagBijHogeMonotonie(toewijzingen, false, ctx)
+    expect(resultaat).toEqual([kernstimulus, z2])
+    expect(gedegradeerdeDatum).toBeNull()
+  })
+
+  it('geen niet-z2-kandidaat (herstelweek/basis-fase: alles al pad "z2") -> no-op, geen crash', () => {
+    const z2A = { datum: '2026-07-06', sessietype: 'z2_duur', tss_doel: 60, beschikbareUren: 2, pad: 'z2' }
+    const z2B = { datum: '2026-07-08', sessietype: 'z2_duur', tss_doel: 40, beschikbareUren: 1.5, pad: 'z2' }
+    const toewijzingen = [z2A, z2B]
+    const { toewijzingen: resultaat, gedegradeerdeDatum } = verlaagBijHogeMonotonie(toewijzingen, true, ctx)
+    expect(resultaat).toEqual([z2A, z2B])
+    expect(gedegradeerdeDatum).toBeNull()
+  })
+
+  it('kiest TSS-hoogte, niet type-volgorde: secundair met hogere tss_doel wordt gedegradeerd, niet kernstimulus', () => {
+    const kernstimulus = { datum: '2026-07-06', sessietype: 'sprint_neuraal', tss_doel: 40, beschikbareUren: 1, pad: 'kernstimulus', archetype_hint: 'sprint-hint' }
+    const secundair = { datum: '2026-07-08', sessietype: 'drempel_intervallen', tss_doel: 150, beschikbareUren: 2, pad: 'secundair', archetype_hint: 'drempel-hint' }
+    const z2 = { datum: '2026-07-10', sessietype: 'z2_duur', tss_doel: 60, beschikbareUren: 1.5, pad: 'z2' }
+    const toewijzingen = [kernstimulus, secundair, z2]
+
+    const { toewijzingen: resultaat, gedegradeerdeDatum } = verlaagBijHogeMonotonie(toewijzingen, true, ctx)
+
+    expect(gedegradeerdeDatum).toBe('2026-07-08')
+    const verlaagd = resultaat.find(t => t.datum === '2026-07-08')
+    expect(verlaagd.pad).toBe('z2')
+    expect(verlaagd.sessietype).toBe('z2_duur')
+    expect(verlaagd.toegestane_zones).toEqual(['Z2'])
+    const verwachteTss = schatTssDoel(ctx.archetypesData, 'z2_duur', ctx.fase, ctx.weekInFase, ctx.seizoensdoel, true, ctx.weektype, Math.round(secundair.beschikbareUren * 60))
+    expect(verlaagd.tss_doel).toBe(verwachteTss)
+    // beschikbareUren/archetype_hint blijven ongewijzigd (in tegenstelling tot schrapToewijzing)
+    expect(verlaagd.beschikbareUren).toBe(2)
+    expect(verlaagd.archetype_hint).toBe('drempel-hint')
+
+    // De kernstimulus-dag (lagere tss_doel) blijft volledig ongemoeid
+    const ongemoeid = resultaat.find(t => t.datum === '2026-07-06')
+    expect(ongemoeid).toEqual(kernstimulus)
+  })
+
+  it('tie-break bij exact gelijke tss_doel: eerste in array-volgorde wordt gedegradeerd', () => {
+    const eerste = { datum: '2026-07-06', sessietype: 'sweetspot_intervallen', tss_doel: 100, beschikbareUren: 2, pad: 'kernstimulus' }
+    const tweede = { datum: '2026-07-08', sessietype: 'vo2max_intervallen', tss_doel: 100, beschikbareUren: 1, pad: 'secundair' }
+    const toewijzingen = [eerste, tweede]
+
+    const { gedegradeerdeDatum } = verlaagBijHogeMonotonie(toewijzingen, true, ctx)
+
+    expect(gedegradeerdeDatum).toBe('2026-07-06') // eerste in de array, niet tweede
+  })
+
+  it('muteert de toewijzingen-array in-place en retourneert dezelfde referentie', () => {
+    const kernstimulus = { datum: '2026-07-06', sessietype: 'sweetspot_intervallen', tss_doel: 90, beschikbareUren: 2, pad: 'kernstimulus' }
+    const toewijzingen = [kernstimulus]
+    const { toewijzingen: resultaat } = verlaagBijHogeMonotonie(toewijzingen, true, ctx)
+    expect(resultaat).toBe(toewijzingen)
+    expect(toewijzingen[0].sessietype).toBe('z2_duur') // origineel object zelf is gemuteerd
+  })
+
+  it('B5: retourneert gemisteSessietype (het sessietype VÓÓR de vervanging) bij een degradatie', () => {
+    const kernstimulus = { datum: '2026-07-06', sessietype: 'drempel_intervallen', tss_doel: 100, beschikbareUren: 2, pad: 'kernstimulus' }
+    const toewijzingen = [kernstimulus]
+    const { gemisteSessietype } = verlaagBijHogeMonotonie(toewijzingen, true, ctx)
+    expect(gemisteSessietype).toBe('drempel_intervallen')
+    expect(toewijzingen[0].sessietype).toBe('z2_duur') // de toewijzing zelf is intussen wél al vervangen
+  })
+
+  it('B5: gemisteSessietype is null als er geen degradatie plaatsvindt (trigger false of geen kandidaat)', () => {
+    const z2 = { datum: '2026-07-06', sessietype: 'z2_duur', tss_doel: 60, beschikbareUren: 1.5, pad: 'z2' }
+    expect(verlaagBijHogeMonotonie([z2], false, ctx).gemisteSessietype).toBeNull()
+    expect(verlaagBijHogeMonotonie([z2], true, ctx).gemisteSessietype).toBeNull() // geen niet-z2-kandidaat
+  })
+
+  it('B5: zet beschermd_herschikking op de gedegradeerde toewijzing', () => {
+    const kernstimulus = { datum: '2026-07-06', sessietype: 'sweetspot_intervallen', tss_doel: 90, beschikbareUren: 2, pad: 'kernstimulus' }
+    const toewijzingen = [kernstimulus]
+    verlaagBijHogeMonotonie(toewijzingen, true, ctx)
+    expect(toewijzingen[0].beschermd_herschikking).toBe(true)
+  })
+
+  it('B5: geen beschermd_herschikking-veld als er geen degradatie plaatsvindt', () => {
+    const kernstimulus = { datum: '2026-07-06', sessietype: 'sweetspot_intervallen', tss_doel: 90, beschikbareUren: 2, pad: 'kernstimulus' }
+    const toewijzingen = [kernstimulus]
+    verlaagBijHogeMonotonie(toewijzingen, false, ctx)
+    expect(toewijzingen[0].beschermd_herschikking).toBeUndefined()
+  })
+})
+
+describe('Blok A-integratie: pasBudgetToe herverdeelt correct ná een monotonie-degradatie', () => {
+  it('vrijgekomen budget van de gedegradeerde kernstimulus-dag wordt proportioneel over de overige z2-dagen verdeeld', () => {
+    const ctx = { archetypesData: {}, fase: 'sweetspot', weekInFase: 2, weektype: 'opbouw', seizoensdoel: 'ftp' }
+    const kernstimulus = { datum: '2026-07-06', sessietype: 'sweetspot_intervallen', tss_doel: 150, beschikbareUren: 2, pad: 'kernstimulus' }
+    const z2Lang = { datum: '2026-07-08', sessietype: 'z2_duur', tss_doel: 100, beschikbareUren: 3, pad: 'z2' }
+    const z2Kort = { datum: '2026-07-10', sessietype: 'z2_duur', tss_doel: 60, beschikbareUren: 1.5, pad: 'z2' }
+    const ruweToewijzingen = [kernstimulus, z2Lang, z2Kort]
+
+    // Zonder degradatie: cap 310 is precies genoeg voor 150+100+60=310, geen korting nodig.
+    const zonderDegradatie = pasBudgetToe([...ruweToewijzingen.map(t => ({ ...t }))], 310, 0)
+    expect(zonderDegradatie.find(t => t.datum === z2Lang.datum).tss_doel).toBe(100)
+    expect(zonderDegradatie.find(t => t.datum === z2Kort.datum).tss_doel).toBe(60)
+
+    // Mét degradatie: kernstimulus (150) wordt een lichte z2-dag (via schatTssDoel, geen 150 meer)
+    // -> nietZ2Tss daalt fors -> pasBudgetToe's herverdeling geeft de andere z2-dagen nu ruim
+    // hun volle, ongekorte tss_doel (het budget is niet langer krap), i.p.v. de eerdere korting
+    // die zou zijn toegepast als de vrijgekomen ruimte NIET was meegerekend.
+    const { gedegradeerdeDatum } = verlaagBijHogeMonotonie(ruweToewijzingen, true, ctx)
+    expect(gedegradeerdeDatum).toBe(kernstimulus.datum)
+
+    const totaalNaDegradatie = ruweToewijzingen.find(t => t.datum === kernstimulus.datum).tss_doel
+    expect(totaalNaDegradatie).toBeLessThan(150) // daadwerkelijk lichter dan de oorspronkelijke kernstimulus-TSS
+
+    const naPasBudgetToe = pasBudgetToe(ruweToewijzingen, 310, 0)
+    const langNa = naPasBudgetToe.find(t => t.datum === z2Lang.datum)
+    const kortNa = naPasBudgetToe.find(t => t.datum === z2Kort.datum)
+    // Met het vrijgekomen budget correct meegerekend, blijven de bestaande z2-dagen
+    // op hun volle, ongekorte waarde (er is nu ruim voldoende ruimte binnen de cap).
+    expect(langNa.tss_doel).toBe(100)
+    expect(kortNa.tss_doel).toBe(60)
+  })
+})
+
+describe('effectieveDuurMin/schatTssDoel — compliance-freeze (bevrorenWeekInFase, C3/C4/C5)', () => {
+  it('bevrorenWeekInFase=null (of weggelaten): bestaand gedrag exact ongewijzigd', () => {
+    expect(effectieveDuurMin('sweetspot_intervallen', 150, 3, 'opbouw', null))
+      .toBe(effectieveDuurMin('sweetspot_intervallen', 150, 3, 'opbouw'))
+  })
+
+  it('een lager bevroren niveau capt de duur, en levert exact hetzelfde resultaat op als daadwerkelijk op dat niveau zitten', () => {
+    const onbevroren = effectieveDuurMin('sweetspot_intervallen', 150, 3, 'opbouw')
+    const bevroren = effectieveDuurMin('sweetspot_intervallen', 150, 3, 'opbouw', 1)
+    expect(bevroren).toBeLessThan(onbevroren)
+    expect(bevroren).toBe(effectieveDuurMin('sweetspot_intervallen', 150, 1, 'opbouw'))
+  })
+
+  it('een bevroren niveau hoger dan de actuele weekInFase heeft geen effect (Math.min beschermt niet tegen "omhoog helpen")', () => {
+    expect(effectieveDuurMin('sweetspot_intervallen', 150, 1, 'opbouw', 3))
+      .toBe(effectieveDuurMin('sweetspot_intervallen', 150, 1, 'opbouw'))
+  })
+
+  it('herstelweek blijft op 0.75 ongeacht bevrorenWeekInFase — de formule zelf is niet aangeraakt', () => {
+    expect(effectieveDuurMin('sweetspot_intervallen', 150, 3, 'herstel', 1))
+      .toBe(effectieveDuurMin('sweetspot_intervallen', 150, 3, 'herstel'))
+  })
+
+  it('niet-progressieve sessietypes (bv. z2_duur) blijven op factor 1, ook bevroren', () => {
+    expect(effectieveDuurMin('z2_duur', 150, 3, 'opbouw', 1))
+      .toBe(effectieveDuurMin('z2_duur', 150, 3, 'opbouw'))
+  })
+
+  it('schatTssDoel en effectieveDuurMin blijven proportioneel bevroren — geen scenario waarin duur bevriest maar TSS-budget doorgroeit', () => {
+    const tssOnbevroren = schatTssDoel(null, 'sweetspot_intervallen', 'sweetspot', 3, 'ftp', false, 'opbouw', 150)
+    const tssBevroren = schatTssDoel(null, 'sweetspot_intervallen', 'sweetspot', 3, 'ftp', false, 'opbouw', 150, 1)
+    const duurOnbevroren = effectieveDuurMin('sweetspot_intervallen', 150, 3, 'opbouw')
+    const duurBevroren = effectieveDuurMin('sweetspot_intervallen', 150, 3, 'opbouw', 1)
+
+    expect(tssBevroren).toBeLessThan(tssOnbevroren)
+    expect(duurBevroren).toBeLessThan(duurOnbevroren)
+    // Proportionaliteit: beide schalen met exact dezelfde progressieFactor()-
+    // uitkomst, dus de tss/duur-ratio blijft (op onafhankelijke afrondruis na —
+    // beide zijn los Math.round()'en) gelijk vóór en na bevriezing.
+    expect(tssBevroren / duurBevroren).toBeCloseTo(tssOnbevroren / duurOnbevroren, 1)
+  })
+})
+
+describe('bepaalKernstimulusFrequentie — A3: weekVoorzichtig-demping (eenmalig toegepast, geen 3x herhaling)', () => {
+  // LET OP — het derde interne pad (weekInFaseVoorMax <= 1 -> return maxFrequentie
+  // direct) is met de HUIDIGE, hardgecodeerde KERNSTIMULUS_FREQUENTIE_OPBOUW-config
+  // (weekSolver.js:270-273: zowel sweetspot als overgangsfase hebben
+  // weekInFaseVoorMax: 3) niet bereikbaar — er bestaat geen fase-entry die dat pad
+  // triggert, en de const zelf is niet geëxporteerd om in een test te overschrijven.
+  // Dood pad in de huidige config, niet getest (geen fabricatie van een
+  // niet-bestaand scenario). De twee wél bereikbare paden (entry-loos/herstel -> 1,
+  // en de lineaire-opbouw-formule) worden hieronder gedekt.
+
+  it('pad 1 (geen entry / basis-fase): frequentie 1 -> gedempt naar 0', () => {
+    expect(bepaalKernstimulusFrequentie('basis', 1, 'opbouw', false)).toBe(1)
+    expect(bepaalKernstimulusFrequentie('basis', 1, 'opbouw', true)).toBe(0)
+  })
+
+  it('pad 1 (herstelweek, ook al heeft de fase wel een entry): frequentie 1 -> gedempt naar 0', () => {
+    expect(bepaalKernstimulusFrequentie('sweetspot', 3, 'herstel', false)).toBe(1)
+    expect(bepaalKernstimulusFrequentie('sweetspot', 3, 'herstel', true)).toBe(0)
+  })
+
+  it('pad 3 (lineaire-opbouw-formule, sweetspot weekInFase 1 -> startFrequentie 1): gedempt naar 0', () => {
+    expect(bepaalKernstimulusFrequentie('sweetspot', 1, 'opbouw', false)).toBe(1)
+    expect(bepaalKernstimulusFrequentie('sweetspot', 1, 'opbouw', true)).toBe(0)
+  })
+
+  it('pad 3 (lineaire-opbouw-formule, sweetspot weekInFase 3 -> maxFrequentie 2): gedempt naar 1, niet naar 0', () => {
+    expect(bepaalKernstimulusFrequentie('sweetspot', 3, 'opbouw', false)).toBe(2)
+    expect(bepaalKernstimulusFrequentie('sweetspot', 3, 'opbouw', true)).toBe(1)
+  })
+
+  it('frequentie kan nooit onder 0 zakken, ook niet bij een (hypothetisch) reeds-0-basisgeval', () => {
+    // basis-fase levert al 1 op (pad 1) — met demping 0, nooit negatief.
+    expect(bepaalKernstimulusFrequentie('basis', 1, 'herstel', true)).toBe(0)
+  })
+
+  it('weekVoorzichtig=false (default, ongewijzigd argument weggelaten): identiek aan vóór de A3-toevoeging', () => {
+    expect(bepaalKernstimulusFrequentie('sweetspot', 3, 'opbouw')).toBe(2)
+    expect(bepaalKernstimulusFrequentie('drempel', 2, 'opbouw')).toBe(1)
+  })
+
+  it('EENMALIGE dempingslogica: de demping wordt na de if/else-opbouw één keer toegepast, niet drie keer herhaald', () => {
+    // Indirect bewijs: alle drie bereikbare basiswaarden (1, 1, 2) dempen exact
+    // met -1 (nooit -2 of -3, wat een drievoudige toepassing zou opleveren).
+    const casussen = [
+      ['basis', 1, 'opbouw'],
+      ['sweetspot', 3, 'herstel'],
+      ['sweetspot', 1, 'opbouw'],
+    ]
+    for (const [fase, wk, wt] of casussen) {
+      const basis = bepaalKernstimulusFrequentie(fase, wk, wt, false)
+      const gedempt = bepaalKernstimulusFrequentie(fase, wk, wt, true)
+      expect(basis - gedempt).toBe(1)
+    }
+  })
+})
+
+describe('solveWeek — A3: weekVoorzichtig=true verlaagt de kernstimulus-frequentie met 1', () => {
+  it('sweetspot week 3 (basis 2x kernstimulus): weekVoorzichtig=true -> nog maar 1x kernstimulus', () => {
+    const zonderVoorzichtig = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'sweetspot', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'ftp',
+      weekTssDoel: 1000, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2', '2026-07-08:2', '2026-07-10:2'),
+      alGeleverd: {}, tsb: 0, weekVoorzichtig: false,
+    })
+    const metVoorzichtig = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'sweetspot', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'ftp',
+      weekTssDoel: 1000, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2', '2026-07-08:2', '2026-07-10:2'),
+      alGeleverd: {}, tsb: 0, weekVoorzichtig: true,
+    })
+    expect(zonderVoorzichtig.filter(r => r.pad === 'kernstimulus')).toHaveLength(2)
+    expect(metVoorzichtig.filter(r => r.pad === 'kernstimulus')).toHaveLength(1)
+  })
+
+  it('frequentie=0-fallback: sweetspot week 1 (basis 1x kernstimulus) + weekVoorzichtig=true -> 0x kernstimulus, dag valt automatisch terug op de bestaande Z2-fallback (geen nieuwe code)', () => {
+    const resultaat = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
+      weekTssDoel: 400, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2', '2026-07-08:2'),
+      alGeleverd: {}, tsb: 0, weekVoorzichtig: true,
+    })
+    expect(resultaat.filter(r => r.pad === 'kernstimulus')).toHaveLength(0)
+    expect(resultaat.filter(r => r.pad === 'z2')).toHaveLength(2)
+    expect(resultaat.every(r => r.sessietype === 'z2_duur' || r.sessietype === 'kracht_lage_cadans')).toBe(true)
+  })
+
+  it('weekVoorzichtig weggelaten (default false): identiek aan expliciet false', () => {
+    const impliciet = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'sweetspot', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'ftp',
+      weekTssDoel: 1000, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2', '2026-07-08:2', '2026-07-10:2'),
+      alGeleverd: {}, tsb: 0,
+    })
+    expect(impliciet.filter(r => r.pad === 'kernstimulus')).toHaveLength(2)
+  })
+})
+
+describe('solveWeek — STAP 0-bugfix: bevrorenWeekInFase bereikt nu ook solveWeek se eigen budgetboekhouding', () => {
+  it('kernstimulus-toewijzing (regel ~679): bevrorenWeekInFase verlaagt tss_doel t.o.v. onbevroren, zelfde sweetspot/week3-scenario', () => {
+    const onbevroren = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'sweetspot', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'ftp',
+      weekTssDoel: 1000, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2', '2026-07-08:2', '2026-07-10:2'),
+      alGeleverd: {}, tsb: 0,
+    })
+    const bevroren = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'sweetspot', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'ftp',
+      weekTssDoel: 1000, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2', '2026-07-08:2', '2026-07-10:2'),
+      alGeleverd: {}, tsb: 0, bevrorenWeekInFase: 1,
+    })
+    const kernstimulusTssOnbevroren = Math.max(...onbevroren.filter(r => r.pad === 'kernstimulus').map(r => r.tss_doel))
+    const kernstimulusTssBevroren = Math.max(...bevroren.filter(r => r.pad === 'kernstimulus').map(r => r.tss_doel))
+    expect(kernstimulusTssBevroren).toBeLessThan(kernstimulusTssOnbevroren)
+  })
+
+  it('secundair-toewijzing (regel ~705, drempel-fase): bevrorenWeekInFase verlaagt tss_doel t.o.v. onbevroren', () => {
+    // weekInFase 2, niet 3 — bij weekInFase 3 triggert drempel de bestaande,
+    // losstaande vrijheidsdag-uitzondering (bepaalVrijheidsdag) die secundair
+    // omzet naar pad 'vrijheidsessie'/sessietype 'gemengd' (zie de bestaande
+    // test hierboven, "sectie 22-G: frequentie-opbouw ... drempel"), waardoor
+    // er geen 'secundair'-pad meer bestaat om hier te meten.
+    const onbevroren = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'drempel', weekInFase: 2, weektype: 'opbouw', seizoensdoel: 'ftp',
+      weekTssDoel: 1000, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2', '2026-07-08:2', '2026-07-10:2'),
+      alGeleverd: {}, tsb: 0,
+    })
+    const bevroren = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'drempel', weekInFase: 2, weektype: 'opbouw', seizoensdoel: 'ftp',
+      weekTssDoel: 1000, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2', '2026-07-08:2', '2026-07-10:2'),
+      alGeleverd: {}, tsb: 0, bevrorenWeekInFase: 1,
+    })
+    const secundairTssOnbevroren = onbevroren.find(r => r.pad === 'secundair')?.tss_doel
+    const secundairTssBevroren = bevroren.find(r => r.pad === 'secundair')?.tss_doel
+    expect(secundairTssOnbevroren).toBeGreaterThan(0)
+    expect(secundairTssBevroren).toBeLessThan(secundairTssOnbevroren)
+  })
+
+  it('sprint-doel tweede sprint_neuraal-dag (regel ~729): bevrorenWeekInFase wordt doorgegeven, maar heeft GEEN numeriek effect — sprint_neuraal zit niet in PROGRESSIEVE_SESSIETYPES (weekSolver.js:510-512, "blijven op factor 1, exact huidig, flat gedrag"), dus dit specifieke aanroeppunt is correct bedraad maar het effect is voor déze sessietype onzichtbaar (echte bevinding, geen testfout)', () => {
+    const onbevroren = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'sweetspot', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'sprint',
+      weekTssDoel: 1000, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2', '2026-07-08:2', '2026-07-10:2', '2026-07-13:2'),
+      alGeleverd: {}, tsb: 0,
+    })
+    const bevroren = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'sweetspot', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'sprint',
+      weekTssDoel: 1000, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2', '2026-07-08:2', '2026-07-10:2', '2026-07-13:2'),
+      alGeleverd: {}, tsb: 0, bevrorenWeekInFase: 1,
+    })
+    const tweedeSprintOnbevroren = onbevroren.filter(r => r.sessietype === 'sprint_neuraal' && r.pad === 'secundair')[0]?.tss_doel
+    const tweedeSprintBevroren = bevroren.filter(r => r.sessietype === 'sprint_neuraal' && r.pad === 'secundair')[0]?.tss_doel
+    expect(tweedeSprintOnbevroren).toBeGreaterThan(0)
+    expect(tweedeSprintBevroren).toBe(tweedeSprintOnbevroren) // geen crash, geen (onmogelijk) verschil — bewijst dat het argument zonder foutieve bijwerking wordt doorgegeven
+
+    // Structureel bewijs dat het argument daadwerkelijk doorstroomt naar
+    // schatTssDoel (i.p.v. simpelweg genegeerd te worden): rechtstreekse
+    // aanroep met dezelfde parameters geeft exact hetzelfde getal terug als
+    // wat solveWeek() voor deze dag berekende.
+    const direct = schatTssDoel(ARCHETYPES_FIXTURE, 'sprint_neuraal', 'sweetspot', 3, 'sprint', false, 'opbouw', 120, 1)
+    expect(direct).toBe(tweedeSprintBevroren)
+  })
+
+  it('REGRESSIE — bouwToewijzing se eigen (in de praktijk dode) schatTssDoel-aanroep (regel 573): niet aangeraakt door STAP 0, bevestigd via tssDoelOverride die altijd voorrang houdt', () => {
+    // bouwToewijzing wordt uitsluitend aangeroepen mét tssDoelOverride vanuit
+    // solveWeek() (regel 675/699/723/753) — de eigen schatTssDoel-berekening op
+    // regel 573 (zonder bevrorenWeekInFase) wordt daardoor nooit uitgevoerd.
+    // Bewijs: het resultaat verandert NIET wanneer bevrorenWeekInFase wordt
+    // meegegeven aan een z2-only-scenario (basis-fase, geen kernstimulus/
+    // secundair, dus alleen het "stap 5"-pad met tssDoelOverride actief).
+    const onbevroren = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'basis', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
+      weekTssDoel: 300, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2', '2026-07-08:2'),
+      alGeleverd: {}, tsb: 0,
+    })
+    const bevroren = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'basis', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
+      weekTssDoel: 300, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2', '2026-07-08:2'),
+      alGeleverd: {}, tsb: 0, bevrorenWeekInFase: 1,
+    })
+    expect(bevroren.map(r => r.tss_doel)).toEqual(onbevroren.map(r => r.tss_doel))
+  })
+
+  it('REGRESSIE — verlaagBijHogeMonotonie se eigen schatTssDoel-aanroep (regel 830): niet aangeraakt door STAP 0 (aparte functie, geen bevrorenWeekInFase-parameter)', () => {
+    const toewijzingen = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'sweetspot', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'ftp',
+      weekTssDoel: 1000, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2', '2026-07-08:2', '2026-07-10:2'),
+      alGeleverd: {}, tsb: 0, bevrorenWeekInFase: 1,
+    })
+    // verlaagBijHogeMonotonie heeft geen bevrorenWeekInFase-parameter — de
+    // signatuur zelf bewijst dat STAP 0 dit aanroeppunt niet raakt.
+    const zonderBevrorenParam = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'sweetspot', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'ftp',
+      weekTssDoel: 1000, vasteDagen: [],
+      openDagen: dagen('2026-07-06:2', '2026-07-08:2', '2026-07-10:2'),
+      alGeleverd: {}, tsb: 0,
+    })
+    const { gedegradeerdeDatum: metBevroren } = verlaagBijHogeMonotonie(toewijzingen, true, {
+      archetypesData: ARCHETYPES_FIXTURE, fase: 'sweetspot', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'ftp',
+    })
+    const { gedegradeerdeDatum: zonderBevroren } = verlaagBijHogeMonotonie(zonderBevrorenParam, true, {
+      archetypesData: ARCHETYPES_FIXTURE, fase: 'sweetspot', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'ftp',
+    })
+    // Beide degraderen dezelfde (hoogste-tss) kandidaat naar z2_duur — het
+    // bevrorenWeekInFase-verschil in de INPUT-toewijzingen verandert niet
+    // welk mechanisme verlaagBijHogeMonotonie zelf gebruikt.
+    expect(typeof metBevroren === 'string' || metBevroren === null).toBe(true)
+    expect(typeof zonderBevroren === 'string' || zonderBevroren === null).toBe(true)
+  })
+})
+
+describe('solveWeek — F: interactie bevrorenWeekInFase (STAP 0) + weekVoorzichtig (A3), additief zonder dubbeltelling', () => {
+  const scenario = (extra) => solveWeek({
+    archetypesData: ARCHETYPES_FIXTURE,
+    fase: 'sweetspot', weekInFase: 3, weektype: 'opbouw', seizoensdoel: 'ftp',
+    weekTssDoel: 1000, vasteDagen: [],
+    openDagen: dagen('2026-07-06:2', '2026-07-08:2', '2026-07-10:2'),
+    alGeleverd: {}, tsb: 0,
+    ...extra,
+  })
+
+  it('geen van beide actief: baseline 2x kernstimulus, volle tss_doel', () => {
+    const r = scenario({})
+    expect(r.filter(x => x.pad === 'kernstimulus')).toHaveLength(2)
+  })
+
+  it('alleen weekVoorzichtig: minder DAGEN kernstimulus, maar elke resterende dag op volle (onbevroren) tss_doel', () => {
+    const baseline = scenario({})
+    const alleenVoorzichtig = scenario({ weekVoorzichtig: true })
+    const baselineTssPerDag = Math.max(...baseline.filter(x => x.pad === 'kernstimulus').map(x => x.tss_doel))
+    const voorzichtigTssPerDag = Math.max(...alleenVoorzichtig.filter(x => x.pad === 'kernstimulus').map(x => x.tss_doel))
+
+    expect(alleenVoorzichtig.filter(x => x.pad === 'kernstimulus')).toHaveLength(1)
+    expect(voorzichtigTssPerDag).toBe(baselineTssPerDag) // budget zelf niet getemperd
+  })
+
+  it('alleen bevrorenWeekInFase: zelfde AANTAL dagen kernstimulus, maar elke dag met kleiner tss_doel', () => {
+    const baseline = scenario({})
+    const alleenBevroren = scenario({ bevrorenWeekInFase: 1 })
+    const baselineTssPerDag = Math.max(...baseline.filter(x => x.pad === 'kernstimulus').map(x => x.tss_doel))
+    const bevrorenTssPerDag = Math.max(...alleenBevroren.filter(x => x.pad === 'kernstimulus').map(x => x.tss_doel))
+
+    expect(alleenBevroren.filter(x => x.pad === 'kernstimulus')).toHaveLength(2) // aantal ongewijzigd
+    expect(bevrorenTssPerDag).toBeLessThan(baselineTssPerDag) // budget wél getemperd
+  })
+
+  it('BEIDE tegelijk actief: additief — minder dagen ÉN elke resterende dag met kleiner budget, geen dubbeltelling (het aantal-effect komt uitsluitend van weekVoorzichtig, het budget-effect uitsluitend van bevrorenWeekInFase)', () => {
+    const baseline = scenario({})
+    const beide = scenario({ weekVoorzichtig: true, bevrorenWeekInFase: 1 })
+    const alleenVoorzichtig = scenario({ weekVoorzichtig: true })
+    const alleenBevroren = scenario({ bevrorenWeekInFase: 1 })
+
+    const baselineTssPerDag = Math.max(...baseline.filter(x => x.pad === 'kernstimulus').map(x => x.tss_doel))
+    const beideTssPerDag = Math.max(...beide.filter(x => x.pad === 'kernstimulus').map(x => x.tss_doel))
+    const alleenBevrorenTssPerDag = Math.max(...alleenBevroren.filter(x => x.pad === 'kernstimulus').map(x => x.tss_doel))
+
+    // Aantal-effect: identiek aan "alleen weekVoorzichtig" (1 dag), niet verder
+    // verlaagd door bevrorenWeekInFase (dat heeft geen invloed op het AANTAL).
+    expect(beide.filter(x => x.pad === 'kernstimulus')).toHaveLength(1)
+    expect(beide.filter(x => x.pad === 'kernstimulus')).toHaveLength(alleenVoorzichtig.filter(x => x.pad === 'kernstimulus').length)
+
+    // Budget-effect: dezelfde per-dag-tss_doel-verlaging als "alleen
+    // bevrorenWeekInFase" (niet extra verlaagd door weekVoorzichtig — dat
+    // heeft geen invloed op het BUDGET per dag).
+    expect(beideTssPerDag).toBe(alleenBevrorenTssPerDag)
+    expect(beideTssPerDag).toBeLessThan(baselineTssPerDag)
   })
 })

@@ -36,6 +36,7 @@ const CRON_CONFIG = [
   { naam: "morning", label: "Ochtend-routine", route: "POST /api/cron/morning", schema: "dagelijks ~06:00", beschrijving: "check-in-push, HRV-dagnotificatie, HRV-trendcheck per actieve sporter" },
   { naam: "sync", label: "Intervals-sync", route: "POST /api/cron/sync", schema: "elk uur", beschrijving: "nieuwe ritten ophalen; sessie afronden + uitvoeringsscore; conditiescore; decoupling; RPE-trend; FTP-sync; fase-overgang; volume-evaluatie" },
   { naam: "sessies-aanvullen", label: "Sessies aanvullen", route: "POST /api/cron/sessies-aanvullen", schema: "dagelijks ~03:00", beschrijving: "vulSessiesAanVoorGebruiker per sporter tot de horizon" },
+  { naam: "review", label: "Periodieke AI-review", route: "POST /api/cron/review", schema: "2x/dag (extern via QStash, niet in deze repo geconfigureerd)", beschrijving: "verzamelReviewContext + Claude-voorstel + valideerReviewVoorstel per actieve sporter; geaccepteerde voorstellen naar review_voorstel:{userId}" },
 ];
 
 const ONDERHOUD_GROEPEN = [

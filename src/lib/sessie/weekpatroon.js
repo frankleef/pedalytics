@@ -1,4 +1,5 @@
 import { migreesSessietype } from "../sessie-archetypes";
+import { isBinnen48uVanAndereZwareSessie } from "./compliance";
 
 const ZWAAR_ROLLEN = ["intensiteitsdag", "variabele_dag", "kracht_dag"];
 const ZWAAR_TYPES = ["kracht_lage_cadans", "sweetspot_intervallen", "drempel_intervallen", "vo2max_intervallen", "sprint_neuraal"];
@@ -85,16 +86,20 @@ export function valideerWeekpatroon(sessies, kaderWeek) {
 
 export function kiesBesteDagVoorRol(sessies, ontbrekendeRol, urenPerDag) {
   const toekomstig = sessies.filter(s => !s.voltooid);
-  const zwareDatums = toekomstig
-    .filter(s => ZWAAR_ROLLEN.includes(s.intentie?.rol) || ZWAAR_TYPES.includes(s.intentie?.sessietype || s.type))
-    .map(s => new Date(s.datum).getTime());
+  // 48u-classificatie/-berekening geconsolideerd naar isBinnen48uVanAndereZwareSessie
+  // (compliance.js, canonieke bron) — bewuste gedragswijziging (Fix 3b): de
+  // classificatie is nu uitsluitend sessietype-gebaseerd (isZwareSessieVoorHerstel),
+  // niet langer ZWAAR_ROLLEN.includes(rol) || ZWAAR_TYPES.includes(sessietype||type).
+  // Een variabele_dag/z2_duur-correctiesessie telt daardoor niet meer als "zwaar"
+  // voor deze 48u-uitsluiting (was te breed). Alleen toekomstige sessies (net als
+  // voorheen) — geen plan-breed voltooid-inclusief gedrag geïntroduceerd.
+  const plan = { weekSessies: { sessies: toekomstig } };
 
   const kandidaten = toekomstig
     .filter(s => {
       const rol = s.intentie?.rol;
       if (ZWAAR_ROLLEN.includes(rol)) return false;
-      const dagMs = new Date(s.datum).getTime();
-      return !zwareDatums.some(iMs => Math.abs(dagMs - iMs) < 48 * 3600000);
+      return !isBinnen48uVanAndereZwareSessie(plan, s.datum);
     })
     .sort((a, b) => {
       const DAGEN = ["Zondag", "Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag"];

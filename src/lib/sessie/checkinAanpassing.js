@@ -15,32 +15,94 @@ const RHR_AFWIJKING_MAX = 10;
 
 function clamp01(val) { return Math.max(0, Math.min(1, val)); }
 
-function berekenBalansscore({ tsb, hrv, hrvBasislijn, rhr, rhrBasislijn, checkin }) {
+/**
+ * B4: objectieve score uit uitsluitend tsb/hrv/rhr — GEEN checkin. Identieke
+ * componenten-opbouw/normalisatie-mechaniek als de vroegere berekenBalansscore,
+ * alleen zonder de checkin-entry: de bestaande gewichtTotaal-normalisatie
+ * (hieronder) herweegt tsb/hrv/rhr automatisch proportioneel op hun eigen
+ * onderlinge verhouding (0.40:0.25:0.15 -> genormaliseerd, geen nieuwe
+ * constanten nodig) — exact hetzelfde mechanisme waarmee RHR al optioneel
+ * meedeed vóór B4.
+ * @returns {number} ONAFGERONDE score 0-100 — zie bepaalStatus voor waarom
+ *   dit bewust geen Math.round krijgt.
+ */
+export function berekenObjectieveScore({ tsb, hrv, hrvBasislijn, rhr, rhrBasislijn }) {
   let gewogenSom = 0;
   let gewichtTotaal = 0;
 
   const componenten = [
     { aanwezig: tsb != null, gewicht: 0.40, sub: tsb != null ? clamp01((tsb - TSB_MIN) / (TSB_MAX - TSB_MIN)) : 0.5 },
     { aanwezig: !!(hrv && hrvBasislijn), gewicht: 0.25, sub: hrv && hrvBasislijn ? clamp01((((hrv - hrvBasislijn) / hrvBasislijn) * 100 - HRV_AFWIJKING_MIN) / (0 - HRV_AFWIJKING_MIN)) : 0.5 },
-    { aanwezig: !!(checkin >= 1 && checkin <= 5), gewicht: 0.35, sub: checkin >= 1 ? clamp01((checkin - 1) / 4) : 0.5 },
   ];
+
+  // B6: RHR als derde component — omgekeerde richting t.o.v. HRV (hogere RHR
+  // t.o.v. de basislijn is slechter, niet beter). Hergebruikt RHR_AFWIJKING_MAX
+  // (regel 14) als dezelfde soort "%-afwijking-plafond" als HRV_AFWIJKING_MIN.
+  // STRUCTUREEL alleen toegevoegd aan het array als rhrBasislijn een ECHTE,
+  // wekelijks-berekende rhr_basislijn_28d is (caller geeft hier UITSLUITEND
+  // die waarde door, geen bredere hr_basislijn/49-fallback — zie
+  // checkInSessieAanpassing). Zonder die echte basislijn telt RHR niet mee,
+  // ook niet als geraden neutrale 0.5-waarde: gewichtTotaal valt dan terug
+  // naar 0.65 (tsb/hrv). Dit is bewust ANDERS dan hoe tsb/hrv hierboven met
+  // "aanwezig" omgaan — die twee zijn altijd structureel onderdeel van de
+  // score (met een neutrale 0.5 als hun eigen dagwaarde ontbreekt); RHR is de
+  // enige component die zelf conditioneel in het array staat, omdat het hier
+  // specifiek gaat om het ONTBREKEN VAN EEN BASISLIJN OM MEE TE VERGELIJKEN,
+  // niet het ontbreken van een dagwaarde.
+  if (rhrBasislijn != null) {
+    componenten.push({
+      aanwezig: rhr != null,
+      gewicht: 0.15,
+      sub: rhr != null ? clamp01((RHR_AFWIJKING_MAX - (((rhr - rhrBasislijn) / rhrBasislijn) * 100)) / RHR_AFWIJKING_MAX) : 0.5,
+    });
+  }
 
   for (const c of componenten) {
     gewichtTotaal += c.gewicht;
     gewogenSom += (c.aanwezig ? c.sub : 0.5) * c.gewicht;
   }
 
-  return Math.round((gewogenSom / gewichtTotaal) * 100);
+  return (gewogenSom / gewichtTotaal) * 100;
 }
 
-function bepaalStatus(score) {
-  if (score >= 75) return "good";
-  if (score >= 55) return "caution";
-  if (score >= 35) return "careful";
+// B4: check-in als tie-breaker, niet als vast gewogen onderdeel. Per grens:
+// "gunstig" is de status die de kale cutoff (regel verderop) zou geven bij
+// een score OP/BOVEN de grens, "beschermend" die van EROnder — dezelfde
+// indeling als de bestaande vier statussen, alleen hernoemd naar hun positie
+// t.o.v. de grens waar de ambiguïteit optreedt.
+const GRENS_STATUS = [
+  { grens: 75, gunstig: "good", beschermend: "caution" },
+  { grens: 55, gunstig: "caution", beschermend: "careful" },
+  { grens: 35, gunstig: "careful", beschermend: "rest" },
+];
+const MARGE = 5;
+
+/**
+ * @param {number} objectieveScoreRuw - ONAFGERONDE berekenObjectieveScore()-uitkomst.
+ *   Margetoets gebeurt bewust op deze rauwe waarde, niet op een afgeronde —
+ *   afronden vóór de drempeltoets zou een randgeval het verkeerde kant op
+ *   kunnen laten vallen (zelfde les als eerder in dit traject: monotonie se
+ *   strikte >2.0, B6's ±5%-trenddrempels).
+ * @param {number|null} checkin - 1-5
+ * @returns {'good'|'caution'|'careful'|'rest'}
+ */
+export function bepaalStatus(objectieveScoreRuw, checkin) {
+  for (const { grens, gunstig, beschermend } of GRENS_STATUS) {
+    if (Math.abs(objectieveScoreRuw - grens) <= MARGE) {
+      // Bijstelling: STRIKT > 0.5 vereist voor de gunstige kant — checkin=3
+      // (sub=0.5, neutraal) tipt dus naar de beschermende kant, niet de
+      // gunstige. Alleen checkin>=4 (sub=0.75) is overtuigend genoeg.
+      const checkinSub = checkin != null && checkin >= 1 ? clamp01((checkin - 1) / 4) : 0.5;
+      return checkinSub > 0.5 ? gunstig : beschermend;
+    }
+  }
+  if (objectieveScoreRuw >= 75) return "good";
+  if (objectieveScoreRuw >= 55) return "caution";
+  if (objectieveScoreRuw >= 35) return "careful";
   return "rest";
 }
 
-function maakHerstelRit(ftp) {
+export function maakHerstelRit(ftp) {
   const vermogenMin = Math.round(ftp * 0.45);
   const vermogenMax = Math.round(ftp * 0.55);
   return {
@@ -112,12 +174,30 @@ export async function checkInSessieAanpassing(userId, checkInScore) {
 
   // Profiel-basislijnen
   const hrvBasislijn = plan.profiel?.hrv_basislijn || 58;
-  const rhrBasislijn = plan.profiel?.hr_basislijn || 49;
+  // B6: twee RHR-basislijnen bestaan naast elkaar in deze codebase — verwar ze niet.
+  // - plan.profiel.hr_basislijn: statisch, eenmalig bij profielsync berekend —
+  //   blijft ongewijzigd de basis voor bestaande, andere consumenten (weergave-
+  //   componenten, DagAdvies.js), die deze fallback-keten niet kennen en niet nodig
+  //   hebben.
+  // - hrv-profiel:${userId}.rhr_basislijn_28d: levend, wekelijks herberekend
+  //   (cron/sync/route.js, zelfde cadans als de HRV-basislijn).
+  // De balansscore hieronder gebruikt UITSLUITEND de tweede (geen bredere
+  // fallback-keten hier): berekenBalansscore's RHR-component is een expliciete
+  // voorwaarde op het BESTAAN van een echte, wekelijks-berekende basislijn om
+  // tegen te vergelijken — bij ontbreken daarvan hoort de component volledig
+  // over te slaan (gewichtTotaal 1.00), niet te gokken met hr_basislijn/49.
+  const hrvProfielRaw = await kv.get(`hrv-profiel:${userId}`);
+  const hrvProfiel = typeof hrvProfielRaw === "string" ? JSON.parse(hrvProfielRaw) : hrvProfielRaw;
+  const rhrBasislijn = hrvProfiel?.rhr_basislijn_28d ?? null;
   const ftp = plan.huidige_ftp || 265;
 
-  // Bereken balansscore
-  const score = berekenBalansscore({ tsb, hrv, hrvBasislijn, rhr, rhrBasislijn, checkin: checkInScore });
-  const status = bepaalStatus(score);
+  // B4: objectieve score (tsb/hrv/rhr) + check-in als tie-breaker binnen de
+  // margetoets van bepaalStatus — zie berekenObjectieveScore/bepaalStatus
+  // hierboven. score blijft afgerond voor logging/response, exact zoals vóór
+  // B4 (checkInSessieAanpassing's eigen return-vorm wijzigt niet).
+  const objectieveScoreRuw = berekenObjectieveScore({ tsb, hrv, hrvBasislijn, rhr, rhrBasislijn });
+  const score = Math.round(objectieveScoreRuw);
+  const status = bepaalStatus(objectieveScoreRuw, checkInScore);
 
   console.log(`[checkIn] userId=${userId} score=${score} status=${status} checkin=${checkInScore}`);
 

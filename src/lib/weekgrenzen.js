@@ -1,3 +1,5 @@
+import { datumISO } from "./datum";
+
 export function getMaandagVanWeek(datum) {
   const d = new Date(datum)
   const dag = d.getDay()  // 0 = zondag, 1 = maandag, ...
@@ -44,6 +46,66 @@ export function weekInFaseVoorKaderWeek(kaderWeek, kader) {
 export function weekInFaseVoorDatum(datum, kader, startdatum) {
   const kaderWeek = kaderWeekVoorDatum(datum, kader, startdatum);
   return weekInFaseVoorKaderWeek(kaderWeek, kader);
+}
+
+/**
+ * Kalenderdatum (maandag) waarop de HUIDIGE fase van het plan begon.
+ * "Huidige fase" = de fase van de kaderweek die vandaag bestrijkt
+ * (kaderWeekVoorDatum). Fail-open naar null zonder kader/startdatum — bedoeld
+ * voor D1 (compliance-poort), waar het ontbreken hiervan de poort simpelweg
+ * niet laat afgaan i.p.v. een fout te gooien.
+ * @param {object} plan - seizoensplan met .kader en .startdatum
+ * @returns {Date|null}
+ */
+export function faseStartdatum(plan) {
+  if (!plan?.kader?.length || !plan?.startdatum) return null;
+  const huidigeKaderWeek = kaderWeekVoorDatum(new Date(), plan.kader, plan.startdatum);
+  if (!huidigeKaderWeek) return null;
+  const faseWeken = plan.kader.filter(w => w.fase === huidigeKaderWeek.fase);
+  if (faseWeken.length === 0) return null;
+  const eersteFaseWeekNr = Math.min(...faseWeken.map(w => w.week));
+  const startMaandag = getMaandagVanWeek(plan.startdatum);
+  const faseStart = new Date(startMaandag);
+  faseStart.setDate(faseStart.getDate() + (eersteFaseWeekNr - 1) * 7);
+  return faseStart;
+}
+
+/**
+ * Fase-gebonden teller: leest veldnaam als "sinds start van de huidige fase".
+ * Vergelijkt ankerVeldnaam (ISO-datum van faseStartdatum op moment van laatste
+ * ophoging) met de HUIDIGE faseStartdatum. Mismatch (incl. ontbrekend anker,
+ * bijv. bij oude plannen zonder dit veld) -> teller telt als 0. Fail-open naar
+ * de rauwe (niet-gereset) waarde zonder resetvergelijking als faseStartdatum
+ * zelf niet te bepalen is (zie faseStartdatum: ontbrekend kader/startdatum).
+ * @param {object} plan
+ * @param {string} veldnaam - bv. "fase_verlengd_count"
+ * @param {string} ankerVeldnaam - bv. "fase_verlengd_count_faseAnker"
+ * @returns {number}
+ */
+export function haalFaseGebondenTeller(plan, veldnaam, ankerVeldnaam) {
+  const start = faseStartdatum(plan);
+  if (!start) return plan?.[veldnaam] || 0;
+  const huidigAnker = datumISO(start);
+  if (plan?.[ankerVeldnaam] !== huidigAnker) return 0;
+  return plan?.[veldnaam] || 0;
+}
+
+/**
+ * Hoogt veldnaam met 1 op t.o.v. de fase-gebonden basiswaarde (zie
+ * haalFaseGebondenTeller) en zet ankerVeldnaam op de huidige faseStartdatum.
+ * Muteert plan in-place. Als faseStartdatum niet te bepalen is, wordt het
+ * ankerveld bewust NIET aangeraakt (geen datumISO(null)) — de teller wordt dan
+ * simpelweg +1 op de rauwe waarde, consistent met haalFaseGebondenTeller's
+ * eigen fail-open pad voor datzelfde geval.
+ * @param {object} plan
+ * @param {string} veldnaam
+ * @param {string} ankerVeldnaam
+ */
+export function hoogFaseGebondenTellerOp(plan, veldnaam, ankerVeldnaam) {
+  const basis = haalFaseGebondenTeller(plan, veldnaam, ankerVeldnaam);
+  plan[veldnaam] = basis + 1;
+  const start = faseStartdatum(plan);
+  if (start) plan[ankerVeldnaam] = datumISO(start);
 }
 
 export function tssDoelWeek1(normaalWeekdoel, startdatum) {

@@ -1,3 +1,16 @@
+// LET OP — twee verschillende HRV-trendmechanismen in deze codebase, bewust
+// naast elkaar (geen vervanging van elkaar): dit bestand behandelt de
+// ACUTE, KORTETERMIJN-trend (14-dagen-venster, laatste 7 dagen t.o.v. een
+// baseline die de laatste 3 dagen uitsluit, dagelijks vers herberekend in
+// cron/morning/route.js, drempel -15%, gevolg: directe TSS-verlaging ×0.88 +
+// hrv_overbelastingsgate-melding). Zie src/lib/hrv/basislijnTrend.js voor het
+// STRUCTURELE, MEERDERE-WEKEN-mechanisme (B6): een longitudinale puntenreeks
+// van wekelijkse basislijnwaarden, datum-gebaseerde lineaire regressie over
+// ~21 dagen, drempel ±5%, gevolg: een dagvorm-signaal (hrvTrendTrigger) i.p.v.
+// een directe planwijziging. Beide mogen onafhankelijk en gelijktijdig
+// triggeren — twee reële signalen op verschillende tijdschalen, geen
+// tegenstrijdige claims.
+
 import { getKV } from "../kv";
 import { gemiddelde } from "./math";
 

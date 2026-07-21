@@ -6,6 +6,7 @@ import SharedHeader from "./SharedHeader";
 import InfoTooltip from "./InfoTooltip";
 import { datumISO } from "@/lib/datum";
 import { fitnessprogressieContextlijn } from "@/lib/fitnessprogressie";
+import { rollendGemiddelde } from "@/lib/reeksAnalyse";
 import { ResponsiveContainer, ComposedChart, LineChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ReferenceArea } from "recharts";
 
 const CARD = { background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 18px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 };
@@ -71,13 +72,8 @@ function polarisatieContextlijn(z1z2Pct) {
 }
 
 function npClient(watts) {
-  if (!watts?.length || watts.length < 30) return null;
-  const rolling = [];
-  for (let i = 29; i < watts.length; i++) {
-    let som = 0;
-    for (let j = i - 29; j <= i; j++) som += watts[j];
-    rolling.push(som / 30);
-  }
+  const rolling = rollendGemiddelde(watts, 30);
+  if (rolling.length === 0) return null;
   let som4 = 0;
   for (const w of rolling) som4 += Math.pow(w, 4);
   return Math.pow(som4 / rolling.length, 0.25);

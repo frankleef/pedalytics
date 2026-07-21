@@ -72,6 +72,18 @@ describe('meldingen.js', () => {
     expect(lijst.every(m => m.gelezen)).toBe(true)
   })
 
+  it('monotonie_degradatie: ctx.monotonie === Infinity toont de alternatieve tekst, geen "Infinity"-string', async () => {
+    const melding = await maakMelding('u4', 'monotonie_degradatie', { monotonie: Infinity, dagLabel: 'Woensdag', datum: '2026-07-15' })
+    expect(melding.tekst).not.toContain('Infinity')
+    expect(melding.tekst).toContain('elke dag vrijwel identiek')
+  })
+
+  it('monotonie_degradatie: bij een eindige waarde toont de tekst het afgeronde getal (toFixed(1))', async () => {
+    const melding = await maakMelding('u4', 'monotonie_degradatie', { monotonie: 2.345, dagLabel: 'Woensdag', datum: '2026-07-15' })
+    expect(melding.tekst).toContain('2.3')
+    expect(melding.tekst).not.toContain('elke dag vrijwel identiek')
+  })
+
   it('nieuwste eerst, gecapt op 200 items', async () => {
     for (let i = 0; i < 205; i++) {
       await maakMelding('u4', 'checkin_modulatie', { score: i, richting: 'verlicht', dagLabel: 'Vandaag', datum: '2026-07-09' })
