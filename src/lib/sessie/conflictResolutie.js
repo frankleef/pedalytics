@@ -15,7 +15,12 @@
 import { vindArchetypeMetVarianten, genereerSessieDeterministisch, LEGACY_TYPE_MAP } from "../sessie-generatie";
 import { pasBudgetToe } from "./weekSolver";
 import { rondSessieAf } from "./duurAfronding";
-import { isBinnen48uVanAndereZwareSessie, isZwareSessieVoorHerstel } from "./compliance";
+// Tls/net-buildfix: rechtstreeks uit zwareSessie.js i.p.v. compliance.js —
+// compliance.js importeert meldingen.js (-> pushNotify.js -> web-push ->
+// https-proxy-agent -> Node-only 'net'/'tls'), en dit bestand wordt via
+// src/app/AppClient.js in de CLIENT-bundle opgenomen. Zie zwareSessie.js voor
+// de volledige toelichting.
+import { isBinnen48uVanAndereZwareSessie, isZwareSessieVoorHerstel } from "./zwareSessie";
 
 const Z2_ACHTIGE_SESSIETYPES = new Set(["z2_duur", "kracht_lage_cadans"]);
 // Geëxporteerd (was intern) zodat src/lib/review/prompt.js (Blok F, fase 2)

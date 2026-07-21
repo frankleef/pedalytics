@@ -560,6 +560,77 @@ describe('verwerkVerlichten — B5: beschermd_herschikking + herschikkingspoging
   })
 })
 
+describe('verwerkVerlichten — O3: daadwerkelijke hrv_zone i.p.v. hardgecodeerde "rood"', () => {
+  function maakKvMockLokaal() {
+    const store = new Map()
+    return {
+      store,
+      get: vi.fn(async (k) => store.get(k) ?? null),
+      set: vi.fn(async (k, v) => { store.set(k, v) }),
+    }
+  }
+
+  // bepaalNieuweIntentie zelf is hier gemockt (zie boven aan dit bestand) — deze
+  // tests verifiëren dus welk hrvZone-argument verwerkVerlichten daadwerkelijk
+  // doorgeeft, niet de eigen toelichtingslogica van bepaalNieuweIntentie (die
+  // ongewijzigd blijft, zie de fix-instructie). Belangrijke kanttekening,
+  // gerapporteerd vóór deze fix: bepaalNieuweIntentie's hrvZone-afhankelijke
+  // toelichtingstekst (alternatief.js:71/90) wordt alleen gebruikt als reden=null
+  // is — verwerkVerlichten geeft altijd reden="vermoeid" (nooit null) door, dus
+  // de "rood"-vs-"geel"-toelichtingstekst was via dit aanroeppad al nooit
+  // zichtbaar fout, ook niet vóór deze fix. De hardgecodeerde "rood" was wel
+  // degelijk het verkeerde argument — vandaar de fix — maar de in de opdracht
+  // beschreven concrete symptoom-tekst manifesteert zich niet via dit pad.
+
+  it('regressie: rood-scenario roept bepaalNieuweIntentie nog steeds met "rood" aan, resultaat ongewijzigd', async () => {
+    const kv = maakKvMockLokaal()
+    vi.mocked(getKV).mockReturnValue(kv)
+    vi.mocked(bepaalNieuweIntentie).mockReturnValue({ sessietype: 'z2_duur', rol: 'aerobe_dag' })
+    const origineleIntentie = { sessietype: 'sweetspot_intervallen', rol: 'intensiteitsdag' }
+    const sessie = { datum: '2026-07-13', hrv_zone: 'rood', intentie: origineleIntentie }
+    const plan = { weekSessies: { sessies: [sessie] } }
+
+    await verwerkVerlichten('u1', '2026-07-13', { fase: 'basis' }, plan)
+
+    // sessie.intentie is ná de aanroep al overschreven met de (gemockte) nieuwe
+    // intentie — vandaar de apart bewaarde referentie hierboven, vóór de call.
+    expect(bepaalNieuweIntentie).toHaveBeenCalledWith(
+      expect.anything(), origineleIntentie, 'vermoeid', 'basis', 'rood'
+    )
+    const s = kv.store.get('u1:seizoensplan').weekSessies.sessies[0]
+    expect(s.intentie).toEqual({ sessietype: 'z2_duur', rol: 'aerobe_dag' })
+  })
+
+  it('nieuw: geel-getriggerd scenario geeft nu "geel" door i.p.v. de vroegere hardgecodeerde "rood"', async () => {
+    const kv = maakKvMockLokaal()
+    vi.mocked(getKV).mockReturnValue(kv)
+    vi.mocked(bepaalNieuweIntentie).mockReturnValue({ sessietype: 'z2_duur', rol: 'aerobe_dag' })
+    const origineleIntentie = { sessietype: 'sweetspot_intervallen', rol: 'intensiteitsdag' }
+    const sessie = { datum: '2026-07-13', hrv_zone: 'geel', intentie: origineleIntentie }
+    const plan = { weekSessies: { sessies: [sessie] } }
+
+    await verwerkVerlichten('u1', '2026-07-13', { fase: 'basis' }, plan)
+
+    expect(bepaalNieuweIntentie).toHaveBeenCalledWith(
+      expect.anything(), origineleIntentie, 'vermoeid', 'basis', 'geel'
+    )
+  })
+
+  it('sessie zonder hrv_zone-veld (legacy) geeft null door, geen crash', async () => {
+    const kv = maakKvMockLokaal()
+    vi.mocked(getKV).mockReturnValue(kv)
+    vi.mocked(bepaalNieuweIntentie).mockReturnValue({ sessietype: 'z2_duur', rol: 'aerobe_dag' })
+    const origineleIntentie = { sessietype: 'sweetspot_intervallen', rol: 'intensiteitsdag' }
+    const sessie = { datum: '2026-07-13', intentie: origineleIntentie }
+    const plan = { weekSessies: { sessies: [sessie] } }
+
+    await expect(verwerkVerlichten('u1', '2026-07-13', { fase: 'basis' }, plan)).resolves.toBeDefined()
+    expect(bepaalNieuweIntentie).toHaveBeenCalledWith(
+      expect.anything(), origineleIntentie, 'vermoeid', 'basis', null
+    )
+  })
+})
+
 describe('verwerkVerlichten — A3: week_voorzichtig-signaal bij een mislukte B5-herschikking', () => {
   function maakKvMockLokaal() {
     const store = new Map()

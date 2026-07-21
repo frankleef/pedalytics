@@ -112,7 +112,10 @@ export async function verwerkVerlichten(userId, datum, dag, seizoensplan) {
   if (sessie) {
     const { bepaalNieuweIntentie } = await import("../sessie/alternatief");
     const archetypesData = await getAlleArchetypesRaw();
-    const nieuweIntentie = bepaalNieuweIntentie(archetypesData, sessie.intentie, "vermoeid", dag?.fase || "basis", "rood");
+    // O3: daadwerkelijke hrv_zone i.p.v. een hardgecodeerde "rood" — sessie.hrv_zone
+    // is al gezet door cron/morning/route.js:48 (bepaalHrvZone-uitkomst van diezelfde
+    // ochtend), op dezelfde sessie die hierboven (regel 105) uit het plan gelezen is.
+    const nieuweIntentie = bepaalNieuweIntentie(archetypesData, sessie.intentie, "vermoeid", dag?.fase || "basis", sessie.hrv_zone ?? null);
 
     if (nieuweIntentie) {
       sessie.intentie = nieuweIntentie;

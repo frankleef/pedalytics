@@ -14,6 +14,14 @@ import { laatsteNDagen, datumOffset, datumISO, DAGNAMEN } from "../datum";
 import { zoneTimesNaarObject, dimensieScore } from "../uitvoeringsscore";
 import { maakMelding } from "../meldingen";
 import { faseStartdatum, getMaandagVanWeek, weekInFaseVoorDatum } from "../weekgrenzen";
+// Tls/net-buildfix: isZwareSessieVoorHerstel/isBinnen48uVanAndereZwareSessie
+// zijn verplaatst naar zwareSessie.js (puur, geen meldingen.js-afhankelijkheid)
+// zodat conflictResolutie.js (client-bundle via AppClient.js) ze rechtstreeks
+// daarvandaan kan importeren i.p.v. via dit bestand. Hier teruggeïmporteerd +
+// opnieuw geëxporteerd zodat de bestaande aanroepers van compliance.js
+// ongewijzigd blijven werken.
+import { isZwareSessieVoorHerstel, isBinnen48uVanAndereZwareSessie } from "./zwareSessie";
+export { isZwareSessieVoorHerstel, isBinnen48uVanAndereZwareSessie };
 
 // Discrete-effort sessietypes uit BEOOGDE_IF (uitvoeringsscore.js:39-49) —
 // korte, niet-continue inspanningen waarvoor een tijd-in-zone-percentage geen
@@ -49,31 +57,6 @@ export function isKernsessieVoorCompliance(sessietype) {
   return KERNSESSIE_TYPES.has(sessietype);
 }
 
-// B2: fysiologisch zware sessietypes — een engere selectie dan
-// KERNSESSIE_TYPES hierboven (die bevat ook lichte Z2-duurritten). Bedoeld om
-// te bepalen VANAF WELKE DAG een hersteltijd geteld moet worden, niet om
-// compliance te tracken. Uitsluitend de vijf volledige, huidige
-// GELDIGE_SESSIETYPES-namen (sessie-archetypes.js) — niet de verouderde korte
-// aliassen ("sweetspot"/"interval"/"drempel"/"vo2max") uit het oudere,
-// dode ZWAAR_TYPES in context.js (bouwSessieContext, geen aanroepers).
-const ZWARE_SESSIETYPES_HERSTEL = new Set([
-  "sweetspot_intervallen",
-  "drempel_intervallen",
-  "vo2max_intervallen",
-  "sprint_neuraal",
-  "kracht_lage_cadans",
-]);
-
-/**
- * Of dit sessietype fysiologisch zwaar genoeg is om als startpunt voor een
- * hersteltijd-telling (B2) te gelden.
- * @param {string|null|undefined} sessietype
- * @returns {boolean}
- */
-export function isZwareSessieVoorHerstel(sessietype) {
-  return ZWARE_SESSIETYPES_HERSTEL.has(sessietype);
-}
-
 /**
  * Datum van de laatste VOLTOOIDE zware sessie (B2), of null als er geen is.
  * Scant plan.weekSessies.sessies — niet ctx.overigeSessies (die bevat alleen
@@ -93,25 +76,6 @@ export function haalLaatsteZwareSessieDatum(plan) {
     if (laatsteDatum == null || s.datum > laatsteDatum) laatsteDatum = s.datum;
   }
   return laatsteDatum;
-}
-
-/**
- * B5: of kandidaatDatum minder dan 48u verwijderd is van een ANDERE zware
- * sessie in het plan (los van welke die zelf is — dit checkt tegen ALLE
- * zware datums, niet alleen de meest recente, in tegenstelling tot
- * haalLaatsteZwareSessieDatum hierboven).
- * @param {object} plan
- * @param {string} kandidaatDatum - ISO-datum
- * @returns {boolean}
- */
-export function isBinnen48uVanAndereZwareSessie(plan, kandidaatDatum) {
-  for (const s of plan?.weekSessies?.sessies || []) {
-    if (!s.datum || s.datum === kandidaatDatum) continue;
-    if (!isZwareSessieVoorHerstel(s.intentie?.sessietype)) continue;
-    const verschilUren = Math.abs(new Date(s.datum) - new Date(kandidaatDatum)) / 3600000;
-    if (verschilUren < 48) return true;
-  }
-  return false;
 }
 
 /**

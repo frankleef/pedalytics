@@ -1,5 +1,8 @@
 import { migreesSessietype } from "../sessie-archetypes";
-import { isBinnen48uVanAndereZwareSessie } from "./compliance";
+// Tls/net-buildfix: rechtstreeks uit zwareSessie.js i.p.v. compliance.js — zie
+// zwareSessie.js/conflictResolutie.js voor de volledige toelichting (dit
+// bestand komt via conflictResolutie.js/AppClient.js ook in de client-bundle).
+import { isBinnen48uVanAndereZwareSessie } from "./zwareSessie";
 
 const ZWAAR_ROLLEN = ["intensiteitsdag", "variabele_dag", "kracht_dag"];
 const ZWAAR_TYPES = ["kracht_lage_cadans", "sweetspot_intervallen", "drempel_intervallen", "vo2max_intervallen", "sprint_neuraal"];
