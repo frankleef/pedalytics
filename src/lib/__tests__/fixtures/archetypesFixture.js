@@ -24,6 +24,7 @@ function bouwMergedArchetypes() {
         ...(meta.vereist_lage_decoupling ? { vereist_lage_decoupling: meta.vereist_lage_decoupling } : {}),
         ...(meta.toegestaan_in_herstelweek === false ? { toegestaan_in_herstelweek: false } : {}),
         ...(meta.min_duur_min != null ? { min_duur_min: meta.min_duur_min } : {}),
+        ...(meta.bevat_ingebedde_intensiteit ? { bevat_ingebedde_intensiteit: true } : {}),
         varianten: varianteData?.varianten ?? [],
       };
     });

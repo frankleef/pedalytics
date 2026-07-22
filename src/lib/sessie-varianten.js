@@ -260,6 +260,7 @@ export const SESSIE_ARCHETYPES = {
       fase_beschikbaar: ['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max'],
       week_in_fase_min: 3,
       toegestaan_in_herstelweek: false,
+      bevat_ingebedde_intensiteit: true,
       varianten: [
         {
           id: 'z2_tempo_3x7',
@@ -423,6 +424,44 @@ export const SESSIE_ARCHETYPES = {
             { type: 'werk', zone: 'Z2', pct_ftp: 64, duur_pct: 0.111 },
             { type: 'werk', zone: 'Z3', pct_ftp: 82, duur_pct: 0.139 },
             { type: 'werk', zone: 'Z2', pct_ftp: 64, duur_pct: 0.111 },
+          ]
+        },
+      ]
+    },
+
+    {
+      id: 'z2_wedstrijdsimulatie',
+      naam: 'Wedstrijdsimulatie',
+      tss_range: [156, 212],
+      fase_beschikbaar: ['sweetspot', 'drempel', 'vo2max'],
+      week_in_fase_min: 2,
+      min_duur_min: 180,
+      vereist_lage_decoupling: true,
+      toegestaan_in_herstelweek: false,
+      bevat_ingebedde_intensiteit: true,
+      varianten: [
+        {
+          id: 'z2_ws_2x15_midden',
+          zwaartegewicht: 1,
+          naam: '2× sweetspot midden',
+          blokken: [
+            { type: 'werk', zone: 'Z2', pct_ftp: 68, duur_pct: 0.333 },
+            { type: 'werk', zone: 'Z3', pct_ftp: 90, duur_pct: 0.100 },
+            { type: 'herstel', zone: 'Z2', pct_ftp: 63, duur_pct: 0.067 },
+            { type: 'werk', zone: 'Z3', pct_ftp: 90, duur_pct: 0.100 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 68, duur_pct: 0.400 },
+          ]
+        },
+        {
+          id: 'z2_ws_2x18_laat',
+          zwaartegewicht: 2,
+          naam: '2× sweetspot laat',
+          blokken: [
+            { type: 'werk', zone: 'Z2', pct_ftp: 68, duur_pct: 0.500 },
+            { type: 'werk', zone: 'Z3', pct_ftp: 90, duur_pct: 0.100 },
+            { type: 'herstel', zone: 'Z2', pct_ftp: 63, duur_pct: 0.056 },
+            { type: 'werk', zone: 'Z3', pct_ftp: 91, duur_pct: 0.100 },
+            { type: 'werk', zone: 'Z2', pct_ftp: 65, duur_pct: 0.244 },
           ]
         },
       ]

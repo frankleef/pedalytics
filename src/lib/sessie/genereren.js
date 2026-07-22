@@ -40,6 +40,7 @@ import { logEvent } from "../posthog";
 import { haalCpWprimeTrendOp } from "../cpWprime";
 import { WBAL_KALIBRATIE_SESSIETYPES } from "../wbalSimulatie";
 import { haalWbalDrempels } from "../wbalDrempels";
+import { haalDecouplingMediaan } from "../volumeCorrectie";
 
 /**
  * Genereert één sessiedag, volledig deterministisch.
@@ -60,6 +61,10 @@ import { haalWbalDrempels } from "../wbalDrempels";
  * @param {number} [ctx.weekInFase]
  * @param {string} [ctx.weektype] - 'opbouw'|'herstel'; sluit archetypes met
  *   `toegestaan_in_herstelweek: false` uit tijdens een herstelweek
+ * @param {boolean} [ctx.magIngebedIntensiefArchetype] - default true; false sluit
+ *   archetypes met `bevat_ingebedde_intensiteit: true` uit (bv. z2_tempo_blokken,
+ *   z2_wedstrijdsimulatie) — gezet door solveWeek() als deze dag aangrenzend is
+ *   aan een kernstimulus/secundair-dag (zie weekSolver.js)
  * @param {object|null} [ctx.hrvProfiel] - voor bepaalHrvZone; null -> hrv 'onbekend'
  * @param {number} [ctx.piekSprint]
  * @param {number|null} [ctx.weekTssDoel] - kader-weekbudget voor de lopende week;
@@ -119,7 +124,17 @@ export async function genereerSessieDag(ctx) {
   }
 
   const archetypesVoorType = await getArchetypesVoorSessietypeRaw(effectiefSessietype, kv);
-  const archetypes = getArchetypesVoorSessietype(archetypesVoorType, huidigeFase, weekInFase, plan?.seizoensdoel?.type ?? null, Math.round(uren * 60), weektype);
+  // Decoupling-mediaan alleen ophalen voor z2_duur — dat is het enige sessietype
+  // met archetypes die vereist_lage_decoupling dragen (z2_tempo_teugjes,
+  // z2_wedstrijdsimulatie); voorkomt een onnodige intervals.icu-call op elke
+  // andere generatie (zelfde patroon als WBAL_KALIBRATIE_SESSIETYPES hieronder).
+  const decouplingMediaan = (userId && effectiefSessietype === "z2_duur")
+    ? await haalDecouplingMediaan(userId, 3, kv)
+    : null;
+  const archetypes = getArchetypesVoorSessietype(
+    archetypesVoorType, huidigeFase, weekInFase, plan?.seizoensdoel?.type ?? null,
+    Math.round(uren * 60), weektype, decouplingMediaan, ctx.magIngebedIntensiefArchetype ?? true,
+  );
   if (archetypes.length === 0) {
     logEvent("archetype_niet_gevonden", userId, { sessietype: effectiefSessietype, fase: huidigeFase, weekInFase });
     const err = new Error(

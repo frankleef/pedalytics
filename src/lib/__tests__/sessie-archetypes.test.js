@@ -181,3 +181,87 @@ describe('getArchetypesVoorSessietype — min_duur_min (feature: "deze sessie ka
     expect(resultaten).toEqual([])
   })
 })
+
+describe('getArchetypesVoorSessietype — z2_wedstrijdsimulatie (nieuw archetype)', () => {
+  // Aanwezig laat elke test los van 'welke andere z2_duur-archetypes vallen wel/niet weg',
+  // consistent met de decouplingMediaan/magIngebedIntensiefArchetype-defaults hieronder
+  // (4% resp. true) tenzij een test die parameter zelf bewust varieert.
+  const aanwezig = (resultaten) => resultaten.some(a => a.id === 'z2_wedstrijdsimulatie')
+
+  it('uitgesloten bij weektype herstel', () => {
+    const resultaten = getArchetypesVoorSessietype(voor('z2_duur'), 'sweetspot', 3, null, 200, 'herstel', 4)
+    expect(aanwezig(resultaten)).toBe(false)
+  })
+
+  it('uitgesloten bij beschikbareDuurMin < 180', () => {
+    const resultaten = getArchetypesVoorSessietype(voor('z2_duur'), 'sweetspot', 3, null, 179, 'opbouw', 4)
+    expect(aanwezig(resultaten)).toBe(false)
+  })
+
+  it('beschikbaar bij beschikbareDuurMin exact 180', () => {
+    const resultaten = getArchetypesVoorSessietype(voor('z2_duur'), 'sweetspot', 3, null, 180, 'opbouw', 4)
+    expect(aanwezig(resultaten)).toBe(true)
+  })
+
+  it('uitgesloten bij weekInFase < 2', () => {
+    const resultaten = getArchetypesVoorSessietype(voor('z2_duur'), 'sweetspot', 1, null, 200, 'opbouw', 4)
+    expect(aanwezig(resultaten)).toBe(false)
+  })
+
+  it('uitgesloten in fase basis, consolidatie, test, taper', () => {
+    for (const fase of ['basis', 'consolidatie', 'test', 'taper']) {
+      const resultaten = getArchetypesVoorSessietype(voor('z2_duur'), fase, 3, null, 200, 'opbouw', 4)
+      expect(aanwezig(resultaten)).toBe(false)
+    }
+  })
+
+  it('beschikbaar in fase sweetspot, drempel, vo2max (week>=2, duur>=180, opbouw, lage decoupling)', () => {
+    for (const fase of ['sweetspot', 'drempel', 'vo2max']) {
+      const resultaten = getArchetypesVoorSessietype(voor('z2_duur'), fase, 2, null, 180, 'opbouw', 4)
+      expect(aanwezig(resultaten)).toBe(true)
+    }
+  })
+})
+
+describe('getArchetypesVoorSessietype — decoupling-gate (vereist_lage_decoupling)', () => {
+  const basisArgs = ['sweetspot', 3, null, 200, 'opbouw']
+
+  it('z2_tempo_teugjes en z2_wedstrijdsimulatie vallen weg zonder decouplingMediaan (null = onvoldoende data, fail-closed)', () => {
+    const resultaten = getArchetypesVoorSessietype(voor('z2_duur'), ...basisArgs, null)
+    expect(resultaten.some(a => a.id === 'z2_tempo_teugjes')).toBe(false)
+    expect(resultaten.some(a => a.id === 'z2_wedstrijdsimulatie')).toBe(false)
+  })
+
+  it('z2_tempo_teugjes en z2_wedstrijdsimulatie vallen weg bij decouplingMediaan >= 6', () => {
+    const resultaten = getArchetypesVoorSessietype(voor('z2_duur'), ...basisArgs, 6)
+    expect(resultaten.some(a => a.id === 'z2_tempo_teugjes')).toBe(false)
+    expect(resultaten.some(a => a.id === 'z2_wedstrijdsimulatie')).toBe(false)
+  })
+
+  it('z2_tempo_teugjes en z2_wedstrijdsimulatie toegestaan bij decouplingMediaan < 6 (bv. 4)', () => {
+    const resultaten = getArchetypesVoorSessietype(voor('z2_duur'), ...basisArgs, 4)
+    expect(resultaten.some(a => a.id === 'z2_tempo_teugjes')).toBe(true)
+    expect(resultaten.some(a => a.id === 'z2_wedstrijdsimulatie')).toBe(true)
+  })
+
+  it('archetypes zonder vereist_lage_decoupling zijn nooit onderhevig aan deze gate', () => {
+    const resultaten = getArchetypesVoorSessietype(voor('z2_duur'), ...basisArgs, null)
+    expect(resultaten.some(a => a.id === 'z2_progressief')).toBe(true)
+  })
+})
+
+describe('getArchetypesVoorSessietype — magIngebedIntensiefArchetype (adjacency aan kernstimulus/secundair)', () => {
+  it('sluit archetypes met bevat_ingebedde_intensiteit uit als magIngebedIntensiefArchetype false is', () => {
+    const resultaten = getArchetypesVoorSessietype(voor('z2_duur'), 'sweetspot', 3, null, 200, 'opbouw', 4, false)
+    expect(resultaten.some(a => a.id === 'z2_tempo_blokken')).toBe(false)
+    expect(resultaten.some(a => a.id === 'z2_wedstrijdsimulatie')).toBe(false)
+    // Niet-ingebedde archetypes blijven gewoon beschikbaar
+    expect(resultaten.some(a => a.id === 'z2_progressief')).toBe(true)
+  })
+
+  it('default (niet meegegeven) laat ingebedde-intensiteit-archetypes toe, backward-compatible', () => {
+    const resultaten = getArchetypesVoorSessietype(voor('z2_duur'), 'sweetspot', 3, null, 200, 'opbouw', 4)
+    expect(resultaten.some(a => a.id === 'z2_tempo_blokken')).toBe(true)
+    expect(resultaten.some(a => a.id === 'z2_wedstrijdsimulatie')).toBe(true)
+  })
+})

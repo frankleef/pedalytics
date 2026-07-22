@@ -44,6 +44,7 @@ export const SESSIE_ARCHETYPES = {
       fase_beschikbaar: ['basis', 'sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max'],
       week_in_fase_min: 3,
       toegestaan_in_herstelweek: false,
+      bevat_ingebedde_intensiteit: true,
     },
     {
       id: 'z2_cadans',
@@ -67,6 +68,18 @@ export const SESSIE_ARCHETYPES = {
       fase_beschikbaar: ['sweetspot', 'overgangsfase', 'drempel', 'consolidatie', 'test', 'vo2max'],
       vereist_lage_decoupling: true,
       toegestaan_in_herstelweek: false,
+    },
+    {
+      id: 'z2_wedstrijdsimulatie',
+      naam: 'Wedstrijdsimulatie',
+      structuur: 'Lange rit (≥180 min) met 2× 15–20 min sweetspot-blokken (88–93% FTP) ingebed rond het midden, rest Z2 — race-simulatie: kunnen leveren op vermoeidheid, niet pure aerobe basis',
+      tss_range: [156, 212],
+      fase_beschikbaar: ['sweetspot', 'drempel', 'vo2max'],
+      week_in_fase_min: 2,
+      min_duur_min: 180,
+      vereist_lage_decoupling: true,
+      toegestaan_in_herstelweek: false,
+      bevat_ingebedde_intensiteit: true,
     },
   ],
 
@@ -613,13 +626,20 @@ export function _wisArchetypeCacheVoorTests() {
   archetypeCache.clear();
 }
 
+// Sectie 22-F-precedent: "cardiac decoupling <6% in de afgelopen 2 weken" — zelfde
+// drempel hergebruikt voor de vereist_lage_decoupling-gate hieronder, niet een
+// nieuwe waarde verzonnen.
+const DECOUPLING_UITSLUITINGS_DREMPEL_PCT = 6;
+
 /**
  * Filtert archetypes (al opgehaald voor één sessietype, zie
  * getArchetypesVoorSessietypeRaw) op fase + weekInFase + seizoensdoel +
- * beschikbareDuurMin. Pure, synchrone functie — geen KV-afhankelijkheid —
- * zodat 'm ook client-side (browser) aanroepbaar blijft zonder server-omweg.
- * De caller is verantwoordelijk voor het aanleveren van de juiste,
- * al-opgehaalde array.
+ * beschikbareDuurMin + decouplingMediaan + ingebedde-intensiteit-toestemming.
+ * Pure, synchrone functie — geen KV-afhankelijkheid — zodat 'm ook client-side
+ * (browser) aanroepbaar blijft zonder server-omweg. De caller is verantwoordelijk
+ * voor het aanleveren van de juiste, al-opgehaalde array én van decouplingMediaan
+ * (deze functie kan zelf geen KV/intervals.icu-read doen, zie haalDecouplingMediaan
+ * in volumeCorrectie.js).
  *
  * @param {Array} archetypes - archetypes voor één sessietype (uit KV of fixture)
  * @param {string} fase
@@ -629,8 +649,21 @@ export function _wisArchetypeCacheVoorTests() {
  *   archetype met a.min_duur_min groter dan dit valt weg (bv. een archetype met
  *   een vast blok van 30 min heeft simpelweg niet genoeg ruimte in 45 min).
  *   null/ontbrekend = geen duurfilter (bestaand gedrag, backward-compatible).
+ * @param {string|null} [weektype]
+ * @param {number|null} [decouplingMediaan] - vooraf opgehaalde mediaan-decoupling
+ *   (%, zie haalDecouplingMediaan). Een archetype met a.vereist_lage_decoupling
+ *   valt weg als deze null is (onvoldoende data — fail-closed, niet fail-open)
+ *   of >= DECOUPLING_UITSLUITINGS_DREMPEL_PCT.
+ * @param {boolean} [magIngebedIntensiefArchetype] - false sluit archetypes met
+ *   a.bevat_ingebedde_intensiteit uit, ongeacht andere filters (zie solveWeek()'s
+ *   adjacency-check t.o.v. kernstimulus/secundair-dagen). Default true
+ *   (bestaand gedrag, backward-compatible) — callers die dit niet kennen
+ *   (bv. de client-side /api/sessie/varianten-preview) blijven ongewijzigd.
  */
-export function getArchetypesVoorSessietype(archetypes, fase, weekInFase = 1, seizoensdoel = null, beschikbareDuurMin = null, weektype = null) {
+export function getArchetypesVoorSessietype(
+  archetypes, fase, weekInFase = 1, seizoensdoel = null, beschikbareDuurMin = null,
+  weektype = null, decouplingMediaan = null, magIngebedIntensiefArchetype = true,
+) {
   const alle = archetypes ?? [];
   return alle.filter(a => {
     if (!a.fase_beschikbaar.includes(fase)) return false;
@@ -647,6 +680,11 @@ export function getArchetypesVoorSessietype(archetypes, fase, weekInFase = 1, se
     // week_in_fase_min-drempel gehaald wordt (een herstelweek telt gewoon mee
     // als "week N" van de fase — zie weekInFaseVoorKaderWeek).
     if (weektype === 'herstel' && a.toegestaan_in_herstelweek === false) return false;
+    // Cardiac-decoupling-gate (sectie 22-F-precedent): geen/te weinig recente
+    // Z2-data (decouplingMediaan null) telt hier als "niet aangetoond laag" —
+    // fail-closed, dus uitgesloten, niet stilzwijgend toegestaan.
+    if (a.vereist_lage_decoupling && (decouplingMediaan == null || decouplingMediaan >= DECOUPLING_UITSLUITINGS_DREMPEL_PCT)) return false;
+    if (magIngebedIntensiefArchetype === false && a.bevat_ingebedde_intensiteit) return false;
     return true;
   });
 }

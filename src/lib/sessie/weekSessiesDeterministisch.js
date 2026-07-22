@@ -318,6 +318,7 @@ export async function genereerWeekSessiesDeterministisch({
         oudeSessie: { intentie: { sessietype: toewijzing.sessietype, tss_doel: toewijzing.tss_doel } },
         aanleiding: "beschikbaarheid_nieuw",
         huidigeFase, weekInFase, weektype: kaderWeekVoorDag?.weektype || "opbouw", hrvProfiel, piekSprint,
+        magIngebedIntensiefArchetype: toewijzing?.magIngebedIntensiefArchetype ?? true,
         weekTssDoel: kaderWeekVoorDag?.tss_doel ?? null, alGeleverdTss: alGeleverdVoorDag?.tss ?? null,
         alleSessiesVoorKrachtCheck: [...vasteSessiesBuitenBatch, ...gegenereerd],
       });

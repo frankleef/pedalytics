@@ -181,6 +181,13 @@ const MELDING_TEMPLATES = {
     bron: "compliance-freeze",
     deeplink: "/voortgang",
   }),
+  beschikbaarheid_herinnering: () => ({
+    categorie: "planning",
+    titel: "Beschikbaarheid voor komende week",
+    tekst: "Vergeet niet je beschikbaarheid voor de aankomende week in te vullen, zodat je schema erop kan worden afgestemd.",
+    bron: "systeem",
+    deeplink: "/beschikbaarheid",
+  }),
 };
 
 // Vuistregel: alleen pushen als (a) het een achtergrondproces is dat de
@@ -200,6 +207,7 @@ const PUSH_WAARDIGE_TYPES = new Set([
   "koppeling_verbroken",
   "compliance_freeze_geactiveerd",
   "compliance_opbouwweek_verlengd",
+  "beschikbaarheid_herinnering",
 ]);
 
 const MAX_MELDINGEN = 200;

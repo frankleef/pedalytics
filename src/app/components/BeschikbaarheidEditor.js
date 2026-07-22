@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { T } from "../designTokens";
+import { GEMIDDELDE_IF_BASIS } from "@/lib/rijhistorie";
 
 const DAGEN = [
   { key: "Ma", full: "Maandag" },
@@ -12,11 +13,33 @@ const DAGEN = [
   { key: "Zo", full: "Zondag" },
 ];
 
-function fmt(n) {
-  return Number.isInteger(n) ? String(n) : n.toFixed(1).replace(".", ",");
+// Representatieve IF per fase — gebruikt om het TSS-weekdoel van de huidige
+// kaderweek terug te rekenen naar een minimum aantal beschikbare uren.
+// Basis hergebruikt GEMIDDELDE_IF_BASIS (rijhistorie.js) als enige bron van
+// waarheid; sweetspot/drempel/vo2max zijn vastgestelde aannames, consolidatie/
+// test/taper vallen conservatief terug op 0.70.
+const IF_PER_FASE = {
+  basis: GEMIDDELDE_IF_BASIS,
+  sweetspot: 0.91,
+  drempel: 1.00,
+  vo2max: 1.13,
+  consolidatie: 0.70,
+  test: 0.70,
+  taper: 0.70,
+};
+
+function berekenMinimumUren(weekTssDoel, fase) {
+  const IF = IF_PER_FASE[fase] ?? 0.70;
+  return weekTssDoel / (IF ** 2 * 100);
 }
 
-export default function BeschikbaarheidEditor({ initieel, onWijzig }) {
+function fmtTijd(uren) {
+  const heleUren = Math.floor(uren);
+  const minuten = Math.round((uren - heleUren) * 60);
+  return `${heleUren}:${String(minuten).padStart(2, "0")}`;
+}
+
+export default function BeschikbaarheidEditor({ initieel, onWijzig, weekTssDoel, fase }) {
   const [days, setDays] = useState(() =>
     DAGEN.map(d => ({
       ...d,
@@ -33,10 +56,10 @@ export default function BeschikbaarheidEditor({ initieel, onWijzig }) {
     });
   };
 
-  const bump = (i, delta, e) => {
+  const setUren = (i, value, e) => {
     if (e?.stopPropagation) e.stopPropagation();
     setDays(prev => {
-      const next = prev.map((d, j) => j === i ? { ...d, hours: Math.round(Math.max(0.5, Math.min(6, d.hours + delta)) * 2) / 2 } : d);
+      const next = prev.map((d, j) => j === i ? { ...d, hours: value } : d);
       onWijzig?.(toPersist(next));
       return next;
     });
@@ -49,6 +72,9 @@ export default function BeschikbaarheidEditor({ initieel, onWijzig }) {
 
   const active = days.filter(d => d.on);
   const total = active.reduce((a, d) => a + d.hours, 0);
+
+  const minimumUren = weekTssDoel != null ? berekenMinimumUren(weekTssDoel, fase) : null;
+  const toontMinimumWaarschuwing = minimumUren != null && total < minimumUren;
 
   return (
     <div>
@@ -79,25 +105,25 @@ export default function BeschikbaarheidEditor({ initieel, onWijzig }) {
                 <div style={{ width: 22, height: 22, borderRadius: "50%", background: T.cardBg, boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
               </div>
             </div>
-            {/* Hours stepper */}
+            {/* Hours slider */}
             {day.on && (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 13, paddingTop: 13, borderTop: `1px solid ${T.cardBorder}` }}>
-                <span style={{ font: "700 12.5px var(--font-nunito), sans-serif", color: T.textSec }}>Beschikbare tijd</span>
-                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  <button onClick={(e) => bump(i, -0.5, e)}
-                    style={{ width: 34, height: 34, borderRadius: "50%", background: T.subtleFill, border: `1px solid oklch(0.9 0.012 82)`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                    <div style={{ width: 13, height: 2.5, borderRadius: 2, background: "oklch(0.4 0.02 72)" }} />
-                  </button>
-                  <div style={{ minWidth: 62, textAlign: "center", display: "flex", alignItems: "baseline", justifyContent: "center", gap: 3 }}>
-                    <span style={{ font: "600 22px var(--font-fredoka), sans-serif", color: T.text }}>{fmt(day.hours)}</span>
-                    <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: T.textSec }}>uur</span>
-                  </div>
-                  <button onClick={(e) => bump(i, 0.5, e)}
-                    style={{ width: 34, height: 34, borderRadius: "50%", background: T.slate, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", position: "relative" }}>
-                    <div style={{ width: 13, height: 2.5, borderRadius: 2, background: "oklch(0.97 0.01 84)" }} />
-                    <div style={{ width: 2.5, height: 13, borderRadius: 2, background: "oklch(0.97 0.01 84)", position: "absolute" }} />
-                  </button>
+              <div style={{ marginTop: 13, paddingTop: 13, borderTop: `1px solid ${T.cardBorder}` }}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <span style={{ font: "700 12.5px var(--font-nunito), sans-serif", color: T.textSec }}>Beschikbare tijd</span>
+                  <span style={{ font: "600 18px var(--font-fredoka), sans-serif", color: T.text }}>{fmtTijd(day.hours)} uur</span>
                 </div>
+                <input
+                  type="range"
+                  min={0.25}
+                  max={6}
+                  step={0.25}
+                  value={day.hours}
+                  onChange={(e) => setUren(i, parseFloat(e.target.value), e)}
+                  style={{ width: "100%", accentColor: T.slate, cursor: "pointer" }}
+                />
               </div>
             )}
           </div>
@@ -107,8 +133,16 @@ export default function BeschikbaarheidEditor({ initieel, onWijzig }) {
       {/* Summary */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 16, padding: "0 4px" }}>
         <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: T.textSec }}>{active.length} trainingsdagen</span>
-        <span style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.text }}>{fmt(total)} uur / week</span>
+        <span style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.text }}>{fmtTijd(total)} uur / week</span>
       </div>
+
+      {toontMinimumWaarschuwing && (
+        <div style={{ marginTop: 10, padding: "10px 14px", borderRadius: 14, background: "oklch(0.96 0.03 70)", border: "1px solid oklch(0.85 0.06 65)" }}>
+          <span style={{ font: "600 12.5px/1.4 var(--font-nunito), sans-serif", color: "oklch(0.42 0.1 55)" }}>
+            Je hebt deze week minder tijd ingepland dan ideaal voor je huidige fase (± {fmtTijd(minimumUren)} uur nodig).
+          </span>
+        </div>
+      )}
     </div>
   );
 }

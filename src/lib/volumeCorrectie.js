@@ -152,10 +152,9 @@ export async function haalRpeDeltaTrend(userId) {
   }
 }
 
-export async function haalDecouplingMediaan(userId, aantalRitten) {
+export async function haalDecouplingMediaan(userId, aantalRitten, kv = getKV()) {
   try {
-    const kv = getKV();
-    const creds = await getIntervalsCredentials(userId);
+    const creds = await getIntervalsCredentials(userId, kv);
     if (!creds) return null;
 
     const plan = await kv.get(`${userId}:seizoensplan`);

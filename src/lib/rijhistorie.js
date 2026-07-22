@@ -1,4 +1,4 @@
-const GEMIDDELDE_IF_BASIS = 0.65;
+export const GEMIDDELDE_IF_BASIS = 0.65;
 
 export function berekenGemiddeldeUrenPerWeek(activiteiten) {
   if (!activiteiten?.length) return null;

@@ -35,6 +35,23 @@ describe('schaalVariant — volledige dataset', () => {
   })
 })
 
+describe('z2_wedstrijdsimulatie — TSS binnen tss_range op 180 en 240 min', () => {
+  const archetype = VARIANT_ARCHETYPES.z2_duur.find(a => a.id === 'z2_wedstrijdsimulatie')
+  const [laagste, hoogste] = archetype.tss_range
+
+  it('beide varianten blijven binnen tss_range op 180 en 240 min (ftp 265)', () => {
+    for (const variant of archetype.varianten) {
+      for (const duurMin of [180, 240]) {
+        const geschaald = schaalVariant(variant, duurMin * 60, 'z2_duur', 'z2_wedstrijdsimulatie')
+        const segmenten = berekenWattagesVanBlokken(geschaald, 265, 'z2_duur')
+        const tss = berekenTssVanBlokken(segmenten, 265)
+        expect(tss).toBeGreaterThanOrEqual(laagste)
+        expect(tss).toBeLessThanOrEqual(hoogste)
+      }
+    }
+  })
+})
+
 function maakKv() {
   const store = new Map()
   return {

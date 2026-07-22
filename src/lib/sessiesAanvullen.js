@@ -402,6 +402,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
             effectiefSessietype: effectiefSessietypeOverride,
             aanleiding: isAerobeCompensatie ? "volumecorrectie_aerobe" : isTempoAfsluiter ? "volumecorrectie_tempo_afsluiter" : "beschikbaarheid_nieuw",
             huidigeFase, weekInFase, weektype: kaderWeekVoorDag?.weektype || 'opbouw', hrvProfiel, piekSprint,
+            magIngebedIntensiefArchetype: toewijzing?.magIngebedIntensiefArchetype ?? true,
             weekTssDoel: isVolumeCorrectieDag ? null : (kaderWeekVoorDag?.tss_doel ?? null),
             alGeleverdTss: alGeleverdVoorDag?.tss ?? null,
             alleSessiesVoorKrachtCheck: [...bestaandeSessies, ...aangevuld],

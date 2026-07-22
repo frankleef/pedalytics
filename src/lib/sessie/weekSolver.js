@@ -590,7 +590,7 @@ export function effectieveDuurMin(sessietype, beschikbareDuurMin = null, weekInF
   return Math.round(Math.min(beschikbareDuurMin, maxUren * 60) * factor);
 }
 
-function bouwToewijzing({ datum, beschikbareUren }, sessietype, { archetypesData, fase, weekInFase, weektype, seizoensdoel, gedegradeerd = false, pad, tssDoelOverride }) {
+function bouwToewijzing({ datum, beschikbareUren }, sessietype, { archetypesData, fase, weekInFase, weektype, seizoensdoel, gedegradeerd = false, pad, tssDoelOverride, magIngebedIntensiefArchetype = true }) {
   const beschikbareDuurMin = Math.round(beschikbareUren * 60);
   const toewijzing = {
     datum,
@@ -601,6 +601,12 @@ function bouwToewijzing({ datum, beschikbareUren }, sessietype, { archetypesData
     gedegradeerd,
     pad, // observability: 'kernstimulus'|'secundair'|'vrijheidsessie'|'z2'
     beschikbareUren,
+    // z2-dagen die aangrenzend zijn aan een kernstimulus/secundair/vrijheidsdag
+    // (zijnAangrenzend, zelfde mechanisme als de bestaande adjacency-guards
+    // hierboven) mogen geen archetype met bevat_ingebedde_intensiteit krijgen
+    // (bv. z2_tempo_blokken, z2_wedstrijdsimulatie) — dat zou de facto twee
+    // zware dagen na elkaar zijn, ongeacht het sessietype-label "z2_duur".
+    magIngebedIntensiefArchetype,
   };
   return toewijzing;
 }
@@ -779,13 +785,23 @@ export function solveWeek({
   const kernstimulusTotaalDezeWeek = kernstimulusType
     ? kernstimulusDatums.length + vasteDagen.filter(d => d.status !== "voltooid" && d.sessietype === kernstimulusType).length
     : 0;
+  // Adjacency-bewustzijn voor ingebedde intensiteit (bv. z2_tempo_blokken,
+  // z2_wedstrijdsimulatie): op dit punt bevat `toewijzingen` uitsluitend de
+  // hierboven al toegewezen kernstimulus/secundair/sprint-extra-dagen (de
+  // z2-vulling hieronder is de laatste stap) — dus dit zijn precies de "zware
+  // dagen" waar een z2_duur-dag niet aangrenzend aan mag zijn als 'ie een
+  // archetype met ingebedde intensiteit wil kunnen krijgen. Fail-safe bij
+  // twijfel bestaat hier niet nodig te zijn: zijnAangrenzend is een zuivere
+  // datumvergelijking, geen onzekere schatting.
+  const zwareDagDatums = toewijzingen.map(t => t.datum);
   for (const dag of z2Dagen) {
     const aandeel = totaalUrenZ2 > 0 ? dag.beschikbareUren / totaalUrenZ2 : 0;
     const tssDoel = Math.max(0, Math.round(restBudget * aandeel));
     const wordtKracht = !isHerstelAchtig && !krachtLageCadansGebruiktDezeWeek && kernstimulusTotaalDezeWeek < 2 &&
       magKrachtLageCadans(seizoensdoel, generiekeFaseVoorKracht, weekNummerInSeizoen, laatsteKrachtLageCadansWeek);
     if (wordtKracht) krachtLageCadansGebruiktDezeWeek = true;
-    toewijzingen.push(bouwToewijzing(dag, wordtKracht ? "kracht_lage_cadans" : "z2_duur", { archetypesData, fase, weekInFase, weektype, seizoensdoel, pad: "z2", tssDoelOverride: tssDoel }));
+    const magIngebedIntensiefArchetype = !zwareDagDatums.some(zd => zijnAangrenzend(zd, dag.datum));
+    toewijzingen.push(bouwToewijzing(dag, wordtKracht ? "kracht_lage_cadans" : "z2_duur", { archetypesData, fase, weekInFase, weektype, seizoensdoel, pad: "z2", tssDoelOverride: tssDoel, magIngebedIntensiefArchetype }));
   }
 
   toewijzingen.sort((a, b) => a.datum.localeCompare(b.datum));

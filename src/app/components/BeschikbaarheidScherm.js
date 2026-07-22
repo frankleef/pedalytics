@@ -2,9 +2,12 @@
 import { useRef } from "react";
 import { T } from "../designTokens";
 import BeschikbaarheidEditor from "./BeschikbaarheidEditor";
+import { kaderWeekVoorDatum } from "@/lib/weekgrenzen";
 
-export default function BeschikbaarheidScherm({ beschikbaar, urenPerDag, onOpslaan, onTerug }) {
+export default function BeschikbaarheidScherm({ beschikbaar, urenPerDag, kader, startdatum, onOpslaan, onTerug }) {
   const laatsteDataRef = useRef({ beschikbaar: beschikbaar || {}, uren: urenPerDag || {} });
+  const huidigeWeek = kaderWeekVoorDatum(new Date(), kader, startdatum);
+  const weekTssDoel = huidigeWeek?.tss_doel ?? null;
 
   return (
     <div style={{ position: "fixed", inset: 0, background: T.bg, color: T.text, fontFamily: T.font, zIndex: 100, overflowY: "auto" }}>
@@ -26,6 +29,8 @@ export default function BeschikbaarheidScherm({ beschikbaar, urenPerDag, onOpsla
           <BeschikbaarheidEditor
             initieel={{ beschikbaar, uren: urenPerDag }}
             onWijzig={(data) => { laatsteDataRef.current = data; }}
+            weekTssDoel={weekTssDoel}
+            fase={huidigeWeek?.fase}
           />
         </div>
 

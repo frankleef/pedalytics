@@ -706,7 +706,7 @@ describe('berekenZ2AandeelSessietype', () => {
   it('z2_duur ligt dicht bij 1.0, behalve archetypes met bewust ingebouwde Z3-snippers', () => {
     for (const archetype of VARIANT_ARCHETYPES.z2_duur) {
       const fractie = berekenZ2AandeelSessietype(ARCHETYPES_FIXTURE, 'z2_duur', archetype.id)
-      if (archetype.id === 'z2_tempo_blokken' || archetype.id === 'z2_tempo_teugjes') {
+      if (archetype.id === 'z2_tempo_blokken' || archetype.id === 'z2_tempo_teugjes' || archetype.id === 'z2_wedstrijdsimulatie') {
         // "ingekapselde Z3-blokken" — bewust geen zuivere Z2-rit, zie archetype-structuur
         expect(fractie).toBeGreaterThan(0.3)
         expect(fractie).toBeLessThan(0.9)

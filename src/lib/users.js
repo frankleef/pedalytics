@@ -70,11 +70,10 @@ export function invalidateCredsCache(userId) {
   credsCache.delete(userId);
 }
 
-export async function getIntervalsCredentials(userId) {
+export async function getIntervalsCredentials(userId, kv = getKV()) {
   const cached = credsCache.get(userId);
   if (cached && Date.now() - cached.ts < CREDS_TTL) return cached.data;
 
-  const kv = getKV();
   const [encKey, athleteId] = await kv.mget(`user:${userId}:intervals_key`, `user:${userId}:athlete_id`);
   if (!encKey) return null;
   const data = { apiKey: decrypt(encKey), athleteId };

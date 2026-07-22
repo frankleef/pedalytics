@@ -1087,6 +1087,11 @@ export default function Page() {
     setMeldingenOpen(true);
   }, []);
 
+  const openBeschikbaarheid = useCallback(() => {
+    if (typeof window !== "undefined") history.pushState({ modal: "beschikbaarheid" }, "", window.location.pathname);
+    setBeschikbaarheidSchermOpen(true);
+  }, []);
+
   // Vertaalt een melding-deeplink (bv. "/schema?datum=2026-07-09") naar
   // client-side tab-navigatie — er bestaan geen /schema,/voortgang,/profiel-
   // routes, alles loopt via de tab-state hieronder (zelfde berekening als de
@@ -1109,15 +1114,12 @@ export default function Page() {
       setTab(2);
     } else if (pad === "/profiel") {
       openProfiel();
+    } else if (pad === "/beschikbaarheid") {
+      openBeschikbaarheid();
     } else {
       setTab(0);
     }
-  }, [openProfiel]);
-
-  const openBeschikbaarheid = useCallback(() => {
-    if (typeof window !== "undefined") history.pushState({ modal: "beschikbaarheid" }, "", window.location.pathname);
-    setBeschikbaarheidSchermOpen(true);
-  }, []);
+  }, [openProfiel, openBeschikbaarheid]);
 
   const openAfwezigheid = useCallback((modus = "nieuw", periode = null) => {
     if (typeof window !== "undefined") history.pushState({ modal: "afwezigheid" }, "", window.location.pathname);
@@ -1197,6 +1199,8 @@ export default function Page() {
         <BeschikbaarheidScherm
           beschikbaar={beschikbaar}
           urenPerDag={urenPerDag}
+          kader={seizoensplan?.kader}
+          startdatum={seizoensplan?.startdatum}
           onTerug={() => history.back()}
           onOpslaan={handleBeschikbaarheidOpslaan}
         />
