@@ -171,24 +171,3 @@ export function faseInstellingen(profiel, faseNaam) {
   }
   return null;
 }
-
-/**
- * Genereert doel-specifieke instructies voor de prompt.
- */
-export function doelInstructiesAlsTekst(profiel) {
-  const instructies = [];
-  for (const fase of profiel.fases) {
-    const extra = [];
-    if (fase.kracht_lage_cadans_max_per_2_weken) extra.push(`kracht_lage_cadans: max ${fase.kracht_lage_cadans_max_per_2_weken}× per 2 weken`);
-    if (fase.langste_sessie_verleng_min) extra.push(`langste sessie: +${fase.langste_sessie_verleng_min} min elke 3 weken`);
-    if (fase.sweetspot_max_per_2_weken) extra.push(`sweetspot: max ${fase.sweetspot_max_per_2_weken}× per 2 weken`);
-    if (fase.sprint_neuraal_max_per_week) extra.push(`sprint_neuraal: max ${fase.sprint_neuraal_max_per_week}×/week, ${fase.sprint_neuraal_reps?.[0]}-${fase.sprint_neuraal_reps?.[1]} sprints`);
-    if (fase.langste_sessie_is_sleutel) extra.push("langste sessie is de sleutelsessie van de week");
-    if (fase.langste_sessie_target_pct_event) extra.push(`langste sessie: ${Math.round(fase.langste_sessie_target_pct_event * 100)}% van eventduur`);
-    if (extra.length > 0) instructies.push(`${fase.naam}: ${extra.join("; ")}`);
-  }
-  if (profiel.eindtest_type === null) instructies.push("Geen eindtest — week 13 is taper (korte Z2-ritten, TSS 32% van piekweek)");
-  if (profiel.eindtest_type === "sprint_peak_test") instructies.push("Eindtest: sprint_peak_test (3× max sprint 10s, 5 min rust) op laatste trainingsdag");
-  if (profiel.taper_tss_pct) instructies.push(`Taperweek TSS: ${Math.round(profiel.taper_tss_pct * 100)}% van piekweek`);
-  return instructies.join("\n");
-}

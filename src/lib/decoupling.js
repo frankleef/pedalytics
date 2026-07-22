@@ -15,6 +15,26 @@ import { getKV } from "./kv";
 export const DECOUPLING_BLOKTREND_DREMPEL = 7;
 
 /**
+ * Bepaalt of een decoupling-waarde een statistische uitschieter is.
+ * Gebruikt IQR-methode: uitschieter als waarde > Q3 + 1.5×IQR.
+ * @param {number} waarde - de decoupling-waarde om te testen
+ * @param {number[]} alleWaarden - alle beschikbare niet-null waarden
+ * @returns {boolean}
+ */
+export function isDecouplingUitschieter(waarde, alleWaarden) {
+  if (!alleWaarden?.length || alleWaarden.length < 3) return false;
+  // Absolute cap: >12% is bijna altijd extern (hitte, ziekte, dehydratie)
+  if (waarde > 12) return true;
+  // IQR-methode voor subtielere uitschieters bij voldoende data
+  if (alleWaarden.length < 6) return false;
+  const gesorteerd = [...alleWaarden].sort((a, b) => a - b);
+  const q1 = gesorteerd[Math.floor(gesorteerd.length * 0.25)];
+  const q3 = gesorteerd[Math.floor(gesorteerd.length * 0.75)];
+  const iqr = q3 - q1;
+  return waarde > q3 + 1.5 * iqr || waarde < q1 - 1.5 * iqr;
+}
+
+/**
  * Cachet de door intervals.icu berekende cardiac decoupling voor een activiteit.
  * @param {number|string} activiteitId
  * @param {number|null|undefined} decouplingRuw - Activity.decoupling van intervals.icu

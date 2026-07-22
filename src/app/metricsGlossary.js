@@ -72,7 +72,7 @@ export const METRICS = {
   hitte: {
     title: "Hitte-rit",
     tag: "≥28°C",
-    body: "De gevoelstemperatuur was aanzienlijk warmer dan jouw gemiddelde. Hartslag en cardiac decoupling zijn daardoor beïnvloed en tellen niet mee in de fase-analyse en RPE-trend. De conditiescore weegt deze rit wel mee.",
+    body: "De gevoelstemperatuur was aanzienlijk warmer dan jouw gemiddelde. Hartslag en cardiac decoupling zijn daardoor beïnvloed en tellen niet mee in de fase-analyse en RPE-trend.",
     color: "oklch(0.72 0.13 70)",
     tint: "oklch(0.96 0.05 82)",
   },

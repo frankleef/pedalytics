@@ -1,5 +1,3 @@
-import { datumISO } from "./datum";
-
 const MOBILITEIT_TYPE = "herstel_mobiliteit";
 
 function isMobiliteit(s) {
@@ -137,49 +135,3 @@ export function heeftTeLangReeks(sessies, kandidaatDag = null) {
   return false;
 }
 
-// ====== Chunk 2 — Dagvolgorde binnen frequentie ======
-
-// beschikbareDagen: [{ datum, urenPerDag, beschikbaar: true }] gesorteerd op datum
-// bestaandeSessies: [{ datum, tss, tss_schatting }]
-// frequentie: aantal te selecteren dagen
-export function selecteerTrainingsdagen({ beschikbareDagen, frequentie, bestaandeSessies = [] }) {
-  if (frequentie === 0 || beschikbareDagen.length === 0) return [];
-
-  // Blokkeer dag na zware bestaande sessie (TSS > 60)
-  const geblokkeerd = new Set();
-  for (const s of bestaandeSessies) {
-    if ((s.tss || s.tss_schatting || 0) > 60) {
-      const d = new Date(s.datum);
-      d.setDate(d.getDate() + 1);
-      geblokkeerd.add(datumISO(d));
-    }
-  }
-
-  const kandidaten = beschikbareDagen.filter(d => !geblokkeerd.has(d.datum));
-  const pool = kandidaten.length >= frequentie ? kandidaten : beschikbareDagen;
-
-  if (pool.length === 0) return [];
-
-  // Greedy: begin met eerste dag, selecteer daarna steeds grootste afstand tot laatste
-  const geselecteerd = [pool[0]];
-
-  while (geselecteerd.length < frequentie && geselecteerd.length < pool.length) {
-    const laatste = geselecteerd[geselecteerd.length - 1];
-    let besteDag = null;
-    let besteAfstand = -1;
-
-    for (const kandidaat of pool) {
-      if (geselecteerd.some(s => s.datum === kandidaat.datum)) continue;
-      const afstand = Math.abs(new Date(kandidaat.datum) - new Date(laatste.datum)) / 86400000;
-      if (afstand > besteAfstand) {
-        besteAfstand = afstand;
-        besteDag = kandidaat;
-      }
-    }
-
-    if (!besteDag) break;
-    geselecteerd.push(besteDag);
-  }
-
-  return geselecteerd.sort((a, b) => a.datum.localeCompare(b.datum));
-}

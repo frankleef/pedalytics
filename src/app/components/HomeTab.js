@@ -12,7 +12,7 @@ import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
 import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import SessieUitkomstKaart from "./SessieUitkomstKaart";
 import SeizoenSamenvattingKaart from "./SeizoenSamenvattingKaart";
-import GereedheidConditieKaart from "./GereedheidConditieKaart";
+import GereedheidKaart from "./GereedheidKaart";
 import FitnessprogressieKaart from "./FitnessprogressieKaart";
 import { classificeerRit } from "@/lib/rittype";
 
@@ -363,8 +363,8 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
           />
         )}
 
-        {/* Gereedheid & Conditie */}
-        <GereedheidConditieKaart
+        {/* Gereedheid */}
+        <GereedheidKaart
           balansScore={score}
           ctl={wellenessHuidig ? Math.round(wellenessHuidig.ctl || 0) : null}
           atl={wellenessHuidig ? Math.round(wellenessHuidig.atl || 0) : null}

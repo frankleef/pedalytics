@@ -12,14 +12,13 @@ import { verwerkFtpTest, isEindtest } from "@/lib/sessie/ftpUpdate";
 import { voegCpWprimeDatapuntToe } from "@/lib/cpWprime";
 import { berekenGemiddeldeUrenPerWeek, berekenStartTss } from "@/lib/rijhistorie";
 import { berekenDistributie } from "@/lib/sessie/distributie";
-import { checkFaseOvergang, cacheDecoupling, bijwerkenDecouplingBaseline, backfillDecoupling } from "@/lib/decoupling";
+import { checkFaseOvergang, cacheDecoupling, bijwerkenDecouplingBaseline, backfillDecoupling, isDecouplingUitschieter } from "@/lib/decoupling";
 import { verwerkRitVoorEf, backfillEf } from "@/lib/ef";
 import { haalWattsStream, detecteerMogelijkeInstorting } from "@/lib/instorting";
 import { waitUntil } from "@vercel/functions";
 import { berekenRpeTrend, verwerkRpeTrend } from "@/lib/sessie/rpeTrend";
 import { berekenUitvoeringsscoreMetDetails, scoreLabel, zoneTimesNaarObject } from "@/lib/uitvoeringsscore";
 import { bepaalComplianceRecord, evalueerComplianceGate, haalLaatsteZwareSessieDatum } from "@/lib/sessie/compliance";
-import { berekenConditieScore, belastingsStatus, conditieStatus, conditiePillStatus, bepaalDecouplingMedianen } from "@/lib/conditie";
 import { haalRitTemperatuur, berekenTempBaseline, berekenHitteVlag } from "@/lib/hitte";
 import { herberekenHrvProfiel, checkDataStatus, berekenRhrBasislijn } from "@/lib/hrv/profiel";
 import { herberekenGewichtenHrvCheckin } from "@/lib/hrv/leerdata";
@@ -342,7 +341,7 @@ export async function POST(request) {
 
         // Idempotent: skip als we deze al kennen
         if (lastActivity?.id === nieuwste.id) {
-          // Herbereken conditiescore met verse wellness-data, ook zonder nieuwe rit
+          // Herbereken fitnessprogressie met verse wellness-data, ook zonder nieuwe rit
           try {
             if (plan) {
               // Venster verbreed naar 70 dagen (was 28) zodat fitnessprogressie
@@ -350,62 +349,13 @@ export async function POST(request) {
               // kan hergebruiken i.p.v. een eigen /wellness-call te doen — zie
               // fitnessprogressie-kracht-en-weekinfase-implementatie.md.
               const wellData = await intervalsGet("/wellness", { oldest: datumOffset(-70), newest: datumOffset(0), fields: "id,ctl,atl,rampRate" }, { apiKey, athleteId });
-              let ctlNu = null, ctl4wGeleden = null, ctlRamp = null;
-              if (wellData?.length >= 7) {
-                const ctlW = wellData.filter(w => w.ctl != null).sort((a,b) => (a.id||"").localeCompare(b.id||""));
-                ctlNu = ctlW.length > 0 ? ctlW[ctlW.length - 1].ctl : null;
-                // ctl_4w_geleden blijft het oudste punt binnen de laatste 28 dagen
-                // (ongewijzigd gedrag) — expliciet gefilterd, niet meer ctlW[0],
-                // want ctlW bestrijkt nu 70 dagen i.p.v. 28. Bij een sync-gat dat
-                // de volledige laatste 28 dagen beslaat: null (zoals de oude
-                // 28-dagen-only-fetch ook null gaf), NIET terugvallen op een punt
-                // van tot 70 dagen oud — dat zou een misleidende "4-weken-delta"
-                // in de conditiescore introduceren (geverifieerd met een
-                // synthetische testcase, zie fitnessprogressie-kracht-en-
-                // weekinfase-implementatie.md-vervolgsessies).
-                const grens28 = datumOffset(-28);
-                const binnen28 = ctlW.filter(w => (w.id || "") >= grens28);
-                ctl4wGeleden = binnen28.length > 0 ? binnen28[0].ctl : null;
-                // Rechtstreeks intervals.icu's eigen rampRate van de ctl_nu-dag i.p.v. een lokale
-                // regressie over het venster — zie ramp-rate-fix-en-impact.md, Deel A.
-                // TODO: belastingsStatus()-drempels (1.5-5.0/week, conditie.js) zijn gekalibreerd
-                // op de oude regressie-berekening en moeten apart herijkt worden.
-                ctlRamp = ctlW[ctlW.length - 1].rampRate ?? null;
-              }
-              const rpeTrend = await kv.get(`rpe_trend:${userId}`);
-              const gereedheidsscore = 50;
-              // Decoupling medianen voor conditiescore: GEEN filter (ruwe waarden)
-              let dcHuidigUp = null, dcVorigUp = null;
-              // Venster verbreed naar 70 dagen + extra velden (moving_time,
-              // icu_weighted_avg_watts) t.o.v. de oude 60-dagen/30-limit-fetch,
-              // zodat fitnessprogressie's decoupling-trend dezelfde respons kan
-              // hergebruiken i.p.v. een eigen /activities-call te doen. De extra
-              // velden/breder venster veranderen niets aan de bestaande
-              // conditiescore-decoupling-logica hieronder (die leest alleen id's).
               let actResp = null;
               try {
                 actResp = await intervalsGet("/activities", { oldest: datumOffset(-70), newest: datumOffset(0), limit: "100", fields: "id,type,start_date_local,moving_time,icu_weighted_avg_watts" }, { apiKey, athleteId });
-                const dcAlleWaarden = [];
-                const rittenGesorteerd = (actResp || []).filter(a => a.type === "Ride" || a.type === "VirtualRide").sort((a, b) => (a.start_date_local || "").localeCompare(b.start_date_local || ""));
-                for (const a of rittenGesorteerd) {
-                  const dc = await kv.get(`decoupling:${a.id}`);
-                  if (dc == null) continue;
-                  const w = typeof dc === "number" ? dc : dc?.decoupling;
-                  if (w != null) dcAlleWaarden.push(w);
-                }
-                ({ huidig: dcHuidigUp, vorig: dcVorigUp } = bepaalDecouplingMedianen(dcAlleWaarden));
               } catch {}
-              const score = berekenConditieScore({ ctl_nu: ctlNu, ctl_4w_geleden: ctl4wGeleden, rpe_delta_trend: rpeTrend ?? null, decoupling_huidig: dcHuidigUp, decoupling_vorig: dcVorigUp });
-              const belasting = belastingsStatus(ctlRamp ?? 0, gereedheidsscore);
-              const conditie = conditieStatus(score);
-              const pill = conditiePillStatus(belasting, conditie);
-              await kv.set(`conditie_score:${userId}`, { score, belasting, conditie, pill, ctl_nu: ctlNu, ctl_4w_geleden: ctl4wGeleden, ctl_ramp: ctlRamp, rpe_delta_trend: rpeTrend, bijgewerkt_op: new Date().toISOString() }, { ex: 8 * 86400 });
-
-              try {
-                await berekenEnSlaFitnessprogressieOp(userId, { wellData, activiteiten: actResp });
-              } catch (e) { console.warn(`[sync] Fitnessprogressie mislukt:`, e.message); }
+              await berekenEnSlaFitnessprogressieOp(userId, { wellData, activiteiten: actResp });
             }
-          } catch (e) { console.warn(`[sync] Conditiescore mislukt:`, e.message); }
+          } catch (e) { console.warn(`[sync] Fitnessprogressie mislukt:`, e.message); }
 
           // Wekelijkse volume-evaluatie ook in idempotent pad
           try {
@@ -736,77 +686,20 @@ export async function POST(request) {
             console.warn(`[sync] RPE-trend check mislukt voor ${userId}:`, e.message);
           }
 
-          // Conditiescore berekenen
+          // Fitnessprogressie herberekenen
           try {
-            const rpeTrend = await kv.get(`rpe_trend:${userId}`);
-
-            let ctlRamp = null, ctlNu = null, ctl4wGeleden = null, wellAll = null;
-            try {
-              // Venster verbreed naar 70 dagen (was 28) — zelfde reden als het
-              // idempotente pad hierboven: fitnessprogressie hergebruikt deze
-              // respons i.p.v. een eigen /wellness-call te doen.
-              wellAll = await intervalsGet("/wellness", { oldest: datumOffset(-70), newest: datumOffset(0), fields: "id,ctl,atl,rampRate" }, { apiKey, athleteId });
-              const ctlAll = (wellAll || []).filter(w => w.ctl != null).sort((a,b) => (a.id||"").localeCompare(b.id||""));
-              if (ctlAll.length > 0) {
-                ctlNu = ctlAll[ctlAll.length - 1].ctl;
-                // ctl_4w_geleden blijft het oudste punt binnen de laatste 28
-                // dagen (ongewijzigd gedrag) — ctlAll bestrijkt nu 70 dagen. Bij
-                // een sync-gat over de volledige laatste 28 dagen: null, niet
-                // terugvallen op een punt tot 70 dagen oud (zie idempotente pad
-                // hierboven voor de onderbouwing).
-                const grens28 = datumOffset(-28);
-                const binnen28 = ctlAll.filter(w => (w.id || "") >= grens28);
-                ctl4wGeleden = binnen28.length > 0 ? binnen28[0].ctl : null;
-                // Rechtstreeks intervals.icu's eigen rampRate van de ctl_nu-dag — zie
-                // ramp-rate-fix-en-impact.md, Deel A. TODO: belastingsStatus()-drempels apart
-                // herijken.
-                ctlRamp = ctlAll[ctlAll.length - 1].rampRate ?? null;
-              }
-            } catch (e) {
-              console.warn(`[sync] Wellness voor conditiescore mislukt:`, e.message);
-            }
-
-            // Decoupling medianen voor conditiescore: GEEN filter (ruwe waarden, spec 32-F)
-            const dcAlleEntries = [];
-            for (const rit of ritten) {
-              const dc = await kv.get(`decoupling:${rit.id}`);
-              if (dc == null) continue;
-              const waarde = typeof dc === "number" ? dc : dc?.decoupling;
-              const isHitte = typeof dc === "object" && (dc?.hitte_gecorrigeerd ?? false);
-              if (waarde != null) dcAlleEntries.push({ waarde, isHitte });
-            }
-            const dcAlleWaarden = dcAlleEntries.map(e => e.waarde);
-            const { huidig: dcHuidig, vorig: dcVorig } = bepaalDecouplingMedianen(dcAlleWaarden);
-
-            // >50% hitte-fallback (spec 32-F): informatiemelding als decoupling-trend onbetrouwbaar
-            const laatste6 = dcAlleEntries.slice(-6);
-            const hitteAandeel = laatste6.length > 0 ? laatste6.filter(e => e.isHitte).length / laatste6.length : 0;
-            if (laatste6.length >= 6 && hitteAandeel > 0.5) {
-              await kv.set(`conditie-hitte-melding:${userId}`, true, { ex: 14 * 86400 });
-            } else {
-              await kv.del(`conditie-hitte-melding:${userId}`).catch(() => {});
-            }
-
-            const gereedheidsscore = 50; // TODO: lezen uit KV als beschikbaar
-            const condScore = berekenConditieScore({ ctl_nu: ctlNu, ctl_4w_geleden: ctl4wGeleden, rpe_delta_trend: rpeTrend ?? null, decoupling_huidig: dcHuidig, decoupling_vorig: dcVorig });
-            const belasting = belastingsStatus(ctlRamp ?? 0, gereedheidsscore);
-            const conditie = conditieStatus(condScore);
-            const pill = conditiePillStatus(belasting, conditie);
-            await kv.set(`conditie_score:${userId}`, { score: condScore, belasting, conditie, pill, ctl_nu: ctlNu, ctl_4w_geleden: ctl4wGeleden, ctl_ramp: ctlRamp, rpe_delta_trend: rpeTrend, bijgewerkt_op: new Date().toISOString() }, { ex: 8 * 86400 });
+            // Venster verbreed naar 70 dagen — fitnessprogressie hergebruikt deze
+            // respons i.p.v. een eigen /wellness-call te doen.
+            const wellAll = await intervalsGet("/wellness", { oldest: datumOffset(-70), newest: datumOffset(0), fields: "id,ctl,atl,rampRate" }, { apiKey, athleteId });
 
             // `ritten` (boven, regel 178) is alleen "sinds laatste sync" — te smal
             // voor fitnessprogressie's 70-dagen decoupling-trend, dus hier kan
             // geen bestaande bredere activities-fetch hergebruikt worden (in
-            // tegenstelling tot het idempotente pad, waar die al bestond). Wel
-            // wordt de al opgehaalde `wellAll` hergebruikt.
-            try {
-              const activiteitenVoorTrend = await intervalsGet("/activities", { oldest: datumOffset(-70), newest: datumOffset(0), limit: "100", fields: "id,type,start_date_local,moving_time,icu_weighted_avg_watts" }, { apiKey, athleteId });
-              await berekenEnSlaFitnessprogressieOp(userId, { wellData: wellAll, activiteiten: activiteitenVoorTrend });
-            } catch (e) {
-              console.warn(`[sync] Fitnessprogressie mislukt voor ${userId}:`, e.message);
-            }
+            // tegenstelling tot het idempotente pad, waar die al bestond).
+            const activiteitenVoorTrend = await intervalsGet("/activities", { oldest: datumOffset(-70), newest: datumOffset(0), limit: "100", fields: "id,type,start_date_local,moving_time,icu_weighted_avg_watts" }, { apiKey, athleteId });
+            await berekenEnSlaFitnessprogressieOp(userId, { wellData: wellAll, activiteiten: activiteitenVoorTrend });
           } catch (e) {
-            console.warn(`[sync] Conditiescore mislukt voor ${userId}:`, e.message);
+            console.warn(`[sync] Fitnessprogressie mislukt voor ${userId}:`, e.message);
           }
 
           // VO2max-suggestie evaluatie (wekelijks, alleen bij doel=ftp, week>=5)
@@ -858,7 +751,6 @@ export async function POST(request) {
                   // Gebruik decoupling-waarden uit KV cache
                   // 1. Filter hitte-ritten (spec 32-F)
                   // 2. Filter uitschieters als extra laag (>12% of IQR)
-                  const { isDecouplingUitschieter } = await import("@/lib/conditie");
                   const dcFaseAlleWaarden = [];
                   for (const rit of z2Ritten) {
                     const dc = await kv.get(`decoupling:${rit.id}`);

@@ -29,9 +29,9 @@ const CAP_DATAPUNTEN = 20;
 /**
  * Lineaire regressie over EF-datapunten (datum, ef) → trend (EF/week).
  * Dunne wrapper om de gedeelde, generieke regressiekern (trend.js) — zie
- * die functie voor waarom datum- i.p.v. index-gebaseerd (ctlRampRegressie()
- * in lib/conditie.js) hier bewust gekozen is: EF-datapunten liggen
- * onregelmatig verspreid (niet elke dag een kwalificerende rit).
+ * die functie voor waarom hier bewust datum- i.p.v. index-gebaseerd gekozen
+ * is: EF-datapunten liggen onregelmatig verspreid (niet elke dag een
+ * kwalificerende rit).
  * @param {{datum: string, ef: number}[]} punten
  * @returns {number|null} trend in EF-verandering per week, of null bij <4 punten
  */

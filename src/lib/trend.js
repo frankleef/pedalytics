@@ -4,7 +4,7 @@
 // hrv/trend.js) dezelfde regressie-kern hergebruiken i.p.v. herhalen.
 //
 // Regresseert op echte datumverschillen (in dagen), niet op array-index —
-// ctlRampRegressie() (lib/conditie.js) doet dat laatste wél, maar veronderstelt
+// Een index-gebaseerde regressie doet dat laatste wél, maar veronderstelt
 // daarmee equidistante (dagelijkse) metingen. Deze functie is bedoeld voor
 // onregelmatig verspreide punten (niet elke dag een meting/kwalificerende
 // rit) en blijft daardoor robuust tegen ontbrekende dagen/weken in de reeks.

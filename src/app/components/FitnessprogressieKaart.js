@@ -3,11 +3,9 @@ import { useState, useEffect } from "react";
 import { T } from "../designTokens";
 
 // Traag, wekelijks bijgewerkt trendsignaal — apart van de dagelijkse
-// "Gereedheid vandaag/Conditie"-kaart (GereedheidConditieKaart), die TSB/HRV/
-// RPE + de conditie_score-pil toont. Deze kaart beantwoordt "ben ik fitter
-// geworden de afgelopen weken", niet "hoe fris ben ik vandaag" — zie
-// fitnessprogressie-en-kracht-fase-check.md, Deel A. Bewust naast de
-// bestaande pil geplaatst, niet ter vervanging.
+// "Gereedheid vandaag"-kaart (GereedheidKaart), die TSB/HRV/RPE toont. Deze
+// kaart beantwoordt "ben ik fitter geworden de afgelopen weken", niet "hoe
+// fris ben ik vandaag" — zie fitnessprogressie-en-kracht-fase-check.md, Deel A.
 
 const CTL_RICHTING_TEKST = {
   stijgend: "Je fitheid (CTL) stijgt gestaag",

@@ -1,30 +1,9 @@
 "use client";
-import { useState, useEffect } from "react";
-import { T, CONDITIE_PILL_KLEUREN } from "../designTokens";
-import { conditieInfoRegels } from "@/lib/conditie";
-import ConditieUitlegModal from "./ConditieUitlegModal";
+import { T } from "../designTokens";
 
-// Toont dezelfde conditiescore als de homepage-kaart (GereedheidConditieKaart)
-// — vóór deze wijziging las deze kaart een aparte "adaptatiescore" die nergens
-// werd berekend (dode code, altijd null) en dan onopgemerkt terugviel op een
-// losse TSS-percentage-heuristiek. Dat gaf hier een ander (en minder betekenisvol)
-// oordeel dan de homepage. Nu: één score, overal hetzelfde.
 export default function AdaptatieScoreKaart({ weekTss, doelTss, fase, weekNr, weektype, onEditBeschikbaarheid, onOpenAfwezigheid, afwezigheidActief }) {
-  const [condData, setCondData] = useState(null);
-  const [infoOpen, setInfoOpen] = useState(false);
-  const [hitteMelding, setHitteMelding] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/plan/conditie-score").then(r => r.json()).then(d => {
-      if (d.success && d.data) setCondData(d.data);
-      if (d.hitteMelding) setHitteMelding(true);
-    }).catch(() => {});
-  }, []);
-
   const tssPct = doelTss > 0 ? Math.min(100, Math.round((weekTss / doelTss) * 100)) : 0;
-  const pillKleur = condData?.pill?.kleur ? CONDITIE_PILL_KLEUREN[condData.pill.kleur] : null;
-  const infoRegels = condData ? conditieInfoRegels(condData.ctl_nu, condData.ctl_4w_geleden, condData.rpe_delta_trend) : {};
-  const balkKleur = pillKleur?.dot || "oklch(0.65 0.015 75)";
+  const balkKleur = "oklch(0.65 0.015 75)";
 
   return (
     <div style={{ background: T.cardBg, borderRadius: 24, padding: "15px 17px 16px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 18 }}>
@@ -64,52 +43,17 @@ export default function AdaptatieScoreKaart({ weekTss, doelTss, fase, weekNr, we
         </div>
       ) : (
         <>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-            {pillKleur && condData?.pill ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: T.pillRadius, background: pillKleur.bg }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: pillKleur.dot }} />
-                <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: pillKleur.tekst }}>{condData.pill.label}</span>
-              </div>
-            ) : (
-              <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textTert }}>Nog te weinig data</span>
-            )}
-            <button onClick={() => setInfoOpen(true)} aria-label="Uitleg conditiescore" style={{ width: 22, height: 22, borderRadius: "50%", background: T.subtleFill, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke={T.textSec} strokeWidth="2"/><path d="M12 16v-4M12 8h.01" stroke={T.textSec} strokeWidth="2" strokeLinecap="round"/></svg>
-            </button>
-          </div>
-
-          {/* Data-gedreven verklaring i.p.v. een vaste subtekst — dezelfde regels als op de homepage */}
-          {condData?.pill && (infoRegels.ctlRegel || infoRegels.rpeRegel) ? (
-            <div style={{ marginBottom: 10 }}>
-              {infoRegels.ctlRegel && <div style={{ font: "600 12.5px var(--font-nunito), sans-serif", color: T.textSec }}>{infoRegels.ctlRegel}</div>}
-              {infoRegels.rpeRegel && <div style={{ font: "600 12.5px var(--font-nunito), sans-serif", color: T.textSec, marginTop: 2 }}>{infoRegels.rpeRegel}</div>}
-            </div>
-          ) : (
-            <div style={{ font: "600 12.5px var(--font-nunito), sans-serif", color: T.textSec, marginBottom: 10 }}>Meer ritten nodig — beschikbaar na 4 weken training.</div>
-          )}
-
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textTert }}>TSS 7d</span>
             <span style={{ font: "600 12.5px var(--font-nunito), sans-serif", color: T.textSec }}>
               <span style={{ font: "600 17px var(--font-fredoka), sans-serif", color: T.text }}>{weekTss}</span> / {doelTss}
             </span>
           </div>
-          <div style={{ height: 6, borderRadius: T.pillRadius, background: "oklch(0.93 0.012 84)", overflow: "hidden", marginBottom: 8 }}>
+          <div style={{ height: 6, borderRadius: T.pillRadius, background: "oklch(0.93 0.012 84)", overflow: "hidden" }}>
             <div style={{ height: "100%", width: `${tssPct}%`, borderRadius: T.pillRadius, background: balkKleur }} />
-          </div>
-
-          {hitteMelding && (
-            <div style={{ font: "600 12px/1.5 var(--font-nunito), sans-serif", color: T.textSec, marginTop: 8, paddingTop: 8, borderTop: `1px solid oklch(0.93 0.01 82)` }}>
-              Je recente ritten waren overwegend in warme omstandigheden. De aerobe trend is tijdelijk minder betrouwbaar — dit herstelt zich zodra de omstandigheden normaliseren.
-            </div>
-          )}
-          <div style={{ font: "500 10.5px var(--font-nunito), sans-serif", color: T.textTert, marginTop: 8 }}>
-            Combineert je huidige trainingsbelasting met de conditierichting — voor de losse trend, zie Fitnessprogressie op Vandaag.
           </div>
         </>
       )}
-
-      {infoOpen && <ConditieUitlegModal onClose={() => setInfoOpen(false)} />}
     </div>
   );
 }

@@ -93,7 +93,6 @@ function efContextlijn({ trend, band, aantalRecent, minPunten }) {
 
 export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voortgang, seizoensplan, onOpenProfiel, weekSessies, onOpenMeldingen, heeftOngelezenMeldingen }) {
   const [ftpHistorie, setFtpHistorie] = useState([]);
-  const [conditieData, setConditieData] = useState(null);
   const [fitnessprogressie, setFitnessprogressie] = useState(null);
   const [dcPunten, setDcPunten] = useState([]);
   const [efData, setEfData] = useState(null);
@@ -101,7 +100,6 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
 
   useEffect(() => {
     fetch("/api/ftp-historie").then(r => r.json()).then(d => { if (d.success && d.data) setFtpHistorie(d.data); }).catch(() => {});
-    fetch("/api/plan/conditie-score").then(r => r.json()).then(d => { if (d.success && d.data) setConditieData(d.data); }).catch(() => {});
     fetch("/api/plan/fitnessprogressie").then(r => r.json()).then(d => { if (d.success && d.data) setFitnessprogressie(d.data); }).catch(() => {});
     fetch("/api/ef-trend").then(r => r.json()).then(d => { if (d.success && d.data) setEfData(d); }).catch(() => {});
   }, []);
@@ -121,7 +119,7 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
     return ftp;
   })();
   const doelFtp = seizoensplan?.seizoensdoel?.doel_ftp || null;
-  const rampRate = conditieData?.ctl_ramp ?? null;
+  const rampRate = fitnessprogressie?.ctl_trend?.helling_per_week ?? null;
 
   // CTL-grafiek data — seizoenslang, alleen CTL
   const wellnessData = wellness || [];

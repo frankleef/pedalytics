@@ -1,8 +1,7 @@
 import { getServerSession } from "next-auth";
 import { getToken } from "next-auth/jwt";
 import { authOptions } from "./authOptions";
-import { getIntervalsCredentials, kvKey } from "./users";
-import { getKV } from "./kv";
+import { getIntervalsCredentials } from "./users";
 
 export async function getSessionUser() {
   const session = await getServerSession(authOptions);
@@ -22,8 +21,3 @@ export async function getUserIntervalsConfig() {
   return { userId: user.id, ...creds };
 }
 
-export async function userKV(key) {
-  const user = await getSessionUser();
-  if (!user) throw new Error("Niet ingelogd");
-  return { kv: getKV(), key: kvKey(user.id, key), userId: user.id };
-}

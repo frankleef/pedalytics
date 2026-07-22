@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { berekenEnSlaFitnessprogressieOp } from "@/lib/fitnessprogressieIO";
 
-// Zelfde patroon als /api/admin/herbereken-conditiescore: Bearer ADMIN_SECRET,
-// geen sessiegebonden user.id-check (die zit één laag hoger, in de
-// /api/admin/trigger-proxy die dit secret injecteert). Roept uitsluitend
+// Bearer ADMIN_SECRET, geen sessiegebonden user.id-check (die zit één laag
+// hoger, in de /api/admin/trigger-proxy die dit secret injecteert). Roept uitsluitend
 // berekenEnSlaFitnessprogressieOp() aan — in tegenstelling tot
 // /api/volumecorrectie/hereval (voerWekelijkseEvaluatieUit met forceer:true)
 // heeft dit geen neveneffecten op plan.kader of weekSessies.

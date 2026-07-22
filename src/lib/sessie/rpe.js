@@ -35,16 +35,6 @@ export function berekenVerwachtRpe(tijdInZones, duurMinuten) {
 }
 
 /**
- * Range voor UI: ±1 punt, geclampd op [1, 10].
- */
-export function verwachtRpeRange(verwacht_rpe) {
-  return {
-    min: Math.max(1, Math.floor(verwacht_rpe - 1)),
-    max: Math.min(10, Math.ceil(verwacht_rpe + 1)),
-  };
-}
-
-/**
  * Bepaalt het gemiddelde %FTP van één segment (watts of percentage).
  */
 function segmentGemPct(seg, ftpW) {
@@ -53,22 +43,6 @@ function segmentGemPct(seg, ftpW) {
   // Legacy fallback: geen eenheid-veld → >100 = watts
   const inWatts = seg.eenheid === "watts" || (!seg.eenheid && vMin > 100);
   return inWatts ? ((vMin + vMax) / 2 / ftpW) * 100 : (vMin + vMax) / 2;
-}
-
-/**
- * Berekent het gewogen gemiddeld vermogen van segmenten (in %FTP).
- */
-export function berekenGewogenGemVermogen(segmenten, ftpW = 265) {
-  if (!segmenten || segmenten.length === 0) return 65;
-  let totalPctMin = 0;
-  let totalMin = 0;
-  for (const seg of segmenten) {
-    const gemPct = segmentGemPct(seg, ftpW);
-    const min = seg.duur_min || (seg.blokDuurSeconden ? seg.blokDuurSeconden / 60 : 1);
-    totalPctMin += gemPct * min;
-    totalMin += min;
-  }
-  return totalMin > 0 ? totalPctMin / totalMin : 65;
 }
 
 /**
@@ -119,16 +93,4 @@ export function isRpeAanpasbaar(ritStarttijd) {
   if (!ritStarttijd) return false;
   const grens = new Date(ritStarttijd).getTime() + 24 * 60 * 60 * 1000;
   return Date.now() < grens;
-}
-
-/**
- * RPE delta feedbacktekst.
- */
-export function rpeDeltaFeedback(delta) {
-  if (delta == null) return null;
-  if (delta <= -2) return "Lichter dan verwacht — goed teken dat je herstel op orde is.";
-  if (delta <= -0.5) return "Iets lichter dan gepland — dat is prima.";
-  if (delta <= 0.4) return "Precies zoals verwacht.";
-  if (delta <= 1.9) return "Iets zwaarder dan gepland — normaal, maar houd het in de gaten.";
-  return "Duidelijk zwaarder dan verwacht — let op je herstel.";
 }

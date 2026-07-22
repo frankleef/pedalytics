@@ -601,7 +601,7 @@ describe('POST /api/cron/sync — D1 compliance-poort samenloop met checkFaseOve
     expect(maakMelding).not.toHaveBeenCalledWith('u1', 'compliance_opbouwweek_verlengd');
   })
 
-  it('test 7 (regressie, vroege-return-tak): rpe_trend-lezing, conditie_score-write en volume-evaluatie blijven werken na het invoegen van de compliance-poort-aanroep', async () => {
+  it('test 7 (regressie, vroege-return-tak): volume-evaluatie blijft werken na het invoegen van de compliance-poort-aanroep', async () => {
     const seed = basisSeed(basisPlanMetKader());
     seed['user:u1:last_activity'] = { id: 'main-rit-1', datum_iso: '2026-07-12' };
     seed['rpe_trend:u1'] = 'stabiel';
@@ -612,8 +612,6 @@ describe('POST /api/cron/sync — D1 compliance-poort samenloop met checkFaseOve
 
     await POST(req());
 
-    expect(kv.get).toHaveBeenCalledWith('rpe_trend:u1');
-    expect(kv.store.get('conditie_score:u1')).toBeDefined();
     const plan = kv.store.get('u1:seizoensplan');
     expect(plan.compliance_verlengd_count).toBeUndefined();
     expect(plan.opbouwweek_verlengd_count).toBeUndefined();

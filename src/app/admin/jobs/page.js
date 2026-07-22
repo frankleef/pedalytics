@@ -34,7 +34,7 @@ function formatTijd(iso) {
 
 const CRON_CONFIG = [
   { naam: "morning", label: "Ochtend-routine", route: "POST /api/cron/morning", schema: "dagelijks ~06:00", beschrijving: "check-in-push, HRV-dagnotificatie, HRV-trendcheck per actieve sporter" },
-  { naam: "sync", label: "Intervals-sync", route: "POST /api/cron/sync", schema: "elk uur", beschrijving: "nieuwe ritten ophalen; sessie afronden + uitvoeringsscore; conditiescore; decoupling; RPE-trend; FTP-sync; fase-overgang; volume-evaluatie" },
+  { naam: "sync", label: "Intervals-sync", route: "POST /api/cron/sync", schema: "elk uur", beschrijving: "nieuwe ritten ophalen; sessie afronden + uitvoeringsscore; fitnessprogressie; decoupling; RPE-trend; FTP-sync; fase-overgang; volume-evaluatie" },
   { naam: "sessies-aanvullen", label: "Sessies aanvullen", route: "POST /api/cron/sessies-aanvullen", schema: "dagelijks ~03:00", beschrijving: "vulSessiesAanVoorGebruiker per sporter tot de horizon" },
   { naam: "review", label: "Periodieke AI-review", route: "POST /api/cron/review", schema: "2x/dag (extern via QStash, niet in deze repo geconfigureerd)", beschrijving: "verzamelReviewContext + Claude-voorstel + valideerReviewVoorstel per actieve sporter; geaccepteerde voorstellen naar review_voorstel:{userId}" },
 ];
@@ -45,8 +45,7 @@ const ONDERHOUD_GROEPEN = [
     acties: [
       { actie: "herbereken-sessies", label: "Herbereken sessies", scope: "alle sporters", beschrijving: "Toekomstige sessies opnieuw genereren met de huidige methode.", confirm: true },
       { actie: "rond-sessieduren-af", label: "Rond sessieduren af", scope: "alle sporters", beschrijving: "Blokken naar hele minuten en sessieduur naar een veelvoud van 5 min afronden, zonder de sessie zelf opnieuw te genereren.", confirm: true },
-      { actie: "herbereken-conditiescore", label: "Herbereken conditiescore", scope: "alle sporters", beschrijving: "Conditie-/belastingscore opnieuw berekenen.", confirm: true },
-      { actie: "herbereken-fitnessprogressie", label: "Herbereken fitnessprogressie", scope: "alle sporters", beschrijving: "CTL-/decoupling-trend (los van de dagelijkse conditiescore) opnieuw berekenen en naar fitnessprogressie:{userId} wegschrijven.", confirm: true },
+      { actie: "herbereken-fitnessprogressie", label: "Herbereken fitnessprogressie", scope: "alle sporters", beschrijving: "CTL-/decoupling-trend opnieuw berekenen en naar fitnessprogressie:{userId} wegschrijven.", confirm: true },
       { actie: "herbereken-hrv-profiel", label: "Herbereken HRV-profiel", scope: "alle sporters", beschrijving: "HRV-basislijn en drempels opnieuw berekenen.", confirm: true },
       { actie: "herbereken-rpe-gisteren", label: "Herbereken RPE gisteren", scope: "alle sporters", beschrijving: "Verwacht-RPE en RPE-delta van gisteren herberekenen.", confirm: true },
     ],

@@ -342,12 +342,6 @@ export async function isWekelijkseCheckVerschuldigd(userId, nu = new Date()) {
   return geclaimd != null;
 }
 
-export async function checkEnZetWeekVlag(userId, isoWeeknummer) {
-  const kv = getKV();
-  const vlag = await kv.get(`weekcheck_gedaan:${userId}:${isoWeeknummer}`);
-  return vlag != null;
-}
-
 // ====== Chunk 4: Volume-aanpassing bepalen ======
 
 export function bepaalVolumeAanpassing({ plan, aankomendWeek, correctie, signalen, geplandeTssDezeWeek = null }) {

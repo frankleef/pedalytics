@@ -67,24 +67,6 @@ function DagIntentiePanel({ data }) {
   );
 }
 
-function ConditiescoreHistoriePanel({ data }) {
-  const rijen = [...(data.data || [])].reverse().slice(0, 20);
-  return (
-    <>
-      <Kaart titel="Drempels" style={{ marginBottom: 14 }}>
-        <Rij label="Ramp-rate optimaal" waarde={data.drempels?.ramp_optimaal} />
-        <Rij label="CTL-groei" waarde={data.drempels?.ctl_groei} />
-        <Rij label="RPE-delta-trend" waarde={data.rpe_delta_trend ?? "onbekend"} />
-      </Kaart>
-      <Kaart titel={`Historie · laatste ${rijen.length} dagen`}>
-        {rijen.length === 0 ? <LEEG tekst="Geen data (minstens 28 dagen wellness nodig)." /> : rijen.map(r => (
-          <Rij key={r.datum} label={r.datum} waarde={`CTL ${r.ctl} (Δ${r.ctl_delta ?? "—"}) · ramp ${r.ramp_rate ?? "—"} · score ${r.conditie_score ?? "—"} · ${r.pill_label}`} />
-        ))}
-      </Kaart>
-    </>
-  );
-}
-
 function HrvSysteemPanel({ data }) {
   const p = data.hrv_profiel, v = data.vandaag, n = data.notificatie;
   return (
@@ -200,7 +182,6 @@ function PosthogTestPanel() {
 
 export const DEBUG_TOOLS = [
   { id: "dag-intentie", naam: "Dag-intentie", beschrijving: "Gepland vs. gegenereerd sessietype, archetype, TSS, rotatie.", route: (userId, datum) => `/api/debug/dag-intentie?datum=${datum}&userId=${userId}`, Panel: DagIntentiePanel, needsDatum: true },
-  { id: "conditiescore-historie", naam: "Conditiescore-historie", beschrijving: "Verloop conditie-/belastingscore, CTL-ramp, RPE-delta-trend.", route: (userId) => `/api/debug/conditiescore-historie?userId=${userId}`, Panel: ConditiescoreHistoriePanel },
   { id: "hrv-systeem", naam: "HRV-systeem", beschrijving: "HRV-profiel: basislijn, modus, betrouwbaar-vlag, datastatus.", route: (userId) => `/api/debug/hrv-systeem?userId=${userId}`, Panel: HrvSysteemPanel },
   { id: "hrv-trend-historie", naam: "HRV-trend-historie", beschrijving: "7d-vs-28d trend + genomen acties.", route: (userId) => `/api/debug/hrv-trend-historie?userId=${userId}`, Panel: HrvTrendHistoriePanel },
   { id: "rpe-check", naam: "RPE-check", beschrijving: "RPE-delta per rit en afgeleide trend.", route: (userId) => `/api/debug/rpe-check?userId=${userId}`, Panel: RpeCheckPanel },

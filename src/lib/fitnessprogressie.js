@@ -1,10 +1,9 @@
 // Fitnessprogressie (sectie: fitnessprogressie-en-kracht-fase-check.md, Deel A):
 // een traag, wekelijks bijgewerkt trendsignaal — losstaand van de dagelijkse
-// conditie_score-pil (src/lib/conditie.js, blijft ongewijzigd, staat voor
-// "gereedheid vandaag"). Puur/synchroon, geen KV-/intervals.icu-afhankelijkheid
-// hier — die zit in de I/O-laag (zie berekenEnSlaFitnessprogressieOp in
-// volumeCorrectie.js), zodat dit bestand net als conditie.js zonder mocks
-// testbaar blijft.
+// gereedheidsscore ("gereedheid vandaag"). Puur/synchroon, geen KV-/
+// intervals.icu-afhankelijkheid hier — die zit in de I/O-laag (zie
+// berekenEnSlaFitnessprogressieOp in volumeCorrectie.js), zodat dit bestand
+// zonder mocks testbaar blijft.
 
 // ±1 CTL-punt/week bleek in de backtest (1 mei - 13 juli 2026, zie
 // fitnessprogressie-en-kracht-fase-check.md) een stabiele grens: de helling
@@ -72,11 +71,10 @@ export function berekenCtlTrend(ctlReeks) {
 
 /**
  * Decoupling-trend: regressie van decoupling-waarde tegen tijd, over ALLE
- * kwalificerende ritten in de meegegeven periode (niet de 5-vs-5-
- * groepsvergelijking van bepaalDecouplingMedianen() in conditie.js — die
- * blijft bestaan voor de dagelijkse conditiescore, dit is een apart, trager
- * signaal). Bij <DECOUPLING_TREND_MIN_PUNTEN punten: expliciet
- * "onvoldoende_data", geen geforceerde richting.
+ * kwalificerende ritten in de meegegeven periode (een langzamer, breder
+ * signaal dan een korte 5-vs-5-groepsvergelijking). Bij
+ * <DECOUPLING_TREND_MIN_PUNTEN punten: expliciet "onvoldoende_data", geen
+ * geforceerde richting.
  * @param {Array<{datum: string, waarde: number}>} decouplingReeks - chronologisch, ISO-datums
  */
 export function berekenDecouplingTrend(decouplingReeks) {
@@ -121,11 +119,10 @@ export function berekenFitnessprogressie({ ctlReeks, decouplingReeks, ftpTestMar
 /**
  * Vertaalt een fitnessprogressie-resultaat (ctl_trend + decoupling_trend) naar
  * weergavetekst. Vervangt de vroegere, VoortgangTab-lokale
- * conditieTrendContextlijn() die de dagelijkse conditie_score-pil las — met
- * dezelfde dag-op-dag-volatiliteit als de rest van Deel A oploste (zie
- * fitnessprogressie-kracht-en-weekinfase-implementatie.md). Puur, framework-
- * agnostisch — zelfde plek/patroon als conditieInfoRegels() hierboven in
- * conditie.js, zodat de UI-laag (VoortgangTab.js) alleen rendert.
+ * conditieTrendContextlijn() die de dag-op-dag-volatiliteit had die de rest
+ * van Deel A oploste (zie fitnessprogressie-kracht-en-weekinfase-
+ * implementatie.md). Puur, framework-agnostisch, zodat de UI-laag
+ * (VoortgangTab.js) alleen rendert.
  * @param {{status: string, richting: string|null, helling_per_week: number|null, venster_dagen?: number}} [ctlTrend]
  * @param {{status: string, richting: string|null, aantal_punten?: number}} [decouplingTrend]
  * @returns {{ctlRegel: string, decouplingRegel: string}}

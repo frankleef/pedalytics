@@ -24,19 +24,3 @@ export function afleidZonePositie(vermogenMinPct, vermogenMaxPct) {
 
   return { zone: gevonden.key, positie };
 }
-
-export function afleidSessietype(blokNaam, zone) {
-  const naam = (blokNaam || "").toLowerCase();
-  if (naam.includes("sprint")) return "sprint_neuraal";
-  if (naam.includes("kracht") || naam.includes("lage cadans")) return "kracht_lage_cadans";
-  if (naam.includes("vo2")) return "vo2max_intervallen";
-  if (naam.includes("drempel") || naam.includes("threshold")) return "drempel_intervallen";
-  if (naam.includes("sweetspot") || naam.includes("sweet spot")) return "sweetspot_intervallen";
-  if (naam.includes("over") && naam.includes("under")) return "over_under";
-  if (naam.includes("pyramide")) return "pyramide";
-  if (zone === "Z7") return "sprint_neuraal";
-  if (zone === "Z6") return "z6_anaeroob";
-  if (zone === "Z5") return "vo2max_intervallen";
-  if (zone === "Z4") return "drempel_intervallen";
-  return "z2_duurrit";
-}
