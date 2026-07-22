@@ -2430,9 +2430,3 @@ export const SESSIE_ARCHETYPES = {
     },
   ],
 }
-
-// Variant-rotatiesleutels voor KV
-// Format: sessie_varianten:{userId}:{archetype_id} → array van max 3 variant-ids
-export function getVariantKvSleutel(userId, archetypeId) {
-  return `sessie_varianten:${userId}:${archetypeId}`
-}
