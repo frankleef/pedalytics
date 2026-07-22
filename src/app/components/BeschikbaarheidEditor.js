@@ -33,13 +33,32 @@ function berekenMinimumUren(weekTssDoel, fase) {
   return weekTssDoel / (IF ** 2 * 100);
 }
 
+// Minimum aaneengesloten tijd (minuten) op de langste beschikbare dag, per
+// seizoensdoel × ervaringsniveau. Basisfase gebruikt altijd de aerobe_basis-rij
+// ongeacht seizoensdoel; consolidatie/test/taper hebben geen lange-rit-eis.
+const LANGE_RIT_MINIMUM = {
+  uithoudingsvermogen: { recreatief: 150, getraind: 210 },
+  aerobe_basis:        { recreatief: 120, getraind: 180 },
+  klimmen:             { recreatief: 120, getraind: 180 },
+  ftp:                 { recreatief: 90,  getraind: 150 },
+  sprint:              { recreatief: 90,  getraind: 120 },
+};
+
+function berekenLangeRitMinimumMin(seizoensdoelType, fase, ervaringsniveau) {
+  if (["consolidatie", "test", "taper"].includes(fase)) return null;
+  const niveau = ervaringsniveau === "getraind" ? "getraind" : "recreatief";
+  if (fase === "basis") return LANGE_RIT_MINIMUM.aerobe_basis[niveau];
+  const rij = LANGE_RIT_MINIMUM[seizoensdoelType] ?? LANGE_RIT_MINIMUM.aerobe_basis;
+  return rij[niveau];
+}
+
 function fmtTijd(uren) {
   const heleUren = Math.floor(uren);
   const minuten = Math.round((uren - heleUren) * 60);
   return `${heleUren}:${String(minuten).padStart(2, "0")}`;
 }
 
-export default function BeschikbaarheidEditor({ initieel, onWijzig, weekTssDoel, fase }) {
+export default function BeschikbaarheidEditor({ initieel, onWijzig, weekTssDoel, fase, seizoensdoelType, ervaringsniveau }) {
   const [days, setDays] = useState(() =>
     DAGEN.map(d => ({
       ...d,
@@ -75,6 +94,12 @@ export default function BeschikbaarheidEditor({ initieel, onWijzig, weekTssDoel,
 
   const minimumUren = weekTssDoel != null ? berekenMinimumUren(weekTssDoel, fase) : null;
   const toontMinimumWaarschuwing = minimumUren != null && total < minimumUren;
+
+  const langeRitMinimumMin = weekTssDoel != null
+    ? berekenLangeRitMinimumMin(seizoensdoelType, fase, ervaringsniveau)
+    : null;
+  const langsteActieveDagUren = active.length ? Math.max(...active.map(d => d.hours)) : 0;
+  const toontLangeRitWaarschuwing = langeRitMinimumMin != null && langsteActieveDagUren * 60 < langeRitMinimumMin;
 
   return (
     <div>
@@ -140,6 +165,14 @@ export default function BeschikbaarheidEditor({ initieel, onWijzig, weekTssDoel,
         <div style={{ marginTop: 10, padding: "10px 14px", borderRadius: 14, background: "oklch(0.96 0.03 70)", border: "1px solid oklch(0.85 0.06 65)" }}>
           <span style={{ font: "600 12.5px/1.4 var(--font-nunito), sans-serif", color: "oklch(0.42 0.1 55)" }}>
             Je hebt deze week minder tijd ingepland dan ideaal voor je huidige fase (± {fmtTijd(minimumUren)} uur nodig).
+          </span>
+        </div>
+      )}
+
+      {toontLangeRitWaarschuwing && (
+        <div style={{ marginTop: 10, padding: "10px 14px", borderRadius: 14, background: "oklch(0.96 0.03 70)", border: "1px solid oklch(0.85 0.06 65)" }}>
+          <span style={{ font: "600 12.5px/1.4 var(--font-nunito), sans-serif", color: "oklch(0.42 0.1 55)" }}>
+            Voor je huidige doel en fase is het ideaal om minstens één dag met ± {fmtTijd(langeRitMinimumMin / 60)} uur beschikbaar te hebben voor een lange rit.
           </span>
         </div>
       )}

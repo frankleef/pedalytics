@@ -1201,6 +1201,8 @@ export default function Page() {
           urenPerDag={urenPerDag}
           kader={seizoensplan?.kader}
           startdatum={seizoensplan?.startdatum}
+          seizoensdoelType={seizoensplan?.seizoensdoel?.type}
+          ervaringsniveau={seizoensplan?.ervaringsniveau}
           onTerug={() => history.back()}
           onOpslaan={handleBeschikbaarheidOpslaan}
         />

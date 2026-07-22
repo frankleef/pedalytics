@@ -4,7 +4,7 @@ import { T } from "../designTokens";
 import BeschikbaarheidEditor from "./BeschikbaarheidEditor";
 import { kaderWeekVoorDatum } from "@/lib/weekgrenzen";
 
-export default function BeschikbaarheidScherm({ beschikbaar, urenPerDag, kader, startdatum, onOpslaan, onTerug }) {
+export default function BeschikbaarheidScherm({ beschikbaar, urenPerDag, kader, startdatum, seizoensdoelType, ervaringsniveau, onOpslaan, onTerug }) {
   const laatsteDataRef = useRef({ beschikbaar: beschikbaar || {}, uren: urenPerDag || {} });
   const huidigeWeek = kaderWeekVoorDatum(new Date(), kader, startdatum);
   const weekTssDoel = huidigeWeek?.tss_doel ?? null;
@@ -31,6 +31,8 @@ export default function BeschikbaarheidScherm({ beschikbaar, urenPerDag, kader, 
             onWijzig={(data) => { laatsteDataRef.current = data; }}
             weekTssDoel={weekTssDoel}
             fase={huidigeWeek?.fase}
+            seizoensdoelType={seizoensdoelType}
+            ervaringsniveau={ervaringsniveau}
           />
         </div>
 
