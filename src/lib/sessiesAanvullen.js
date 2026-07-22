@@ -310,6 +310,7 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
         aantalWekenInFase: aantalWekenInFaseVoorDeze,
         weekNummerInSeizoen: kaderWeekVoorDeze?.week ?? null,
         laatsteKrachtLageCadansWeek: laatsteKrachtLageCadansWeek ?? null,
+        ervaringsniveau: plan.ervaringsniveau ?? null,
         vasteDagen: vasteDagenDezeWeek,
         openDagen: dagenVoorSolver.map(d => ({ datum: d.datum, beschikbareUren: d.uren })),
         alGeleverd, tsb: tsbDezeWeek,
@@ -380,7 +381,16 @@ export async function vulSessiesAanVoorGebruiker(userId, { aerobeDagen = [], tem
           continue;
         }
         if (toewijzing.sessietype !== 'ramp_test') {
-          oudeSessieVoorGeneratie = { intentie: { sessietype: toewijzing.sessietype, tss_doel: toewijzing.tss_doel } };
+          oudeSessieVoorGeneratie = {
+            intentie: {
+              sessietype: toewijzing.sessietype,
+              tss_doel: toewijzing.tss_doel,
+              // Overleeft de dagIntentie-spread in genereerSessieDeterministisch
+              // (sessie-generatie.js) naar de finale sessie.intentie — alleen
+              // gezet (niet als `false`) zodat andere dagen dit veld niet krijgen.
+              ...(toewijzing.is_lange_rit_dag ? { is_lange_rit_dag: true } : {}),
+            },
+          };
         }
       }
 

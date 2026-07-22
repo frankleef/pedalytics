@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { T } from "../designTokens";
-import { GEMIDDELDE_IF_BASIS } from "@/lib/rijhistorie";
+import { berekenLangeRitMinimumMin } from "@/lib/langeRit";
+import { berekenMinimumUren, bepaalMinimumUrenVariant } from "./beschikbaarheidMinimum";
 
 const DAGEN = [
   { key: "Ma", full: "Maandag" },
@@ -12,45 +13,6 @@ const DAGEN = [
   { key: "Za", full: "Zaterdag" },
   { key: "Zo", full: "Zondag" },
 ];
-
-// Representatieve IF per fase — gebruikt om het TSS-weekdoel van de huidige
-// kaderweek terug te rekenen naar een minimum aantal beschikbare uren.
-// Basis hergebruikt GEMIDDELDE_IF_BASIS (rijhistorie.js) als enige bron van
-// waarheid; sweetspot/drempel/vo2max zijn vastgestelde aannames, consolidatie/
-// test/taper vallen conservatief terug op 0.70.
-const IF_PER_FASE = {
-  basis: GEMIDDELDE_IF_BASIS,
-  sweetspot: 0.91,
-  drempel: 1.00,
-  vo2max: 1.13,
-  consolidatie: 0.70,
-  test: 0.70,
-  taper: 0.70,
-};
-
-function berekenMinimumUren(weekTssDoel, fase) {
-  const IF = IF_PER_FASE[fase] ?? 0.70;
-  return weekTssDoel / (IF ** 2 * 100);
-}
-
-// Minimum aaneengesloten tijd (minuten) op de langste beschikbare dag, per
-// seizoensdoel × ervaringsniveau. Basisfase gebruikt altijd de aerobe_basis-rij
-// ongeacht seizoensdoel; consolidatie/test/taper hebben geen lange-rit-eis.
-const LANGE_RIT_MINIMUM = {
-  uithoudingsvermogen: { recreatief: 150, getraind: 210 },
-  aerobe_basis:        { recreatief: 120, getraind: 180 },
-  klimmen:             { recreatief: 120, getraind: 180 },
-  ftp:                 { recreatief: 90,  getraind: 150 },
-  sprint:              { recreatief: 90,  getraind: 120 },
-};
-
-function berekenLangeRitMinimumMin(seizoensdoelType, fase, ervaringsniveau) {
-  if (["consolidatie", "test", "taper"].includes(fase)) return null;
-  const niveau = ervaringsniveau === "getraind" ? "getraind" : "recreatief";
-  if (fase === "basis") return LANGE_RIT_MINIMUM.aerobe_basis[niveau];
-  const rij = LANGE_RIT_MINIMUM[seizoensdoelType] ?? LANGE_RIT_MINIMUM.aerobe_basis;
-  return rij[niveau];
-}
 
 function fmtTijd(uren) {
   const heleUren = Math.floor(uren);
@@ -93,7 +55,7 @@ export default function BeschikbaarheidEditor({ initieel, onWijzig, weekTssDoel,
   const total = active.reduce((a, d) => a + d.hours, 0);
 
   const minimumUren = weekTssDoel != null ? berekenMinimumUren(weekTssDoel, fase) : null;
-  const toontMinimumWaarschuwing = minimumUren != null && total < minimumUren;
+  const minimumUrenVariant = bepaalMinimumUrenVariant(total, minimumUren);
 
   const langeRitMinimumMin = weekTssDoel != null
     ? berekenLangeRitMinimumMin(seizoensdoelType, fase, ervaringsniveau)
@@ -161,10 +123,18 @@ export default function BeschikbaarheidEditor({ initieel, onWijzig, weekTssDoel,
         <span style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.text }}>{fmtTijd(total)} uur / week</span>
       </div>
 
-      {toontMinimumWaarschuwing && (
+      {minimumUrenVariant === "waarschuwing" && (
         <div style={{ marginTop: 10, padding: "10px 14px", borderRadius: 14, background: "oklch(0.96 0.03 70)", border: "1px solid oklch(0.85 0.06 65)" }}>
           <span style={{ font: "600 12.5px/1.4 var(--font-nunito), sans-serif", color: "oklch(0.42 0.1 55)" }}>
             Je hebt deze week minder tijd ingepland dan ideaal voor je huidige fase (± {fmtTijd(minimumUren)} uur nodig).
+          </span>
+        </div>
+      )}
+
+      {minimumUrenVariant === "richtlijn" && (
+        <div style={{ marginTop: 10, padding: "10px 14px", borderRadius: 14, background: T.subtleFill, border: `1px solid ${T.cardBorder}` }}>
+          <span style={{ font: "600 12.5px/1.4 var(--font-nunito), sans-serif", color: T.textSec }}>
+            Richtlijn: ± {fmtTijd(minimumUren)} uur deze week voor je huidige fase — dat haal je.
           </span>
         </div>
       )}

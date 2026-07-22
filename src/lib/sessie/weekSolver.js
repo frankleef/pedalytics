@@ -8,6 +8,7 @@ import { vindArchetypeMetVarianten, bepaalDoelGewicht } from "../sessie-generati
 import { getArchetypesVoorSessietype } from "../sessie-archetypes";
 import { bepaalVrijheidsdag } from "../vrijheidsdag";
 import { IF_BEREIK } from "./tssValidatie";
+import { moetLangeRitDezeWeek, berekenLangeRitMinimumMin } from "../langeRit";
 
 // Zelfde TSB-drempel als bepaalDoelGewicht() in sessie-generatie.js (gewicht 1
 // als tsb < TSB_DEGRADATIE_DREMPEL) — één bron van waarheid voor "wanneer is
@@ -658,7 +659,7 @@ export function solveWeek({
   archetypesData, fase, weekInFase, weektype, seizoensdoel, weekTssDoel, belastingscap, aantalWekenInFase,
   vasteDagen = [], openDagen = [], alGeleverd = {}, tsb = null,
   weekNummerInSeizoen = null, laatsteKrachtLageCadansWeek = null,
-  bevrorenWeekInFase = null, weekVoorzichtig = false,
+  bevrorenWeekInFase = null, weekVoorzichtig = false, ervaringsniveau = null,
 }) {
   if (!archetypesData || typeof archetypesData !== "object") {
     throw new Error("solveWeek: archetypesData ontbreekt — moet vooraf opgehaald zijn (server: getAlleArchetypesRaw(), client: GET /api/archetypes).");
@@ -687,6 +688,38 @@ export function solveWeek({
   const generiekeFaseVoorFrequentie = normaliseerFase(seizoensdoel, fase);
   let kernstimulusType = null;
 
+  // Lange-rit-reservering (nieuwe sectie, generiek voor alle fases): in weken
+  // waar moetLangeRitDezeWeek() de cadans afgeeft, wordt de langste open dag
+  // vóóraf gereserveerd voor z2_duur/lange rit — anders claimt kernstimulus/
+  // secundair 'm hieronder (die zoeken ook vanaf de langste dag). Alleen als
+  // die langste dag ook daadwerkelijk de LANGE_RIT_MINIMUM-drempel haalt,
+  // anders heeft reserveren geen zin (geen dag is toch lang genoeg).
+  //
+  // Guard: alleen reserveren als er ná de reservering nog genoeg dagen
+  // overblijven voor kernstimulus (frequentie) + secundair — anders komt
+  // kernstimulus/secundair die week leeg uit te vallen, wat bij een gebruiker
+  // met weinig trainingsdagen (het normale geval, niet de uitzondering) de
+  // week-intensiteitsstructuur zou ontregelen. kracht_lage_cadans (Stap 5,
+  // hieronder) valt bewust buiten deze telling: dat is altijd een kans-als-
+  // budget-het-toelaat, geen gegarandeerde wekelijkse toewijzing zoals
+  // kernstimulus/secundair.
+  let langeRitReservering = null;
+  if (openDagenAflopend.length > 0 && moetLangeRitDezeWeek(seizoensdoel, weektype, weekNummerInSeizoen)) {
+    const kernstimulusFrequentieVoorGuard = (!isHerstelAchtig && prioriteit.kernstimulus)
+      ? bepaalKernstimulusFrequentie(generiekeFaseVoorFrequentie, weekInFase, weektype, weekVoorzichtig)
+      : 0;
+    const secundairBenodigd = (!isHerstelAchtig && prioriteit.secundair && !bestaandeSessietypesDezeWeek.has(prioriteit.secundair)) ? 1 : 0;
+    const benodigdeAndereDagen = kernstimulusFrequentieVoorGuard + secundairBenodigd;
+
+    if (openDagenAflopend.length > benodigdeAndereDagen) {
+      const langsteDag = openDagenAflopend[0];
+      const langeRitMinimumMin = berekenLangeRitMinimumMin(seizoensdoel, fase, ervaringsniveau);
+      if (langeRitMinimumMin != null && Math.round(langsteDag.beschikbareUren * 60) >= langeRitMinimumMin) {
+        langeRitReservering = langsteDag.datum;
+      }
+    }
+  }
+
   // Stap 2/3: kernstimulus — vult tot bepaalKernstimulusFrequentie() dagen met
   // hetzelfde kernstimulus-sessietype (sectie 22-G: standaard 1x/week, kan
   // binnen sommige fases binnen het blok opbouwen naar 2x/week — zie
@@ -702,7 +735,7 @@ export function solveWeek({
 
     for (let i = 0; i < frequentie && kernstimulusType; i++) {
       const dag = openDagenAflopend.find(
-        d => !gebruikt.has(d.datum) && !kernstimulusDatums.some(kd => zijnAangrenzend(kd, d.datum))
+        d => !gebruikt.has(d.datum) && d.datum !== langeRitReservering && !kernstimulusDatums.some(kd => zijnAangrenzend(kd, d.datum))
       );
       if (!dag) break;
 
@@ -720,11 +753,11 @@ export function solveWeek({
   // Stap 3/4: secundair — idem, plus adjacency-check t.o.v. elke kernstimulusdag,
   // plus vrijheidsdag-uitzondering (week 3 van een intensieve fase -> 'gemengd').
   if (!isHerstelAchtig && prioriteit.secundair && !bestaandeSessietypesDezeWeek.has(prioriteit.secundair)) {
-    let dag = openDagenAflopend.find(d => !gebruikt.has(d.datum));
+    let dag = openDagenAflopend.find(d => !gebruikt.has(d.datum) && d.datum !== langeRitReservering);
 
     if (dag && kernstimulusDatums.some(kd => zijnAangrenzend(kd, dag.datum))) {
       const alternatief = openDagenAflopend.find(
-        d => !gebruikt.has(d.datum) && d.datum !== dag.datum && !kernstimulusDatums.some(kd => zijnAangrenzend(kd, d.datum))
+        d => !gebruikt.has(d.datum) && d.datum !== dag.datum && d.datum !== langeRitReservering && !kernstimulusDatums.some(kd => zijnAangrenzend(kd, d.datum))
       );
       if (alternatief) dag = alternatief; // anders: geen alternatief, adjacency toegestaan
     }
@@ -753,7 +786,7 @@ export function solveWeek({
     kernstimulusDatums.length > 0 && !bestaandeSessietypesDezeWeek.has("sprint_neuraal")
   ) {
     const kandidaat = openDagenAflopend.find(
-      d => !gebruikt.has(d.datum) && !kernstimulusDatums.some(kd => zijnAangrenzend(kd, d.datum))
+      d => !gebruikt.has(d.datum) && d.datum !== langeRitReservering && !kernstimulusDatums.some(kd => zijnAangrenzend(kd, d.datum))
     );
     if (kandidaat) {
       const { gedegradeerd } = degradeerBijLageTsb("sprint_neuraal", tsb);
@@ -797,11 +830,23 @@ export function solveWeek({
   for (const dag of z2Dagen) {
     const aandeel = totaalUrenZ2 > 0 ? dag.beschikbareUren / totaalUrenZ2 : 0;
     const tssDoel = Math.max(0, Math.round(restBudget * aandeel));
-    const wordtKracht = !isHerstelAchtig && !krachtLageCadansGebruiktDezeWeek && kernstimulusTotaalDezeWeek < 2 &&
+    // De lange-rit-reservering blijft z2_duur — nooit kracht_lage_cadans, dat
+    // zou de gereserveerde lange rit vervangen door een krachtsessie.
+    const wordtKracht = dag.datum !== langeRitReservering &&
+      !isHerstelAchtig && !krachtLageCadansGebruiktDezeWeek && kernstimulusTotaalDezeWeek < 2 &&
       magKrachtLageCadans(seizoensdoel, generiekeFaseVoorKracht, weekNummerInSeizoen, laatsteKrachtLageCadansWeek);
     if (wordtKracht) krachtLageCadansGebruiktDezeWeek = true;
     const magIngebedIntensiefArchetype = !zwareDagDatums.some(zd => zijnAangrenzend(zd, dag.datum));
     toewijzingen.push(bouwToewijzing(dag, wordtKracht ? "kracht_lage_cadans" : "z2_duur", { archetypesData, fase, weekInFase, weektype, seizoensdoel, pad: "z2", tssDoelOverride: tssDoel, magIngebedIntensiefArchetype }));
+  }
+
+  // Markeer de gereserveerde lange-rit-dag op de dag-intentie zelf — generiek
+  // voor alle fases (in de basisfase komt hier onafhankelijk ook nog
+  // heeft_sprint_staartjes bij, zie sessiesAanvullen.js, twee losse vlaggen op
+  // dezelfde dag).
+  if (langeRitReservering) {
+    const langeRitToewijzing = toewijzingen.find(t => t.datum === langeRitReservering);
+    if (langeRitToewijzing) langeRitToewijzing.is_lange_rit_dag = true;
   }
 
   toewijzingen.sort((a, b) => a.datum.localeCompare(b.datum));
@@ -890,6 +935,10 @@ export function verlaagBijHogeMonotonie(toewijzingen, trigger, { archetypesData,
  * het budget overschrijden, is dat een inputfout uit solveWeek — wordt gelogd,
  * niet stilzwijgend overschreven.
  *
+ * Een Z2-dag met `is_lange_rit_dag` (lange-rit-reservering, zie solveWeek())
+ * wordt ook nooit gekort/geschrapt — zelfde bescherming als kernstimulus/
+ * secundair, ongeacht of het toevallig ook de langste Z2-dag is.
+ *
  * @param {Array} toewijzingen - output van solveWeek()
  * @param {number} belastingscap
  * @param {number} [alGeleverdTss] - TSS van daadwerkelijk gereden activiteiten deze week
@@ -919,8 +968,17 @@ export function pasBudgetToe(toewijzingen, belastingscap, alGeleverdTss = 0, vas
     return toewijzingen;
   }
 
-  const z2 = toewijzingen.filter(t => t.pad === "z2").map(t => ({ ...t }));
-  const beschikbaarVoorZ2 = belastingscap - alVerbruikt - nietZ2Tss;
+  // Lange-rit-reservering (is_lange_rit_dag, zie solveWeek()) wordt hier net
+  // als kernstimulus/secundair nooit gekort of geschrapt — anders zou het
+  // hele punt van reserveren (de dag ook echt op volle duur laten staan)
+  // alsnog ongedaan gemaakt worden door de generieke Z2-correctie hieronder.
+  // Telt wel mee als verbruikt budget, zodat de overige Z2-dagen het
+  // resterende tekort daadwerkelijk absorberen.
+  const beschermdeZ2 = toewijzingen.filter(t => t.pad === "z2" && t.is_lange_rit_dag);
+  const beschermdeZ2Tss = beschermdeZ2.reduce((s, t) => s + (t.tss_doel ?? 0), 0);
+
+  const z2 = toewijzingen.filter(t => t.pad === "z2" && !t.is_lange_rit_dag).map(t => ({ ...t }));
+  const beschikbaarVoorZ2 = belastingscap - alVerbruikt - nietZ2Tss - beschermdeZ2Tss;
   const huidigeZ2Tss = () => z2.filter(t => t.sessietype !== "rust").reduce((s, t) => s + t.tss_doel, 0);
 
   if (huidigeZ2Tss() <= beschikbaarVoorZ2) {
@@ -971,5 +1029,5 @@ export function pasBudgetToe(toewijzingen, belastingscap, alGeleverdTss = 0, vas
     }
   }
 
-  return [...nietZ2, ...z2].sort((a, b) => a.datum.localeCompare(b.datum));
+  return [...nietZ2, ...beschermdeZ2, ...z2].sort((a, b) => a.datum.localeCompare(b.datum));
 }

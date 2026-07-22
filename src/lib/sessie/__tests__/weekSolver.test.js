@@ -31,8 +31,13 @@ describe('solveWeek', () => {
     expect(kernstimulus.sessietype).toBe('drempel_intervallen')
     const secundair = resultaat.find(r => r.pad === 'secundair')
     expect(secundair.sessietype).toBe('vo2max_intervallen')
-    // Kernstimulus krijgt de dag met de meeste beschikbare uren
-    expect(kernstimulus.beschikbareUren).toBe(3)
+    // Klimmen heeft cadans 1 ("elke week") — de langste dag (3u) wordt
+    // gereserveerd voor de lange rit (is_lange_rit_dag), dus kernstimulus
+    // krijgt de op-één-na-langste dag (2.5u).
+    expect(kernstimulus.beschikbareUren).toBe(2.5)
+    const langeRit = resultaat.find(r => r.is_lange_rit_dag === true)
+    expect(langeRit.beschikbareUren).toBe(3)
+    expect(langeRit.sessietype).toBe('z2_duur')
   })
 
   it('scenario 2: 1 vaste sweetspot-dag deze week (ftp) -> geen tweede sweetspot, geen fallback-type binnen dezelfde fase', () => {
@@ -82,14 +87,16 @@ describe('solveWeek', () => {
         archetypesData: ARCHETYPES_FIXTURE,
       fase: 'drempel', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'klimmen',
       weekTssDoel: 400, vasteDagen: [],
-      // 07-06 krijgt kernstimulus (meeste uren). 07-07 is aangrenzend, 07-10 niet.
-      openDagen: dagen('2026-07-06:3', '2026-07-07:2', '2026-07-10:2'),
+      // 07-06 (langste, 3u) wordt gereserveerd voor de lange rit (klimmen: elke
+      // week, drempel-drempel >=120min). Kernstimulus krijgt dus de op-één-na-
+      // langste dag (07-07). 07-08 is aangrenzend aan 07-07, 07-11 niet.
+      openDagen: dagen('2026-07-06:3', '2026-07-07:2.5', '2026-07-08:2', '2026-07-11:2'),
       alGeleverd: {}, tsb: 0,
     })
     const kernstimulus = resultaat.find(r => r.pad === 'kernstimulus')
     const secundair = resultaat.find(r => r.pad === 'secundair')
-    expect(kernstimulus.datum).toBe('2026-07-06')
-    expect(secundair.datum).toBe('2026-07-10')
+    expect(kernstimulus.datum).toBe('2026-07-07')
+    expect(secundair.datum).toBe('2026-07-11')
   })
 
   it('scenario 5: herstelweek -> geen kernstimulus/secundair, alleen z2_duur', () => {
@@ -213,7 +220,12 @@ describe('solveWeek', () => {
         archetypesData: ARCHETYPES_FIXTURE,
       fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'klimmen',
       weekTssDoel: 300, vasteDagen: [],
-      openDagen: dagen('2026-07-06:2', '2026-07-08:1.5'),
+      // Derde dag toegevoegd t.o.v. de oorspronkelijke 2-dagen-opzet: klimmen
+      // reserveert de langste dag (07-06) elke week voor de lange rit, dus met
+      // maar 2 dagen zou er geen dag meer overblijven voor kracht_lage_cadans
+      // — dit test specifiek de kracht_lage_cadans-cadans, niet de lange-rit-
+      // reservering, dus 3 dagen om beide mechanismen ruimte te geven.
+      openDagen: dagen('2026-07-06:2', '2026-07-08:1.5', '2026-07-10:1.5'),
       alGeleverd: {}, tsb: 0,
       weekNummerInSeizoen: 6, laatsteKrachtLageCadansWeek: 5, // vorige week, interval is 1
     })
@@ -489,7 +501,11 @@ describe('solveWeek', () => {
         archetypesData: ARCHETYPES_FIXTURE,
         fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'klimmen',
         weekTssDoel: 1000, vasteDagen: [],
-        openDagen: dagen('2026-07-06:2', '2026-07-08:1.5'),
+        // Derde dag toegevoegd — zelfde reden als de 'elke week opnieuw
+        // toegestaan'-test hierboven: klimmen reserveert de langste dag voor
+        // de lange rit, en met maar 2 dagen blijft er dan geen dag over voor
+        // kracht_lage_cadans (het mechanisme dat deze test verifieert).
+        openDagen: dagen('2026-07-06:2', '2026-07-08:1.5', '2026-07-10:1.5'),
         alGeleverd: {}, tsb: 0, weekNummerInSeizoen: 5, laatsteKrachtLageCadansWeek: null,
       })
       expect(resultaat.filter(r => r.pad === 'kernstimulus')).toHaveLength(1)
@@ -1353,5 +1369,119 @@ describe('solveWeek — F: interactie bevrorenWeekInFase (STAP 0) + weekVoorzich
     // heeft geen invloed op het BUDGET per dag).
     expect(beideTssPerDag).toBe(alleenBevrorenTssPerDag)
     expect(beideTssPerDag).toBeLessThan(baselineTssPerDag)
+  })
+})
+
+describe('solveWeek: lange-rit-reservering (is_lange_rit_dag)', () => {
+  it('markeert de langste z2-dag als is_lange_rit_dag in een representatieve week (aerobe_basis, cadans elke week)', () => {
+    const resultaat = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'basis', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'aerobe_basis',
+      weekTssDoel: 300, vasteDagen: [],
+      openDagen: dagen('2026-07-06:1.5', '2026-07-08:3', '2026-07-10:2'),
+      alGeleverd: {}, tsb: 0, weekNummerInSeizoen: 1,
+    })
+    const langeRit = resultaat.filter(r => r.is_lange_rit_dag === true)
+    expect(langeRit).toHaveLength(1)
+    expect(langeRit[0].datum).toBe('2026-07-08')
+    expect(langeRit[0].beschikbareUren).toBe(3)
+    expect(langeRit[0].sessietype).toBe('z2_duur')
+  })
+
+  it('geen enkele dag lang genoeg voor de LANGE_RIT_MINIMUM-drempel -> geen markering', () => {
+    const resultaat = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'basis', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'aerobe_basis',
+      weekTssDoel: 150, vasteDagen: [],
+      openDagen: dagen('2026-07-06:1', '2026-07-08:1'), // 60min elk, ver onder de 120min-drempel
+      alGeleverd: {}, tsb: 0, weekNummerInSeizoen: 1,
+    })
+    expect(resultaat.some(r => r.is_lange_rit_dag === true)).toBe(false)
+  })
+
+  it('herstelweek: nooit een lange-rit-markering, ongeacht seizoensdoel', () => {
+    const resultaat = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'basis', weekInFase: 2, weektype: 'herstel', seizoensdoel: 'aerobe_basis',
+      weekTssDoel: 150, vasteDagen: [],
+      openDagen: dagen('2026-07-06:3', '2026-07-08:2'),
+      alGeleverd: {}, tsb: 0, weekNummerInSeizoen: 2,
+    })
+    expect(resultaat.some(r => r.is_lange_rit_dag === true)).toBe(false)
+  })
+
+  it('sprint-doel: geen markering in een oneven weeknummer, wel in een even weeknummer', () => {
+    const opts = weekNummerInSeizoen => ({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'sweetspot', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'sprint',
+      weekTssDoel: 300, vasteDagen: [],
+      openDagen: dagen('2026-07-06:1.5', '2026-07-08:3', '2026-07-10:2'),
+      alGeleverd: {}, tsb: 0, weekNummerInSeizoen,
+    })
+    const oneven = solveWeek(opts(3))
+    const even = solveWeek(opts(4))
+    expect(oneven.some(r => r.is_lange_rit_dag === true)).toBe(false)
+    expect(even.some(r => r.is_lange_rit_dag === true)).toBe(true)
+  })
+
+  it('gereserveerde dag wordt nooit kracht_lage_cadans (blijft z2_duur)', () => {
+    const resultaat = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'basis', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'ftp',
+      weekTssDoel: 400, vasteDagen: [],
+      openDagen: dagen('2026-07-06:3', '2026-07-08:1.5', '2026-07-10:1.5'),
+      alGeleverd: {}, tsb: 0, weekNummerInSeizoen: 5, laatsteKrachtLageCadansWeek: null,
+    })
+    const langeRit = resultaat.find(r => r.is_lange_rit_dag === true)
+    expect(langeRit).toBeDefined()
+    expect(langeRit.sessietype).toBe('z2_duur')
+  })
+
+  it('guard: te weinig open dagen om kernstimulus+secundair te bedienen -> geen reservering, bestaand gedrag intact', () => {
+    // Klimmen/drempel: kernstimulus + secundair vereisen samen 2 dagen. Met
+    // precies 2 open dagen blijft er geen ruimte voor een reservering.
+    const resultaat = solveWeek({
+      archetypesData: ARCHETYPES_FIXTURE,
+      fase: 'drempel', weekInFase: 1, weektype: 'opbouw', seizoensdoel: 'klimmen',
+      weekTssDoel: 400, vasteDagen: [],
+      openDagen: dagen('2026-07-06:3', '2026-07-07:2'),
+      alGeleverd: {}, tsb: 0, weekNummerInSeizoen: 1,
+    })
+    expect(resultaat.some(r => r.is_lange_rit_dag === true)).toBe(false)
+    expect(resultaat.filter(r => r.pad === 'kernstimulus' || r.pad === 'secundair')).toHaveLength(2)
+  })
+})
+
+describe('pasBudgetToe: bescherming van is_lange_rit_dag', () => {
+  it('een is_lange_rit_dag-toewijzing wordt nooit verkort of geschrapt, ook niet als laatste overgebleven z2-dag bij een krap budget', () => {
+    const toewijzingen = [
+      { datum: '2026-07-06', sessietype: 'z2_duur', tss_doel: 300, pad: 'z2', beschikbareUren: 4, is_lange_rit_dag: true },
+      { datum: '2026-07-08', sessietype: 'z2_duur', tss_doel: 100, pad: 'z2', beschikbareUren: 1.5 },
+    ]
+    // Belastingscap ruim onder de som van beide z2-dagen (400) — zonder
+    // bescherming zou pasBudgetToe() de lange rit als laatste redmiddel ook
+    // korten/schrappen.
+    const resultaat = pasBudgetToe(toewijzingen, 320)
+    const langeRit = resultaat.find(r => r.datum === '2026-07-06')
+    expect(langeRit.sessietype).toBe('z2_duur')
+    expect(langeRit.beschikbareUren).toBe(4)
+
+    const overigeDag = resultaat.find(r => r.datum === '2026-07-08')
+    // De niet-beschermde dag absorbeert het tekort (320 - 300 = 20 over).
+    expect(overigeDag.tss_doel).toBeLessThanOrEqual(20)
+  })
+
+  it('zonder is_lange_rit_dag blijft het bestaande "langste rit als laatst gekort"-gedrag intact', () => {
+    const toewijzingen = [
+      { datum: '2026-07-06', sessietype: 'z2_duur', tss_doel: 300, pad: 'z2', beschikbareUren: 4 },
+      { datum: '2026-07-08', sessietype: 'z2_duur', tss_doel: 100, pad: 'z2', beschikbareUren: 1.5 },
+    ]
+    const resultaat = pasBudgetToe(toewijzingen, 320)
+    const langsteRit = resultaat.find(r => r.datum === '2026-07-06')
+    const korteDag = resultaat.find(r => r.datum === '2026-07-08')
+    // Zonder bescherming wordt eerst de kortbare (kortere) dag gekort/geschrapt,
+    // de langste rit blijft ongemoeid zolang er nog een kortbare dag is.
+    expect(langsteRit.tss_doel).toBe(300)
+    expect(korteDag.sessietype).toBe('rust')
   })
 })
