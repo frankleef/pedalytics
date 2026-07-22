@@ -1,8 +1,14 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { T } from "../designTokens";
 import { berekenLangeRitMinimumMin } from "@/lib/langeRit";
-import { berekenMinimumUren, bepaalMinimumUrenVariant } from "./beschikbaarheidMinimum";
+import { bepaalMinimumUrenVariant, berekenStreefUrenSuggestie } from "./beschikbaarheidMinimum";
+import { berekenGemiddeldeUrenPerWeek } from "@/lib/rijhistorie";
+import { getMaandagVanWeek } from "@/lib/weekgrenzen";
+
+// "Laatste 6 volledige weken" — 12 maanden bleek te verdunnend bij een atleet
+// in opbouw (zie project-memory, diagnose-chunk).
+const HISTORIE_WEKEN = 6;
 
 const DAGEN = [
   { key: "Ma", full: "Maandag" },
@@ -20,7 +26,52 @@ function fmtTijd(uren) {
   return `${heleUren}:${String(minuten).padStart(2, "0")}`;
 }
 
-export default function BeschikbaarheidEditor({ initieel, onWijzig, weekTssDoel, fase, seizoensdoelType, ervaringsniveau }) {
+export default function BeschikbaarheidEditor({ initieel, onWijzig, weekTssDoel, fase, seizoensdoelType, ervaringsniveau, onStreefUrenGewijzigd }) {
+  const [streefUren, setStreefUren] = useState(() => initieel?.streefUrenPerWeek ?? "");
+  const [suggestieUren, setSuggestieUren] = useState(null);
+
+  // Historische suggestie — alléén bij eerste gebruik (geen bestaand
+  // streefUrenPerWeek op het plan), eenmalig bij mount. Zodra de gebruiker
+  // een waarde heeft opgeslagen, bestaat initieel.streefUrenPerWeek al bij de
+  // volgende render en wordt dit blok overgeslagen — nooit stilzwijgend
+  // overschrijven.
+  useEffect(() => {
+    if (initieel?.streefUrenPerWeek != null) return;
+    let actief = true;
+
+    const laatsteVolledigeZondag = getMaandagVanWeek(new Date());
+    laatsteVolledigeZondag.setDate(laatsteVolledigeZondag.getDate() - 1);
+    const oudsteMaandag = new Date(laatsteVolledigeZondag);
+    oudsteMaandag.setDate(oudsteMaandag.getDate() - (HISTORIE_WEKEN * 7 - 1));
+
+    const oldest = oudsteMaandag.toISOString().slice(0, 10);
+    const newest = laatsteVolledigeZondag.toISOString().slice(0, 10);
+
+    fetch(`/api/intervals/activities?oldest=${oldest}&newest=${newest}`)
+      .then(r => r.json())
+      .then(d => {
+        if (!actief || !d.success || !d.data) return;
+        const gemiddelde = berekenGemiddeldeUrenPerWeek(d.data);
+        const suggestie = berekenStreefUrenSuggestie(gemiddelde);
+        if (suggestie == null) return;
+        setSuggestieUren(suggestie);
+        setStreefUren(prev => {
+          if (prev !== "") return prev;
+          onStreefUrenGewijzigd?.(suggestie);
+          return suggestie;
+        });
+      })
+      .catch(() => {});
+
+    return () => { actief = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const wijzigStreefUren = (waarde) => {
+    setStreefUren(waarde);
+    onStreefUrenGewijzigd?.(waarde === "" ? null : waarde);
+  };
+
   const [days, setDays] = useState(() =>
     DAGEN.map(d => ({
       ...d,
@@ -54,7 +105,7 @@ export default function BeschikbaarheidEditor({ initieel, onWijzig, weekTssDoel,
   const active = days.filter(d => d.on);
   const total = active.reduce((a, d) => a + d.hours, 0);
 
-  const minimumUren = weekTssDoel != null ? berekenMinimumUren(weekTssDoel, fase) : null;
+  const minimumUren = streefUren === "" ? null : streefUren;
   const minimumUrenVariant = bepaalMinimumUrenVariant(total, minimumUren);
 
   const langeRitMinimumMin = weekTssDoel != null
@@ -123,10 +174,34 @@ export default function BeschikbaarheidEditor({ initieel, onWijzig, weekTssDoel,
         <span style={{ font: "700 14px var(--font-nunito), sans-serif", color: T.text }}>{fmtTijd(total)} uur / week</span>
       </div>
 
+      {/* Streefuren per week */}
+      <div style={{ marginTop: 16, padding: "14px 16px", background: T.cardBg, borderRadius: 20, border: `1px solid ${T.cardBorder}` }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ font: "700 13px var(--font-nunito), sans-serif", color: T.text }}>Streefuren per week</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input
+              type="number"
+              min={0}
+              step={0.5}
+              value={streefUren}
+              onChange={(e) => wijzigStreefUren(e.target.value === "" ? "" : parseFloat(e.target.value))}
+              placeholder="—"
+              style={{ width: 64, padding: "8px 10px", borderRadius: 10, border: `1px solid ${T.cardBorder}`, font: "600 15px var(--font-fredoka), sans-serif", color: T.text, textAlign: "center" }}
+            />
+            <span style={{ font: "600 13px var(--font-nunito), sans-serif", color: T.textSec }}>uur</span>
+          </div>
+        </div>
+        {suggestieUren != null && streefUren === suggestieUren && (
+          <div style={{ marginTop: 6, font: "600 11.5px/1.4 var(--font-nunito), sans-serif", color: T.textTert }}>
+            Suggestie op basis van je laatste {HISTORIE_WEKEN} weken (+ marge) — pas gerust aan.
+          </div>
+        )}
+      </div>
+
       {minimumUrenVariant === "waarschuwing" && (
         <div style={{ marginTop: 10, padding: "10px 14px", borderRadius: 14, background: "oklch(0.96 0.03 70)", border: "1px solid oklch(0.85 0.06 65)" }}>
           <span style={{ font: "600 12.5px/1.4 var(--font-nunito), sans-serif", color: "oklch(0.42 0.1 55)" }}>
-            Je hebt deze week minder tijd ingepland dan ideaal voor je huidige fase (± {fmtTijd(minimumUren)} uur nodig).
+            Je hebt deze week minder tijd ingepland dan je streefdoel (± {fmtTijd(minimumUren)} uur nodig).
           </span>
         </div>
       )}
@@ -134,7 +209,7 @@ export default function BeschikbaarheidEditor({ initieel, onWijzig, weekTssDoel,
       {minimumUrenVariant === "richtlijn" && (
         <div style={{ marginTop: 10, padding: "10px 14px", borderRadius: 14, background: T.subtleFill, border: `1px solid ${T.cardBorder}` }}>
           <span style={{ font: "600 12.5px/1.4 var(--font-nunito), sans-serif", color: T.textSec }}>
-            Richtlijn: ± {fmtTijd(minimumUren)} uur deze week voor je huidige fase — dat haal je.
+            Richtlijn: ± {fmtTijd(minimumUren)} uur deze week — dat haal je.
           </span>
         </div>
       )}

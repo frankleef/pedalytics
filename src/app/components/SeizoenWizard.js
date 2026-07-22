@@ -25,6 +25,7 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
   const [config, setConfig] = useState({ weken: 13 });
   const [wekenHint, setWekenHint] = useState("");
   const [beschikbaarheidData, setBeschikbaarheidData] = useState(null);
+  const [streefUrenPerWeek, setStreefUrenPerWeek] = useState(null);
   const [ervaringsniveau, setErvaringsniveau] = useState(null);
 
   const gekozenDoel = DOELEN.find(d => d.id === doel);
@@ -65,6 +66,7 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
       config: { ...config },
       beschikbaarheid: beschikbaarheidData?.beschikbaar || {},
       urenPerDag: beschikbaarheidData?.uren || {},
+      streefUrenPerWeek,
     });
   };
 
@@ -216,8 +218,9 @@ export default function SeizoenWizard({ profiel, wellness, onVoltooid }) {
             </div>
 
             <BeschikbaarheidEditor
-              initieel={{ beschikbaar: beschikbaarheidData?.beschikbaar, uren: beschikbaarheidData?.uren }}
+              initieel={{ beschikbaar: beschikbaarheidData?.beschikbaar, uren: beschikbaarheidData?.uren, streefUrenPerWeek }}
               onWijzig={setBeschikbaarheidData}
+              onStreefUrenGewijzigd={setStreefUrenPerWeek}
             />
 
             <Footer onTerug={() => setStap(2)} onVolgende={() => setStap(4)} />

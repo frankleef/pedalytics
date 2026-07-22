@@ -681,6 +681,7 @@ export default function Page() {
     const oudeUren = urenPerDag;
     const nieuwBeschikbaar = data.beschikbaar;
     const nieuwUren = data.uren;
+    const nieuwStreefUren = data.streefUrenPerWeek;
 
     setBeschikbaar(nieuwBeschikbaar);
     setUrenPerDag(nieuwUren);
@@ -737,6 +738,7 @@ export default function Page() {
         ...seizoensplan,
         beschikbaarheid: nieuwBeschikbaar,
         urenPerDag: nieuwUren,
+        streefUrenPerWeek: nieuwStreefUren ?? seizoensplan?.streefUrenPerWeek ?? null,
         weekSessies: { ...weekSessies, sessies: lokaalSessies },
       }),
     });
@@ -1032,7 +1034,7 @@ export default function Page() {
 
     const eindWeekSessies = { ...weekSessies, sessies: lokaalSessies };
     setWeekSessies(eindWeekSessies);
-    const eindPlan = { ...seizoensplan, beschikbaarheid: nieuwBeschikbaar, urenPerDag: nieuwUren, weekSessies: eindWeekSessies };
+    const eindPlan = { ...seizoensplan, beschikbaarheid: nieuwBeschikbaar, urenPerDag: nieuwUren, streefUrenPerWeek: nieuwStreefUren ?? seizoensplan?.streefUrenPerWeek ?? null, weekSessies: eindWeekSessies };
     setSeizoensplan(eindPlan);
     await fetch("/api/plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(eindPlan) });
 
@@ -1199,6 +1201,7 @@ export default function Page() {
         <BeschikbaarheidScherm
           beschikbaar={beschikbaar}
           urenPerDag={urenPerDag}
+          streefUrenPerWeek={seizoensplan?.streefUrenPerWeek}
           kader={seizoensplan?.kader}
           startdatum={seizoensplan?.startdatum}
           seizoensdoelType={seizoensplan?.seizoensdoel?.type}

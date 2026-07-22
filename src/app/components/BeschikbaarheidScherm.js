@@ -4,8 +4,9 @@ import { T } from "../designTokens";
 import BeschikbaarheidEditor from "./BeschikbaarheidEditor";
 import { kaderWeekVoorDatum } from "@/lib/weekgrenzen";
 
-export default function BeschikbaarheidScherm({ beschikbaar, urenPerDag, kader, startdatum, seizoensdoelType, ervaringsniveau, onOpslaan, onTerug }) {
+export default function BeschikbaarheidScherm({ beschikbaar, urenPerDag, streefUrenPerWeek, kader, startdatum, seizoensdoelType, ervaringsniveau, onOpslaan, onTerug }) {
   const laatsteDataRef = useRef({ beschikbaar: beschikbaar || {}, uren: urenPerDag || {} });
+  const laatsteStreefUrenRef = useRef(streefUrenPerWeek ?? null);
   const huidigeWeek = kaderWeekVoorDatum(new Date(), kader, startdatum);
   const weekTssDoel = huidigeWeek?.tss_doel ?? null;
 
@@ -27,8 +28,9 @@ export default function BeschikbaarheidScherm({ beschikbaar, urenPerDag, kader, 
 
         <div style={{ flex: 1 }}>
           <BeschikbaarheidEditor
-            initieel={{ beschikbaar, uren: urenPerDag }}
+            initieel={{ beschikbaar, uren: urenPerDag, streefUrenPerWeek }}
             onWijzig={(data) => { laatsteDataRef.current = data; }}
+            onStreefUrenGewijzigd={(waarde) => { laatsteStreefUrenRef.current = waarde; }}
             weekTssDoel={weekTssDoel}
             fase={huidigeWeek?.fase}
             seizoensdoelType={seizoensdoelType}
@@ -36,7 +38,7 @@ export default function BeschikbaarheidScherm({ beschikbaar, urenPerDag, kader, 
           />
         </div>
 
-        <button onClick={() => onOpslaan(laatsteDataRef.current)}
+        <button onClick={() => onOpslaan({ ...laatsteDataRef.current, streefUrenPerWeek: laatsteStreefUrenRef.current })}
           style={{ width: "100%", marginTop: 20, border: "none", cursor: "pointer", padding: 16, borderRadius: T.pillRadius, background: T.slate, color: "oklch(0.97 0.01 84)", font: "800 16px var(--font-nunito), sans-serif", letterSpacing: 0.2 }}>
           Opslaan
         </button>

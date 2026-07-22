@@ -19,6 +19,7 @@ export default function NieuwSeizoensPage() {
   const [profiel, setProfiel] = useState(null);
   const [doel, setDoel] = useState(null);
   const [beschikbaarheidData, setBeschikbaarheidData] = useState(null);
+  const [streefUrenPerWeek, setStreefUrenPerWeek] = useState(null);
   const [weken, setWeken] = useState(16);
   const [genereert, setGenereert] = useState(false);
   const [fout, setFout] = useState(null);
@@ -29,6 +30,7 @@ export default function NieuwSeizoensPage() {
         setPlan(d.data);
         setDoel(d.data.seizoensdoel?.type || "ftp");
         setBeschikbaarheidData({ beschikbaar: d.data.beschikbaarheid || {}, uren: d.data.urenPerDag || {} });
+        setStreefUrenPerWeek(d.data.streefUrenPerWeek ?? null);
         setWeken(d.data.tijdshorizon_weken || 16);
       }
     });
@@ -63,6 +65,7 @@ export default function NieuwSeizoensPage() {
         startdatum: new Date().toISOString().slice(0, 10),
         beschikbaarheid: beschikbaarheidData?.beschikbaar || {},
         urenPerDag: beschikbaarheidData?.uren || {},
+        streefUrenPerWeek,
         planStatus: "genereren",
       };
 
@@ -143,8 +146,9 @@ export default function NieuwSeizoensPage() {
             </div>
 
             <BeschikbaarheidEditor
-              initieel={{ beschikbaar: beschikbaarheidData?.beschikbaar, uren: beschikbaarheidData?.uren }}
+              initieel={{ beschikbaar: beschikbaarheidData?.beschikbaar, uren: beschikbaarheidData?.uren, streefUrenPerWeek }}
               onWijzig={setBeschikbaarheidData}
+              onStreefUrenGewijzigd={setStreefUrenPerWeek}
             />
 
             {fout && <div style={{ font: "600 13px var(--font-nunito), sans-serif", color: "oklch(0.55 0.16 28)", marginTop: 10 }}>{fout}</div>}
