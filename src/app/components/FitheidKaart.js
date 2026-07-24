@@ -20,9 +20,11 @@ const EF_BANDEN = [
   { key: "vo2max", label: "VO2max", kort: "VO2max", kleur: "oklch(0.6 0.1 30)" },
 ];
 
-function formatNl(v, decimalen = 2) {
+// Plain toFixed, geen nl-NL komma-omzetting — zelfde conventie als EF-weergave
+// op VoortgangTab.js (laatsteEf.toFixed(2)) en decoupling (Math.round(x*10)/10).
+function fmt(v, decimalen = 2) {
   if (v == null) return "—";
-  return v.toFixed(decimalen).replace(".", ",");
+  return v.toFixed(decimalen);
 }
 
 function MiniSpark({ data, kleur, breedte = 56, hoogte = 22 }) {
@@ -85,18 +87,23 @@ export default function FitheidKaart({ voortgang, weekSessies, seizoenStart }) {
   const decEerste = decouplingReeks.length ? decouplingReeks[0].waarde : null;
   const decDelta = decLaatste != null && decEerste != null ? Math.round((decLaatste - decEerste) * 10) / 10 : null;
 
+  // punten uit /api/ef-trend zijn de laatste (max 20) kwalificerende ritten
+  // ooit, geen vast venster — hier gefilterd tot dezelfde 8 weken als de
+  // kaart claimt, anders vergelijkt "eerste" met een punt van maanden terug
+  // en levert dat een misleidende delta%.
+  const grensISO = grens.toISOString().slice(0, 10);
   const efBanden = EF_BANDEN.map(b => {
     const bandData = efData?.data?.[b.key];
-    const punten = bandData?.punten || [];
+    const punten = (bandData?.punten || []).filter(p => p.datum >= grensISO);
     const laatste = punten.length ? punten[punten.length - 1].ef : null;
     const eerste = punten.length ? punten[0].ef : null;
     const deltaPct = laatste != null && eerste != null && eerste !== 0 ? Math.round(((laatste - eerste) / eerste) * 100) : null;
-    return { ...b, punten, laatste, deltaPct, trend: bandData?.trend ?? null };
+    return { ...b, punten, laatste, deltaPct };
   });
   const z2Band = efBanden.find(b => b.key === "z2");
 
   const efRichting = (() => {
-    const richtingen = efBanden.filter(b => b.trend != null).map(b => Math.sign(b.trend));
+    const richtingen = efBanden.filter(b => b.deltaPct != null).map(b => Math.sign(b.deltaPct));
     if (richtingen.length === 0) return "—";
     if (richtingen.every(r => r > 0)) return "alle +";
     if (richtingen.every(r => r < 0)) return "alle −";
@@ -109,9 +116,14 @@ export default function FitheidKaart({ voortgang, weekSessies, seizoenStart }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <span style={{ font: "700 11px var(--font-nunito), sans-serif", letterSpacing: 1.4, color: T.textTert, textTransform: "uppercase" }}>Fitheid</span>
-          <div onClick={() => setInfoOpen(true)} style={{ width: 17, height: 17, flexShrink: 0, borderRadius: "50%", border: `1.5px solid ${T.textTert}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <button
+            type="button"
+            aria-label="Fitheid in detail"
+            onClick={(e) => { e.stopPropagation(); setInfoOpen(true); }}
+            style={{ width: 26, height: 26, flexShrink: 0, borderRadius: "50%", border: `1.5px solid ${T.textTert}`, background: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+          >
             <span style={{ font: "700 10px var(--font-nunito), sans-serif", lineHeight: 1, color: T.textSec }}>i</span>
-          </div>
+          </button>
         </div>
         {gereed.ready && (
           <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 12px", borderRadius: T.pillRadius, background: T.accentBg }}>
@@ -137,10 +149,10 @@ export default function FitheidKaart({ voortgang, weekSessies, seizoenStart }) {
               <span style={{ font: "600 12.5px var(--font-nunito), sans-serif", color: T.text }}>Aerobe decoupling</span>
               <span style={{ display: "block", font: "500 11px var(--font-nunito), sans-serif", color: T.textTert }}>Hartslagdrift Z2-duurritten</span>
             </div>
-            <span style={{ font: "700 15px var(--font-nunito), sans-serif", letterSpacing: -0.2, color: T.text, flex: "none" }}>{decLaatste != null ? `${formatNl(decLaatste, 1)}%` : "—"}</span>
+            <span style={{ font: "700 15px var(--font-nunito), sans-serif", letterSpacing: -0.2, color: T.text, flex: "none" }}>{decLaatste != null ? `${fmt(decLaatste, 1)}%` : "—"}</span>
             {decDelta != null && (
               <span style={{ font: "700 12.5px var(--font-nunito), sans-serif", color: decDelta <= 0 ? T.accentText : T.textSec, flex: "none" }}>
-                {decDelta > 0 ? "+" : decDelta < 0 ? "−" : ""}{formatNl(Math.abs(decDelta), 1)}pp
+                {decDelta > 0 ? "+" : decDelta < 0 ? "−" : ""}{fmt(Math.abs(decDelta), 1)}pp
               </span>
             )}
           </div>
@@ -208,7 +220,7 @@ export default function FitheidKaart({ voortgang, weekSessies, seizoenStart }) {
                       <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec, textTransform: "uppercase" }}>{b.label}</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                      <span style={{ font: "700 16px var(--font-fredoka), sans-serif", color: T.text }}>{formatNl(b.laatste)}</span>
+                      <span style={{ font: "700 16px var(--font-fredoka), sans-serif", color: T.text }}>{fmt(b.laatste)}</span>
                       {b.deltaPct != null && (
                         <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: b.deltaPct >= 0 ? T.accentText : T.textSec }}>{b.deltaPct > 0 ? "+" : ""}{b.deltaPct}%</span>
                       )}
@@ -223,10 +235,10 @@ export default function FitheidKaart({ voortgang, weekSessies, seizoenStart }) {
             <span style={{ display: "block", font: "700 11px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase", marginBottom: 10 }}>Aerobe decoupling</span>
             <div style={{ background: T.subtleFill, borderRadius: 16, padding: "14px 14px 12px", marginBottom: 16 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
-                <span style={{ font: "700 25px var(--font-fredoka), sans-serif", letterSpacing: -0.4, color: T.text }}>{decLaatste != null ? `${formatNl(decLaatste, 1)}%` : "—"}</span>
+                <span style={{ font: "700 25px var(--font-fredoka), sans-serif", letterSpacing: -0.4, color: T.text }}>{decLaatste != null ? `${fmt(decLaatste, 1)}%` : "—"}</span>
                 {decDelta != null && (
                   <span style={{ font: "700 12px var(--font-nunito), sans-serif", color: decDelta <= 0 ? T.accentText : T.textSec }}>
-                    {decDelta > 0 ? "+" : decDelta < 0 ? "−" : ""}{formatNl(Math.abs(decDelta), 1)}pp over {gereed.wekenNodig} wk
+                    {decDelta > 0 ? "+" : decDelta < 0 ? "−" : ""}{fmt(Math.abs(decDelta), 1)}pp over {gereed.wekenNodig} wk
                   </span>
                 )}
               </div>

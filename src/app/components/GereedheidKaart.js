@@ -52,9 +52,9 @@ export default function GereedheidKaart({ balansScore, ctl, atl, tsb, hrvChange,
           { label: "HRV", value: hrvChange != null ? `${hrvChange > 0 ? "+" : ""}${hrvChange}%` : "—", color: hrvChange > 0 ? st.color : undefined },
           { label: "Rustpols", value: rustpols ?? "—" },
         ].map((m, i) => (
-          <div key={i} style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3, paddingLeft: i > 0 ? 12 : 0, borderLeft: i > 0 ? `1px solid ${T.divider}` : "none" }}>
-            <span style={{ font: "700 20px var(--font-fredoka), sans-serif", letterSpacing: -0.4, lineHeight: 1, color: m.color || T.text }}>{m.value}</span>
-            <span style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textSec }}>{m.label}</span>
+          <div key={i} style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3, paddingLeft: i > 0 ? 10 : 0, borderLeft: i > 0 ? `1px solid ${T.divider}` : "none" }}>
+            <span style={{ font: "700 17px var(--font-fredoka), sans-serif", letterSpacing: -0.3, lineHeight: 1, color: m.color || T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.value}</span>
+            <span style={{ display: "block", font: "600 9.5px var(--font-nunito), sans-serif", color: T.textSec, lineHeight: 1.25, wordBreak: "break-word", overflowWrap: "break-word" }}>{m.label}</span>
           </div>
         ))}
       </div>
