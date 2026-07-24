@@ -6,6 +6,7 @@ import SharedHeader from "./SharedHeader";
 import InfoTooltip from "./InfoTooltip";
 import { datumISO } from "@/lib/datum";
 import { fitnessprogressieContextlijn } from "@/lib/fitnessprogressie";
+import { berekenPlanNaleving, berekenPolarisatie } from "@/lib/trainingsgedrag";
 import { rollendGemiddelde } from "@/lib/reeksAnalyse";
 import { ResponsiveContainer, ComposedChart, LineChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ReferenceArea } from "recharts";
 
@@ -187,31 +188,10 @@ export default function VoortgangTab({ profiel, wellness, wellenessHuidig, voort
     return delta < -1 ? "dalend" : delta > 1 ? "stijgend" : "stabiel";
   })();
 
-  // Plan-naleving
+  // Plan-naleving + polarisatie — gedeelde formule met de Home-Fitheid-kaart, zie lib/trainingsgedrag.js
   const grens = seizoenStart || new Date(Date.now() - 8 * 7 * 86400000);
-  const planSessies = (weekSessies?.sessies || []).filter(s => s.datum && new Date(s.datum) >= grens);
-  const planRitten = (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens);
-  let matched = 0, totaalPlan = 0;
-  planSessies.forEach(s => {
-    if (new Date(s.datum) > new Date()) return;
-    totaalPlan++;
-    const rit = planRitten.find(r => r.datum_iso === s.datum);
-    if (rit) matched++;
-  });
-  const planNaleving = totaalPlan > 0 ? Math.round((matched / totaalPlan) * 100) : 0;
-
-  // Polarisatie
-  const polData = { z12secs: 0, z35secs: 0 };
-  (voortgang?.ritten || []).filter(r => r.datum_iso && new Date(r.datum_iso) >= grens).forEach(r => {
-    const zt = r.zoneTijden;
-    if (!zt || !Array.isArray(zt)) return;
-    zt.forEach(z => {
-      if (z.id === "Z1" || z.id === "Z2") polData.z12secs += z.secs || 0;
-      else polData.z35secs += z.secs || 0;
-    });
-  });
-  const polTotaal = polData.z12secs + polData.z35secs;
-  const z1z2Pct = polTotaal > 0 ? Math.round((polData.z12secs / polTotaal) * 100) : 0;
+  const { pct: planNaleving, totaalPlan } = berekenPlanNaleving(weekSessies, voortgang?.ritten, grens);
+  const { pct: z1z2Pct, totaalSeconden: polTotaal } = berekenPolarisatie(voortgang?.ritten, grens);
 
   return (
     <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: T.font, paddingBottom: T.navH + 20 }}>

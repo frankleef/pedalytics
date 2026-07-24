@@ -164,3 +164,33 @@ export async function bijwerkenDecouplingBaseline(userId) {
 export async function leesDecouplingBaseline(kv, userId) {
   return (await kv.get(`decoupling_baseline:${userId}`)) ?? null;
 }
+
+// Home-scherm Fitheid-kaart (sparkline over 8 weken) — venster in dagen.
+export const DECOUPLING_REEKS_VENSTER_DAGEN = 56;
+
+/**
+ * Geordende (oud->nieuw) tijdreeks van gecachete decoupling-waarden over de
+ * laatste `vensterDagen`, t.b.v. een sparkline. Bron is dezelfde als
+ * bijwerkenDecouplingBaseline (voltooide sessies uit het seizoensplan +
+ * decoupling:{id}-cache) — bewust geen nieuwe databron, alleen een breder
+ * venster en een geordende array i.p.v. mediaan/trend.
+ * @param {string} userId
+ * @param {number} [vensterDagen]
+ * @returns {Promise<{datum: string, waarde: number}[]>}
+ */
+export async function haalDecouplingReeks(userId, vensterDagen = DECOUPLING_REEKS_VENSTER_DAGEN) {
+  const kv = getKV();
+  const plan = await kv.get(`${userId}:seizoensplan`);
+  const sessies = plan?.weekSessies?.sessies || [];
+  const grens = new Date(Date.now() - vensterDagen * 86400000);
+
+  const waarden = [];
+  for (const s of sessies) {
+    if (!s.datum || !s.voltooid) continue;
+    if (new Date(s.datum) < grens) continue;
+    const dc = await kv.get(`decoupling:${s.intervalsEventId || s.id || s.datum}`);
+    if (dc != null) waarden.push({ datum: s.datum, waarde: dc });
+  }
+
+  return waarden.sort((a, b) => a.datum.localeCompare(b.datum));
+}

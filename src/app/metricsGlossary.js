@@ -83,4 +83,11 @@ export const METRICS = {
     color: "oklch(0.52 0.062 150)",
     tint: "oklch(0.94 0.03 150)",
   },
+  ef: {
+    title: "Efficiency Factor",
+    tag: "NP / gem. hartslag",
+    body: "Hoeveel watt je uit elke hartslag haalt. Hoger is beter, maar alleen vergelijkbaar tussen ritten op een vergelijkbaar intensiteitsniveau — EF bij een sweetspotrit vergelijk je niet met EF bij een duurrit. Volg 'm over meerdere ritten heen om te zien of je efficiënter wordt op eenzelfde intensiteit.",
+    color: "oklch(0.5 0.13 250)",
+    tint: "oklch(0.92 0.045 250)",
+  },
 };

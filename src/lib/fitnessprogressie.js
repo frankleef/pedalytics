@@ -5,6 +5,8 @@
 // berekenEnSlaFitnessprogressieOp in volumeCorrectie.js), zodat dit bestand
 // zonder mocks testbaar blijft.
 
+import { isDecouplingUitschieter } from "./decoupling";
+
 // ±1 CTL-punt/week bleek in de backtest (1 mei - 13 juli 2026, zie
 // fitnessprogressie-en-kracht-fase-check.md) een stabiele grens: de helling
 // bleef daarbinnen 7 weken op rij "stijgend" zonder ooit om te slaan, in
@@ -75,10 +77,19 @@ export function berekenCtlTrend(ctlReeks) {
  * signaal dan een korte 5-vs-5-groepsvergelijking). Bij
  * <DECOUPLING_TREND_MIN_PUNTEN punten: expliciet "onvoldoende_data", geen
  * geforceerde richting.
+ *
+ * Uitschieters (isDecouplingUitschieter, zelfde IQR/>12%-regel als de
+ * fase-overgang-mediaan in cron/sync/route.js) worden er vóór de regressie
+ * uitgefilterd: één hitte- of dataglitch-rit met een extreme decoupling-
+ * waarde kan een verder vlakke reeks anders alleen laten "verslechteren".
  * @param {Array<{datum: string, waarde: number}>} decouplingReeks - chronologisch, ISO-datums
  */
 export function berekenDecouplingTrend(decouplingReeks) {
-  const reeks = (decouplingReeks || []).filter(p => p.waarde != null).slice().sort((a, b) => a.datum.localeCompare(b.datum));
+  const alleWaarden = (decouplingReeks || []).filter(p => p.waarde != null).map(p => p.waarde);
+  const reeks = (decouplingReeks || [])
+    .filter(p => p.waarde != null && !isDecouplingUitschieter(p.waarde, alleWaarden))
+    .slice()
+    .sort((a, b) => a.datum.localeCompare(b.datum));
   if (reeks.length < DECOUPLING_TREND_MIN_PUNTEN) {
     return { status: "onvoldoende_data", helling_per_week: null, richting: null, aantal_punten: reeks.length };
   }
@@ -151,4 +162,34 @@ export function fitnessprogressieContextlijn({ ctlTrend, decouplingTrend } = {})
   }
 
   return { ctlRegel, decouplingRegel };
+}
+
+// Home-scherm Fitheid-kaart: venster waarover "weken data verzameld" wordt
+// uitgedrukt. Gekozen op 8 weken omdat dat het venster is waarbinnen zowel
+// CTL_TREND_MIN_DAGEN (4 weken) als DECOUPLING_TREND_MIN_PUNTEN doorgaans
+// worden gehaald bij normale trainingsfrequentie — geen nieuwe drempel, een
+// weergavevenster voor de bestaande CTL-/decoupling-trend-drempels.
+export const FITNESS_DATA_VENSTER_WEKEN = 8;
+
+/**
+ * Generieke "heeft deze gebruiker genoeg trainingsgeschiedenis voor een
+ * fitheidstrend"-gate voor de Home-Fitheid-kaart, gebouwd bovenop de
+ * bestaande per-signaal drempels (CTL_TREND_MIN_DAGEN, DECOUPLING_TREND_
+ * MIN_PUNTEN) i.p.v. een nieuwe, ongerelateerde drempel te verzinnen.
+ * @param {{status: string, aantal_dagen?: number}} [ctlTrend]
+ * @param {{status: string, aantal_punten?: number}} [decouplingTrend]
+ * @returns {{ready: boolean, wekenVerzameld: number, wekenNodig: number, pct: number}}
+ */
+export function bepaalFitnessDataGereed({ ctlTrend, decouplingTrend } = {}) {
+  const ready = ctlTrend?.status === "ok" && decouplingTrend?.status === "ok";
+
+  const ctlWeken = ctlTrend?.aantal_dagen != null ? ctlTrend.aantal_dagen / 7 : 0;
+  const dcWeken = decouplingTrend?.aantal_punten != null
+    ? (decouplingTrend.aantal_punten / DECOUPLING_TREND_MIN_PUNTEN) * FITNESS_DATA_VENSTER_WEKEN
+    : 0;
+
+  const wekenVerzameld = Math.min(FITNESS_DATA_VENSTER_WEKEN, Math.round(Math.max(ctlWeken, dcWeken)));
+  const pct = Math.round((wekenVerzameld / FITNESS_DATA_VENSTER_WEKEN) * 100);
+
+  return { ready, wekenVerzameld, wekenNodig: FITNESS_DATA_VENSTER_WEKEN, pct };
 }

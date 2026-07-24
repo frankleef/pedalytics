@@ -11,6 +11,7 @@ import ScaleInput from "./ScaleInput";
 import { bouwWbalAfwijkingTekst } from "./wbalAfwijking";
 import { isRpeAanpasbaar, berekenVerwachtRpe } from "@/lib/sessie/rpe";
 import { zoneTimesNaarObject } from "@/lib/uitvoeringsscore";
+import { bouwZoneRijen } from "@/lib/zoneTijd";
 import SharedHeader from "./SharedHeader";
 import { KerngetallenTiles, StatusBanner } from "./SessieUitkomstKaart";
 import AdaptatieScoreKaart from "./AdaptatieScoreKaart"; // TSS+fase kaart op Schema
@@ -245,6 +246,8 @@ export default function SchemaTab({
   const [rpeBewerken, setRpeBewerken] = useState(false);
   const [streamsCache, setStreamsCache] = useState({});
   const [streamsLaden, setStreamsLaden] = useState(null);
+  const [zonesCache, setZonesCache] = useState({});
+  const [zonesLaden, setZonesLaden] = useState(null);
   const [deviceTipWeg, setDeviceTipWeg] = useState(() => typeof window !== "undefined" && localStorage.getItem("deviceTipGezien") === "1");
   const [hitteData, setHitteData] = useState({});
   const [toontSessiePicker, setToontSessiePicker] = useState(false);
@@ -312,6 +315,21 @@ export default function SchemaTab({
       })
       .catch(e => console.error("Streams laden:", e))
       .finally(() => setStreamsLaden(null));
+  }, [gematchteRit?.id]);
+
+  // Live tijd-per-zone ophalen bij intervals.icu voor deze specifieke rit
+  // (icu_zone_times) — geen client-cache van de bulk-ritlijst, altijd vers.
+  useEffect(() => {
+    if (!gematchteRit || zonesCache[gematchteRit.id] !== undefined || zonesLaden === gematchteRit.id) return;
+    setZonesLaden(gematchteRit.id);
+    fetch(`/api/intervals/workouts/${gematchteRit.id}`)
+      .then(r => r.json())
+      .then(data => {
+        const zones = data?.success ? zoneTimesNaarObject(data.data?.icu_zone_times) : null;
+        setZonesCache(p => ({ ...p, [gematchteRit.id]: zones }));
+      })
+      .catch(e => { console.error("Zonetijden laden:", e); setZonesCache(p => ({ ...p, [gematchteRit.id]: null })); })
+      .finally(() => setZonesLaden(null));
   }, [gematchteRit?.id]);
 
   // Fetch hitte-data voor de gematchte rit
@@ -503,18 +521,32 @@ export default function SchemaTab({
     );
   };
 
-  // Aerobe efficiëntie (cardiac decoupling) — alleen beschikbaar voor Z2-duurritten >45min
+  // Aerobe efficiëntie (cardiac decoupling) — alleen beschikbaar voor Z2-duurritten >45min.
+  // EF (NP/gem. hartslag) staat ernaast — die is voor elke rit met vermogen+hartslag
+  // beschikbaar, ook buiten Z2, en is de per-rit tegenhanger van de EF-trend op Voortgang.
   const renderAerobeEfficientie = () => {
     const dc = hitteData[gematchteRit?.id]?.decoupling;
-    if (dc == null) return null;
-    const st = aerobeEfficientieStatus(dc);
-    const waardeStr = dc < 0 ? `−${Math.abs(dc).toFixed(1)}` : dc.toFixed(1);
+    const ef = gematchteRit?.eff;
+    if (dc == null && ef == null) return null;
+    const st = dc != null ? aerobeEfficientieStatus(dc) : null;
+    const waardeStr = dc != null ? (dc < 0 ? `−${Math.abs(dc).toFixed(1)}` : dc.toFixed(1)) : null;
     return (
-      <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 999, background: st.bg, marginBottom: 16 }}>
-        <div style={{ width: 8, height: 8, borderRadius: "50%", background: st.kleur, flexShrink: 0 }} />
-        <span style={{ font: "700 12.5px var(--font-nunito), sans-serif", color: st.kleur }}>Aerobe efficiëntie {waardeStr}%</span>
-        <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec }}>· {st.label}</span>
-        <InfoTooltip metricKey="decoupling" />
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+        {dc != null && (
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 999, background: st.bg }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: st.kleur, flexShrink: 0 }} />
+            <span style={{ font: "700 12.5px var(--font-nunito), sans-serif", color: st.kleur }}>Aerobe efficiëntie {waardeStr}%</span>
+            <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec }}>· {st.label}</span>
+            <InfoTooltip metricKey="decoupling" />
+          </div>
+        )}
+        {ef != null && (
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 999, background: T.subtleFill }}>
+            <span style={{ font: "700 12.5px var(--font-nunito), sans-serif", color: T.text }}>EF {ef.toFixed(2)}</span>
+            <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec }}>· {ritCls?.label || "deze rit"}</span>
+            <InfoTooltip metricKey="ef" />
+          </div>
+        )}
       </div>
     );
   };
@@ -545,6 +577,62 @@ export default function SchemaTab({
             </div>
           ))}
         </div>
+      </div>
+    );
+  };
+
+  // Tijd per zone: live opgehaald bij intervals.icu voor déze rit (icu_zone_times),
+  // optioneel naast de geplande zonetijd (afgeleid uit sessie.segmenten) als er een
+  // sessie gepland stond.
+  const renderTijdPerZone = () => {
+    const zoneSecs = gematchteRit ? zonesCache[gematchteRit.id] : null;
+    if (zonesLaden === gematchteRit?.id) return null;
+    if (!zoneSecs) return null;
+    const plannedItems = sessie?.segmenten?.length > 0
+      ? sessie.segmenten.map(seg => ({ pct: segMidPct(seg), minuten: segDuur(seg) }))
+      : null;
+    const rows = bouwZoneRijen({
+      zoneSecs, plannedItems,
+      powerZones: profiel?.power_zones, powerZoneNames: profiel?.power_zone_names,
+      kleuren: [T.z1, T.z2, T.z3, T.z4, T.z5, T.z6, T.z7],
+    });
+    if (rows.length === 0) return null;
+    const toonPlan = !!plannedItems;
+    return (
+      <div style={{ background: T.cardBg, borderRadius: T.cardRadius, padding: "20px 18px 18px", boxShadow: T.cardShadow, border: `1px solid ${T.cardBorder}`, marginBottom: 16 }}>
+        <span style={{ display: "block", font: "800 12px var(--font-nunito), sans-serif", letterSpacing: 1.2, color: T.textTert, textTransform: "uppercase", marginBottom: 16 }}>Tijd per zone</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+          {rows.map(z => (
+            <div key={z.n}>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ font: "700 12.5px var(--font-nunito), sans-serif", color: T.text }}>Z{z.n} <span style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textTert }}>· {z.label}</span></span>
+                <span style={{ font: "700 11.5px var(--font-nunito), sans-serif", color: T.textSec }}>{z.actTime}{toonPlan && <span style={{ color: T.textTert }}> / plan {z.planTime}</span>}</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ height: 9, borderRadius: 5, background: T.subtleFill, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: z.actPct, borderRadius: 5, background: z.color }} />
+                </div>
+                {toonPlan && (
+                  <div style={{ height: 6, borderRadius: 4, background: T.subtleFill, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: z.planPct, borderRadius: 4, background: z.color, opacity: 0.35 }} />
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        {toonPlan && (
+          <div style={{ display: "flex", alignItems: "center", gap: 18, paddingTop: 15, marginTop: 2, borderTop: `1px solid ${T.divider}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ width: 13, height: 6, borderRadius: 2, background: T.textTert, opacity: 0.35 }} />
+              <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>Gepland</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ width: 13, height: 9, borderRadius: 2, background: T.textTert }} />
+              <span style={{ font: "700 11px var(--font-nunito), sans-serif", color: T.textSec }}>Gereden</span>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -865,6 +953,7 @@ export default function SchemaTab({
             {renderAerobeEfficientie()}
 
             {renderWerkelijkGrafiek()}
+            {renderTijdPerZone()}
 
             {/* Dimensies uitklapper */}
             {sessie?.uitvoeringsScore?.dimensies && (
@@ -894,6 +983,7 @@ export default function SchemaTab({
             {renderRitMetrics(false)}
             {renderAerobeEfficientie()}
             {renderWerkelijkGrafiek()}
+            {renderTijdPerZone()}
             {renderRpe()}
           </div>
         )}
@@ -917,6 +1007,7 @@ export default function SchemaTab({
             {renderRitMetrics(false)}
             {renderAerobeEfficientie()}
             {renderWerkelijkGrafiek()}
+            {renderTijdPerZone()}
             {renderRpe()}
           </div>
         )}

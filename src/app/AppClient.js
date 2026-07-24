@@ -303,6 +303,7 @@ export default function Page() {
           wattage: a.icu_weighted_avg_watts || a.average_watts || null,
           np: a.icu_weighted_avg_watts || null, avgWatts: a.average_watts || null,
           hartslag: a.average_heartrate ? Math.round(a.average_heartrate) : null,
+          eff: (a.icu_weighted_avg_watts && a.average_heartrate) ? Math.round((a.icu_weighted_avg_watts / a.average_heartrate) * 100) / 100 : null,
           tss: a.icu_training_load || null, rpe: a.icu_rpe || null,
           max_watt: a.max_watts || null, strava_id: a.strava_id || null,
           zoneTijden: a.icu_zone_times || null,

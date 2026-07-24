@@ -5,7 +5,6 @@ import { berekenHerstelScore } from "./HerstelStatus";
 import { berekenDagAdvies } from "./DagAdvies";
 import InfoTooltip from "./InfoTooltip";
 import CheckinModal from "./CheckinModal";
-import InsightCard from "./home/InsightCard";
 import SharedHeader from "./SharedHeader";
 import WorkoutViz from "./WorkoutViz";
 import { vandaagISO as getVandaag, datumISO, datumOffset } from "@/lib/datum";
@@ -13,7 +12,7 @@ import { weeknummerVoorDatum } from "@/lib/weekgrenzen";
 import SessieUitkomstKaart from "./SessieUitkomstKaart";
 import SeizoenSamenvattingKaart from "./SeizoenSamenvattingKaart";
 import GereedheidKaart from "./GereedheidKaart";
-import FitnessprogressieKaart from "./FitnessprogressieKaart";
+import FitheidKaart from "./FitheidKaart";
 import { classificeerRit } from "@/lib/rittype";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
@@ -48,6 +47,12 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
   const hrvBasislijn = profiel?.hrv_basislijn || 58;
   const hrBasislijn = profiel?.hr_basislijn || 49;
   const tsb = wellenessHuidig ? Math.round((wellenessHuidig.ctl || 0) - (wellenessHuidig.atl || 0)) : null;
+
+  // HRV vs. vorige week — zelfde vergelijking als voorheen in InsightCard, nu
+  // onderdeel van de Gereedheid-hero metric-rij i.p.v. een losse coach-kaart.
+  const recenteHrv = (dagelijkseData || []).filter(d => d.hrv).slice(-7);
+  const vorigeWeekHrv = recenteHrv.length >= 7 ? recenteHrv.slice(0, 3).reduce((s, d) => s + d.hrv, 0) / 3 : null;
+  const hrvChange = vorigeWeekHrv && vandaagInvoer?.hrv ? Math.round(((vandaagInvoer.hrv - vorigeWeekHrv) / vorigeWeekHrv) * 100) : null;
 
   const { score } = berekenHerstelScore({
     hrv: vandaagInvoer?.hrv, hrvBasislijn,
@@ -194,6 +199,39 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
         )}
 
 
+        {/* Gereedheid */}
+        <GereedheidKaart
+          balansScore={score}
+          ctl={wellenessHuidig ? Math.round(wellenessHuidig.ctl || 0) : null}
+          atl={wellenessHuidig ? Math.round(wellenessHuidig.atl || 0) : null}
+          tsb={tsb}
+          hrvChange={hrvChange}
+          rustpols={vandaagInvoer?.rusthartslag ?? null}
+          paragraaf={readinessParagraaf}
+        />
+
+        {/* Ochtend check-in */}
+        {!checkinLaden && !checkin && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: "16px 18px", marginBottom: 16 }}>
+            <span style={{ font: "600 14px var(--font-nunito), sans-serif", color: T.text }}>Hoe voel je je vandaag?</span>
+            <button
+              onClick={() => { setCheckinWaarde(0); setCheckinModalOpen(true); }}
+              style={{ flex: "none", cursor: "pointer", border: "none", background: T.subtleFill, color: T.text, padding: "10px 16px", borderRadius: 999, font: "700 13px var(--font-nunito), sans-serif" }}
+            >
+              Check-in
+            </button>
+          </div>
+        )}
+
+        {checkinModalOpen && (
+          <CheckinModal
+            value={checkinWaarde}
+            onChange={setCheckinWaarde}
+            onConfirm={() => bevestigCheckin(checkinWaarde)}
+            onClose={() => setCheckinModalOpen(false)}
+          />
+        )}
+
         {/* Seizoen afgerond */}
         {seizoensplan?.seizoen_afgerond && (
           <SeizoenSamenvattingKaart plan={seizoensplan} profiel={profiel} onNieuwSeizoeen={() => { window.location.href = "/nieuw-seizoen"; }} />
@@ -339,41 +377,8 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
           );
         })())}
 
-
-
-        {/* Ochtend check-in */}
-        {!checkinLaden && !checkin && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: "16px 18px", marginBottom: 16 }}>
-            <span style={{ font: "600 14px var(--font-nunito), sans-serif", color: T.text }}>Hoe voel je je vandaag?</span>
-            <button
-              onClick={() => { setCheckinWaarde(0); setCheckinModalOpen(true); }}
-              style={{ flex: "none", cursor: "pointer", border: "none", background: T.subtleFill, color: T.text, padding: "10px 16px", borderRadius: 999, font: "700 13px var(--font-nunito), sans-serif" }}
-            >
-              Check-in
-            </button>
-          </div>
-        )}
-
-        {checkinModalOpen && (
-          <CheckinModal
-            value={checkinWaarde}
-            onChange={setCheckinWaarde}
-            onConfirm={() => bevestigCheckin(checkinWaarde)}
-            onClose={() => setCheckinModalOpen(false)}
-          />
-        )}
-
-        {/* Gereedheid */}
-        <GereedheidKaart
-          balansScore={score}
-          ctl={wellenessHuidig ? Math.round(wellenessHuidig.ctl || 0) : null}
-          atl={wellenessHuidig ? Math.round(wellenessHuidig.atl || 0) : null}
-          tsb={tsb}
-          paragraaf={readinessParagraaf}
-        />
-
-        {/* Fitnessprogressie — traag, wekelijks signaal, apart van gereedheid vandaag */}
-        <FitnessprogressieKaart />
+        {/* Fitheid — traag, wekelijks signaal (EF per band, aerobe decoupling, trainingsgedrag), apart van gereedheid vandaag */}
+        <FitheidKaart voortgang={voortgang} weekSessies={weekSessies} seizoenStart={seizoenStart} />
 
         {/* Sync health banner — onderaan, laagste prioriteit */}
         {syncGap && !syncBannerWeg && (
@@ -391,14 +396,6 @@ export default function HomeTab({ profiel, wellenessHuidig, vandaagInvoer, dagel
             </button>
           </div>
         )}
-
-        {/* AI Insight */}
-        <InsightCard
-          vandaagInvoer={vandaagInvoer}
-          dagelijkseData={dagelijkseData}
-          hrvBasislijn={hrvBasislijn}
-          hrBasislijn={hrBasislijn}
-        />
       </div>
     </div>
   );

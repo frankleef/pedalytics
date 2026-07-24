@@ -9,7 +9,7 @@ const SUBTEKSTEN = {
   rust: "Je lichaam vraagt om rust — sla de training over.",
 };
 
-export default function GereedheidKaart({ balansScore, ctl, atl, tsb, paragraaf }) {
+export default function GereedheidKaart({ balansScore, ctl, atl, tsb, hrvChange, rustpols, paragraaf }) {
   const statusKey = getStatus(balansScore ?? 50);
   const st = STATUS[statusKey];
   const scoreVal = balansScore ?? 50;
@@ -43,16 +43,18 @@ export default function GereedheidKaart({ balansScore, ctl, atl, tsb, paragraaf 
 
       <p style={{ margin: "0 0 18px", font: "500 14.5px/1.55 var(--font-nunito), sans-serif", color: T.textSec }}>{paragraaf || SUBTEKSTEN[statusKey] || ""}</p>
 
-      {/* Form triplet — altijd zichtbaar */}
+      {/* Metric-rij — altijd zichtbaar */}
       <div style={{ display: "flex", borderTop: `1px solid ${T.divider}`, paddingTop: 16 }}>
         {[
           { label: "Fitheid", value: ctl ?? "—" },
           { label: "Vermoeidheid", value: atl ?? "—" },
           { label: "Vorm", value: tsb != null ? (tsb > 0 ? `+${tsb}` : tsb) : "—", color: st.color },
+          { label: "HRV", value: hrvChange != null ? `${hrvChange > 0 ? "+" : ""}${hrvChange}%` : "—", color: hrvChange > 0 ? st.color : undefined },
+          { label: "Rustpols", value: rustpols ?? "—" },
         ].map((m, i) => (
-          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3, paddingLeft: i > 0 ? 16 : 0, borderLeft: i > 0 ? `1px solid ${T.divider}` : "none" }}>
-            <span style={{ font: "700 24px var(--font-fredoka), sans-serif", letterSpacing: -0.5, lineHeight: 1, color: m.color || T.text }}>{m.value}</span>
-            <span style={{ font: "600 12px var(--font-nunito), sans-serif", color: T.textSec }}>{m.label}</span>
+          <div key={i} style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3, paddingLeft: i > 0 ? 12 : 0, borderLeft: i > 0 ? `1px solid ${T.divider}` : "none" }}>
+            <span style={{ font: "700 20px var(--font-fredoka), sans-serif", letterSpacing: -0.4, lineHeight: 1, color: m.color || T.text }}>{m.value}</span>
+            <span style={{ font: "600 11px var(--font-nunito), sans-serif", color: T.textSec }}>{m.label}</span>
           </div>
         ))}
       </div>
